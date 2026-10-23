@@ -7,18 +7,24 @@
 //! calls are serialized; future crypt wrappers must use the same internal
 //! lock. Raw C calls must exclude concurrent initialization/crypt accesses.
 
-use super::aes::{CryptError, Direction, buffer_count};
-use super::{ffi, mem::Heap};
 use core::ptr::NonNull;
-use ffibox::{CBox, CDrop, define_ctype};
 use std::sync::{Mutex, MutexGuard};
+
+use ffibox::{CBox, CDrop, define_ctype};
+
+use super::aes::{CryptError, Direction, buffer_count};
+use super::ffi;
+use super::mem::Heap;
 
 define_ctype!(
     /// Wraps: AVCAMELLIA
     ///
     /// Opaque C context, constructed only behind a pointer as [`CamelliaBox`].
     /// The bindgen layout is opaque: never allocate inline storage for C to use.
-    Camellia, CamelliaRef, CamelliaMut, ffi::AVCAMELLIA
+    Camellia,
+    CamelliaRef,
+    CamelliaMut,
+    ffi::AVCAMELLIA
 );
 
 /// A sole context allocated by `av_camellia_alloc` and freed by `av_free`.
@@ -38,7 +44,7 @@ pub type CamelliaBox = CBox<Camellia, CamelliaFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CamelliaFree;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: CamelliaBox adopts only `av_camellia_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Camellia> for CamelliaFree {
@@ -65,7 +71,7 @@ static C_ACCESS: Mutex<()> = Mutex::new(());
 pub(crate) fn lock_c_access() -> MutexGuard<'static, ()> {
     C_ACCESS
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn key_bits(key: &[u8]) -> Result<i32, InitError> {
@@ -78,26 +84,41 @@ fn key_bits(key: &[u8]) -> Result<i32, InitError> {
 }
 
 impl Camellia {
-    /// Wraps: av_camellia_alloc
+    /// Wraps: `av_camellia_alloc`
     ///
     /// Allocate and initialize a context. C copies the schedule, not the key
     /// pointer. No construction-phase storage is exposed to the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key that is not 16, 24 or 32 bytes, and
+    /// [`InitError::AllocationFailed`] when C cannot allocate the context.
     pub fn new(key: &[u8]) -> Result<CamelliaBox, InitError> {
         key_bits(key)?;
+        // SAFETY: as the comment below states, for this part of the operation.
+        let camellia_alloc = unsafe { ffi::av_camellia_alloc() };
         // SAFETY: C returns a fresh av_mallocz allocation of the concrete
         // context's full size, or NULL. All its scalar fields are initialized,
         // it owns no other resources, and CamelliaFree releases it with av_free.
-        let mut context = unsafe { CamelliaBox::from_c(ffi::av_camellia_alloc()) }
-            .ok_or(InitError::AllocationFailed)?;
+        let mut context =
+            unsafe { CamelliaBox::from_c(camellia_alloc) }.ok_or(InitError::AllocationFailed)?;
         context.as_mut().init(key)?;
         Ok(context)
     }
 }
 
 impl CamelliaMut<'_> {
-    /// Wraps: av_camellia_init
+    /// Wraps: `av_camellia_init`
     ///
     /// Replace the schedule. An invalid key leaves the context unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key that is not 16, 24 or 32 bytes.
+    ///
+    /// # Panics
+    ///
+    /// Only if C rejects a key length it accepts, which the check above validated.
     pub fn init(&mut self, key: &[u8]) -> Result<(), InitError> {
         let bits = key_bits(key)?;
         let _guard = lock_c_access();
@@ -110,9 +131,10 @@ impl CamelliaMut<'_> {
     }
 }
 
-/// Wraps: av_camellia_size
+/// Wraps: `av_camellia_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -120,11 +142,16 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl CamelliaRef<'_> {
-    /// Wraps: av_camellia_crypt
+    /// Wraps: `av_camellia_crypt`
     ///
     /// Encrypt or decrypt whole blocks.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
     /// Buffers must have equal lengths; errors leave all state unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -150,12 +177,17 @@ impl CamelliaRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 
     /// In-place form of [`Self::crypt`], with the same modes and validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -182,7 +214,7 @@ impl CamelliaRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }

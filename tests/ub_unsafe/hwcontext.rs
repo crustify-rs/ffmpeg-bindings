@@ -2,10 +2,31 @@
 //! `# Safety` contract, on the fake hardware frames context of
 //! `tests/common/hwframes.rs` (the campaign builds compile no hwcontext
 //! backend). Its transfers trust the software frame as CUDA's do, so a frame
-//! the wrapper failed to refuse is overrun under ASan.
+//! the wrapper failed to refuse is overrun under `ASan`.
+#![expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::default_trait_access,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwframes.rs"]
 mod hwframes;
 
@@ -21,18 +42,18 @@ mod fixture {
     use super::ffi;
     use super::hwframes::{self as fx, Behaviour, INERT, YUV, pattern};
 
-    pub const W: c_int = 16;
-    pub const H: c_int = 8;
+    pub(super) const W: c_int = 16;
+    pub(super) const H: c_int = 8;
 
     /// A fake context of YUV 4:2:0 surfaces at `W` x `H`.
-    pub fn context(behaviour: &'static Behaviour) -> BufferReferenceBox {
+    pub(super) fn context(behaviour: &'static Behaviour) -> BufferReferenceBox {
         // SAFETY: a fresh reference the fixture handed over; its bytes, the
         // zeroed context, are initialised.
         unsafe { BufferReferenceBox::from_c(fx::yuv_context(behaviour, W, H)) }.unwrap()
     }
 
     /// A fake context of a backend without transfers.
-    pub fn inert_context() -> BufferReferenceBox {
+    pub(super) fn inert_context() -> BufferReferenceBox {
         let buf = fx::new_context(
             &INERT,
             &YUV,
@@ -46,22 +67,24 @@ mod fixture {
     }
 
     /// A hardware frame of `ctx`, its surface holding `pattern(seed)`.
-    pub fn hw_frame(ctx: &BufferReferenceBox, seed: u8) -> FrameBox {
+    pub(super) fn hw_frame(ctx: &BufferReferenceBox, seed: u8) -> FrameBox {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let new_hw_frame_2 = unsafe { fx::new_hw_frame(ctx.as_c_ptr(), pattern(seed)) };
         // SAFETY: a live fake context; the fresh frame satisfies `Frame`'s
         // invariant: its context reference is one, and `data[3]` is the start
         // of `buf[0]`'s window.
-        unsafe { FrameBox::from_c(fx::new_hw_frame(ctx.as_c_ptr(), pattern(seed))) }.unwrap()
+        unsafe { FrameBox::from_c(new_hw_frame_2) }.unwrap()
     }
 
     /// The image of the surface of `frame`, a hardware frame of a fake
     /// context.
-    pub fn surface(frame: &FrameBox) -> Vec<u8> {
+    pub(super) fn surface(frame: &FrameBox) -> Vec<u8> {
         // SAFETY: frames from `hw_frame`.
         unsafe { fx::surface_image(frame.as_c_ptr()) }
     }
 
     /// A software frame of `format` at `w` x `h`, given zeroed buffers.
-    pub fn software(format: PixelFormat, w: c_int, h: c_int) -> FrameBox {
+    pub(super) fn software(format: PixelFormat, w: c_int, h: c_int) -> FrameBox {
         let mut f = Frame::new().unwrap();
         let mut m = f.as_mut();
         m.set_pixel_format(format);
@@ -72,7 +95,7 @@ mod fixture {
     }
 
     /// The `W` x `H` YUV 4:2:0 image of a software frame, row by row.
-    pub fn image(frame: &FrameBox) -> Vec<u8> {
+    pub(super) fn image(frame: &FrameBox) -> Vec<u8> {
         let r = frame.as_ref();
         let ls = r.linesizes();
         let mut out = Vec::new();
@@ -479,7 +502,7 @@ mod frame_mut_transfer_data_from {
         });
     }
 
-    /// BSan: C reads the source's planes through pointers Rust handed out
+    /// `BSan`: C reads the source's planes through pointers Rust handed out
     /// while a Rust view of them is alive.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -494,7 +517,7 @@ mod frame_mut_transfer_data_from {
         assert_eq!(surface(&hw)[..4], [1, 2, 3, 4]);
     }
 
-    /// BSan: Rust reborrows planes C has just written, between writes.
+    /// `BSan`: Rust reborrows planes C has just written, between writes.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn download_writes_then_rust_reads_and_writes_again() {
@@ -504,7 +527,7 @@ mod frame_mut_transfer_data_from {
         let mut sw = software(PixelFormat::YUV420P, W, H);
         transfer(&mut sw, &a).unwrap();
         let first = sw.as_ref().plane(0).unwrap()[..W as usize].to_vec();
-        sw.as_mut().plane_mut(0).unwrap()[0] ^= 0xff;
+        sw.as_mut().plane_mut(0).unwrap()[0] ^= 0xFF;
         transfer(&mut sw, &b).unwrap();
         let second = sw.as_ref().plane(0).unwrap()[..W as usize].to_vec();
         assert_eq!(first[..], surface(&a)[..W as usize]);
@@ -513,6 +536,10 @@ mod frame_mut_transfer_data_from {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwdevice.rs"]
 mod hwdevice;
 
@@ -586,7 +613,7 @@ mod device_context {
     impl CReference {
         fn release(mut self) {
             // SAFETY: a reference C owns, released once.
-            unsafe { ffi::av_buffer_unref(&mut self.0) };
+            unsafe { ffi::av_buffer_unref(&raw mut self.0) };
         }
     }
 
@@ -641,7 +668,7 @@ mod device_context {
             let raw = hwdevice::fake_device();
             // SAFETY: the only reference to a fresh fake context; `freed`
             // outlives it.
-            unsafe { hwdevice::set_foreign_free(raw, &freed) };
+            unsafe { hwdevice::set_foreign_free(raw, &raw const freed) };
             // SAFETY: an uninitialised fake context whose hooks a backend set,
             // as the contract allows.
             let mut u = unsafe { UninitDevice::from_c(raw) }.unwrap();
@@ -890,6 +917,10 @@ mod device_context {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwbackend.rs"]
 mod hwbackend;
 
@@ -916,7 +947,9 @@ mod frames_context {
     use std::sync::{Arc, Mutex};
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{
+        BufferPool, BufferPoolBox, BufferReference,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesReferenceBox, UninitFrames,
@@ -979,7 +1012,7 @@ mod frames_context {
     impl CReference {
         fn release(mut self) {
             // SAFETY: a reference C owns, released once.
-            unsafe { ffi::av_buffer_unref(&mut self.0) };
+            unsafe { ffi::av_buffer_unref(&raw mut self.0) };
         }
     }
 

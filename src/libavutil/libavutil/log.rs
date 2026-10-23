@@ -41,7 +41,7 @@ use super::avstring::text_until_nul;
 use super::ffi;
 use super::opt::{ObjectRef, OptionDef};
 
-/// Wraps: AVClassCategory
+/// Wraps: `AVClassCategory`
 /// Handwritten
 ///
 /// The category an `AVClass` reports for visualization (the log colour).
@@ -56,30 +56,37 @@ use super::opt::{ObjectRef, OptionDef};
 pub struct ClassCategory(ffi::AVClassCategory);
 
 impl ClassCategory {
-    pub const NA: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA);
-    pub const INPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_INPUT);
-    pub const OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_OUTPUT);
-    pub const MUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER);
-    pub const DEMUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER);
-    pub const ENCODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER);
-    pub const DECODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER);
-    pub const FILTER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER);
+    /// `AV_CLASS_CATEGORY_BITSTREAM_FILTER`.
     pub const BITSTREAM_FILTER: Self =
         Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_BITSTREAM_FILTER);
-    pub const SWSCALER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWSCALER);
-    pub const SWRESAMPLER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWRESAMPLER);
-    pub const HWDEVICE: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_HWDEVICE);
-    pub const DEVICE_VIDEO_OUTPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT);
-    pub const DEVICE_VIDEO_INPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT);
-    pub const DEVICE_AUDIO_OUTPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT);
+    /// `AV_CLASS_CATEGORY_DECODER`.
+    pub const DECODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER);
+    /// `AV_CLASS_CATEGORY_DEMUXER`.
+    pub const DEMUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER);
+    /// `AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT`.
     pub const DEVICE_AUDIO_INPUT: Self =
         Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT);
-    pub const DEVICE_OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_OUTPUT);
+    /// `AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT`.
+    pub const DEVICE_AUDIO_OUTPUT: Self =
+        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT);
+    /// `AV_CLASS_CATEGORY_DEVICE_INPUT`.
     pub const DEVICE_INPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_INPUT);
-
+    /// `AV_CLASS_CATEGORY_DEVICE_OUTPUT`.
+    pub const DEVICE_OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_OUTPUT);
+    /// `AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT`.
+    pub const DEVICE_VIDEO_INPUT: Self =
+        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT);
+    /// `AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT`.
+    pub const DEVICE_VIDEO_OUTPUT: Self =
+        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT);
+    /// `AV_CLASS_CATEGORY_ENCODER`.
+    pub const ENCODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER);
+    /// `AV_CLASS_CATEGORY_FILTER`.
+    pub const FILTER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER);
+    /// `AV_CLASS_CATEGORY_HWDEVICE`.
+    pub const HWDEVICE: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_HWDEVICE);
+    /// `AV_CLASS_CATEGORY_INPUT`.
+    pub const INPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_INPUT);
     /// Every named category with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 18] = [
         (Self::NA, "NA"),
@@ -101,20 +108,33 @@ impl ClassCategory {
         (Self::DEVICE_OUTPUT, "DEVICE_OUTPUT"),
         (Self::DEVICE_INPUT, "DEVICE_INPUT"),
     ];
+    /// `AV_CLASS_CATEGORY_MUXER`.
+    pub const MUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER);
+    /// `AV_CLASS_CATEGORY_NA`.
+    pub const NA: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA);
+    /// `AV_CLASS_CATEGORY_OUTPUT`.
+    pub const OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_OUTPUT);
+    /// `AV_CLASS_CATEGORY_SWRESAMPLER`.
+    pub const SWRESAMPLER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWRESAMPLER);
+    /// `AV_CLASS_CATEGORY_SWSCALER`.
+    pub const SWSCALER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWSCALER);
 
     /// The category with the raw value `value`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_value(value: c_uint) -> Self {
         Self(ffi::AVClassCategory(value))
     }
 
     /// The raw value C stores for this category.
     #[inline]
+    #[must_use]
     pub const fn value(self) -> c_uint {
         self.0.0
     }
 
     /// The name of this category's constant, or `None` for an unnamed value.
+    #[must_use]
     pub fn name(self) -> Option<&'static str> {
         Self::KNOWN
             .iter()
@@ -122,23 +142,25 @@ impl ClassCategory {
             .map(|&(_, name)| name)
     }
 
-    /// Wraps: AV_IS_INPUT_DEVICE
+    /// Wraps: `AV_IS_INPUT_DEVICE`
     ///
     /// Whether this is one of the input device categories:
     /// [`DEVICE_VIDEO_INPUT`](Self::DEVICE_VIDEO_INPUT),
     /// [`DEVICE_AUDIO_INPUT`](Self::DEVICE_AUDIO_INPUT) or
     /// [`DEVICE_INPUT`](Self::DEVICE_INPUT).
+    #[must_use]
     pub fn is_input_device(self) -> bool {
         // SAFETY: a plain value comparison; any category value is accepted.
         unsafe { ffi::crustify_AV_IS_INPUT_DEVICE(self.0) != 0 }
     }
 
-    /// Wraps: AV_IS_OUTPUT_DEVICE
+    /// Wraps: `AV_IS_OUTPUT_DEVICE`
     ///
     /// Whether this is one of the output device categories:
     /// [`DEVICE_VIDEO_OUTPUT`](Self::DEVICE_VIDEO_OUTPUT),
     /// [`DEVICE_AUDIO_OUTPUT`](Self::DEVICE_AUDIO_OUTPUT) or
     /// [`DEVICE_OUTPUT`](Self::DEVICE_OUTPUT).
+    #[must_use]
     pub fn is_output_device(self) -> bool {
         // SAFETY: a plain value comparison; any category value is accepted.
         unsafe { ffi::crustify_AV_IS_OUTPUT_DEVICE(self.0) != 0 }
@@ -175,7 +197,7 @@ impl From<ClassCategory> for ffi::AVClassCategory {
     }
 }
 
-/// Wraps: AVClassStateFlags
+/// Wraps: `AVClassStateFlags`
 /// Handwritten
 ///
 /// A set of `AVClassStateFlags` bits, the state an object exposes through its
@@ -194,17 +216,18 @@ impl ClassStateFlags {
     /// Initialization has finished and the object is in its runtime stage, so
     /// only options flagged as runtime parameters can still be set on it.
     pub const INITIALIZED: Self = Self(ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED);
-
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 1] = [(Self::INITIALIZED, "INITIALIZED")];
 
     /// The set with no flag.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self::from_bits_retain(0)
     }
 
     /// The set of every named flag.
+    #[must_use]
     pub const fn all() -> Self {
         let mut bits = 0;
         let mut i = 0;
@@ -217,18 +240,21 @@ impl ClassStateFlags {
 
     /// The set's raw bits, as C stores them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> c_uint {
         self.0.0
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: c_uint) -> Self {
         Self(ffi::AVClassStateFlags(bits))
     }
 
     /// The set with `bits`, or `None` when a bit has no constant.
     #[inline]
+    #[must_use]
     pub const fn from_bits(bits: c_uint) -> Option<Self> {
         if bits & !Self::all().bits() == 0 {
             Some(Self::from_bits_retain(bits))
@@ -239,24 +265,28 @@ impl ClassStateFlags {
 
     /// The named flags among `bits`, the others dropped.
     #[inline]
+    #[must_use]
     pub const fn from_bits_truncate(bits: c_uint) -> Self {
         Self::from_bits_retain(bits & Self::all().bits())
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.bits() == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.bits() & other.bits() == other.bits()
     }
 
     /// Whether `self` and `other` share a bit.
     #[inline]
+    #[must_use]
     pub const fn intersects(self, other: Self) -> bool {
         self.bits() & other.bits() != 0
     }
@@ -277,9 +307,9 @@ impl ClassStateFlags {
     #[inline]
     pub fn set(&mut self, other: Self, value: bool) {
         if value {
-            self.insert(other)
+            self.insert(other);
         } else {
-            self.remove(other)
+            self.remove(other);
         }
     }
 }
@@ -432,7 +462,8 @@ unsafe impl Sync for ClassMut<'_> {}
 /// version a class records it was built against.
 const VERSION_INT: c_int = ((ffi::LIBAVUTIL_VERSION_MAJOR << 16)
     | (ffi::LIBAVUTIL_VERSION_MINOR << 8)
-    | ffi::LIBAVUTIL_VERSION_MICRO) as c_int;
+    | ffi::LIBAVUTIL_VERSION_MICRO)
+    .cast_signed();
 
 impl Class {
     /// A class named `name`, of `category`, for a Rust object that logs as
@@ -448,6 +479,7 @@ impl Class {
     /// static CLASS: Class = Class::new(c"MyContext", ClassCategory::FILTER);
     /// assert_eq!(CLASS.as_ref().name(), Some(c"MyContext"));
     /// ```
+    #[must_use]
     pub const fn new(name: &'static CStr, category: ClassCategory) -> Self {
         Self(
             ffi::AVClass {
@@ -470,49 +502,66 @@ impl Class {
 
     /// The class as the `const AVClass *` an object's first member holds,
     /// for an object of this class handed to C as a logging context.
+    #[must_use]
     pub fn as_c_ptr(&self) -> *const ffi::AVClass {
         (&raw const *self).cast()
     }
 }
 
 impl<'a> ClassRef<'a> {
-    /// Field: AVClass.class_name
+    /// Field: `AVClass.class_name`
     ///
     /// The class's name, usually its context structure's (`"AVCodecContext"`);
     /// `None` when it has none.
+    #[must_use]
     pub fn name(&self) -> Option<&'a CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `class_name` field is in bounds; nothing is accessed here.
+        let class_name_ptr = unsafe { addr_of!((*self.as_ptr()).class_name) };
         // SAFETY: a read of a projected field through the shared handle.
-        let name = unsafe { addr_of!((*self.as_ptr()).class_name).read() };
+        let name = unsafe { class_name_ptr.read() };
         // SAFETY: a well-formed class's name is NULL or a NUL-terminated
         // string that lives, unwritten, as long as the class (`'a`).
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Field: AVClass.item_name
+    /// Field: `AVClass.item_name`
     ///
     /// The callback naming an object of the class, which logging calls
     /// (falling back to `av_default_item_name` when it is `None`).
     pub fn item_name(&self) -> Option<ItemNameFn> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `item_name` field is in bounds; nothing is accessed here.
+        let item_name_ptr = unsafe { addr_of!((*self.as_ptr()).item_name) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).item_name).read() }.map(ItemNameFn)
+        unsafe { item_name_ptr.read() }.map(ItemNameFn)
     }
 
     /// Field: AVClass.option
     ///
     /// The class's options, the entries of its table before the terminating
     /// one; empty for a class without options.
+    #[must_use]
     pub fn options(&self) -> CSlice<'a, OptionDef> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `option` field is in bounds; nothing is accessed here.
+        let option_ptr = unsafe { addr_of!((*self.as_ptr()).option) };
         // SAFETY: a read of a projected field through the shared handle.
-        let table = unsafe { addr_of!((*self.as_ptr()).option).read() };
+        let table = unsafe { option_ptr.read() };
         let Some(first) = NonNull::new(table.cast_mut()) else {
             // SAFETY: an empty run reads nothing; a dangling pointer is
             // aligned and non-NULL.
             return unsafe { CSlice::from_raw_parts(NonNull::dangling(), 0) };
         };
         let mut len = 0;
-        // SAFETY: a well-formed class's table ends with an entry whose name
-        // is NULL, so every entry up to it is in bounds; only names are read.
-        while !unsafe { addr_of!((*table.add(len)).name).read() }.is_null() {
+        loop {
+            // SAFETY: a well-formed class's table ends with an entry whose name is NULL, and
+            // `len` has not passed it, so the entry is in bounds.
+            let entry = unsafe { table.add(len) };
+            // SAFETY: as above; only the entry's name is read.
+            if unsafe { (*entry).name }.is_null() {
+                break;
+            }
             len += 1;
         }
         // SAFETY: the table holds `len` initialised options before its
@@ -527,93 +576,131 @@ impl<'a> ClassRef<'a> {
     /// `AV_VERSION_INT(major, minor, micro)`, which C compares before reading
     /// some members (the log level offset needs 50.15.2, the category
     /// callback 51.56.0).
+    #[must_use]
     pub fn version(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `version` field is in bounds; nothing is accessed here.
+        let version_ptr = unsafe { addr_of!((*self.as_ptr()).version) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).version).read() }
+        unsafe { version_ptr.read() }
     }
 
-    /// Field: AVClass.log_level_offset_offset
+    /// Field: `AVClass.log_level_offset_offset`
     ///
     /// The byte offset, in an object of the class, of the `int` added to the
     /// level of every message at or above `AV_LOG_FATAL` it logs; `None`
     /// when objects have none.
+    #[must_use]
     pub fn log_level_offset_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `log_level_offset_offset` field is in bounds; nothing is accessed
+        // here.
+        let log_level_offset_offset_ptr =
+            unsafe { addr_of!((*self.as_ptr()).log_level_offset_offset) };
         // SAFETY: a read of a projected field through the shared handle.
-        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).log_level_offset_offset).read() })
+        NonZeroI32::new(unsafe { log_level_offset_offset_ptr.read() })
     }
 
-    /// Field: AVClass.parent_log_context_offset
+    /// Field: `AVClass.parent_log_context_offset`
     ///
     /// The byte offset, in an object of the class, of a pointer to the
     /// parent context the default log callback prints before it; `None`
     /// when objects have none.
+    #[must_use]
     pub fn parent_log_context_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `parent_log_context_offset` field is in bounds; nothing is accessed
+        // here.
+        let parent_log_context_offset_ptr =
+            unsafe { addr_of!((*self.as_ptr()).parent_log_context_offset) };
         // SAFETY: a read of a projected field through the shared handle.
-        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).parent_log_context_offset).read() })
+        NonZeroI32::new(unsafe { parent_log_context_offset_ptr.read() })
     }
 
     /// Field: AVClass.category
     ///
     /// The category of every object of the class, used when it has no
     /// [`get_category`](Self::get_category) callback.
+    #[must_use]
     pub fn category(&self) -> ClassCategory {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `category` field is in bounds; nothing is accessed here.
+        let category_ptr = unsafe { addr_of!((*self.as_ptr()).category) };
         // SAFETY: a read of a projected field through the shared handle;
         // every `c_uint` is a valid `AVClassCategory`.
-        ClassCategory(unsafe { addr_of!((*self.as_ptr()).category).read() })
+        ClassCategory(unsafe { category_ptr.read() })
     }
 
-    /// Field: AVClass.get_category
+    /// Field: `AVClass.get_category`
     ///
     /// The callback returning an object's category, for a class whose objects
     /// differ.
     pub fn get_category(&self) -> Option<GetCategoryFn> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `get_category` field is in bounds; nothing is accessed here.
+        let get_category_ptr = unsafe { addr_of!((*self.as_ptr()).get_category) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).get_category).read() }.map(GetCategoryFn)
+        unsafe { get_category_ptr.read() }.map(GetCategoryFn)
     }
 
-    /// Field: AVClass.query_ranges
+    /// Field: `AVClass.query_ranges`
     ///
     /// The callback returning an option's allowed ranges, which
     /// `av_opt_query_ranges` prefers to the default query.
     pub fn query_ranges(&self) -> Option<QueryRangesFn> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `query_ranges` field is in bounds; nothing is accessed here.
+        let query_ranges_ptr = unsafe { addr_of!((*self.as_ptr()).query_ranges) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).query_ranges).read() }.map(QueryRangesFn)
+        unsafe { query_ranges_ptr.read() }.map(QueryRangesFn)
     }
 
-    /// Field: AVClass.child_next
+    /// Field: `AVClass.child_next`
     ///
     /// The callback iterating an object's `AVClass`-enabled children.
     pub fn child_next(&self) -> Option<ChildNextFn> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `child_next` field is in bounds; nothing is accessed here.
+        let child_next_ptr = unsafe { addr_of!((*self.as_ptr()).child_next) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).child_next).read() }.map(ChildNextFn)
+        unsafe { child_next_ptr.read() }.map(ChildNextFn)
     }
 
-    /// Field: AVClass.child_class_iterate
+    /// Field: `AVClass.child_class_iterate`
     ///
     /// The classes of the children an object of this class may have, as
     /// `av_opt_child_class_iterate` yields them; empty for a class without
     /// a `child_class_iterate` callback. Unlike
     /// [`child_next`](Self::child_next), this needs no object.
+    #[must_use]
     pub fn child_classes(&self) -> ChildClasses<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `child_class_iterate` field is in bounds; nothing is accessed here.
+        let child_class_iterate_ptr = unsafe { addr_of!((*self.as_ptr()).child_class_iterate) };
         ChildClasses {
             // SAFETY: a read of a projected field through the shared handle.
-            iterate: unsafe { addr_of!((*self.as_ptr()).child_class_iterate).read() },
+            iterate: unsafe { child_class_iterate_ptr.read() },
             state: ptr::null_mut(),
             _class: PhantomData,
         }
     }
 
-    /// Field: AVClass.state_flags_offset
+    /// Field: `AVClass.state_flags_offset`
     ///
     /// The byte offset, in an object of the class, of the `unsigned`
     /// [`ClassStateFlags`] the object updates; `None` when objects have none.
+    #[must_use]
     pub fn state_flags_offset(&self) -> Option<NonZeroI32> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `state_flags_offset` field is in bounds; nothing is accessed here.
+        let state_flags_offset_ptr = unsafe { addr_of!((*self.as_ptr()).state_flags_offset) };
         // SAFETY: a read of a projected field through the shared handle.
-        NonZeroI32::new(unsafe { addr_of!((*self.as_ptr()).state_flags_offset).read() })
+        NonZeroI32::new(unsafe { state_flags_offset_ptr.read() })
     }
 
     /// Whether `self` and `other` are the same class, as C compares classes:
     /// by address.
+    #[must_use]
     pub fn ptr_eq(self, other: ClassRef<'_>) -> bool {
         ptr::eq(self.as_ptr(), other.as_ptr())
     }
@@ -663,7 +750,7 @@ impl ItemNameFn {
     /// `item_name` is NULL, C's own default, needs no comparison.
     pub(crate) fn is_default(self) -> bool {
         let default: unsafe extern "C" fn(*mut c_void) -> *const c_char = ffi::av_default_item_name;
-        core::ptr::fn_addr_eq(self.0, default)
+        ptr::fn_addr_eq(self.0, default)
     }
 }
 
@@ -747,7 +834,7 @@ impl<'a> Iterator for ChildClasses<'a> {
         let iterate = self.iterate?;
         // SAFETY: a well-formed class's `child_class_iterate` takes the
         // opaque state it alone advanced from NULL, which `state` is.
-        let child = unsafe { iterate(&mut self.state) };
+        let child = unsafe { iterate(&raw mut self.state) };
         // SAFETY: the callback returns NULL or a well-formed class that lives
         // as long as the parent class (`'a`): every FFmpeg iterator returns a
         // `static const` class.
@@ -762,7 +849,7 @@ impl<'a> Iterator for ChildClasses<'a> {
 
 impl core::iter::FusedIterator for ChildClasses<'_> {}
 
-/// The `va_list` parameter of a C log callback. On x86-64 SysV, the ABI the
+/// The `va_list` parameter of a C log callback. On x86-64 `SysV`, the ABI the
 /// bindings are generated for, a `va_list` is a one-element array of
 /// `__va_list_tag`, so a parameter receives a pointer to its element.
 type VaList = *mut ffi::__va_list_tag;
@@ -781,25 +868,14 @@ type VaList = *mut ffi::__va_list_tag;
 pub struct Level(c_int);
 
 impl Level {
-    /// Print no output.
-    pub const QUIET: Self = Self(ffi::AV_LOG_QUIET);
-    /// Something went really wrong and the program will crash now.
-    pub const PANIC: Self = Self(ffi::AV_LOG_PANIC as c_int);
-    /// Something went wrong and recovery is not possible.
-    pub const FATAL: Self = Self(ffi::AV_LOG_FATAL as c_int);
-    /// Something went wrong and cannot losslessly be recovered.
-    pub const ERROR: Self = Self(ffi::AV_LOG_ERROR as c_int);
-    /// Something does not look correct, which may or may not cause problems.
-    pub const WARNING: Self = Self(ffi::AV_LOG_WARNING as c_int);
-    /// Standard information; the default [`level()`].
-    pub const INFO: Self = Self(ffi::AV_LOG_INFO as c_int);
-    /// Detailed information.
-    pub const VERBOSE: Self = Self(ffi::AV_LOG_VERBOSE as c_int);
     /// Information only useful to FFmpeg developers.
-    pub const DEBUG: Self = Self(ffi::AV_LOG_DEBUG as c_int);
-    /// Extremely verbose debugging, useful for FFmpeg development.
-    pub const TRACE: Self = Self(ffi::AV_LOG_TRACE as c_int);
-
+    pub const DEBUG: Self = Self(ffi::AV_LOG_DEBUG.cast_signed());
+    /// Something went wrong and cannot losslessly be recovered.
+    pub const ERROR: Self = Self(ffi::AV_LOG_ERROR.cast_signed());
+    /// Something went wrong and recovery is not possible.
+    pub const FATAL: Self = Self(ffi::AV_LOG_FATAL.cast_signed());
+    /// Standard information; the default [`level()`].
+    pub const INFO: Self = Self(ffi::AV_LOG_INFO.cast_signed());
     /// Every named level with its constant's name, most severe first.
     const KNOWN: [(Self, &'static str); 9] = [
         (Self::QUIET, "QUIET"),
@@ -812,20 +888,33 @@ impl Level {
         (Self::DEBUG, "DEBUG"),
         (Self::TRACE, "TRACE"),
     ];
+    /// Something went really wrong and the program will crash now.
+    pub const PANIC: Self = Self(ffi::AV_LOG_PANIC.cast_signed());
+    /// Print no output.
+    pub const QUIET: Self = Self(ffi::AV_LOG_QUIET);
+    /// Extremely verbose debugging, useful for FFmpeg development.
+    pub const TRACE: Self = Self(ffi::AV_LOG_TRACE.cast_signed());
+    /// Detailed information.
+    pub const VERBOSE: Self = Self(ffi::AV_LOG_VERBOSE.cast_signed());
+    /// Something does not look correct, which may or may not cause problems.
+    pub const WARNING: Self = Self(ffi::AV_LOG_WARNING.cast_signed());
 
     /// The level C passes as `raw`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: c_int) -> Self {
         Self(raw)
     }
 
     /// The `int` C takes for this level.
     #[inline]
+    #[must_use]
     pub const fn raw(self) -> c_int {
         self.0
     }
 
     /// The name of this level's constant, or `None` for an unnamed value.
+    #[must_use]
     pub fn name(self) -> Option<&'static str> {
         Self::KNOWN
             .iter()
@@ -852,15 +941,6 @@ impl fmt::Debug for Level {
 pub struct Flags(c_int);
 
 impl Flags {
-    /// Collapse repeated messages into a "Last message repeated" line.
-    pub const SKIP_REPEATED: Self = Self(ffi::AV_LOG_SKIP_REPEATED as c_int);
-    /// Print the level name in each message's prefix.
-    pub const PRINT_LEVEL: Self = Self(ffi::AV_LOG_PRINT_LEVEL as c_int);
-    /// Print the time of day before each message.
-    pub const PRINT_TIME: Self = Self(ffi::AV_LOG_PRINT_TIME as c_int);
-    /// Print the date and time before each message.
-    pub const PRINT_DATETIME: Self = Self(ffi::AV_LOG_PRINT_DATETIME as c_int);
-
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 4] = [
         (Self::SKIP_REPEATED, "SKIP_REPEATED"),
@@ -868,33 +948,46 @@ impl Flags {
         (Self::PRINT_TIME, "PRINT_TIME"),
         (Self::PRINT_DATETIME, "PRINT_DATETIME"),
     ];
+    /// Print the date and time before each message.
+    pub const PRINT_DATETIME: Self = Self(ffi::AV_LOG_PRINT_DATETIME.cast_signed());
+    /// Print the level name in each message's prefix.
+    pub const PRINT_LEVEL: Self = Self(ffi::AV_LOG_PRINT_LEVEL.cast_signed());
+    /// Print the time of day before each message.
+    pub const PRINT_TIME: Self = Self(ffi::AV_LOG_PRINT_TIME.cast_signed());
+    /// Collapse repeated messages into a "Last message repeated" line.
+    pub const SKIP_REPEATED: Self = Self(ffi::AV_LOG_SKIP_REPEATED.cast_signed());
 
     /// The set with no flag.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self(0)
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: c_int) -> Self {
         Self(bits)
     }
 
     /// The set's raw bits, as C stores them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> c_int {
         self.0
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -950,16 +1043,17 @@ impl BitAnd for Flags {
     }
 }
 
-/// Wraps: av_log_get_level
+/// Wraps: `av_log_get_level`
 ///
 /// The level above which the default callback drops messages, process-wide.
 /// C keeps it in a relaxed atomic.
+#[must_use]
 pub fn level() -> Level {
     // SAFETY: `av_log_get_level` takes nothing and loads an atomic.
     Level(unsafe { ffi::av_log_get_level() })
 }
 
-/// Wraps: av_log_set_level
+/// Wraps: `av_log_set_level`
 ///
 /// Sets the level above which the default callback drops messages,
 /// process-wide. Other callbacks receive every message whatever the level.
@@ -969,15 +1063,16 @@ pub fn set_level(level: Level) {
     unsafe { ffi::av_log_set_level(level.0) }
 }
 
-/// Wraps: av_log_get_flags
+/// Wraps: `av_log_get_flags`
 ///
 /// The flags shaping the default callback's output, process-wide.
+#[must_use]
 pub fn flags() -> Flags {
     // SAFETY: `av_log_get_flags` takes nothing and loads an atomic.
     Flags(unsafe { ffi::av_log_get_flags() })
 }
 
-/// Wraps: av_log_set_flags
+/// Wraps: `av_log_set_flags`
 ///
 /// Sets the flags shaping the default callback's output, process-wide.
 pub fn set_flags(flags: Flags) {
@@ -986,7 +1081,7 @@ pub fn set_flags(flags: Flags) {
     unsafe { ffi::av_log_set_flags(flags.0) }
 }
 
-/// Wraps: av_vlog
+/// Wraps: `av_vlog`
 ///
 /// Sends `message` to the general log, with no context, at `level`. It goes
 /// to the installed log callback; the default one prints it to stderr when
@@ -1000,7 +1095,7 @@ pub fn log(level: Level, message: &CStr) {
     unsafe { ffi::crustify_av_vlog(ptr::null_mut(), level.0, c"%s".as_ptr(), message.as_ptr()) }
 }
 
-/// Wraps: av_vlog
+/// Wraps: `av_vlog`
 ///
 /// Sends `message` to the log at `level` in the context of `obj`, as
 /// [`log`] does without one. When `obj`'s class is recent enough (version
@@ -1049,18 +1144,15 @@ fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
     if class.version() < (50 << 16 | 15 << 8 | 2) || level < Level::FATAL {
         return false;
     }
+    // SAFETY: as the comment below states, for this part of the operation.
+    let obj_2 = unsafe { obj.as_ptr().byte_offset(offset.get() as isize) };
     // SAFETY: the handle's contract makes the offset address an aligned
     // `int` of the live object, which nothing writes during the borrow.
-    let shift = unsafe {
-        obj.as_ptr()
-            .byte_offset(offset.get() as isize)
-            .cast::<c_int>()
-            .read()
-    };
+    let shift = unsafe { obj_2.cast::<c_int>().read() };
     level.0.checked_add(shift).is_none()
 }
 
-/// Wraps: av_log
+/// Wraps: `av_log`
 ///
 /// Sends the text `args` formats to the general log at `level`, as [`log`]
 /// sends a string: Rust formats the text, and C receives it with a `"%s"`
@@ -1078,7 +1170,7 @@ pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
     unsafe { ffi::av_log(ptr::null_mut(), level.0, c"%s".as_ptr(), text.as_ptr()) }
 }
 
-/// Wraps: av_log
+/// Wraps: `av_log`
 ///
 /// [`log_fmt`] with a logging context, as [`log_with_context`] sends a
 /// string with one.
@@ -1093,7 +1185,7 @@ pub fn log_fmt_with_context(obj: ObjectRef<'_>, level: Level, args: fmt::Argumen
     unsafe { ffi::av_log(obj.as_ptr(), level.0, c"%s".as_ptr(), text.as_ptr()) }
 }
 
-/// Wraps: av_log_once
+/// Wraps: `av_log_once`
 ///
 /// Sends `message` as [`log`] does, at `initial_level` while `state` is
 /// `false` and at `subsequent_level` once it is `true`, then sets `state`.
@@ -1109,15 +1201,15 @@ pub fn log_once(initial_level: Level, subsequent_level: Level, state: &mut bool,
             ptr::null_mut(),
             initial_level.0,
             subsequent_level.0,
-            &mut c_state,
+            &raw mut c_state,
             c"%s".as_ptr(),
             message.as_ptr(),
-        )
+        );
     }
     *state = c_state != 0;
 }
 
-/// Wraps: av_log_once
+/// Wraps: `av_log_once`
 ///
 /// [`log_once`] with a logging context, as [`log_with_context`], which
 /// drops the message, but still sets `state`, when its level would
@@ -1149,10 +1241,10 @@ pub fn log_once_with_context(
             obj.as_ptr(),
             initial_level.0,
             subsequent_level.0,
-            &mut c_state,
+            &raw mut c_state,
             c"%s".as_ptr(),
             message.as_ptr(),
-        )
+        );
     }
     *state = c_state != 0;
 }
@@ -1168,6 +1260,7 @@ pub fn log_once_with_context(
 ///
 /// ```
 /// use std::sync::atomic::{AtomicUsize, Ordering};
+///
 /// use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Level, Record};
 ///
 /// static ERRORS: AtomicUsize = AtomicUsize::new(0);
@@ -1233,6 +1326,7 @@ pub struct Record<'a> {
 impl Record<'_> {
     /// The message's level, as the callback received it: shifted by the
     /// context's level offset, if any, and with any colour tint.
+    #[must_use]
     pub fn level(&self) -> Level {
         Level(self.level)
     }
@@ -1240,11 +1334,12 @@ impl Record<'_> {
     /// The `AVClass`-enabled object the message was logged with, or NULL for
     /// the general log. Raw until the types that carry an `AVClass` are
     /// wrapped; it is live while the callback runs.
+    #[must_use]
     pub fn context(&self) -> *mut c_void {
         self.context
     }
 
-    /// A private copy of the arguments for one C call: on x86-64 SysV,
+    /// A private copy of the arguments for one C call: on x86-64 `SysV`,
     /// `va_copy` is a copy of the `__va_list_tag`, whose pointers address the
     /// logging call's frame, live while the callback runs.
     fn args(&self) -> ffi::__va_list_tag {
@@ -1254,7 +1349,7 @@ impl Record<'_> {
         unsafe { self.args.read() }
     }
 
-    /// Wraps: av_log_format_line2
+    /// Wraps: `av_log_format_line2`
     ///
     /// Formats the message as the default callback prints it, with the
     /// context's prefix when `print_prefix` is set, into `line`, truncated to
@@ -1277,17 +1372,17 @@ impl Record<'_> {
                 self.context,
                 self.level,
                 self.format,
-                &mut args,
+                &raw mut args,
                 ptr,
                 size,
-                &mut c_prefix,
+                &raw mut c_prefix,
             )
         };
         *print_prefix = c_prefix != 0;
         usize::try_from(ret).ok()
     }
 
-    /// Wraps: av_log_format_line
+    /// Wraps: `av_log_format_line`
     ///
     /// Formats the message into `line` as [`format_line`](Self::format_line)
     /// does, and returns the possibly truncated line it wrote; an empty
@@ -1302,11 +1397,11 @@ impl Record<'_> {
                 self.context,
                 self.level,
                 self.format,
-                &mut args,
+                &raw mut args,
                 ptr,
                 size,
-                &mut c_prefix,
-            )
+                &raw mut c_prefix,
+            );
         };
         *print_prefix = c_prefix != 0;
         if size == 0 {
@@ -1333,7 +1428,7 @@ impl Record<'_> {
         CString::new(line).ok()
     }
 
-    /// Wraps: av_log_default_callback
+    /// Wraps: `av_log_default_callback`
     ///
     /// Hands the message to FFmpeg's default callback: printed to stderr when
     /// its level is at most [`level()`], prefixed, coloured and collapsed
@@ -1343,7 +1438,9 @@ impl Record<'_> {
         // SAFETY: the record's context, format and arguments are those C
         // passed the callback, valid for the default callback while it runs;
         // `args` is a private copy.
-        unsafe { ffi::av_log_default_callback(self.context, self.level, self.format, &mut args) }
+        unsafe {
+            ffi::av_log_default_callback(self.context, self.level, self.format, &raw mut args);
+        }
     }
 }
 
@@ -1351,6 +1448,7 @@ impl<'a> Record<'a> {
     /// The class of the message's context: the `const AVClass *` the
     /// context's first member holds; `None` for the general log, or a
     /// context whose class pointer is NULL. Borrowed for the callback.
+    #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
         if self.context.is_null() {
             return None;
@@ -1408,7 +1506,7 @@ unsafe extern "C" fn trampoline<C: Callback>(
     });
 }
 
-/// Wraps: av_log_set_callback
+/// Wraps: `av_log_set_callback`
 ///
 /// Installs the [`Callback`] `C` as the process-wide log callback, in place
 /// of the current one. Messages being handled by the previous callback on
@@ -1419,7 +1517,7 @@ pub fn set_callback<C: Callback>() {
     unsafe { ffi::av_log_set_callback(Some(trampoline::<C>)) }
 }
 
-/// Wraps: av_log_set_callback
+/// Wraps: `av_log_set_callback`
 ///
 /// Installs FFmpeg's default callback, which prints to stderr, as the
 /// process-wide log callback: the initial one.
@@ -1428,7 +1526,7 @@ pub fn set_default_callback() {
     unsafe { ffi::av_log_set_callback(Some(ffi::av_log_default_callback)) }
 }
 
-/// Wraps: av_log_set_callback
+/// Wraps: `av_log_set_callback`
 ///
 /// Removes the log callback, process-wide: every message is dropped.
 pub fn clear_callback() {
@@ -1436,13 +1534,14 @@ pub fn clear_callback() {
     unsafe { ffi::av_log_set_callback(None) }
 }
 
-/// Wraps: av_default_item_name
+/// Wraps: `av_default_item_name`
 ///
 /// The `class_name` of the class of the object `ctx`: the name `av_log`
 /// prints for an object whose class has no `item_name` callback. `None` when
 /// the class stores NULL there. It lives as long as the class, which
 /// outlives the borrow.
-pub fn default_item_name<'a>(ctx: ObjectRef<'a>) -> Option<&'a CStr> {
+#[must_use]
+pub fn default_item_name(ctx: ObjectRef<'_>) -> Option<&CStr> {
     // SAFETY: the handle's contract makes `ctx` a live object whose first
     // member is an aligned, non-NULL pointer to a live class, neither written
     // during the borrow; `av_default_item_name` only reads both.
@@ -1452,11 +1551,12 @@ pub fn default_item_name<'a>(ctx: ObjectRef<'a>) -> Option<&'a CStr> {
     (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
 }
 
-/// Wraps: av_default_get_category
+/// Wraps: `av_default_get_category`
 ///
 /// The `category` of the class of the object `ctx`: the category `av_log`
 /// colours a message by when the class has no `get_category` callback. Any
 /// value the class stores is returned, named or not.
+#[must_use]
 pub fn default_category(ctx: ObjectRef<'_>) -> ClassCategory {
     // SAFETY: as in `default_item_name`; `av_default_get_category` only
     // reads the class pointer and the class's `category`, and returns the
@@ -1465,14 +1565,24 @@ pub fn default_category(ctx: ObjectRef<'_>) -> ClassCategory {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::items_after_statements,
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::decimal_bitwise_operands,
+    reason = "constants as the C sources and specifications spell them"
+)]
 mod unit_tests {
-    use super::*;
     use core::mem::{align_of, size_of};
+
+    use super::*;
 
     /// A class named `name`, every other member zero.
     fn class(name: Option<&'static CStr>) -> ffi::AVClass {
         ffi::AVClass {
-            class_name: name.map_or(core::ptr::null(), CStr::as_ptr),
+            class_name: name.map_or(ptr::null(), CStr::as_ptr),
             ..Default::default()
         }
     }
@@ -1481,7 +1591,7 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn default_item_name_reads_the_class_name() {
         let named = class(Some(c"unit-class"));
-        let mut obj: *const ffi::AVClass = &named;
+        let mut obj: *const ffi::AVClass = &raw const named;
         // SAFETY: `obj` is a live object starting with a non-NULL class
         // pointer to `named`, a named class with no options, callbacks or
         // offsets, which outlives the borrow.
@@ -1808,7 +1918,7 @@ mod unit_tests {
             let prefix_after = prefix;
             let mut fresh = true;
             let measured = record.format_line(&mut [], &mut fresh);
-            let mut buf = [0xaa_u8; 4];
+            let mut buf = [0xAA_u8; 4];
             let mut fresh = true;
             let short = record.write_line(&mut buf, &mut fresh).to_owned();
             assert!(format!("{record:?}").starts_with("Record { level: "));
@@ -1866,7 +1976,7 @@ mod unit_tests {
                 let mut prefix = true;
                 assert_eq!(record.write_line(&mut [], &mut prefix), c"");
                 assert!(prefix);
-                let mut one = [0xaa];
+                let mut one = [0xAA];
                 assert_eq!(record.write_line(&mut one, &mut prefix), c"");
                 assert!(prefix, "a line ending in a newline keeps the prefix");
             }
@@ -1898,7 +2008,7 @@ mod unit_tests {
             item_name: Some(flip_name),
             ..Default::default()
         };
-        let mut ctx: *const ffi::AVClass = &class;
+        let mut ctx: *const ffi::AVClass = &raw const class;
         let ctx_ptr = (&raw mut ctx).cast::<c_void>();
         // SAFETY: `ctx` starts with a pointer to `class`, which outlives the
         // borrow; its `item_name` returns static strings and does not log, and
@@ -1999,7 +2109,11 @@ mod unit_tests {
         let i = unsafe { state.read() }.addr();
         // SAFETY: as above.
         unsafe { state.write(ptr::without_provenance_mut(i + 1)) };
-        if i == 2 { ptr::null() } else { &CHILD_A.0 }
+        if i == 2 {
+            ptr::null()
+        } else {
+            &raw const CHILD_A.0
+        }
     }
 
     #[test]
@@ -2031,16 +2145,23 @@ mod unit_tests {
         assert_eq!(c.category(), ClassCategory::MUXER);
         let mut obj = 0_u8;
         let obj = (&raw mut obj).cast::<c_void>();
-        // SAFETY: the callbacks above accept any object and return statics.
-        unsafe {
-            assert_eq!(c.item_name().unwrap().call(obj), Some(c"item"));
-            assert_eq!(c.get_category().unwrap().call(obj), ClassCategory::DECODER);
+        // For the unsafe operations below: the callbacks above accept any object and return
+        // statics.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(c.item_name().unwrap().call(obj), Some(c"item")) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(c.get_category().unwrap().call(obj), ClassCategory::DECODER) };
             let next = c.child_next().unwrap();
-            assert_eq!(
-                next.call(obj, ptr::null_mut()).map(NonNull::as_ptr),
-                Some(obj)
-            );
-            assert_eq!(next.call(obj, obj), None);
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    next.call(obj, ptr::null_mut()).map(NonNull::as_ptr),
+                    Some(obj)
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(next.call(obj, obj), None) };
         }
         let names: Vec<_> = opt_fixture::OPTIONS
             .0
@@ -2109,7 +2230,7 @@ mod unit_tests {
                 category: category.into(),
                 ..Default::default()
             };
-            let mut obj: *const ffi::AVClass = &class;
+            let mut obj: *const ffi::AVClass = &raw const class;
             // SAFETY: `obj` starts with a pointer to the live `class`, named,
             // with no options, callbacks or offsets; nothing writes either.
             let ctx = unsafe { ObjectRef::from_ptr((&raw mut obj).cast()) }.unwrap();

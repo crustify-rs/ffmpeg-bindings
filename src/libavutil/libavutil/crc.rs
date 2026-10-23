@@ -4,7 +4,7 @@ use core::fmt;
 
 use super::ffi;
 
-/// Wraps: AVCRCId
+/// Wraps: `AVCRCId`
 /// Handwritten
 ///
 /// A standard CRC polynomial identifier, layout-compatible with C's enum.
@@ -17,29 +17,31 @@ use super::ffi;
 pub struct CrcId(ffi::AVCRCId);
 
 impl CrcId {
-    /// CRC-8, polynomial 0x07.
-    pub const ATM_8: Self = Self(ffi::AVCRCId::AV_CRC_8_ATM);
     /// CRC-16, polynomial 0x8005.
     pub const ANSI_16: Self = Self(ffi::AVCRCId::AV_CRC_16_ANSI);
+    /// CRC-16 with reversed bit order, polynomial 0xa001.
+    pub const ANSI_16_LE: Self = Self(ffi::AVCRCId::AV_CRC_16_ANSI_LE);
+    /// CRC-8, polynomial 0x07.
+    pub const ATM_8: Self = Self(ffi::AVCRCId::AV_CRC_8_ATM);
     /// CRC-16, polynomial 0x1021.
     pub const CCITT_16: Self = Self(ffi::AVCRCId::AV_CRC_16_CCITT);
+    /// CRC-8, polynomial 0x1d.
+    pub const EBU_8: Self = Self(ffi::AVCRCId::AV_CRC_8_EBU);
+    /// CRC-24, polynomial 0x864cfb.
+    pub const IEEE_24: Self = Self(ffi::AVCRCId::AV_CRC_24_IEEE);
     /// CRC-32, polynomial 0x04c11db7.
     pub const IEEE_32: Self = Self(ffi::AVCRCId::AV_CRC_32_IEEE);
     /// CRC-32 with reversed bit order, polynomial 0xedb88320.
     pub const IEEE_32_LE: Self = Self(ffi::AVCRCId::AV_CRC_32_IEEE_LE);
-    /// CRC-16 with reversed bit order, polynomial 0xa001.
-    pub const ANSI_16_LE: Self = Self(ffi::AVCRCId::AV_CRC_16_ANSI_LE);
-    /// CRC-24, polynomial 0x864cfb.
-    pub const IEEE_24: Self = Self(ffi::AVCRCId::AV_CRC_24_IEEE);
-    /// CRC-8, polynomial 0x1d.
-    pub const EBU_8: Self = Self(ffi::AVCRCId::AV_CRC_8_EBU);
 
     /// Preserves any C encoding, including unsupported identifiers.
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVCRCId) -> Self {
         Self(raw)
     }
 
     /// The identifier's exact C encoding.
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVCRCId {
         self.0
     }
@@ -77,7 +79,9 @@ impl fmt::Debug for CrcId {
 /// The two array sizes accepted by C's CRC table initializer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TableSize {
+    /// 257 entries, the size C requires at least.
     Compact,
+    /// 1024 entries, the size of C's fast, unrolled table.
     Fast,
 }
 
@@ -90,11 +94,20 @@ pub struct Table {
 }
 
 impl Table {
-    /// Wraps: av_crc_init
+    /// Wraps: `av_crc_init`
     ///
     /// Initialize a CRC table for a polynomial of 8 through 32 bits. For
     /// little-endian bit order, the polynomial is in reversed representation.
     /// Return C's negative error for invalid bits or polynomial.
+    ///
+    /// # Errors
+    ///
+    /// Return C's negative error for invalid bits or polynomial.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "`len` is one of the two table sizes C accepts, a few hundred entries"
+    )]
     pub fn new(
         little_endian: bool,
         bits: u8,
@@ -128,14 +141,16 @@ impl Table {
 
     /// Read-only table words, including initialized but unused entries.
     /// Their representation is architecture-dependent.
+    #[must_use]
     pub fn entries(&self) -> &[u32] {
         &self.entries
     }
 
-    /// Wraps: av_crc
+    /// Wraps: `av_crc`
     ///
     /// Update a CRC from its previous value (or the polynomial's initial value).
     /// For non-little-endian tables C uses its documented byte-swapped form.
+    #[must_use]
     pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
         update(TableView::Owned(self), initial, input)
     }
@@ -153,10 +168,11 @@ pub struct StandardTable {
     id: CrcId,
 }
 
-/// Wraps: av_crc_get_table
+/// Wraps: `av_crc_get_table`
 ///
 /// Borrow a standard table. Unknown identifiers return `None`. C initializes
 /// generic tables under its once-control before returning; later uses are read-only.
+#[must_use]
 pub fn get_table(id: CrcId) -> Option<StandardTable> {
     // SAFETY: C validates every enum encoding and returns NULL for unsupported
     // values, or a fully initialized immutable table with static lifetime.
@@ -166,6 +182,7 @@ pub fn get_table(id: CrcId) -> Option<StandardTable> {
 
 impl StandardTable {
     /// Update through the borrowed standard table, without changing it.
+    #[must_use]
     pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
         update(TableView::Standard(self), initial, input)
     }
@@ -176,6 +193,10 @@ enum TableView<'a> {
     Standard(&'a StandardTable),
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "the value is consumed as C consumes it"
+)]
 fn update(view: TableView<'_>, initial: u32, input: &[u8]) -> u32 {
     let table = match view {
         TableView::Owned(table) => table.entries.as_ptr(),
@@ -191,10 +212,13 @@ fn update(view: TableView<'_>, initial: u32, input: &[u8]) -> u32 {
     if input.len() < 3 {
         let mut padded = [0u8; 8];
         padded[3..3 + input.len()].copy_from_slice(input);
+        // SAFETY: `3` is within the block `padded.as_ptr()` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let elem = unsafe { padded.as_ptr().add(3) };
         // SAFETY: the view supplies a live, initialized immutable C table.
         // Input lives at offset 3 in an 8-byte allocation, so C's pointer
         // arithmetic is in bounds, and it reads only input.len() bytes.
-        unsafe { ffi::av_crc(table, initial, padded.as_ptr().add(3), input.len()) }
+        unsafe { ffi::av_crc(table, initial, elem, input.len()) }
     } else {
         // SAFETY: the view keeps an initialized, unmodified table alive; the input is
         // readable for its length, and `end - 3` remains in bounds.
@@ -204,6 +228,10 @@ fn update(view: TableView<'_>, initial: u32, input: &[u8]) -> u32 {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 mod unit_tests {
     use super::*;
 
@@ -262,7 +290,7 @@ mod unit_tests {
         assert_eq!(size, TableSize::Fast);
         assert_ne!(size, TableSize::Compact);
         assert_eq!(format!("{size:?}"), "Fast");
-        let table = Table::new(true, 32, 0xedb88320, size).unwrap();
+        let table = Table::new(true, 32, 0xEDB88320, size).unwrap();
         let clone = table.clone();
         assert_eq!(table.entries(), clone.entries());
         assert!(format!("{clone:?}").starts_with("Table { entries:"));

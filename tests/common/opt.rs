@@ -2,88 +2,98 @@
 //! shared by the `opt` suites: the crate's unit tests and the `equiv` and
 //! `ub_unsafe` integration tests include it with `#[path]`, after bringing the
 //! `-sys` crate into scope as `ffi`.
-#![allow(dead_code)]
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use core::mem::{offset_of, size_of};
 use core::ptr::null;
 
-use super::ffi;
 use ffi::AVOptionType as T;
+
+use super::ffi;
 
 /// The object [`CLASS`] describes; its fields hold the option values.
 #[repr(C)]
-pub struct Ctx {
-    pub class: *const ffi::AVClass,
-    pub int: c_int,
-    pub int64: i64,
-    pub uint64: u64,
-    pub dbl: f64,
-    pub flt: f32,
-    pub string: *mut c_char,
-    pub q: ffi::AVRational,
-    pub boolean: c_int,
-    pub flags: c_int,
-    pub size: [c_int; 2],
-    pub rate: ffi::AVRational,
-    pub color: [u8; 4],
-    pub duration: i64,
-    pub binary: *mut u8,
-    pub binary_len: c_int,
-    pub dict: *mut c_void,
-    pub array: *mut c_int,
-    pub array_len: c_uint,
-    pub empty_array: *mut c_int,
-    pub empty_array_len: c_uint,
-    pub bare: c_int,
-    pub nostr: *mut c_char,
-    pub bogus: c_int,
+pub(crate) struct Ctx {
+    pub(crate) class: *const ffi::AVClass,
+    pub(crate) int: c_int,
+    pub(crate) int64: i64,
+    pub(crate) uint64: u64,
+    pub(crate) dbl: f64,
+    pub(crate) flt: f32,
+    pub(crate) string: *mut c_char,
+    pub(crate) q: ffi::AVRational,
+    pub(crate) boolean: c_int,
+    pub(crate) flags: c_int,
+    pub(crate) size: [c_int; 2],
+    pub(crate) rate: ffi::AVRational,
+    pub(crate) color: [u8; 4],
+    pub(crate) duration: i64,
+    pub(crate) binary: *mut u8,
+    pub(crate) binary_len: c_int,
+    pub(crate) dict: *mut c_void,
+    pub(crate) array: *mut c_int,
+    pub(crate) array_len: c_uint,
+    pub(crate) empty_array: *mut c_int,
+    pub(crate) empty_array_len: c_uint,
+    pub(crate) bare: c_int,
+    pub(crate) nostr: *mut c_char,
+    pub(crate) bogus: c_int,
 }
 
 impl Ctx {
     /// An object of `class` with every option zeroed, as `av_opt_set_defaults`
     /// expects it.
-    pub fn new(class: &'static Class) -> Self {
+    pub(crate) fn new(class: &'static Class) -> Self {
         // SAFETY: every field is an integer, a float or a raw pointer, for
         // which all-zero is a valid value.
         let mut ctx: Self = unsafe { core::mem::zeroed() };
-        ctx.class = &class.0;
+        ctx.class = &raw const class.0;
         ctx
     }
 
     /// `self` as the `void *` the `av_opt_*` routines take.
-    pub fn as_obj(&mut self) -> *mut c_void {
-        (self as *mut Self).cast()
+    pub(crate) fn as_obj(&mut self) -> *mut c_void {
+        std::ptr::from_mut::<Self>(self).cast()
     }
 }
 
 /// An option table, `Sync` to live in a `static`.
-pub struct Table<const N: usize>(pub [ffi::AVOption; N]);
+pub(crate) struct Table<const N: usize>(pub [ffi::AVOption; N]);
 // SAFETY: the table is immutable and its pointers address immutable statics.
 unsafe impl<const N: usize> Sync for Table<N> {}
 
 /// A class, `Sync` to live in a `static`.
-pub struct Class(pub ffi::AVClass);
+pub(crate) struct Class(pub ffi::AVClass);
 // SAFETY: as for `Table`.
 unsafe impl Sync for Class {}
 
 /// A `const AVClass *`, `Sync` to live in a `static`: the fake object
 /// `AV_OPT_SEARCH_FAKE_OBJ` queries take.
-pub struct FakeObj(pub *const ffi::AVClass);
+pub(crate) struct FakeObj(pub *const ffi::AVClass);
 // SAFETY: as for `Table`.
 unsafe impl Sync for FakeObj {}
 
 impl FakeObj {
     /// `self` as the `void *` the `av_opt_*` routines take with
     /// `AV_OPT_SEARCH_FAKE_OBJ`; they only read it.
-    pub fn as_obj(&'static self) -> *mut c_void {
-        (self as *const Self).cast_mut().cast()
+    pub(crate) fn as_obj(&'static self) -> *mut c_void {
+        std::ptr::from_ref::<Self>(self).cast_mut().cast()
     }
 }
 
 /// One option: `name`, `help`, the value at `offset`, of type `ty`, defaulting
 /// to `default`, within `[min, max]`.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "mirrors the arguments of the C routine it stands for"
+)]
 const fn opt(
     name: *const c_char,
     help: *const c_char,
@@ -110,7 +120,7 @@ const fn opt(
 /// A flag on the options whose defaults C builds by growing an `av_realloc`
 /// block (`dict`, `array`), so that suites can select them apart from the
 /// scalar defaults with `av_opt_set_defaults2`.
-pub const GROWS: c_int = 1 << 30;
+pub(crate) const GROWS: c_int = 1 << 30;
 
 /// `o`, flagged [`GROWS`].
 const fn grows(mut o: ffi::AVOption) -> ffi::AVOption {
@@ -129,10 +139,10 @@ const fn str_(v: *const c_char) -> ffi::AVOption__bindgen_ty_1 {
 }
 
 /// The definition of the `array` option: two elements by default.
-pub struct ArrayDef(pub ffi::AVOptionArrayDef);
+pub(crate) struct ArrayDef(pub ffi::AVOptionArrayDef);
 // SAFETY: as for `Table`.
 unsafe impl Sync for ArrayDef {}
-pub static ARRAY_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+pub(crate) static ARRAY_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
     def: c"1,2".as_ptr(),
     size_min: 0,
     size_max: 0,
@@ -144,7 +154,7 @@ const MAX: f64 = i32::MAX as f64;
 /// The options of [`CLASS`], in `Ctx` order, then a named constant and the
 /// terminator.
 #[rustfmt::skip]
-pub static OPTIONS: Table<23> = Table([
+pub(crate) static OPTIONS: Table<23> = Table([
     opt(c"int".as_ptr(), c"an int".as_ptr(), offset_of!(Ctx, int), T::AV_OPT_TYPE_INT, int(7), -10.0, 100.0, c"mode".as_ptr()),
     opt(c"int64".as_ptr(), c"an int64".as_ptr(), offset_of!(Ctx, int64), T::AV_OPT_TYPE_INT64, int(-5_000_000_000), i64::MIN as f64, i64::MAX as f64, null()),
     opt(c"uint64".as_ptr(), c"a uint64".as_ptr(), offset_of!(Ctx, uint64), T::AV_OPT_TYPE_UINT64, int(42), 0.0, u64::MAX as f64, null()),
@@ -160,7 +170,7 @@ pub static OPTIONS: Table<23> = Table([
     opt(c"duration".as_ptr(), c"a duration".as_ptr(), offset_of!(Ctx, duration), T::AV_OPT_TYPE_DURATION, int(1_500_000), 0.0, i64::MAX as f64, null()),
     opt(c"binary".as_ptr(), c"some bytes".as_ptr(), offset_of!(Ctx, binary), T::AV_OPT_TYPE_BINARY, str_(c"0a0b".as_ptr()), 0.0, 0.0, null()),
     grows(opt(c"dict".as_ptr(), c"a dictionary".as_ptr(), offset_of!(Ctx, dict), T::AV_OPT_TYPE_DICT, str_(c"k=v".as_ptr()), 0.0, 0.0, null())),
-    grows(opt(c"array".as_ptr(), c"an int array".as_ptr(), offset_of!(Ctx, array), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &ARRAY_DEF.0 }, 0.0, 10.0, null())),
+    grows(opt(c"array".as_ptr(), c"an int array".as_ptr(), offset_of!(Ctx, array), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &raw const ARRAY_DEF.0 }, 0.0, 10.0, null())),
     opt(c"empty_array".as_ptr(), c"an array without a default".as_ptr(), offset_of!(Ctx, empty_array), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: null() }, 0.0, 10.0, null()),
     opt(c"bare".as_ptr(), null(), offset_of!(Ctx, bare), T::AV_OPT_TYPE_INT, int(0), 0.0, 1.0, null()),
     opt(c"nostr".as_ptr(), c"a string without a default".as_ptr(), offset_of!(Ctx, nostr), T::AV_OPT_TYPE_STRING, str_(null()), 0.0, 0.0, null()),
@@ -171,13 +181,13 @@ pub static OPTIONS: Table<23> = Table([
 ]);
 
 /// The class of [`Ctx`], with [`OPTIONS`] and no `query_ranges` callback.
-pub static CLASS: Class = Class(class(None));
+pub(crate) static CLASS: Class = Class(class(None));
 
 /// `CLASS` as a fake object.
-pub static FAKE: FakeObj = FakeObj(&CLASS.0);
+pub(crate) static FAKE: FakeObj = FakeObj(&raw const CLASS.0);
 
 /// [`CLASS`] with `query_ranges` set to `callback`.
-pub const fn class(
+pub(crate) const fn class(
     callback: Option<
         unsafe extern "C" fn(
             *mut *mut ffi::AVOptionRanges,
@@ -190,7 +200,7 @@ pub const fn class(
     ffi::AVClass {
         class_name: c"crustify-opt-test".as_ptr(),
         item_name: None,
-        option: &OPTIONS.0[0],
+        option: &raw const OPTIONS.0[0],
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
@@ -204,10 +214,10 @@ pub const fn class(
 }
 
 /// The number of option names [`OPTIONS`] holds before its terminator.
-pub const NAMED: usize = OPTIONS.0.len() - 1;
+pub(crate) const NAMED: usize = OPTIONS.0.len() - 1;
 
 /// Keys a range query succeeds for with the default ranges.
-pub const RANGED: [&core::ffi::CStr; 14] = [
+pub(crate) const RANGED: [&core::ffi::CStr; 14] = [
     c"int",
     c"int64",
     c"uint64",
@@ -226,7 +236,7 @@ pub const RANGED: [&core::ffi::CStr; 14] = [
 
 /// Keys a default range query rejects with `AVERROR(ENOSYS)`: types without
 /// ranges.
-pub const UNRANGED: [&core::ffi::CStr; 6] = [
+pub(crate) const UNRANGED: [&core::ffi::CStr; 6] = [
     c"flags",
     c"binary",
     c"dict",
@@ -237,16 +247,16 @@ pub const UNRANGED: [&core::ffi::CStr; 6] = [
 
 /// Keys a range query rejects with `AVERROR(ENOMEM)`: unknown names, and named
 /// constants, which a lookup without a unit skips.
-pub const UNKNOWN: [&core::ffi::CStr; 4] = [c"missing", c"seven", c"bit", c""];
+pub(crate) const UNKNOWN: [&core::ffi::CStr; 4] = [c"missing", c"seven", c"bit", c""];
 
 /// `AVERROR(EINVAL)`, which [`query_ranges`] fails with for `"fail"`.
-pub const EINVAL: c_int = -22;
+pub(crate) const EINVAL: c_int = -22;
 
 /// A `query_ranges` callback of [`CB_CLASS`], building its lists as a class
 /// would, through the `av_malloc` family:
 ///
-/// - `"size"`: 2 ranges of 3 components with `AV_OPT_MULTI_COMPONENT_RANGE`,
-///   else of 1, each with an owned `str`;
+/// - `"size"`: 2 ranges of 3 components with `AV_OPT_MULTI_COMPONENT_RANGE`, else of 1, each with
+///   an owned `str`;
 /// - `"sparse"`: 3 ranges of 1 component, the middle one NULL;
 /// - `"fail"`: `AVERROR(EINVAL)`, storing NULL;
 /// - any other key: the default ranges.
@@ -254,7 +264,7 @@ pub const EINVAL: c_int = -22;
 /// # Safety
 ///
 /// As `av_opt_query_ranges`' callback.
-pub unsafe extern "C" fn query_ranges(
+pub(crate) unsafe extern "C" fn query_ranges(
     out: *mut *mut ffi::AVOptionRanges,
     obj: *mut c_void,
     key: *const c_char,
@@ -290,36 +300,51 @@ pub unsafe extern "C" fn query_ranges(
         let r = unsafe { ffi::av_mallocz(size_of::<ffi::AVOptionRange>()) }
             .cast::<ffi::AVOptionRange>();
         assert!(!r.is_null());
-        // SAFETY: `r` is a fresh zeroed range, `array` holds `n` slots, and
-        // `av_strdup` reads a literal.
-        unsafe {
-            (*r).str_ = ffi::av_strdup(c"range".as_ptr());
-            (*r).value_min = i as f64;
-            (*r).value_max = i as f64 + 10.0;
-            (*r).component_min = -(i as f64);
-            (*r).component_max = 255.0;
-            (*r).is_range = (i % 2) as c_int;
-            *array.add(i) = r;
+        // For the unsafe operations below: `r` is a fresh zeroed range, `array` holds `n` slots,
+        // and `av_strdup` reads a literal.
+        {
+            // SAFETY: as the comment above this block states.
+            let label = unsafe { ffi::av_strdup(c"range".as_ptr()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).str_ = label };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).value_min = i as f64 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).value_max = i as f64 + 10.0 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).component_min = -(i as f64) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).component_max = 255.0 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*r).is_range = (i % 2) as c_int };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let array_add = unsafe { array.add(i) };
+            // SAFETY: as the comment above this block states.
+            unsafe { *array_add = r };
         }
     }
-    // SAFETY: `list` is a fresh zeroed list and `out` C's writable slot.
-    unsafe {
-        (*list).range = array;
-        (*list).nb_ranges = nb_ranges;
-        (*list).nb_components = nb_components;
-        *out = list;
+    // For the unsafe operations below: `list` is a fresh zeroed list and `out` C's writable slot.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { (*list).range = array };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*list).nb_ranges = nb_ranges };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*list).nb_components = nb_components };
+        // SAFETY: as the comment above this block states.
+        unsafe { *out = list };
     }
     nb_components
 }
 
 /// [`CLASS`] with [`query_ranges`] as its callback.
-pub static CB_CLASS: Class = Class(class(Some(query_ranges)));
+pub(crate) static CB_CLASS: Class = Class(class(Some(query_ranges)));
 
 /// `CB_CLASS` as a fake object.
-pub static CB_FAKE: FakeObj = FakeObj(&CB_CLASS.0);
+pub(crate) static CB_FAKE: FakeObj = FakeObj(&raw const CB_CLASS.0);
 
 /// Keys [`query_ranges`] builds its own lists for.
-pub const CB_KEYS: [&core::ffi::CStr; 3] = [c"size", c"sparse", c"fail"];
+pub(crate) const CB_KEYS: [&core::ffi::CStr; 3] = [c"size", c"sparse", c"fail"];
 
 // Options wave 0, batch 3: a well-formed object for `ObjectRef` / `ObjectMut`.
 // `CLASS` above has an option of a type opt.h does not define, outside their
@@ -328,43 +353,43 @@ pub const CB_KEYS: [&core::ffi::CStr; 3] = [c"size", c"sparse", c"fail"];
 
 /// The object [`OBJ_CLASS`] describes.
 #[repr(C)]
-pub struct Obj {
-    pub class: *const ffi::AVClass,
-    pub int: c_int,
-    pub int64: i64,
-    pub uint64: u64,
-    pub uint: c_uint,
-    pub dbl: f64,
-    pub flt: f32,
-    pub string: *mut c_char,
-    pub q: ffi::AVRational,
-    pub wide_q: ffi::AVRational,
-    pub boolean: c_int,
-    pub flags: c_int,
-    pub big: i64,
-    pub size: [c_int; 2],
-    pub rate: ffi::AVRational,
-    pub color: [u8; 4],
-    pub duration: i64,
-    pub binary: *mut u8,
-    pub binary_len: c_int,
-    pub dict: *mut c_void,
-    pub array: *mut c_int,
-    pub array_len: c_uint,
-    pub strings: *mut *mut c_char,
-    pub strings_len: c_uint,
-    pub empty: *mut c_int,
-    pub empty_len: c_uint,
-    pub layout: ffi::AVChannelLayout,
-    pub pix: c_int,
-    pub sample: c_int,
-    pub ro: c_int,
-    pub nostr: *mut c_char,
-    pub child: *mut Obj,
+pub(crate) struct Obj {
+    pub(crate) class: *const ffi::AVClass,
+    pub(crate) int: c_int,
+    pub(crate) int64: i64,
+    pub(crate) uint64: u64,
+    pub(crate) uint: c_uint,
+    pub(crate) dbl: f64,
+    pub(crate) flt: f32,
+    pub(crate) string: *mut c_char,
+    pub(crate) q: ffi::AVRational,
+    pub(crate) wide_q: ffi::AVRational,
+    pub(crate) boolean: c_int,
+    pub(crate) flags: c_int,
+    pub(crate) big: i64,
+    pub(crate) size: [c_int; 2],
+    pub(crate) rate: ffi::AVRational,
+    pub(crate) color: [u8; 4],
+    pub(crate) duration: i64,
+    pub(crate) binary: *mut u8,
+    pub(crate) binary_len: c_int,
+    pub(crate) dict: *mut c_void,
+    pub(crate) array: *mut c_int,
+    pub(crate) array_len: c_uint,
+    pub(crate) strings: *mut *mut c_char,
+    pub(crate) strings_len: c_uint,
+    pub(crate) empty: *mut c_int,
+    pub(crate) empty_len: c_uint,
+    pub(crate) layout: ffi::AVChannelLayout,
+    pub(crate) pix: c_int,
+    pub(crate) sample: c_int,
+    pub(crate) ro: c_int,
+    pub(crate) nostr: *mut c_char,
+    pub(crate) child: *mut Obj,
 }
 
 /// The definition of the `strings` option: `|`-separated, two by default.
-pub static STRINGS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+pub(crate) static STRINGS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
     def: c"a|b\\|c".as_ptr(),
     size_min: 0,
     size_max: 4,
@@ -382,7 +407,7 @@ const INT_MAX: f64 = i32::MAX as f64;
 /// The options of [`OBJ_CLASS`], in `Obj` order, then the named constants
 /// and the terminator.
 #[rustfmt::skip]
-pub static OBJ_OPTIONS: Table<40> = Table([
+pub(crate) static OBJ_OPTIONS: Table<40> = Table([
     opt(c"int".as_ptr(), c"an int".as_ptr(), offset_of!(Obj, int), T::AV_OPT_TYPE_INT, int(7), -10.0, 100.0, c"mode".as_ptr()),
     opt(c"int64".as_ptr(), c"an int64".as_ptr(), offset_of!(Obj, int64), T::AV_OPT_TYPE_INT64, int(-5_000_000_000), i64::MIN as f64, i64::MAX as f64, null()),
     opt(c"uint64".as_ptr(), c"a uint64".as_ptr(), offset_of!(Obj, uint64), T::AV_OPT_TYPE_UINT64, int(42), 0.0, u64::MAX as f64, null()),
@@ -401,8 +426,8 @@ pub static OBJ_OPTIONS: Table<40> = Table([
     opt(c"duration".as_ptr(), c"a duration".as_ptr(), offset_of!(Obj, duration), T::AV_OPT_TYPE_DURATION, int(1_500_000), 0.0, i64::MAX as f64, null()),
     opt(c"binary".as_ptr(), c"some bytes".as_ptr(), offset_of!(Obj, binary), T::AV_OPT_TYPE_BINARY, str_(c"0a0b".as_ptr()), 0.0, 0.0, null()),
     opt(c"dict".as_ptr(), c"a dictionary".as_ptr(), offset_of!(Obj, dict), T::AV_OPT_TYPE_DICT, str_(c"k=v".as_ptr()), 0.0, 0.0, null()),
-    opt(c"array".as_ptr(), c"an int array".as_ptr(), offset_of!(Obj, array), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &ARRAY_DEF.0 }, 0.0, 10.0, null()),
-    opt(c"strings".as_ptr(), c"a string array".as_ptr(), offset_of!(Obj, strings), T(T::AV_OPT_TYPE_STRING.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &STRINGS_DEF.0 }, 0.0, 0.0, null()),
+    opt(c"array".as_ptr(), c"an int array".as_ptr(), offset_of!(Obj, array), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &raw const ARRAY_DEF.0 }, 0.0, 10.0, null()),
+    opt(c"strings".as_ptr(), c"a string array".as_ptr(), offset_of!(Obj, strings), T(T::AV_OPT_TYPE_STRING.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: &raw const STRINGS_DEF.0 }, 0.0, 0.0, null()),
     opt(c"empty".as_ptr(), c"an int array without a definition".as_ptr(), offset_of!(Obj, empty), T(T::AV_OPT_TYPE_INT.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0), ffi::AVOption__bindgen_ty_1 { arr: null() }, 0.0, 10.0, null()),
     opt(c"layout".as_ptr(), c"a channel layout".as_ptr(), offset_of!(Obj, layout), T::AV_OPT_TYPE_CHLAYOUT, str_(c"stereo".as_ptr()), 0.0, 0.0, null()),
     opt(c"pix".as_ptr(), c"a pixel format".as_ptr(), offset_of!(Obj, pix), T::AV_OPT_TYPE_PIXEL_FMT, int(0), -1.0, INT_MAX, null()),
@@ -430,7 +455,7 @@ pub static OBJ_OPTIONS: Table<40> = Table([
 /// # Safety
 ///
 /// `obj` must address a live [`Obj`].
-pub unsafe extern "C" fn obj_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+pub(crate) unsafe extern "C" fn obj_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
     if !prev.is_null() {
         return core::ptr::null_mut();
     }
@@ -439,10 +464,10 @@ pub unsafe extern "C" fn obj_child_next(obj: *mut c_void, prev: *mut c_void) -> 
 }
 
 /// The class of [`Obj`].
-pub static OBJ_CLASS: Class = Class(ffi::AVClass {
+pub(crate) static OBJ_CLASS: Class = Class(ffi::AVClass {
     class_name: c"crustify-opt-obj".as_ptr(),
     item_name: Some(ffi::av_default_item_name),
-    option: &OBJ_OPTIONS.0[0],
+    option: &raw const OBJ_OPTIONS.0[0],
     version: 0,
     log_level_offset_offset: 0,
     parent_log_context_offset: 0,
@@ -457,22 +482,22 @@ pub static OBJ_CLASS: Class = Class(ffi::AVClass {
 /// A heap [`Obj`] of [`OBJ_CLASS`], reached only through its raw pointer
 /// (so that C's writes are never invalidated by a Rust reborrow), with an
 /// optional child; dropping it frees what its options own, then it.
-pub struct Owned(core::ptr::NonNull<Obj>);
+pub(crate) struct Owned(core::ptr::NonNull<Obj>);
 
 impl Owned {
     /// A zeroed object, before `av_opt_set_defaults`.
-    pub fn zeroed() -> Self {
+    pub(crate) fn zeroed() -> Self {
         // SAFETY: every field of `Obj` is an integer, a float, a raw pointer
         // or a plain C struct of those, for which all-zero is valid.
         let obj: Box<Obj> = Box::new(unsafe { core::mem::zeroed() });
         let p = Box::into_raw(obj);
         // SAFETY: `p` is the fresh allocation above.
-        unsafe { (*p).class = &OBJ_CLASS.0 };
+        unsafe { (*p).class = &raw const OBJ_CLASS.0 };
         Self(core::ptr::NonNull::new(p).unwrap())
     }
 
     /// An object with its defaults set by C.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let o = Self::zeroed();
         // SAFETY: a live zeroed object of `OBJ_CLASS`.
         unsafe { ffi::av_opt_set_defaults(o.as_obj()) };
@@ -480,37 +505,37 @@ impl Owned {
     }
 
     /// An object with defaults and a child object with defaults.
-    pub fn with_child() -> Self {
+    pub(crate) fn with_child() -> Self {
         let o = Self::new();
         let child = Self::new();
         // SAFETY: `o` is live; the child's allocation passes to it.
         unsafe { (*o.0.as_ptr()).child = child.0.as_ptr() };
-        core::mem::forget(child);
+        let _ = core::mem::ManuallyDrop::new(child);
         o
     }
 
     /// A zeroed object with a zeroed child, before any default.
-    pub fn zeroed_with_child() -> Self {
+    pub(crate) fn zeroed_with_child() -> Self {
         let o = Self::zeroed();
         let child = Self::zeroed();
         // SAFETY: `o` is live; the child's allocation passes to it.
         unsafe { (*o.0.as_ptr()).child = child.0.as_ptr() };
-        core::mem::forget(child);
+        let _ = core::mem::ManuallyDrop::new(child);
         o
     }
 
     /// The object as the `void *` the `av_opt_*` routines take.
-    pub fn as_obj(&self) -> *mut c_void {
+    pub(crate) fn as_obj(&self) -> *mut c_void {
         self.0.as_ptr().cast()
     }
 
     /// The object, for raw field reads.
-    pub fn ptr(&self) -> *mut Obj {
+    pub(crate) fn ptr(&self) -> *mut Obj {
         self.0.as_ptr()
     }
 
     /// The child object, if any.
-    pub fn child(&self) -> *mut Obj {
+    pub(crate) fn child(&self) -> *mut Obj {
         // SAFETY: `self` is live.
         unsafe { (*self.0.as_ptr()).child }
     }
@@ -519,16 +544,22 @@ impl Owned {
 impl Drop for Owned {
     fn drop(&mut self) {
         let p = self.0.as_ptr();
-        // SAFETY: `p` and its child are live objects this owner allocated,
+        // For the unsafe operations below: `p` and its child are live objects this owner allocated,
         // whose options own what `av_opt_free` releases.
-        unsafe {
-            let child = (*p).child;
+        {
+            // SAFETY: as the comment above this block states.
+            let child = unsafe { (*p).child };
+            // For the unsafe operations below: as the comment above this block states.
             if !child.is_null() {
-                ffi::av_opt_free(child.cast());
-                drop(Box::from_raw(child));
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_opt_free(child.cast()) };
+                // SAFETY: as the comment at the head of this block states.
+                drop(unsafe { Box::from_raw(child) });
             }
-            ffi::av_opt_free(p.cast());
-            drop(Box::from_raw(p));
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_free(p.cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { drop(Box::from_raw(p)) };
         }
     }
 }
@@ -541,44 +572,44 @@ impl Drop for Owned {
 /// The object [`ARR_CLASS`] describes: each array is a pointer followed by
 /// its element count.
 #[repr(C)]
-pub struct ArrObj {
-    pub class: *const ffi::AVClass,
-    pub ints: *mut c_int,
-    pub ints_len: c_uint,
-    pub uints: *mut c_uint,
-    pub uints_len: c_uint,
-    pub i64s: *mut i64,
-    pub i64s_len: c_uint,
-    pub u64s: *mut u64,
-    pub u64s_len: c_uint,
-    pub dbls: *mut f64,
-    pub dbls_len: c_uint,
-    pub flts: *mut f32,
-    pub flts_len: c_uint,
-    pub strs: *mut *mut c_char,
-    pub strs_len: c_uint,
-    pub qs: *mut ffi::AVRational,
-    pub qs_len: c_uint,
-    pub rates: *mut ffi::AVRational,
-    pub rates_len: c_uint,
-    pub bools: *mut c_int,
-    pub bools_len: c_uint,
-    pub sizes: *mut [c_int; 2],
-    pub sizes_len: c_uint,
-    pub colors: *mut [u8; 4],
-    pub colors_len: c_uint,
-    pub durs: *mut i64,
-    pub durs_len: c_uint,
-    pub pixs: *mut c_int,
-    pub pixs_len: c_uint,
-    pub samples: *mut c_int,
-    pub samples_len: c_uint,
-    pub dicts: *mut *mut c_void,
-    pub dicts_len: c_uint,
-    pub layouts: *mut ffi::AVChannelLayout,
-    pub layouts_len: c_uint,
-    pub bins: *mut *mut u8,
-    pub bins_len: c_uint,
+pub(crate) struct ArrObj {
+    pub(crate) class: *const ffi::AVClass,
+    pub(crate) ints: *mut c_int,
+    pub(crate) ints_len: c_uint,
+    pub(crate) uints: *mut c_uint,
+    pub(crate) uints_len: c_uint,
+    pub(crate) i64s: *mut i64,
+    pub(crate) i64s_len: c_uint,
+    pub(crate) u64s: *mut u64,
+    pub(crate) u64s_len: c_uint,
+    pub(crate) dbls: *mut f64,
+    pub(crate) dbls_len: c_uint,
+    pub(crate) flts: *mut f32,
+    pub(crate) flts_len: c_uint,
+    pub(crate) strs: *mut *mut c_char,
+    pub(crate) strs_len: c_uint,
+    pub(crate) qs: *mut ffi::AVRational,
+    pub(crate) qs_len: c_uint,
+    pub(crate) rates: *mut ffi::AVRational,
+    pub(crate) rates_len: c_uint,
+    pub(crate) bools: *mut c_int,
+    pub(crate) bools_len: c_uint,
+    pub(crate) sizes: *mut [c_int; 2],
+    pub(crate) sizes_len: c_uint,
+    pub(crate) colors: *mut [u8; 4],
+    pub(crate) colors_len: c_uint,
+    pub(crate) durs: *mut i64,
+    pub(crate) durs_len: c_uint,
+    pub(crate) pixs: *mut c_int,
+    pub(crate) pixs_len: c_uint,
+    pub(crate) samples: *mut c_int,
+    pub(crate) samples_len: c_uint,
+    pub(crate) dicts: *mut *mut c_void,
+    pub(crate) dicts_len: c_uint,
+    pub(crate) layouts: *mut ffi::AVChannelLayout,
+    pub(crate) layouts_len: c_uint,
+    pub(crate) bins: *mut *mut u8,
+    pub(crate) bins_len: c_uint,
 }
 
 /// An array definition with default `def` and separator `sep`.
@@ -591,23 +622,23 @@ const fn arr_def(def: *const c_char, sep: u8) -> ArrayDef {
     })
 }
 
-pub static INTS_DEF: ArrayDef = arr_def(c"1,-2,2147483647,-2147483648".as_ptr(), 0);
-pub static UINTS_DEF: ArrayDef = arr_def(c"0,4294967295,9".as_ptr(), 0);
-pub static I64S_DEF: ArrayDef = arr_def(c"-5000000000,123456789012".as_ptr(), 0);
-pub static U64S_DEF: ArrayDef = arr_def(c"42,7".as_ptr(), 0);
-pub static DBLS_DEF: ArrayDef = arr_def(c"1.5,-2,1e300,0.1".as_ptr(), 0);
-pub static FLTS_DEF: ArrayDef = arr_def(c"0.25,-3e38,1".as_ptr(), 0);
-pub static STRS_DEF: ArrayDef = arr_def(c"x,,y\\,z".as_ptr(), 0);
-pub static QS_DEF: ArrayDef = arr_def(c"1/3,5,-7/2".as_ptr(), 0);
-pub static RATES_DEF: ArrayDef = arr_def(c"25,30000/1001".as_ptr(), 0);
-pub static BOOLS_DEF: ArrayDef = arr_def(c"true,false,auto".as_ptr(), 0);
-pub static SIZES_DEF: ArrayDef = arr_def(c"640x480,hd720".as_ptr(), 0);
-pub static COLORS_DEF: ArrayDef = arr_def(c"red,0x00ff0080".as_ptr(), 0);
-pub static DURS_DEF: ArrayDef = arr_def(c"1.5,00:01:00".as_ptr(), 0);
-pub static PIXS_DEF: ArrayDef = arr_def(c"yuv420p,rgb24,none".as_ptr(), 0);
-pub static SAMPLES_DEF: ArrayDef = arr_def(c"s16,fltp".as_ptr(), 0);
-pub static DICTS_DEF: ArrayDef = arr_def(c"a=1:b=2:A=3,k=v".as_ptr(), 0);
-pub static LAYOUTS_DEF: ArrayDef = arr_def(c"stereo|5.1(side)|FL+FR".as_ptr(), b'|');
+pub(crate) static INTS_DEF: ArrayDef = arr_def(c"1,-2,2147483647,-2147483648".as_ptr(), 0);
+pub(crate) static UINTS_DEF: ArrayDef = arr_def(c"0,4294967295,9".as_ptr(), 0);
+pub(crate) static I64S_DEF: ArrayDef = arr_def(c"-5000000000,123456789012".as_ptr(), 0);
+pub(crate) static U64S_DEF: ArrayDef = arr_def(c"42,7".as_ptr(), 0);
+pub(crate) static DBLS_DEF: ArrayDef = arr_def(c"1.5,-2,1e300,0.1".as_ptr(), 0);
+pub(crate) static FLTS_DEF: ArrayDef = arr_def(c"0.25,-3e38,1".as_ptr(), 0);
+pub(crate) static STRS_DEF: ArrayDef = arr_def(c"x,,y\\,z".as_ptr(), 0);
+pub(crate) static QS_DEF: ArrayDef = arr_def(c"1/3,5,-7/2".as_ptr(), 0);
+pub(crate) static RATES_DEF: ArrayDef = arr_def(c"25,30000/1001".as_ptr(), 0);
+pub(crate) static BOOLS_DEF: ArrayDef = arr_def(c"true,false,auto".as_ptr(), 0);
+pub(crate) static SIZES_DEF: ArrayDef = arr_def(c"640x480,hd720".as_ptr(), 0);
+pub(crate) static COLORS_DEF: ArrayDef = arr_def(c"red,0x00ff0080".as_ptr(), 0);
+pub(crate) static DURS_DEF: ArrayDef = arr_def(c"1.5,00:01:00".as_ptr(), 0);
+pub(crate) static PIXS_DEF: ArrayDef = arr_def(c"yuv420p,rgb24,none".as_ptr(), 0);
+pub(crate) static SAMPLES_DEF: ArrayDef = arr_def(c"s16,fltp".as_ptr(), 0);
+pub(crate) static DICTS_DEF: ArrayDef = arr_def(c"a=1:b=2:A=3,k=v".as_ptr(), 0);
+pub(crate) static LAYOUTS_DEF: ArrayDef = arr_def(c"stereo|5.1(side)|FL+FR".as_ptr(), b'|');
 
 /// An array option `name` of element type `ty` at `offset`, defaulting to
 /// `def`, within `[min, max]`.
@@ -620,7 +651,7 @@ const fn arr(
     max: f64,
 ) -> ffi::AVOption {
     let def = match def {
-        Some(d) => &d.0 as *const ffi::AVOptionArrayDef,
+        Some(d) => &raw const d.0,
         None => null(),
     };
     opt(
@@ -637,7 +668,7 @@ const fn arr(
 
 /// The options of [`ARR_CLASS`], in `ArrObj` order, then the terminator.
 #[rustfmt::skip]
-pub static ARR_OPTIONS: Table<19> = Table([
+pub(crate) static ARR_OPTIONS: Table<19> = Table([
     arr(c"ints".as_ptr(), offset_of!(ArrObj, ints), T::AV_OPT_TYPE_INT, Some(&INTS_DEF), i32::MIN as f64, INT_MAX),
     arr(c"uints".as_ptr(), offset_of!(ArrObj, uints), T::AV_OPT_TYPE_UINT, Some(&UINTS_DEF), 0.0, u32::MAX as f64),
     arr(c"i64s".as_ptr(), offset_of!(ArrObj, i64s), T::AV_OPT_TYPE_INT64, Some(&I64S_DEF), -1e18, 1e18),
@@ -660,7 +691,7 @@ pub static ARR_OPTIONS: Table<19> = Table([
 ]);
 
 /// The names of [`ARR_OPTIONS`], in order.
-pub const ARR_NAMES: [&core::ffi::CStr; 18] = [
+pub(crate) const ARR_NAMES: [&core::ffi::CStr; 18] = [
     c"ints", c"uints", c"i64s", c"u64s", c"dbls", c"flts", c"strs", c"qs", c"rates", c"bools",
     c"sizes", c"colors", c"durs", c"pixs", c"samples", c"dicts", c"layouts", c"bins",
 ];
@@ -671,24 +702,26 @@ pub const ARR_NAMES: [&core::ffi::CStr; 18] = [
 /// # Safety
 ///
 /// `iter` must address a state this function alone advanced from NULL.
-pub unsafe extern "C" fn arr_child_class_iterate(iter: *mut *mut c_void) -> *const ffi::AVClass {
+pub(crate) unsafe extern "C" fn arr_child_class_iterate(
+    iter: *mut *mut c_void,
+) -> *const ffi::AVClass {
     // SAFETY: C passes its writable state slot.
     let state = unsafe { &mut *iter };
     let i = *state as usize;
     *state = (i + 1) as *mut c_void;
     match i {
-        0 => &OBJ_CLASS.0,
-        1 => &ARR_CLASS.0,
+        0 => &raw const OBJ_CLASS.0,
+        1 => &raw const ARR_CLASS.0,
         _ => null(),
     }
 }
 
 /// The class of [`ArrObj`], whose potential children are listed by
 /// [`arr_child_class_iterate`].
-pub static ARR_CLASS: Class = Class(ffi::AVClass {
+pub(crate) static ARR_CLASS: Class = Class(ffi::AVClass {
     class_name: c"crustify-opt-arrays".as_ptr(),
     item_name: Some(ffi::av_default_item_name),
-    option: &ARR_OPTIONS.0[0],
+    option: &raw const ARR_OPTIONS.0[0],
     version: 0,
     log_level_offset_offset: 0,
     parent_log_context_offset: 0,
@@ -702,30 +735,32 @@ pub static ARR_CLASS: Class = Class(ffi::AVClass {
 
 /// A heap [`ArrObj`] of [`ARR_CLASS`] with its defaults set by C, reached
 /// only through its raw pointer; dropping it frees its arrays, then it.
-pub struct ArrOwned(core::ptr::NonNull<ArrObj>);
+pub(crate) struct ArrOwned(core::ptr::NonNull<ArrObj>);
 
 impl ArrOwned {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         // SAFETY: every field of `ArrObj` is a raw pointer or an integer, for
         // which all-zero is valid.
         let obj: Box<ArrObj> = Box::new(unsafe { core::mem::zeroed() });
         let p = Box::into_raw(obj);
-        // SAFETY: `p` is the fresh allocation above; C fills each array from
-        // its definition.
-        unsafe {
-            (*p).class = &ARR_CLASS.0;
-            ffi::av_opt_set_defaults(p.cast());
+        // For the unsafe operations below: `p` is the fresh allocation above; C fills each array
+        // from its definition.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).class = &raw const ARR_CLASS.0 };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_set_defaults(p.cast()) };
         }
         Self(core::ptr::NonNull::new(p).unwrap())
     }
 
     /// The object as the `void *` the `av_opt_*` routines take.
-    pub fn as_obj(&self) -> *mut c_void {
+    pub(crate) fn as_obj(&self) -> *mut c_void {
         self.0.as_ptr().cast()
     }
 
     /// The object, for raw field access.
-    pub fn ptr(&self) -> *mut ArrObj {
+    pub(crate) fn ptr(&self) -> *mut ArrObj {
         self.0.as_ptr()
     }
 }
@@ -739,11 +774,13 @@ impl Default for ArrOwned {
 impl Drop for ArrOwned {
     fn drop(&mut self) {
         let p = self.0.as_ptr();
-        // SAFETY: `p` is a live object this owner allocated, whose arrays
+        // For the unsafe operations below: `p` is a live object this owner allocated, whose arrays
         // `av_opt_free` releases with their elements.
-        unsafe {
-            ffi::av_opt_free(p.cast());
-            drop(Box::from_raw(p));
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_free(p.cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { drop(Box::from_raw(p)) };
         }
     }
 }
@@ -757,42 +794,42 @@ impl Drop for ArrOwned {
 
 /// An array field: the elements and their count, as C lays them out.
 #[repr(C)]
-pub struct Arr<T> {
-    pub elems: *mut T,
-    pub len: c_uint,
+pub(crate) struct Arr<T> {
+    pub(crate) elems: *mut T,
+    pub(crate) len: c_uint,
 }
 
 /// The object [`ARRAYS_CLASS`] describes.
 #[repr(C)]
-pub struct Arrays {
-    pub class: *const ffi::AVClass,
-    pub ints: Arr<c_int>,
-    pub i64s: Arr<i64>,
-    pub uints: Arr<c_uint>,
-    pub u64s: Arr<u64>,
-    pub dbls: Arr<f64>,
-    pub flts: Arr<f32>,
-    pub qs: Arr<ffi::AVRational>,
-    pub wide_qs: Arr<ffi::AVRational>,
-    pub rates: Arr<ffi::AVRational>,
-    pub flags: Arr<c_uint>,
-    pub bools: Arr<c_int>,
-    pub durations: Arr<i64>,
-    pub sizes: Arr<[c_int; 2]>,
-    pub colors: Arr<[u8; 4]>,
-    pub pix: Arr<c_int>,
-    pub samples: Arr<c_int>,
-    pub layouts: Arr<ffi::AVChannelLayout>,
-    pub dicts: Arr<*mut c_void>,
-    pub strs: Arr<*mut c_char>,
-    pub bins: Arr<*mut u8>,
-    pub ro: Arr<c_int>,
-    pub scalar: c_int,
-    pub child: *mut Arrays,
+pub(crate) struct Arrays {
+    pub(crate) class: *const ffi::AVClass,
+    pub(crate) ints: Arr<c_int>,
+    pub(crate) i64s: Arr<i64>,
+    pub(crate) uints: Arr<c_uint>,
+    pub(crate) u64s: Arr<u64>,
+    pub(crate) dbls: Arr<f64>,
+    pub(crate) flts: Arr<f32>,
+    pub(crate) qs: Arr<ffi::AVRational>,
+    pub(crate) wide_qs: Arr<ffi::AVRational>,
+    pub(crate) rates: Arr<ffi::AVRational>,
+    pub(crate) flags: Arr<c_uint>,
+    pub(crate) bools: Arr<c_int>,
+    pub(crate) durations: Arr<i64>,
+    pub(crate) sizes: Arr<[c_int; 2]>,
+    pub(crate) colors: Arr<[u8; 4]>,
+    pub(crate) pix: Arr<c_int>,
+    pub(crate) samples: Arr<c_int>,
+    pub(crate) layouts: Arr<ffi::AVChannelLayout>,
+    pub(crate) dicts: Arr<*mut c_void>,
+    pub(crate) strs: Arr<*mut c_char>,
+    pub(crate) bins: Arr<*mut u8>,
+    pub(crate) ro: Arr<c_int>,
+    pub(crate) scalar: c_int,
+    pub(crate) child: *mut Arrays,
 }
 
 /// `strs`: `;`-separated, one to three elements, two by default.
-pub static EDIT_STRS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+pub(crate) static EDIT_STRS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
     def: c"a;b".as_ptr(),
     size_min: 1,
     size_max: 3,
@@ -800,7 +837,7 @@ pub static EDIT_STRS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
 });
 
 /// `layouts`: `|`-separated (layout names hold `,` and `+`), two by default.
-pub static EDIT_LAYOUTS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+pub(crate) static EDIT_LAYOUTS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
     def: c"stereo|mono".as_ptr(),
     size_min: 0,
     size_max: 0,
@@ -808,7 +845,7 @@ pub static EDIT_LAYOUTS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
 });
 
 /// `ints`: two by default, at most six.
-pub static EDIT_INTS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
+pub(crate) static EDIT_INTS_DEF: ArrayDef = ArrayDef(ffi::AVOptionArrayDef {
     def: c"1,2".as_ptr(),
     size_min: 0,
     size_max: 6,
@@ -840,8 +877,8 @@ const fn edit_arr(
 /// The options of [`ARRAYS_CLASS`], in `Arrays` order, then a flag constant
 /// and the terminator.
 #[rustfmt::skip]
-pub static ARRAYS_OPTIONS: Table<25> = Table([
-    edit_arr(c"ints", offset_of!(Arrays, ints), T::AV_OPT_TYPE_INT, &EDIT_INTS_DEF.0, -10.0, 100.0),
+pub(crate) static ARRAYS_OPTIONS: Table<25> = Table([
+    edit_arr(c"ints", offset_of!(Arrays, ints), T::AV_OPT_TYPE_INT, &raw const EDIT_INTS_DEF.0, -10.0, 100.0),
     edit_arr(c"i64s", offset_of!(Arrays, i64s), T::AV_OPT_TYPE_INT64, null(), i64::MIN as f64, i64::MAX as f64),
     edit_arr(c"uints", offset_of!(Arrays, uints), T::AV_OPT_TYPE_UINT, null(), 0.0, u32::MAX as f64),
     edit_arr(c"u64s", offset_of!(Arrays, u64s), T::AV_OPT_TYPE_UINT64, null(), 0.0, u64::MAX as f64),
@@ -857,9 +894,9 @@ pub static ARRAYS_OPTIONS: Table<25> = Table([
     edit_arr(c"colors", offset_of!(Arrays, colors), T::AV_OPT_TYPE_COLOR, null(), 0.0, 0.0),
     edit_arr(c"pix", offset_of!(Arrays, pix), T::AV_OPT_TYPE_PIXEL_FMT, null(), -1.0, INT_MAX),
     edit_arr(c"samples", offset_of!(Arrays, samples), T::AV_OPT_TYPE_SAMPLE_FMT, null(), -1.0, INT_MAX),
-    edit_arr(c"layouts", offset_of!(Arrays, layouts), T::AV_OPT_TYPE_CHLAYOUT, &EDIT_LAYOUTS_DEF.0, 0.0, 0.0),
+    edit_arr(c"layouts", offset_of!(Arrays, layouts), T::AV_OPT_TYPE_CHLAYOUT, &raw const EDIT_LAYOUTS_DEF.0, 0.0, 0.0),
     edit_arr(c"dicts", offset_of!(Arrays, dicts), T::AV_OPT_TYPE_DICT, null(), 0.0, 0.0),
-    edit_arr(c"strs", offset_of!(Arrays, strs), T::AV_OPT_TYPE_STRING, &EDIT_STRS_DEF.0, 0.0, 0.0),
+    edit_arr(c"strs", offset_of!(Arrays, strs), T::AV_OPT_TYPE_STRING, &raw const EDIT_STRS_DEF.0, 0.0, 0.0),
     edit_arr(c"bins", offset_of!(Arrays, bins), T::AV_OPT_TYPE_BINARY, null(), 0.0, 0.0),
     flagged(edit_arr(c"ro", offset_of!(Arrays, ro), T::AV_OPT_TYPE_INT, null(), 0.0, 10.0), ffi::AV_OPT_FLAG_READONLY),
     opt(c"scalar".as_ptr(), c"not an array".as_ptr(), offset_of!(Arrays, scalar), T::AV_OPT_TYPE_INT, int(1), 0.0, 10.0, null()),
@@ -873,7 +910,10 @@ pub static ARRAYS_OPTIONS: Table<25> = Table([
 /// # Safety
 ///
 /// `obj` must address a live [`Arrays`].
-pub unsafe extern "C" fn arrays_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
+pub(crate) unsafe extern "C" fn arrays_child_next(
+    obj: *mut c_void,
+    prev: *mut c_void,
+) -> *mut c_void {
     if !prev.is_null() {
         return core::ptr::null_mut();
     }
@@ -882,10 +922,10 @@ pub unsafe extern "C" fn arrays_child_next(obj: *mut c_void, prev: *mut c_void) 
 }
 
 /// The class of [`Arrays`].
-pub static ARRAYS_CLASS: Class = Class(ffi::AVClass {
+pub(crate) static ARRAYS_CLASS: Class = Class(ffi::AVClass {
     class_name: c"crustify-opt-edits".as_ptr(),
     item_name: Some(ffi::av_default_item_name),
-    option: &ARRAYS_OPTIONS.0[0],
+    option: &raw const ARRAYS_OPTIONS.0[0],
     version: 0,
     log_level_offset_offset: 0,
     parent_log_context_offset: 0,
@@ -899,7 +939,7 @@ pub static ARRAYS_CLASS: Class = Class(ffi::AVClass {
 
 /// Every option name of [`ARRAYS_CLASS`] that holds a value, and one that
 /// names nothing.
-pub const ARRAYS_NAMES: [&core::ffi::CStr; 23] = [
+pub(crate) const ARRAYS_NAMES: [&core::ffi::CStr; 23] = [
     c"ints",
     c"i64s",
     c"uints",
@@ -927,22 +967,22 @@ pub const ARRAYS_NAMES: [&core::ffi::CStr; 23] = [
 
 /// A heap [`Arrays`], reached only through its raw pointer, with an optional
 /// child; dropping it frees what its options own, then it.
-pub struct OwnedArrays(core::ptr::NonNull<Arrays>);
+pub(crate) struct OwnedArrays(core::ptr::NonNull<Arrays>);
 
 impl OwnedArrays {
     /// A zeroed object, before `av_opt_set_defaults`.
-    pub fn zeroed() -> Self {
+    pub(crate) fn zeroed() -> Self {
         // SAFETY: every field of `Arrays` is an integer, a raw pointer or a
         // struct of those, for which all-zero is valid.
         let obj: Box<Arrays> = Box::new(unsafe { core::mem::zeroed() });
         let p = Box::into_raw(obj);
         // SAFETY: `p` is the fresh allocation above.
-        unsafe { (*p).class = &ARRAYS_CLASS.0 };
+        unsafe { (*p).class = &raw const ARRAYS_CLASS.0 };
         Self(core::ptr::NonNull::new(p).unwrap())
     }
 
     /// An object with its defaults set by C.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let o = Self::zeroed();
         // SAFETY: a live zeroed object of `ARRAYS_CLASS`.
         unsafe { ffi::av_opt_set_defaults(o.as_obj()) };
@@ -950,39 +990,39 @@ impl OwnedArrays {
     }
 
     /// An object with defaults and a child object with defaults.
-    pub fn with_child() -> Self {
+    pub(crate) fn with_child() -> Self {
         let o = Self::new();
         let child = Self::new();
         // SAFETY: `o` is live; the child's allocation passes to it.
         unsafe { (*o.0.as_ptr()).child = child.0.as_ptr() };
-        core::mem::forget(child);
+        let _ = core::mem::ManuallyDrop::new(child);
         o
     }
 
     /// A zeroed object with a zeroed child, before any default: no option
-    /// value is parsed, so C's evaluator never runs (BorrowSanitizer
+    /// value is parsed, so C's evaluator never runs (`BorrowSanitizer`
     /// misreports its `av_strtod` end pointers).
-    pub fn zeroed_with_child() -> Self {
+    pub(crate) fn zeroed_with_child() -> Self {
         let o = Self::zeroed();
         let child = Self::zeroed();
         // SAFETY: `o` is live; the child's allocation passes to it.
         unsafe { (*o.0.as_ptr()).child = child.0.as_ptr() };
-        core::mem::forget(child);
+        let _ = core::mem::ManuallyDrop::new(child);
         o
     }
 
     /// The object as the `void *` the `av_opt_*` routines take.
-    pub fn as_obj(&self) -> *mut c_void {
+    pub(crate) fn as_obj(&self) -> *mut c_void {
         self.0.as_ptr().cast()
     }
 
     /// The object, for raw field reads.
-    pub fn ptr(&self) -> *mut Arrays {
+    pub(crate) fn ptr(&self) -> *mut Arrays {
         self.0.as_ptr()
     }
 
     /// The child object, if any.
-    pub fn child(&self) -> *mut Arrays {
+    pub(crate) fn child(&self) -> *mut Arrays {
         // SAFETY: `self` is live.
         unsafe { (*self.0.as_ptr()).child }
     }
@@ -991,16 +1031,22 @@ impl OwnedArrays {
 impl Drop for OwnedArrays {
     fn drop(&mut self) {
         let p = self.0.as_ptr();
-        // SAFETY: `p` and its child are live objects this owner allocated,
+        // For the unsafe operations below: `p` and its child are live objects this owner allocated,
         // whose options own what `av_opt_free` releases.
-        unsafe {
-            let child = (*p).child;
+        {
+            // SAFETY: as the comment above this block states.
+            let child = unsafe { (*p).child };
+            // For the unsafe operations below: as the comment above this block states.
             if !child.is_null() {
-                ffi::av_opt_free(child.cast());
-                drop(Box::from_raw(child));
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_opt_free(child.cast()) };
+                // SAFETY: as the comment at the head of this block states.
+                drop(unsafe { Box::from_raw(child) });
             }
-            ffi::av_opt_free(p.cast());
-            drop(Box::from_raw(p));
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_free(p.cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { drop(Box::from_raw(p)) };
         }
     }
 }

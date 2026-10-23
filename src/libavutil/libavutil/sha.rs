@@ -87,7 +87,7 @@ pub type ShaBox = CBox<Sha, ShaFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ShaFree;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: ShaBox adopts only `av_sha_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Sha> for ShaFree {
@@ -98,7 +98,7 @@ unsafe impl CDrop<Sha> for ShaFree {
 }
 
 impl Sha {
-    /// Wraps: av_sha_alloc
+    /// Wraps: `av_sha_alloc`
     ///
     /// Allocate and initialize a context for `algorithm`; `None` on allocation
     /// failure. Invalid digest sizes cannot be represented by [`Algorithm`].
@@ -149,7 +149,7 @@ unsafe impl CNew<Sha> for ShaFree {
 }
 
 impl ShaMut<'_> {
-    /// Wraps: av_sha_init
+    /// Wraps: `av_sha_init`
     ///
     /// Start a new hash, discarding the previous state. The buffer need not be
     /// cleared: C resets the count and never reads stale bytes before filling
@@ -162,9 +162,10 @@ impl ShaMut<'_> {
     }
 }
 
-/// Wraps: av_sha_size
+/// Wraps: `av_sha_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -172,7 +173,7 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl ShaMut<'_> {
-    /// Wraps: av_sha_update
+    /// Wraps: `av_sha_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
     pub fn update(&mut self, data: &[u8]) {
@@ -188,11 +189,11 @@ impl ShaMut<'_> {
                     data.as_ptr()
                 },
                 data.len(),
-            )
+            );
         }
     }
 
-    /// Wraps: av_sha_final
+    /// Wraps: `av_sha_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.
@@ -220,22 +221,10 @@ mod unit_tests {
 
     #[test]
     fn pointer_layout_matches_the_ffi_seam() {
-        assert_eq!(
-            core::mem::size_of::<ShaBox>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<Option<ShaBox>>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<ShaRef<'_>>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<ShaMut<'_>>(),
-            core::mem::size_of::<*mut ()>()
-        );
+        assert_eq!(size_of::<ShaBox>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<Option<ShaBox>>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<ShaRef<'_>>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<ShaMut<'_>>(), size_of::<*mut ()>());
     }
 
     #[test]

@@ -1,3 +1,7 @@
+#![expect(
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 use ffmpeg_bindings::libavutil::libavutil::twofish::context_size;
 
 #[test]

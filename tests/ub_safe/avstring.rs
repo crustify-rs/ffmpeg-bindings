@@ -2,6 +2,14 @@
 //! and name matching, through the safe API only. Strings are exact-size
 //! `CString` allocations, so a read past a terminator lands in a sanitizer
 //! redzone.
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_int};
 use core::num::NonZeroU8;
@@ -66,7 +74,7 @@ mod helpers {
         let long = CString::new(vec![b'q'; 4000]).unwrap();
         for src in [c"", c"abc", long.as_c_str()] {
             for size in [0, 1, 2, 3, 4, 17, 4000, 4001] {
-                let mut buf = exact(&vec![0xa5; size]);
+                let mut buf = exact(&vec![0xA5; size]);
                 let n = strlcpy(&mut buf, src);
                 assert_eq!(n, src.count_bytes());
                 if size > 0 {
@@ -179,10 +187,10 @@ mod helpers {
     #[cfg_attr(miri, ignore = "calls C")]
     fn utf8_decode_reads_only_the_slice() {
         let mut samples: Vec<Vec<u8>> = (0..=255u8).map(|b| vec![b]).collect();
-        for lead in [0xc2u8, 0xe0, 0xed, 0xef, 0xf0, 0xf4, 0xf8, 0xfc, 0xfd] {
+        for lead in [0xC2u8, 0xE0, 0xED, 0xEF, 0xF0, 0xF4, 0xF8, 0xFC, 0xFD] {
             for len in 1..=6 {
                 let mut s = vec![lead];
-                s.resize(len, 0xbf);
+                s.resize(len, 0xBF);
                 samples.push(s);
             }
         }
@@ -193,7 +201,7 @@ mod helpers {
                 while let Some((r, n)) = utf8_decode(rest, flags) {
                     assert!((1..=rest.len()).contains(&n));
                     if let Ok(c) = r {
-                        assert!(c <= i32::MAX as u32);
+                        assert!(i32::try_from(c).is_ok());
                     }
                     rest = &rest[n..];
                 }
@@ -261,11 +269,13 @@ mod paths_and_format {
     use std::ffi::CString;
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
-    use ffmpeg_bindings::libavutil::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
+        append_path_component, basename, format,
+    };
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
     /// A path of up to 512 bytes of `n`-byte components, NUL-terminated.
-    /// Small enough that BSan's runtime, whose memory grows with every byte
+    /// Small enough that `BSan`'s runtime, whose memory grows with every byte
     /// view of a C string it later frees, stays bounded.
     fn long_path(n: usize) -> CString {
         let mut s = String::new();
@@ -471,7 +481,7 @@ mod paths_and_tokens {
                     assert!(token.as_bytes().len() <= input.count_bytes());
                     match cursor.to_bytes_with_nul().get(1..) {
                         Some(rest) if !rest.is_empty() => {
-                            cursor = std::ffi::CStr::from_bytes_with_nul(rest).unwrap()
+                            cursor = std::ffi::CStr::from_bytes_with_nul(rest).unwrap();
                         }
                         _ => break,
                     }
@@ -685,7 +695,7 @@ fn character_classes_take_any_int() {
 /// Strings over the separator-like bytes, of every short length, each its own
 /// exact-size allocation.
 fn strings() -> Vec<CString> {
-    let alphabet = [b'a', b'A', b',', b'-', b';', 0xff];
+    let alphabet = [b'a', b'A', b',', b'-', b';', 0xFF];
     let mut out = vec![CString::default()];
     let mut layer = vec![Vec::new()];
     for _ in 0..3 {
@@ -726,7 +736,7 @@ fn match_list_stays_inside_its_strings_for_every_separator() {
     let short: Vec<&CStr> = all.iter().take(43).map(CString::as_c_str).collect();
     // Separators in the alphabet, around it, and at the signed-`char` edges.
     for sep in [
-        0x01, b',', b';', b'-', b'a', b'A', b'b', 0x7f, 0x80, 0xfe, 0xff,
+        0x01, b',', b';', b'-', b'a', b'A', b'b', 0x7F, 0x80, 0xFE, 0xFF,
     ] {
         let separator = NonZeroU8::new(sep).unwrap();
         for name in &short {
@@ -751,7 +761,7 @@ fn matching_runs_concurrently() {
         .map(|t| {
             thread::spawn(move || {
                 let all = strings();
-                let sep = NonZeroU8::new([b',', b';', b'a', 0xff][t]).unwrap();
+                let sep = NonZeroU8::new([b',', b';', b'a', 0xFF][t]).unwrap();
                 for (i, name) in all.iter().enumerate().step_by(7) {
                     let list = &all[(i * 31) % all.len()];
                     let _ = (match_name(name, list), match_list(name, list, sep));

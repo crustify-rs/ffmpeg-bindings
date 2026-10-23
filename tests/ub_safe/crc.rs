@@ -1,4 +1,18 @@
-use ffmpeg_bindings::libavutil::libavutil::{crc::CrcId, ffi};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
+use ffmpeg_bindings::libavutil::libavutil::crc::CrcId;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 #[test]
 fn arbitrary_identifiers_remain_valid_values() {
@@ -27,10 +41,10 @@ fn batch10_tables_clone_share_and_stream_unaligned_data() {
     for (le, bits, poly) in [
         (false, 8, 7),
         (false, 16, 0x1021),
-        (false, 24, 0x864cfb),
-        (false, 32, 0x04c11db7),
-        (true, 16, 0xa001),
-        (true, 32, 0xedb88320),
+        (false, 24, 0x864CFB),
+        (false, 32, 0x04C11DB7),
+        (true, 16, 0xA001),
+        (true, 32, 0xEDB88320),
     ] {
         for size in [TableSize::Compact, TableSize::Fast] {
             let table = Table::new(le, bits, poly, size).unwrap();
@@ -75,7 +89,7 @@ fn standard_tables_are_static_shared_and_thread_safe() {
             let copy = table;
             let input = [0x57; 259];
             for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
-                let _crc = copy.update(table.update(0, &input[1..1 + len]), &input[2..2 + len]);
+                let _crc = copy.update(table.update(0, &input[1..=len]), &input[2..2 + len]);
             }
             table
         })

@@ -1,5 +1,17 @@
 //! Compare lifecycle, keys, buffers and CBC transitions on independently
 //! owned contexts through the public safe API and the raw C implementation.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 
 use core::ptr::addr_of_mut;
 
@@ -25,9 +37,12 @@ fn allocation_and_reinitialization_preserve_the_full_public_array() {
     assert_eq!(wrapped.as_ref().key(), [0; 16]);
     let words = core::array::from_fn(|i| (i as u32).wrapping_mul(0x12345678));
     wrapped.as_mut().set_key(words);
+    // SAFETY: `reference.as_c_ptr()` is to a live object, as the access below relies on,
+    // so the place of its `key` field is in bounds; nothing is accessed here.
+    let key_ptr = unsafe { addr_of_mut!((*reference.as_c_ptr()).key) };
     // SAFETY: reference is sole owner of live C storage; projection writes
     // its entire plain-data array without forming a reference to C memory.
-    unsafe { addr_of_mut!((*reference.as_c_ptr()).key).write(words) };
+    unsafe { key_ptr.write(words) };
     assert_eq!(wrapped.as_ref().key(), reference.as_ref().key());
     for key in KEYS {
         // SAFETY: independent live, exclusively accessed context and exactly
@@ -196,7 +211,7 @@ fn reference_call(
             count,
             iv,
             i32::from(direction == Direction::Decrypt),
-        )
+        );
     };
 }
 
@@ -228,12 +243,12 @@ fn cipher_matrix_and_multicall_cbc_state_match_c() {
                             let input: Vec<u8> = (0..len + 2)
                                 .map(|i| (i as u8).wrapping_mul(173).wrapping_add(0x80))
                                 .collect();
-                            let src = &input[1..len + 1]; // byte-aligned, not word-aligned
-                            let mut a = vec![0xa5; len + 2];
+                            let src = &input[1..=len]; // byte-aligned, not word-aligned
+                            let mut a = vec![0xA5; len + 2];
                             let mut b = a.clone();
                             if inplace {
-                                a[1..len + 1].copy_from_slice(src);
-                                b[1..len + 1].copy_from_slice(src);
+                                a[1..=len].copy_from_slice(src);
+                                b[1..=len].copy_from_slice(src);
                             }
                             let initial_iv = *b"initial!";
                             let mut iv_a = initial_iv;
@@ -289,13 +304,13 @@ fn cipher_matrix_and_multicall_cbc_state_match_c() {
                                 assert_eq!(iv_a, iv_b);
                                 assert_eq!(wrapped.as_ref().key(), reference.as_ref().key());
                             }
-                            assert_eq!(&a[1..len + 1], src);
-                            assert_eq!(a[0], 0xa5);
-                            assert_eq!(a[len + 1], 0xa5);
+                            assert_eq!(&a[1..=len], src);
+                            assert_eq!(a[0], 0xA5);
+                            assert_eq!(a[len + 1], 0xA5);
                             assert_eq!(
                                 iv_a,
                                 if cbc && len > 0 {
-                                    ciphertext[len - 7..len + 1].try_into().unwrap()
+                                    ciphertext[(len - 7)..=len].try_into().unwrap()
                                 } else {
                                     initial_iv
                                 }

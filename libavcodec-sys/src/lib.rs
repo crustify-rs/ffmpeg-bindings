@@ -2,8 +2,15 @@
 //!
 //! Generated from `wrapper.h` under `allowlist.txt`; items from the link units it
 //! depends on are re-exported from their own `-sys` crates.
-#![allow(non_upper_case_globals, non_camel_case_types, non_snake_case, dead_code, unused_imports, clippy::all)]
+#![allow(
+    nonstandard_style,
+    missing_docs,
+    dead_code,
+    unused_imports,
+    clippy::all,
+    clippy::pedantic
+)]
 
+pub(crate) use libavutil_sys::*;
 pub use libswresample_sys::*;
-pub use libavutil_sys::*;
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

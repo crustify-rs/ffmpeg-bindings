@@ -1,4 +1,9 @@
-use ffmpeg_bindings::libavutil::libavutil::{ffi, hmac::HmacType};
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::hmac::HmacType;
 
 #[test]
 fn algorithms_and_unknown_values_are_plain_values() {

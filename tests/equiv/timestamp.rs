@@ -1,5 +1,10 @@
 //! Equivalence of `libavutil/timestamp.h`'s [`make_string`] with
 //! `av_ts_make_string`.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::CStr;
 
@@ -32,8 +37,8 @@ fn c_make_string(buf: &mut [u8; SIZE], ts: i64) -> *mut core::ffi::c_char {
 #[cfg_attr(miri, ignore = "calls C")]
 fn make_string_writes_as_av_ts_make_string() {
     for ts in STAMPS {
-        let mut mine = [0xa5; SIZE];
-        let mut theirs = [0xa5; SIZE];
+        let mut mine = [0xA5; SIZE];
+        let mut theirs = [0xA5; SIZE];
         let ret = c_make_string(&mut theirs, ts);
         assert_eq!(ret.cast::<u8>(), theirs.as_mut_ptr());
         let base = mine.as_ptr();
@@ -131,7 +136,7 @@ mod time_string {
     fn make_time_string_writes_as_av_ts_make_time_string2() {
         for ts in STAMPS {
             for tb in BASES {
-                assert_same(ts, tb, 0xa5);
+                assert_same(ts, tb, 0xA5);
                 assert_same(ts, tb, 0);
             }
         }
@@ -157,8 +162,8 @@ mod time_string {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn interleaved_with_make_string_agree_after_every_step() {
-        let mut mine = [0x5a; SIZE];
-        let mut theirs = [0x5a; SIZE];
+        let mut mine = [0x5A; SIZE];
+        let mut theirs = [0x5A; SIZE];
         for (i, ts) in STAMPS.into_iter().enumerate() {
             let tb = BASES[i % BASES.len()];
             let _ = make_time_string(&mut mine, ts, Rational::new(tb.0, tb.1));
@@ -176,7 +181,7 @@ mod time_string {
     #[cfg_attr(miri, ignore = "calls C")]
     fn pseudo_random_stamps_and_bases_agree() {
         // A fixed xorshift sequence, so a failure reproduces.
-        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
         let mut next = || {
             x ^= x << 13;
             x ^= x >> 7;
@@ -195,7 +200,7 @@ mod time_string {
             let s = next();
             let num = (s as i32) >> ((s >> 32) % 32);
             let den = ((s >> 32) as i32) >> (s % 32);
-            assert_same(ts, (num, den), 0xa5);
+            assert_same(ts, (num, den), 0xA5);
         }
     }
 }
@@ -236,7 +241,7 @@ mod time_string_by_ref {
         };
         // SAFETY: `buf` is the `AV_TS_MAX_STRING_SIZE` bytes C writes at most;
         // `tb` is a live struct C reads once.
-        unsafe { ffi::av_ts_make_time_string(buf.as_mut_ptr().cast(), ts, &tb) }
+        unsafe { ffi::av_ts_make_time_string(buf.as_mut_ptr().cast(), ts, &raw const tb) }
     }
 
     #[test]
@@ -247,8 +252,8 @@ mod time_string_by_ref {
             .chain([3, 7, 1_000_001, 123_456_789, -42]);
         for ts in stamps {
             for tb in TBS {
-                let mut mine = [0xa5; SIZE];
-                let mut theirs = [0xa5; SIZE];
+                let mut mine = [0xA5; SIZE];
+                let mut theirs = [0xA5; SIZE];
                 let ret = c_time_string(&mut theirs, ts, tb);
                 assert_eq!(ret.cast::<u8>(), theirs.as_mut_ptr());
                 let base = mine.as_ptr();

@@ -1,6 +1,15 @@
 //! UB tests of `libavutil/mathematics.h`'s safe [`Rounding`] API: every
 //! `u32` edge through the conversions, the flag algebra and the formatting,
 //! and the values shared across threads.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mathematics::{InvalidRounding, Rounding};
@@ -181,7 +190,7 @@ fn rescale_every_extreme_is_sound() {
         -1,
         0,
         1,
-        i32::MAX as i64,
+        i64::from(i32::MAX),
         1 << 40,
         i64::MAX,
     ];
@@ -322,7 +331,7 @@ mod timestamps {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_delta_rescales_keep_their_state() {
-        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         let durations = [0, 1, 1024, i32::MAX, -1, i32::MIN];
         for _ in 0..30_000 {
             let mut last = match rng.next() % 3 {
@@ -389,15 +398,15 @@ mod timestamps {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_stable_additions() {
-        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        let mut rng = Rng(0x2545_F491_4F6C_DD1D);
         let incs = [
             1,
             0,
             -1,
             2,
             1024,
-            i32::MAX as i64,
-            i32::MIN as i64,
+            i64::from(i32::MAX),
+            i64::from(i32::MIN),
             i64::MAX,
             i64::MIN,
         ];
@@ -425,7 +434,7 @@ mod timestamps {
         let workers: Vec<_> = (0..8u64)
             .map(|t| {
                 thread::spawn(move || {
-                    let mut rng = Rng(0xdead_beef + t);
+                    let mut rng = Rng(0xDEAD_BEEF + t);
                     let mut last = i64::MIN;
                     let mut ts = 0;
                     let (sr, ms) = (Rational::new(1, 48_000), Rational::new(1, 1000));

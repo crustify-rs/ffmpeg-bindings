@@ -1,5 +1,9 @@
 //! UB tests of `libavutil/bswap.h`'s safe byte swaps: every bit position and
 //! the extremes, on this thread and others.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
 
@@ -27,7 +31,7 @@ fn swaps_run_concurrently() {
         .map(|t| {
             std::thread::spawn(move || {
                 (0..10_000u64).fold(0u64, |acc, i| {
-                    let w = i.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ t;
+                    let w = i.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ t;
                     acc ^ swap64(swap64(w))
                         ^ u64::from(swap32(w as u32))
                         ^ u64::from(swap16(w as u16))

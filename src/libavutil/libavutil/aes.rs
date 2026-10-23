@@ -4,16 +4,22 @@
 //! no caller buffer is retained. A context has no sub-allocations or C clone routine.
 //! Processing borrows buffers synchronously, with distinct disjoint and in-place APIs.
 
-use core::{fmt, mem::MaybeUninit, ptr::NonNull};
+use core::fmt;
+use core::mem::MaybeUninit;
+use core::ptr::NonNull;
+
 use ffibox::{CAlloc, CBox, CDrop, define_ctype};
 
-use super::{ffi, mem::Heap};
+use super::ffi;
+use super::mem::Heap;
 
 /// Whether a cipher encrypts or decrypts, shared by the crypto block-cipher
 /// wrappers. For AES it selects the key schedule to install in a context.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {
+    /// Encrypt: C's `decrypt` argument 0.
     Encrypt,
+    /// Decrypt: C's `decrypt` argument 1.
     Decrypt,
 }
 
@@ -27,8 +33,11 @@ impl Direction {
 /// calls leave context, output and IV unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptError {
+    /// The source and destination lengths differ.
     LengthMismatch,
+    /// A buffer length is not a whole number of blocks.
     IncompleteBlock,
+    /// The block count exceeds C's `int` range.
     CountOverflow,
 }
 
@@ -63,6 +72,7 @@ pub(crate) fn buffer_count(
 pub enum InitError {
     /// AES accepts exactly 16, 24 or 32 key bytes.
     InvalidKeyLength,
+    /// C could not allocate the context.
     AllocationFailed,
     /// The initializer returned a negative C error code.
     InitializationFailed(i32),
@@ -87,7 +97,10 @@ define_ctype!(
     /// names the FFI pointee only, never its private size or fields. Construct
     /// an owner with [`Aes::new`], not an inline value or a generic allocator.
     /// An adopted context must have a valid 128-, 192- or 256-bit key schedule.
-    Aes, AesRef, AesMut, ffi::AVAES
+    Aes,
+    AesRef,
+    AesMut,
+    ffi::AVAES
 );
 
 /// Storage allocated by `av_aes_alloc`, released by the existing [`Heap`] policy.
@@ -114,7 +127,7 @@ unsafe impl CDrop<MaybeUninit<Aes>> for AesFree {
     }
 }
 
-/// Wraps: av_aes_alloc
+/// Wraps: `av_aes_alloc`
 // SAFETY: C allocates the full private body with its required alignment, not
 // size_of::<Aes>() (the public forward declaration has no body). AesFree releases it.
 unsafe impl CAlloc<Aes> for AesFree {
@@ -158,6 +171,12 @@ fn key_bits(key: &[u8]) -> Result<i32, InitError> {
 
 impl Aes {
     /// Allocate and initialize a context. The key may be dropped immediately.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key that is not 16, 24 or 32 bytes,
+    /// [`InitError::AllocationFailed`] when C cannot allocate the context, and
+    /// [`InitError::InitializationFailed`] with C's code when `av_aes_init` refuses the key.
     pub fn new(key: &[u8], direction: Direction) -> Result<AesBox, InitError> {
         let bits = key_bits(key)?;
         let mut storage = AesBox::new_uninit().ok_or(InitError::AllocationFailed)?;
@@ -178,9 +197,14 @@ impl Aes {
 }
 
 impl AesMut<'_> {
-    /// Wraps: av_aes_init
+    /// Wraps: `av_aes_init`
     ///
     /// Replace the key schedule. Invalid key lengths leave the context unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key that is not 16, 24 or 32 bytes, before C
+    /// runs, and [`InitError::InitializationFailed`] with C's code when `av_aes_init` refuses it.
     pub fn init(&mut self, key: &[u8], direction: Direction) -> Result<(), InitError> {
         // C changes rounds/crypt even on invalid key lengths: reject before FFI.
         let bits = key_bits(key)?;
@@ -198,9 +222,10 @@ impl AesMut<'_> {
     }
 }
 
-/// Wraps: av_aes_size
+/// Wraps: `av_aes_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -208,7 +233,7 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl AesMut<'_> {
-    /// Wraps: av_aes_crypt
+    /// Wraps: `av_aes_crypt`
     ///
     /// Process whole blocks with the direction selected by initialization.
     /// C ignores its redundant decrypt argument.
@@ -230,6 +255,11 @@ impl AesMut<'_> {
     /// let mut data = [0; 16];
     /// aes.as_mut().crypt(&mut data, &[0; 16], Some(&mut data)).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &mut self,
         dst: &mut [u8],
@@ -251,12 +281,17 @@ impl AesMut<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 0,
-            )
+            );
         };
         Ok(())
     }
 
     /// In-place form of [`Self::crypt`], with the same modes and validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &mut self,
         data: &mut [u8],
@@ -279,13 +314,25 @@ impl AesMut<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 0,
-            )
+            );
         };
         Ok(())
     }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
+#[expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 mod unit_tests {
     use super::*;
 
@@ -316,28 +363,28 @@ mod unit_tests {
                 for blocks in [0, 1, 2, 8] {
                     let mut enc = Aes::new(&key, Direction::Encrypt).unwrap();
                     let mut dec = Aes::new(&key, Direction::Decrypt).unwrap();
-                    let input = vec![0xa7; blocks * 16 + 3];
+                    let input = vec![0xA7; blocks * 16 + 3];
                     let mut output = vec![0; input.len()];
                     let (mut ie, mut id) = ([0x73; 16], [0x73; 16]);
                     enc.as_mut()
                         .crypt(
-                            &mut output[1..1 + blocks * 16],
+                            &mut output[1..=(blocks * 16)],
                             &input[2..2 + blocks * 16],
                             cbc.then_some(&mut ie),
                         )
                         .unwrap();
                     dec.as_mut()
-                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut id))
+                        .crypt_in_place(&mut output[1..=(blocks * 16)], cbc.then_some(&mut id))
                         .unwrap();
-                    assert_eq!(output[1..1 + blocks * 16], input[2..2 + blocks * 16]);
+                    assert_eq!(output[1..=(blocks * 16)], input[2..2 + blocks * 16]);
                     assert_eq!(ie, id);
                     enc.as_mut()
-                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut ie))
+                        .crypt_in_place(&mut output[1..=(blocks * 16)], cbc.then_some(&mut ie))
                         .unwrap();
                     dec.as_mut()
-                        .crypt_in_place(&mut output[1..1 + blocks * 16], cbc.then_some(&mut id))
+                        .crypt_in_place(&mut output[1..=(blocks * 16)], cbc.then_some(&mut id))
                         .unwrap();
-                    assert_eq!(output[1..1 + blocks * 16], input[2..2 + blocks * 16]);
+                    assert_eq!(output[1..=(blocks * 16)], input[2..2 + blocks * 16]);
                     assert_eq!(ie, id);
                 }
             }
@@ -345,13 +392,13 @@ mod unit_tests {
         use super::super::crc::{CrcId, Table, TableSize, get_table};
         for (id, le, bits, poly) in [
             (CrcId::ATM_8, false, 8, 0x07),
-            (CrcId::EBU_8, false, 8, 0x1d),
+            (CrcId::EBU_8, false, 8, 0x1D),
             (CrcId::ANSI_16, false, 16, 0x8005),
             (CrcId::CCITT_16, false, 16, 0x1021),
-            (CrcId::IEEE_24, false, 24, 0x864cfb),
-            (CrcId::IEEE_32, false, 32, 0x04c11db7),
-            (CrcId::IEEE_32_LE, true, 32, 0xedb88320),
-            (CrcId::ANSI_16_LE, true, 16, 0xa001),
+            (CrcId::IEEE_24, false, 24, 0x864CFB),
+            (CrcId::IEEE_32, false, 32, 0x04C11DB7),
+            (CrcId::IEEE_32_LE, true, 32, 0xEDB88320),
+            (CrcId::ANSI_16_LE, true, 16, 0xA001),
         ] {
             let standard = get_table(id).unwrap();
             for size in [TableSize::Compact, TableSize::Fast] {
@@ -359,8 +406,8 @@ mod unit_tests {
                 let input = [0x57; 259];
                 for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
                     assert_eq!(
-                        standard.update(0, &input[1..1 + len]),
-                        generated.update(0, &input[1..1 + len])
+                        standard.update(0, &input[1..=len]),
+                        generated.update(0, &input[1..=len])
                     );
                 }
             }
@@ -409,8 +456,8 @@ mod unit_tests {
         assert_eq!(
             block,
             [
-                0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34,
-                0x2b, 0x2e
+                0x66, 0xE9, 0x4B, 0xD4, 0xEF, 0x8A, 0x2C, 0x3B, 0x88, 0x4C, 0xFA, 0x59, 0xCA, 0x34,
+                0x2B, 0x2E
             ]
         );
     }
@@ -446,14 +493,8 @@ mod unit_tests {
 
     #[test]
     fn null_adoption_and_opaque_layout() {
-        assert_eq!(
-            core::mem::size_of::<Aes>(),
-            core::mem::size_of::<ffi::AVAES>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Aes>(),
-            core::mem::align_of::<ffi::AVAES>()
-        );
+        assert_eq!(size_of::<Aes>(), size_of::<ffi::AVAES>());
+        assert_eq!(align_of::<Aes>(), align_of::<ffi::AVAES>());
         // SAFETY: a null pointer transfers no allocation and creates no owner.
         assert!(unsafe { AesBox::from_c(core::ptr::null_mut()) }.is_none());
     }
@@ -506,8 +547,8 @@ mod unit_tests {
         assert_eq!(
             before,
             [
-                0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34,
-                0x2b, 0x2e
+                0x66, 0xE9, 0x4B, 0xD4, 0xEF, 0x8A, 0x2C, 0x3B, 0x88, 0x4C, 0xFA, 0x59, 0xCA, 0x34,
+                0x2B, 0x2E
             ]
         );
     }

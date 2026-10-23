@@ -41,7 +41,7 @@ fn every_subset_of_the_detected_cpu_flags() {
 fn concurrent_forcing_and_reading() {
     let _g = FORCED.lock().unwrap();
     let d = detected();
-    let sets = [0, d, d & 0x5555_5555, d & 0x2aaa_aaaa, -1];
+    let sets = [0, d, d & 0x5555_5555, d & 0x2AAA_AAAA, -1];
     let handles: Vec<_> = (0..8)
         .map(|t| {
             thread::spawn(move || {

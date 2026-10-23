@@ -1,4 +1,18 @@
 //! UB tests for `libavutil/pixdesc.h`, through the safe API only.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// `ComponentDescriptor`: inline values, `av_malloc`-family owners and arrays
 /// of them (the shape of a descriptor's `comp[4]`), every handle form, copies
@@ -104,7 +118,7 @@ mod component_descriptor {
         assert_eq!(fields(copy.as_ref()), FIELDS[1]);
         let mut b = copy;
         b.as_mut().set_shift(-1);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = Clone::clone(&b);
         assert_eq!(fields(copy.as_ref()), FIELDS[1]);
         assert_eq!(fields(c.as_ref()), [0, 2, -1, -1, 5]);
@@ -237,7 +251,7 @@ mod component_descriptor {
 
 /// The color property lookups by name (`ColorRange::from_name` and its
 /// siblings): empty, long, non-UTF-8 and near-miss names in exactly sized
-/// heap strings (so a read past the NUL is an ASan report), the names C's
+/// heap strings (so a read past the NUL is an `ASan` report), the names C's
 /// tables hold, and lookups on several threads at once.
 mod color_names {
     use core::ffi::CStr;
@@ -441,7 +455,7 @@ mod swap_endianness {
 /// The value-to-name getters, `AlphaMode::from_name`, the chroma position
 /// conversions and the pixel format name lookups: every value including the
 /// `int`/`unsigned` extremes, names in exactly sized heap strings (so a read
-/// past the NUL is an ASan report) up to well past C's 32-byte copy, the
+/// past the NUL is an `ASan` report) up to well past C's 32-byte copy, the
 /// `'static` names kept across threads and later calls, and the calls on
 /// several threads at once.
 mod names_and_positions {
@@ -601,7 +615,7 @@ mod names_and_positions {
 /// `PixelFormat::conversion_loss`, `best_of_two` and
 /// `best_of_two_with_loss` on every pair of values, the `int` extremes and
 /// every ignore set's sign and width included (C's scoring shifts and
-/// subtracts by descriptor fields, which UBSan watches), and on several
+/// subtracts by descriptor fields, which `UBSan` watches), and on several
 /// threads at once.
 mod pixel_format_loss {
     use std::thread;
@@ -640,7 +654,7 @@ mod pixel_format_loss {
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_ignore_set_is_accepted() {
         let all = formats();
-        for bits in [0, 1, 0xff, 0x100, i32::MAX, i32::MIN, -1, -2] {
+        for bits in [0, 1, 0xFF, 0x100, i32::MAX, i32::MIN, -1, -2] {
             let ignore = Loss::from_bits_retain(bits);
             for (i, &src) in all.iter().enumerate() {
                 let d1 = all[(i * 7) % all.len()];
@@ -692,7 +706,7 @@ mod pixel_format_loss {
 /// `PixelFormatDescriptor`: inline values, `av_malloc`-family owners and
 /// arrays of them, every handle form and its component runs, strings from
 /// literals and from exactly sized heap allocations (so a read past the NUL
-/// is an ASan report), names that outlive the descriptor they were read
+/// is an `ASan` report), names that outlive the descriptor they were read
 /// from, copies outliving their source, and the asserted `Send` / `Sync`.
 /// Tests without `heap` in their name make no C call and also run under
 /// Miri.
@@ -710,7 +724,7 @@ mod pixel_format_descriptor {
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
-    /// LeakSanitizer nor Miri reports it.
+    /// `LeakSanitizer` nor Miri reports it.
     fn leaked(bytes: &[u8]) -> &'static CStr {
         static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
         let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
@@ -906,7 +920,7 @@ mod pixel_format_descriptor {
         let mut b = PixelFormatDescriptor::new();
         b.as_mut().set(copy);
         assert_eq!(b, copy);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = Clone::clone(&b);
         assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
         assert_ne!(a, copy);
@@ -1261,7 +1275,7 @@ mod descriptor_table {
 /// `read_image_line` / `write_image_line` and their `u16` forms: C's table
 /// and Rust-built descriptors at every edge, each line on planes sized to
 /// exactly the bytes the wrapper checked, so a byte C touches past either
-/// end is an ASan report, and lines on many threads at once.
+/// end is an `ASan` report, and lines on many threads at once.
 mod image_lines {
     use std::thread;
 
@@ -1280,7 +1294,7 @@ mod image_lines {
 
     /// The bytes every probe of the searches reads from: one block, so a
     /// search allocates nothing.
-    static PROBE: [u8; CAP] = [0x5a; CAP];
+    static PROBE: [u8; CAP] = [0x5A; CAP];
 
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -1288,7 +1302,7 @@ mod image_lines {
 
     /// Planes with `lens` bytes, plane `p`'s rows `linesize` apart.
     fn sized(lens: [usize; 4]) -> [Vec<u8>; 4] {
-        lens.map(|n| vec![0x5a; n])
+        lens.map(|n| vec![0x5A; n])
     }
 
     fn planes(img: &[Vec<u8>; 4], linesize: isize) -> Planes<'_> {
@@ -1308,7 +1322,7 @@ mod image_lines {
         }
         let (mut lo, mut hi) = (0, CAP);
         while lo < hi {
-            let mid = (lo + hi) / 2;
+            let mid = usize::midpoint(lo, hi);
             if accepts(lens(mid)) {
                 hi = mid;
             } else {

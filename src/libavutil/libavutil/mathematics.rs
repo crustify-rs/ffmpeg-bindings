@@ -21,7 +21,7 @@ use core::fmt;
 use super::ffi;
 use super::rational::Rational;
 
-/// Wraps: AVRounding
+/// Wraps: `AVRounding`
 ///
 /// The rounding of a rescale: a method ([`ZERO`](Self::ZERO),
 /// [`INF`](Self::INF), [`DOWN`](Self::DOWN), [`UP`](Self::UP) or
@@ -30,7 +30,7 @@ use super::rational::Rational;
 ///
 /// C's `enum AVRounding` mixes the methods with a flag bit, so any `unsigned`
 /// fits it, and `av_rescale_rnd` returns `INT64_MIN` for any value that is not
-/// a method, alone or ORed with `AV_ROUND_PASS_MINMAX`. A `Rounding` holds
+/// a method, alone or `ORed` with `AV_ROUND_PASS_MINMAX`. A `Rounding` holds
 /// only those accepted values; [`TryFrom`] rejects the others, and the value
 /// passes to C unchanged through [`From`], as a layout-compatible newtype.
 #[repr(transparent)]
@@ -38,19 +38,18 @@ use super::rational::Rational;
 pub struct Rounding(ffi::AVRounding);
 
 impl Rounding {
-    /// Round toward zero (`AV_ROUND_ZERO`).
-    pub const ZERO: Self = Self(ffi::AVRounding::AV_ROUND_ZERO);
-    /// Round away from zero (`AV_ROUND_INF`).
-    pub const INF: Self = Self(ffi::AVRounding::AV_ROUND_INF);
     /// Round toward negative infinity (`AV_ROUND_DOWN`).
     pub const DOWN: Self = Self(ffi::AVRounding::AV_ROUND_DOWN);
-    /// Round toward positive infinity (`AV_ROUND_UP`).
-    pub const UP: Self = Self(ffi::AVRounding::AV_ROUND_UP);
+    /// Round away from zero (`AV_ROUND_INF`).
+    pub const INF: Self = Self(ffi::AVRounding::AV_ROUND_INF);
     /// Round to nearest, halfway cases away from zero (`AV_ROUND_NEAR_INF`).
     pub const NEAR_INF: Self = Self(ffi::AVRounding::AV_ROUND_NEAR_INF);
-
     /// The `AV_ROUND_PASS_MINMAX` bit.
     const PASS_MINMAX: u32 = ffi::AVRounding::AV_ROUND_PASS_MINMAX.0;
+    /// Round toward positive infinity (`AV_ROUND_UP`).
+    pub const UP: Self = Self(ffi::AVRounding::AV_ROUND_UP);
+    /// Round toward zero (`AV_ROUND_ZERO`).
+    pub const ZERO: Self = Self(ffi::AVRounding::AV_ROUND_ZERO);
 
     /// Returns this rounding with `AV_ROUND_PASS_MINMAX` set: a rescale passes
     /// `i64::MIN` and `i64::MAX` (and so `AV_NOPTS_VALUE`) through unchanged,
@@ -61,6 +60,7 @@ impl Rounding {
     }
 
     /// Whether `AV_ROUND_PASS_MINMAX` is set.
+    #[must_use]
     pub const fn passes_min_max(self) -> bool {
         self.0.0 & Self::PASS_MINMAX != 0
     }
@@ -72,12 +72,14 @@ impl Rounding {
     }
 
     /// The C value, for a raw call.
+    #[must_use]
     pub const fn as_raw(self) -> ffi::AVRounding {
         self.0
     }
 
     /// The value as `Rounding`, when `av_rescale_rnd` accepts it: a method,
     /// alone or with `AV_ROUND_PASS_MINMAX`.
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVRounding) -> Option<Self> {
         match raw.0 & !Self::PASS_MINMAX {
             0..=3 | 5 => Some(Self(raw)),
@@ -135,7 +137,7 @@ impl fmt::Display for InvalidRounding {
 
 impl std::error::Error for InvalidRounding {}
 
-/// Wraps: av_compare_mod
+/// Wraps: `av_compare_mod`
 ///
 /// Compares `a % m` with `b % m` for a power-of-two `m`: the wrapped
 /// difference of the low `log2(m)` bits of `a` and `b`, read as a signed
@@ -145,25 +147,27 @@ impl std::error::Error for InvalidRounding {}
 /// A modulus that is not a power of two gives a meaningless but defined
 /// result, as in C; `m == 0` compares the whole 64 bits.
 #[inline]
+#[must_use]
 pub fn compare_mod(a: u64, b: u64, m: u64) -> i64 {
     // SAFETY: `av_compare_mod` takes and returns integers by value and
     // touches no memory; its arithmetic is unsigned, defined for every input.
     unsafe { ffi::av_compare_mod(a, b, m) }
 }
 
-/// Wraps: av_bessel_i0
+/// Wraps: `av_bessel_i0`
 ///
 /// The zeroth-order modified Bessel function of the first kind, `I0(x)`,
 /// from C's minimax rational approximations. Even in `x`; NaN yields NaN and
 /// a large `|x|` overflows to infinity.
 #[inline]
+#[must_use]
 pub fn bessel_i0(x: f64) -> f64 {
     // SAFETY: `av_bessel_i0` takes and returns a double by value and reads
     // only its own constant tables.
     unsafe { ffi::av_bessel_i0(x) }
 }
 
-/// Wraps: av_gcd
+/// Wraps: `av_gcd`
 ///
 /// The greatest common divisor of `a` and `b`, up to sign: non-negative when
 /// both are, `b` when `a` is 0 and `a` when `b` is 0 (so `gcd(0, 0) == 0`). A
@@ -175,7 +179,7 @@ pub fn gcd(a: i64, b: i64) -> i64 {
     unsafe { ffi::av_gcd(a, b) }
 }
 
-/// Wraps: av_rescale
+/// Wraps: `av_rescale`
 ///
 /// `a * b / c`, computed without intermediate overflow and rounded to
 /// nearest, halfway cases away from zero ([`Rounding::NEAR_INF`]).
@@ -202,7 +206,7 @@ fn rescaled(r: i64, a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64> {
     (r != i64::MIN || passed).then_some(r)
 }
 
-/// Wraps: av_rescale_rnd
+/// Wraps: `av_rescale_rnd`
 ///
 /// `a * b / c`, computed without intermediate overflow and rounded by
 /// `rounding`. Under [`Rounding::pass_min_max`], `i64::MIN` and `i64::MAX`
@@ -221,7 +225,7 @@ pub fn rescale_rounded(a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64
     rescaled(r, a, b, c, rounding)
 }
 
-/// Wraps: av_rescale_q_rnd
+/// Wraps: `av_rescale_q_rnd`
 ///
 /// `a * bq / cq`, the value `a` in units of `bq` expressed in units of `cq`
 /// (a timestamp from one time base to another), rounded by `rounding`. Under
@@ -252,7 +256,7 @@ pub fn rescale_rational_rounded(
     )
 }
 
-/// Wraps: av_rescale_q
+/// Wraps: `av_rescale_q`
 ///
 /// [`rescale_rational_rounded`] rounding to nearest, halfway cases away from
 /// zero ([`Rounding::NEAR_INF`]): `a` in units of `bq` expressed in units of
@@ -267,7 +271,7 @@ pub fn rescale_rational(a: i64, bq: Rational, cq: Rational) -> Option<i64> {
     (r != i64::MIN).then_some(r)
 }
 
-/// Wraps: av_compare_ts
+/// Wraps: `av_compare_ts`
 ///
 /// Orders the timestamp `ts_a` in time base `tb_a` against `ts_b` in `tb_b`.
 ///
@@ -275,6 +279,10 @@ pub fn rescale_rational(a: i64, bq: Rational, cq: Rational) -> Option<i64> {
 /// the other's time base, fits an `i64`, and both time bases are positive;
 /// otherwise it is an arbitrary but defined ordering.
 #[must_use]
+#[expect(
+    clippy::similar_names,
+    reason = "the names follow the C variables they mirror"
+)]
 pub fn compare_timestamps(ts_a: i64, tb_a: Rational, ts_b: i64, tb_b: Rational) -> Ordering {
     // SAFETY: `av_compare_ts` takes its arguments by value. It multiplies the
     // timestamps directly only when they and the `int` cross products of the
@@ -283,7 +291,7 @@ pub fn compare_timestamps(ts_a: i64, tb_a: Rational, ts_b: i64, tb_b: Rational) 
     unsafe { ffi::av_compare_ts(ts_a, tb_a.into_raw(), ts_b, tb_b.into_raw()) }.cmp(&0)
 }
 
-/// Wraps: av_rescale_delta
+/// Wraps: `av_rescale_delta`
 ///
 /// Rescales the timestamp `in_ts` from `in_tb` to `out_tb`, keeping
 /// successive packets' known durations: call it once per packet of a stream,
@@ -304,6 +312,10 @@ pub fn compare_timestamps(ts_a: i64, tb_a: Rational, ts_b: i64, tb_b: Rational) 
 /// value too close to `i64::MAX` to add `duration` to). `None` also when C
 /// cannot represent the result in `out_tb`; `last` is then updated as C
 /// updates it.
+#[expect(
+    clippy::similar_names,
+    reason = "the names follow the C variables they mirror"
+)]
 pub fn rescale_delta(
     in_tb: Rational,
     in_ts: i64,
@@ -359,7 +371,7 @@ pub fn rescale_delta(
     (r != i64::MIN).then_some(r)
 }
 
-/// Wraps: av_add_stable
+/// Wraps: `av_add_stable`
 ///
 /// The timestamp `ts`, in time base `ts_tb`, advanced by `inc` units of
 /// `inc_tb`, such that adding the same increment repeatedly accumulates no
@@ -370,12 +382,10 @@ pub fn rescale_delta(
 ///
 /// `None` where C overflows or divides by zero, which the call never reaches:
 ///
-/// - `inc` beyond the `i32` range: C narrows it to `int` and adds the wrong
-///   value;
-/// - a zero numerator of `ts_tb`, or `inc_tb` whose product with `inc` has a
-///   zero denominator;
-/// - an increment that is a whole negative number of `ts_tb` units (negative
-///   increments are not supported by C: shorter ones return `ts` unchanged).
+/// - `inc` beyond the `i32` range: C narrows it to `int` and adds the wrong value;
+/// - a zero numerator of `ts_tb`, or `inc_tb` whose product with `inc` has a zero denominator;
+/// - an increment that is a whole negative number of `ts_tb` units (negative increments are not
+///   supported by C: shorter ones return `ts` unchanged).
 #[must_use]
 pub fn add_stable(ts_tb: Rational, ts: i64, inc_tb: Rational, inc: i64) -> Option<i64> {
     // C's divisibility test, computed as C does, through the same
@@ -514,8 +524,8 @@ mod unit_tests {
         assert!(compare_mod(0x11, 0x02, 0x20) > 0);
         assert_eq!(compare_mod(0x1234, 0x5634, 0x100), 0);
         // Sequence numbers across the wrap: 1 follows 0xffff by 2.
-        assert_eq!(compare_mod(1, 0xffff, 0x1_0000), 2);
-        assert_eq!(compare_mod(0xffff, 1, 0x1_0000), -2);
+        assert_eq!(compare_mod(1, 0xFFFF, 0x1_0000), 2);
+        assert_eq!(compare_mod(0xFFFF, 1, 0x1_0000), -2);
         // Half the modulus away stays positive.
         assert_eq!(compare_mod(8, 0, 16), 8);
         assert_eq!(compare_mod(9, 0, 16), -7);

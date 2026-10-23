@@ -1,4 +1,11 @@
-use ffmpeg_bindings::libavutil::libavutil::{ffi, rc4::Rc4};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::rc4::Rc4;
 
 fn check(raw: &ffi::AVRC4, wrapped: ffmpeg_bindings::libavutil::libavutil::rc4::Rc4Ref<'_>) {
     assert_eq!(wrapped.x(), raw.x);
@@ -13,7 +20,7 @@ fn init_fields_reset_and_stream_checkpoints_match_c() {
     let mut raw = ffi::AVRC4::default();
     for key_len in [1, 2, 16, 255, 256, 257, 1024] {
         let key: Vec<_> = (0..key_len).map(|i| (i * 37) as u8).collect();
-        // SAFETY: raw is writable full AVRC4 storage and key is nonempty,
+        // For the unsafe operations below: raw is writable full AVRC4 storage and key is nonempty,
         // readable for its declared bit count; C retains neither pointer.
         let bits = (key.len() * 8) as i32;
         // SAFETY: raw is complete writable storage and the nonempty key has
@@ -81,7 +88,7 @@ fn batch2_all_stream_contracts_match_c_after_each_call() {
     );
     for count in [0, 1, 2, 255, 256, 513] {
         let input: Vec<_> = (0..count).map(|i| (i * 19) as u8).collect();
-        let mut output = vec![0xa5; count + 1];
+        let mut output = vec![0xA5; count + 1];
         let mut expected = output.clone();
         owner.as_mut().crypt(&mut output, &input).unwrap();
         // SAFETY: independent initialized context and disjoint count-byte
@@ -94,7 +101,7 @@ fn batch2_all_stream_contracts_match_c_after_each_call() {
                 count as i32,
                 core::ptr::null_mut(),
                 1,
-            )
+            );
         };
         assert_eq!(output, expected);
         check(&raw, owner.as_ref());
@@ -108,7 +115,7 @@ fn batch2_all_stream_contracts_match_c_after_each_call() {
                 count as i32,
                 core::ptr::null_mut(),
                 0,
-            )
+            );
         };
         assert_eq!(output, expected);
         check(&raw, owner.as_ref());
@@ -122,10 +129,10 @@ fn batch2_all_stream_contracts_match_c_after_each_call() {
                 count as i32,
                 core::ptr::null_mut(),
                 0,
-            )
+            );
         };
         assert_eq!(output, expected);
         check(&raw, owner.as_ref());
-        assert_eq!(output[count], 0xa5);
+        assert_eq!(output[count], 0xA5);
     }
 }

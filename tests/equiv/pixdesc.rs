@@ -1,4 +1,19 @@
 //! Equivalence of `libavutil/pixdesc.h`'s safe API with the C library.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 /// [`ComponentDescriptor`] against C's `AVComponentDescriptor`: the safe
 /// getters against C's fields for every component of every pixel format
@@ -56,7 +71,7 @@ mod component_descriptor {
     /// Four planes of pseudo-random bytes, so a component read from the
     /// wrong plane, offset, step, shift or depth reads different values.
     fn image() -> [Vec<u8>; 4] {
-        let mut x = 0x2545_f491_u32;
+        let mut x = 0x2545_F491_u32;
         core::array::from_fn(|_| {
             (0..LINESIZE * ROWS)
                 .map(|_| {
@@ -80,26 +95,31 @@ mod component_descriptor {
         let mut data: [*const u8; 4] = core::array::from_fn(|i| img[i].as_ptr());
         let linesize = [LINESIZE as c_int; 4];
         let mut dst = [0u32; W];
-        // SAFETY: `desc` is a live descriptor whose components are each either C's own
-        // table entry for its format, addressing planes 0..4 with C's offsets, steps and
-        // depths, or all-zero, whose `depth` of 0 makes C return before reading; every
-        // plane holds `ROWS` rows of `LINESIZE` bytes, enough for `W` pixels of row 1 at
-        // the table's widest step and offset; `dst` holds `W` 4-byte elements; a palette
-        // is never indexed (`read_pal_component` 0); the bit count reads planes 0..4.
-        unsafe {
-            ffi::av_read_image_line2(
-                dst.as_mut_ptr().cast::<c_void>(),
-                data.as_mut_ptr(),
-                linesize.as_ptr(),
-                desc,
-                0,
-                1,
-                c as c_int,
-                W as c_int,
-                0,
-                4,
-            );
-            (dst, ffi::av_get_padded_bits_per_pixel(desc))
+        // For the unsafe operations below: `desc` is a live descriptor whose components are each
+        // either C's own table entry for its format, addressing planes 0..4 with C's
+        // offsets, steps and depths, or all-zero, whose `depth` of 0 makes C return before
+        // reading; every plane holds `ROWS` rows of `LINESIZE` bytes, enough for `W` pixels
+        // of row 1 at the table's widest step and offset; `dst` holds `W` 4-byte elements;
+        // a palette is never indexed (`read_pal_component` 0); the bit count reads planes
+        // 0..4.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ffi::av_read_image_line2(
+                    dst.as_mut_ptr().cast::<c_void>(),
+                    data.as_mut_ptr(),
+                    linesize.as_ptr(),
+                    desc,
+                    0,
+                    1,
+                    c as c_int,
+                    W as c_int,
+                    0,
+                    4,
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { (dst, ffi::av_get_padded_bits_per_pixel(desc)) }
         }
     }
 
@@ -519,36 +539,34 @@ mod property_names {
     fn names(raw: u32) -> [(Option<&'static CStr>, Option<&'static CStr>); 6] {
         // SAFETY: the getters take the enum by value, accept any value, and
         // return NULL or a static string.
-        unsafe {
-            [
-                (
-                    ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
-                    c_name(ffi::av_color_range_name(ffi::AVColorRange(raw))),
-                ),
-                (
-                    ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
-                    c_name(ffi::av_color_primaries_name(ffi::AVColorPrimaries(raw))),
-                ),
-                (
-                    ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
-                    c_name(ffi::av_color_transfer_name(
-                        ffi::AVColorTransferCharacteristic(raw),
-                    )),
-                ),
-                (
-                    ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
-                    c_name(ffi::av_color_space_name(ffi::AVColorSpace(raw))),
-                ),
-                (
-                    ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
-                    c_name(ffi::av_chroma_location_name(ffi::AVChromaLocation(raw))),
-                ),
-                (
-                    AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
-                    c_name(ffi::av_alpha_mode_name(ffi::AVAlphaMode(raw))),
-                ),
-            ]
-        }
+        [
+            (
+                ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
+                c_name(unsafe { ffi::av_color_range_name(ffi::AVColorRange(raw)) }),
+            ),
+            (
+                ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
+                c_name(unsafe { ffi::av_color_primaries_name(ffi::AVColorPrimaries(raw)) }),
+            ),
+            (
+                ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
+                c_name(unsafe {
+                    ffi::av_color_transfer_name(ffi::AVColorTransferCharacteristic(raw))
+                }),
+            ),
+            (
+                ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
+                c_name(unsafe { ffi::av_color_space_name(ffi::AVColorSpace(raw)) }),
+            ),
+            (
+                ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
+                c_name(unsafe { ffi::av_chroma_location_name(ffi::AVChromaLocation(raw)) }),
+            ),
+            (
+                AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
+                c_name(unsafe { ffi::av_alpha_mode_name(ffi::AVAlphaMode(raw)) }),
+            ),
+        ]
     }
 
     #[test]
@@ -573,33 +591,37 @@ mod property_names {
         let c = |ret: core::ffi::c_int| u32::try_from(ret).ok();
         // SAFETY: `name` is a live NUL-terminated string, which the lookups
         // only read.
-        unsafe {
-            match i {
-                0 => (
-                    ColorRange::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_color_range_from_name(name.as_ptr())),
-                ),
-                1 => (
-                    ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_color_primaries_from_name(name.as_ptr())),
-                ),
-                2 => (
-                    ColorTransfer::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_color_transfer_from_name(name.as_ptr())),
-                ),
-                3 => (
-                    ColorSpace::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_color_space_from_name(name.as_ptr())),
-                ),
-                4 => (
-                    ChromaLocation::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_chroma_location_from_name(name.as_ptr())),
-                ),
-                _ => (
-                    AlphaMode::from_name(name).map(|v| v.into_raw().0),
-                    c(ffi::av_alpha_mode_from_name(name.as_ptr()).0 as core::ffi::c_int),
-                ),
-            }
+        match i {
+            0 => (
+                ColorRange::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_color_range_from_name(name.as_ptr()) }),
+            ),
+            1 => (
+                ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) }),
+            ),
+            2 => (
+                ColorTransfer::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_color_transfer_from_name(name.as_ptr()) }),
+            ),
+            3 => (
+                ColorSpace::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_color_space_from_name(name.as_ptr()) }),
+            ),
+            4 => (
+                ChromaLocation::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) }),
+            ),
+            _ => (
+                AlphaMode::from_name(name).map(|v| v.into_raw().0),
+                // SAFETY: as the comment above this statement states.
+                c(unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) }.0 as core::ffi::c_int),
+            ),
         }
     }
 
@@ -679,7 +701,7 @@ mod chroma_positions {
         // SAFETY: `x` and `y` are live, writable `int`s, written only on
         // success and not kept.
         let ret = unsafe {
-            ffi::av_chroma_location_enum_to_pos(&mut x, &mut y, ffi::AVChromaLocation(raw))
+            ffi::av_chroma_location_enum_to_pos(&raw mut x, &raw mut y, ffi::AVChromaLocation(raw))
         };
         if ret == 0 {
             Some((x, y))
@@ -1029,7 +1051,7 @@ mod pixel_format_loss {
     #[cfg_attr(miri, ignore = "calls C")]
     fn best_of_two_matches_c_for_every_source() {
         let raws = raws();
-        let mut next = xorshift(0x9e37_79b9);
+        let mut next = xorshift(0x9E37_79B9);
         for &src in &raws {
             for _ in 0..64 {
                 let d1 = raws[next() as usize % raws.len()];
@@ -1190,14 +1212,14 @@ mod pixel_format_descriptor {
     /// wrong plane, offset, step, shift or depth reads different values.
     fn image() -> [Vec<u8>; 4] {
         /// The planes' bytes, one xorshift stream, computed at compile
-        /// time, so an image is four block copies: under BSan every
+        /// time, so an image is four block copies: under `BSan` every
         /// element a slice iterator yields is a retag whose cost grows with
         /// the allocation's history, and a byte-by-byte fill of one image
         /// took almost a second (the tally below compares whole planes for
         /// the same reason).
         const PLANES: [[u8; LINESIZE * ROWS]; 4] = {
             let mut planes = [[0u8; LINESIZE * ROWS]; 4];
-            let mut x = 0x9e37_79b9_u32;
+            let mut x = 0x9E37_79B9_u32;
             let mut p = 0;
             while p < planes.len() {
                 let mut i = 0;
@@ -1267,7 +1289,7 @@ mod pixel_format_descriptor {
             } else {
                 (1u32 << depth.max(0)) - 1
             };
-            let src: [u32; W] = core::array::from_fn(|i| (0x5a5a_5a5a_u32 >> i) & mask);
+            let src: [u32; W] = core::array::from_fn(|i| (0x5A5A_5A5A_u32 >> i) & mask);
             // SAFETY: as for the reads; every value fits the component's
             // depth, so C's shifts stay within `int` and `unsigned`.
             unsafe {
@@ -1289,12 +1311,10 @@ mod pixel_format_descriptor {
         // entry's, or all-zero, so their planes index `steps[4]` in bounds,
         // and its chroma shifts and depths are the table's, which C's shifts
         // accept.
-        let (bits_per_pixel, padded_bits_per_pixel) = unsafe {
-            (
-                ffi::av_get_bits_per_pixel(desc),
-                ffi::av_get_padded_bits_per_pixel(desc),
-            )
-        };
+        let (bits_per_pixel, padded_bits_per_pixel) =
+            (unsafe { ffi::av_get_bits_per_pixel(desc) }, unsafe {
+                ffi::av_get_padded_bits_per_pixel(desc)
+            });
         Observed {
             bits_per_pixel,
             padded_bits_per_pixel,
@@ -1445,7 +1465,7 @@ mod pixel_format_descriptor {
                         m.components_mut()
                             .get_mut(i)
                             .unwrap()
-                            .set_plane(src(e).as_ref().plane())
+                            .set_plane(src(e).as_ref().plane());
                     },
                 ),
                 step(
@@ -1455,7 +1475,7 @@ mod pixel_format_descriptor {
                         m.components_mut()
                             .get_mut(i)
                             .unwrap()
-                            .set_step(src(e).as_ref().step())
+                            .set_step(src(e).as_ref().step());
                     },
                 ),
                 step(
@@ -1465,7 +1485,7 @@ mod pixel_format_descriptor {
                         m.components_mut()
                             .get_mut(i)
                             .unwrap()
-                            .set_offset(src(e).as_ref().offset())
+                            .set_offset(src(e).as_ref().offset());
                     },
                 ),
                 step(
@@ -1475,7 +1495,7 @@ mod pixel_format_descriptor {
                         m.components_mut()
                             .get_mut(i)
                             .unwrap()
-                            .set_shift(src(e).as_ref().shift())
+                            .set_shift(src(e).as_ref().shift());
                     },
                 ),
                 step(
@@ -1485,7 +1505,7 @@ mod pixel_format_descriptor {
                         m.components_mut()
                             .get_mut(i)
                             .unwrap()
-                            .set_depth(src(e).as_ref().depth())
+                            .set_depth(src(e).as_ref().depth());
                     },
                 ),
             ]);
@@ -1550,7 +1570,13 @@ mod pixel_format_descriptor {
             };
             rebuilt += 1;
             read += usize::from(observed.reads.iter().any(|r| *r != [0; W]));
-            written += usize::from(observed.writes.iter().flatten().any(|p| p[..] != ZERO_PLANE[..]));
+            written += usize::from(
+                observed
+                    .writes
+                    .iter()
+                    .flatten()
+                    .any(|p| p[..] != ZERO_PLANE[..]),
+            );
         }
         // Not vacuous: C reads and writes pixels for every format with
         // components in memory.
@@ -1616,7 +1642,7 @@ mod pixel_format_descriptor {
                 c.alias = n.alias;
                 c.log2_chroma_w = n.log2_chroma_w;
                 c.log2_chroma_h = n.log2_chroma_h;
-                c.flags ^= ffi::AV_PIX_FMT_FLAG_BE as u64;
+                c.flags ^= u64::from(ffi::AV_PIX_FMT_FLAG_BE);
                 assert!(n.log2_chroma_w <= 2 && n.log2_chroma_h <= 2);
             }
         }
@@ -1695,7 +1721,11 @@ mod pixel_format_queries {
             // SAFETY: two live `int` out-parameters; the value is
             // range-checked by C.
             let ret = unsafe {
-                ffi::av_pix_fmt_get_chroma_sub_sample(ffi::AVPixelFormat(raw), &mut h, &mut v)
+                ffi::av_pix_fmt_get_chroma_sub_sample(
+                    ffi::AVPixelFormat(raw),
+                    &raw mut h,
+                    &raw mut v,
+                )
             };
             let c = (ret >= 0).then_some((h as u8, v as u8));
             if ret < 0 {
@@ -1735,9 +1765,15 @@ mod descriptor_table {
     fn c_ident(
         p: *const ffi::AVPixFmtDescriptor,
     ) -> Option<(PixelFormatDescriptor, *const c_char)> {
-        // SAFETY: `p` is NULL or an entry of C's static table, whose names
-        // and aliases are NULL or literals, as `from_raw` requires.
-        (!p.is_null()).then(|| unsafe { (PixelFormatDescriptor::from_raw(p.read()), (*p).name) })
+        (!p.is_null()).then(|| {
+            // SAFETY: `p` is an entry of C's static table: a copy of it.
+            let entry = unsafe { p.read() };
+            // SAFETY: its names and aliases are NULL or literals, as `from_raw` requires.
+            (
+                unsafe { PixelFormatDescriptor::from_raw(entry) },
+                entry.name,
+            )
+        })
     }
 
     /// The same of a descriptor the wrappers returned.
@@ -1778,7 +1814,7 @@ mod descriptor_table {
             // A copy lies outside C's table, on either side.
             let c_copy = d.get().into_raw();
             // SAFETY: as above; C never reads through the address.
-            let c = unsafe { ffi::av_pix_fmt_desc_get_id(&c_copy) };
+            let c = unsafe { ffi::av_pix_fmt_desc_get_id(&raw const c_copy) };
             assert_eq!(c, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
             assert_eq!(d.get().as_ref().pixel_format(), None);
         }
@@ -1830,12 +1866,9 @@ mod descriptor_table {
             let d = format(raw).descriptor().unwrap();
             // SAFETY: `p` is an entry of C's table, which C's counters read
             // in bounds.
-            let (bits, padded) = unsafe {
-                (
-                    ffi::av_get_bits_per_pixel(p),
-                    ffi::av_get_padded_bits_per_pixel(p),
-                )
-            };
+            let (bits, padded) = (unsafe { ffi::av_get_bits_per_pixel(p) }, unsafe {
+                ffi::av_get_padded_bits_per_pixel(p)
+            });
             assert_eq!(d.bits_per_pixel(), Ok(bits as u32), "{raw}");
             assert_eq!(d.padded_bits_per_pixel(), Ok(padded as u32), "{raw}");
             // The same of a Rust-held copy, which C reads as well.
@@ -1887,7 +1920,7 @@ mod descriptor_table {
                         if let Ok(bits) = r.bits_per_pixel() {
                             // SAFETY: the wrapper found C's arithmetic
                             // defined for this descriptor.
-                            let c = unsafe { ffi::av_get_bits_per_pixel(&raw) };
+                            let c = unsafe { ffi::av_get_bits_per_pixel(&raw const raw) };
                             assert_eq!(bits, c as u32, "{a} {b} {count} {log2:?}");
                             accepted += 1;
                         } else {
@@ -1895,7 +1928,7 @@ mod descriptor_table {
                         }
                         if let Ok(bits) = r.padded_bits_per_pixel() {
                             // SAFETY: as above.
-                            let c = unsafe { ffi::av_get_padded_bits_per_pixel(&raw) };
+                            let c = unsafe { ffi::av_get_padded_bits_per_pixel(&raw const raw) };
                             assert_eq!(bits, c as u32, "{a} {b} {count} {log2:?}");
                             accepted += 1;
                         } else {
@@ -1933,7 +1966,7 @@ mod image_lines {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
     }
 
-    /// The formats to sweep: every named one, or under BSan, whose cost
+    /// The formats to sweep: every named one, or under `BSan`, whose cost
     /// grows with every retag, one of each kind of layout.
     fn formats() -> Vec<(c_int, PixelFormatDescriptorRef<'static>)> {
         let all = (0..NB).filter_map(|raw| {
@@ -1959,11 +1992,11 @@ mod image_lines {
     }
 
     /// Four planes of pseudo-random bytes, as a compile-time table copied
-    /// whole, so BSan sees four block copies rather than a retag per byte.
+    /// whole, so `BSan` sees four block copies rather than a retag per byte.
     fn image() -> [Vec<u8>; 4] {
         const PLANES: [[u8; PLANE]; 4] = {
             let mut planes = [[0u8; PLANE]; 4];
-            let mut x = 0x2545_f491_u32;
+            let mut x = 0x2545_F491_u32;
             let mut p = 0;
             while p < 4 {
                 let mut i = 0;
@@ -2034,7 +2067,7 @@ mod image_lines {
                 w as c_int,
                 c_int::from(palette),
                 T::SIZE,
-            )
+            );
         };
         dst
     }
@@ -2061,7 +2094,7 @@ mod image_lines {
                 c as c_int,
                 src.len() as c_int,
                 T::SIZE,
-            )
+            );
         };
     }
 
@@ -2084,9 +2117,9 @@ mod image_lines {
     fn reads_match_c_for_every_format_component_and_line() {
         let img = image();
         for (raw, d) in formats() {
-            let pal = d
-                .flags()
-                .contains(ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatFlags::PALETTE);
+            let pal = d.flags().contains(
+                ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormatFlags::PALETTE,
+            );
             for flipped in [false, true] {
                 for c in 0..4 {
                     for &(x, y, w) in &LINES {
@@ -2150,7 +2183,7 @@ mod image_lines {
         for (raw, d) in formats() {
             for flipped in [false, true] {
                 for &(x, y, w) in &LINES {
-                    let mut rust = [(); 4].map(|_| vec![0u8; PLANE]);
+                    let mut rust = [(); 4].map(|()| vec![0u8; PLANE]);
                     let mut c_img = rust.clone();
                     // Every component in turn, as `u32`s fitting its depth,
                     // then as `u16`s with every bit set, spilling past it.
@@ -2161,7 +2194,7 @@ mod image_lines {
                         let depth = d.components().get(c).unwrap().depth();
                         if step < 4 {
                             let src: Vec<u32> = (0..w as u32)
-                                .map(|i| (0x9e37_79b9_u32 >> i) & mask(depth))
+                                .map(|i| (0x9E37_79B9_u32 >> i) & mask(depth))
                                 .collect();
                             write_image_line(&src, &mut planes_mut(&mut rust, flipped), d, x, y, c)
                                 .expect(&what);
@@ -2385,7 +2418,9 @@ mod random_lines {
                     return Model::Undefined("skip");
                 };
                 let mut at = row + i64::from(skip >> 3);
-                let Some(mut sh) = 8i32.checked_sub(depth).and_then(|s| s.checked_sub(skip & 7))
+                let Some(mut sh) = 8i32
+                    .checked_sub(depth)
+                    .and_then(|s| s.checked_sub(skip & 7))
                 else {
                     return Model::Undefined("8 - depth - (skip & 7)");
                 };
@@ -2526,8 +2561,9 @@ mod random_lines {
     fn lines_are_accepted_exactly_where_c_is_defined_and_in_bounds() {
         let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
         let rounds = if bsan { 500 } else { 40_000 };
-        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
-        let table: Vec<PixelFormatDescriptorRef<'static>> = (0..ffi::AVPixelFormat::AV_PIX_FMT_NB.0)
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let table: Vec<PixelFormatDescriptorRef<'static>> = (0..ffi::AVPixelFormat::AV_PIX_FMT_NB
+            .0)
             .filter_map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor())
             .filter(|d| d.name().is_some())
             .collect();
@@ -2634,8 +2670,16 @@ mod random_lines {
                     linesizes,
                 };
                 let a = write_image_line(&src32, &mut planes, desc, x, y, c);
-                assert_eq!(a, write_image_line(&src16, &mut planes, desc, x, y, c), "{what}");
-                assert_eq!(a, write_image_line_u16(&src16, &mut planes, desc, x, y, c), "{what}");
+                assert_eq!(
+                    a,
+                    write_image_line(&src16, &mut planes, desc, x, y, c),
+                    "{what}"
+                );
+                assert_eq!(
+                    a,
+                    write_image_line_u16(&src16, &mut planes, desc, x, y, c),
+                    "{what}"
+                );
                 a
             } else {
                 let planes = Planes {
@@ -2646,8 +2690,16 @@ mod random_lines {
                 let mut narrow = vec![0u16; w];
                 let mut original = vec![0u16; w];
                 let a = read_image_line(&mut wide, planes, desc, x, y, c, palette);
-                assert_eq!(a, read_image_line(&mut narrow, planes, desc, x, y, c, palette), "{what}");
-                assert_eq!(a, read_image_line_u16(&mut original, planes, desc, x, y, c, palette), "{what}");
+                assert_eq!(
+                    a,
+                    read_image_line(&mut narrow, planes, desc, x, y, c, palette),
+                    "{what}"
+                );
+                assert_eq!(
+                    a,
+                    read_image_line_u16(&mut original, planes, desc, x, y, c, palette),
+                    "{what}"
+                );
                 if a.is_ok() {
                     assert_eq!(narrow, original, "{what}");
                     let truncated: Vec<u16> = wide.iter().map(|&v| v as u16).collect();
@@ -2655,13 +2707,20 @@ mod random_lines {
                 }
                 a
             };
-            assert_eq!(verdict.is_ok(), expected, "{what}\n  wrapper: {verdict:?}\n  model: {modelled:?}");
+            assert_eq!(
+                verdict.is_ok(),
+                expected,
+                "{what}\n  wrapper: {verdict:?}\n  model: {modelled:?}"
+            );
             if verdict.is_ok() && modelled != Model::Nothing {
                 accepted += 1;
             } else if verdict.is_err() {
                 refused += 1;
             }
         }
-        assert!(accepted > rounds / 20 && refused > rounds / 4, "{accepted} {refused}");
+        assert!(
+            accepted > rounds / 20 && refused > rounds / 4,
+            "{accepted} {refused}"
+        );
     }
 }

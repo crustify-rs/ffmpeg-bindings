@@ -1,5 +1,13 @@
 //! `libavutil/buffer.h`'s safe pool owner: construction at every size, its
 //! handles and reborrows, and its moves and shares across threads.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::sync::Barrier;
 use std::thread;
@@ -123,8 +131,8 @@ mod default_release {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn default_free_releases_every_array_shape() {
-        let filled = HeapVec::from_slice(&[0xa5u8; 4096]).unwrap();
-        assert_eq!(filled.as_slice()[4095], 0xa5);
+        let filled = HeapVec::from_slice(&[0xA5u8; 4096]).unwrap();
+        assert_eq!(filled.as_slice()[4095], 0xA5);
         default_free(filled);
         default_free(alloc_array::<u8>(17).unwrap());
         default_free(alloc_array_zeroed::<u64>(3).unwrap());
@@ -149,7 +157,7 @@ mod default_release {
 
 /// Buffer-frame wave 1, batch 0: `BufferReference` (`AVBufferRef`) owners
 /// from every constructor, at sizes from empty to 64 KiB, each read exactly
-/// (so a read past a window is an ASan report); writes only through a sole
+/// (so a read past a window is an `ASan` report); writes only through a sole
 /// writable reference; clones, narrowed windows and swapped references;
 /// shared handles and owners across threads with the original dropped first;
 /// and Rust owners released once, by the last reference, on whichever thread
@@ -172,14 +180,14 @@ mod reference {
         let mut t = [0u8; 256];
         let mut i = 0;
         while i < 256 {
-            t[i] = (i as u8).wrapping_mul(31) ^ 0x5c;
+            t[i] = (i as u8).wrapping_mul(31) ^ 0x5C;
             i += 1;
         }
         t
     };
 
     /// `len` bytes of the cycle from offset `seed`, copied a slice at a
-    /// time (one BSan retag per copy, not per byte).
+    /// time (one `BSan` retag per copy, not per byte).
     pub(super) fn pattern(len: usize, seed: u8) -> Vec<u8> {
         let mut v = Vec::with_capacity(len);
         let mut at = usize::from(seed);
@@ -228,8 +236,8 @@ mod reference {
                 true,
             ),
             (
-                BufferReference::alloc(size).unwrap().fill(0x5a),
-                vec![0x5a; size],
+                BufferReference::alloc(size).unwrap().fill(0x5A),
+                vec![0x5A; size],
                 true,
             ),
             (
@@ -272,13 +280,13 @@ mod reference {
             for (buf, want, _) in every_constructor(size) {
                 let r = buf.as_ref();
                 assert_eq!((r.len(), r.is_empty()), (size, size == 0));
-                assert!(r.data() == want.as_slice());
+                assert_eq!(r.data(), want.as_slice());
                 assert!(r.buffer().ptr_eq(&r.buffer()));
             }
         }
         // Inline and static owners, empty ones included.
         let inline = BufferReference::from_owner([7u8; 33]).unwrap();
-        assert!(inline.as_ref().data() == [7u8; 33].as_slice());
+        assert_eq!(inline.as_ref().data(), [7u8; 33].as_slice());
         let empty = BufferReference::from_owner([0u8; 0]).unwrap();
         assert!(empty.as_ref().data().is_empty());
         let lit = BufferReference::from_read_only(&b"static bytes"[..]).unwrap();
@@ -292,7 +300,7 @@ mod reference {
     fn writes_only_through_a_sole_writable_reference() {
         for size in SIZES {
             for (mut buf, _, writable) in every_constructor(size) {
-                let fill = vec![0xc3; size];
+                let fill = vec![0xC3; size];
                 match buf.as_mut().data_mut() {
                     Some(bytes) => bytes.copy_from_slice(&fill),
                     None => assert!(!writable),
@@ -302,15 +310,15 @@ mod reference {
                 let mut copy2 = copy.as_ref().try_clone().unwrap();
                 assert!(copy2.as_mut().data_mut().is_none());
                 assert!(copy.as_ref().buffer().ptr_eq(&buf.as_ref().buffer()));
-                assert!(copy2.as_ref().data() == buf.as_ref().data());
+                assert_eq!(copy2.as_ref().data(), buf.as_ref().data());
                 drop(copy);
                 drop(copy2);
                 if writable {
-                    assert!(buf.as_ref().data() == fill.as_slice());
+                    assert_eq!(buf.as_ref().data(), fill.as_slice());
                     let mut m = buf.as_mut();
                     let bytes = m.data_mut().unwrap();
                     bytes.copy_from_slice(&pattern(size, 1));
-                    assert!(buf.as_ref().data() == pattern(size, 1).as_slice());
+                    assert_eq!(buf.as_ref().data(), pattern(size, 1).as_slice());
                 } else {
                     assert!(buf.as_mut().data_mut().is_none());
                 }
@@ -331,7 +339,7 @@ mod reference {
                     .map(|c| {
                         let want = want.clone();
                         thread::spawn(move || {
-                            assert!(c.as_ref().data() == want.as_slice());
+                            assert_eq!(c.as_ref().data(), want.as_slice());
                             drop(c);
                         })
                     })
@@ -392,7 +400,7 @@ mod reference {
             let clones: Vec<_> = (0..3).map(|_| buf.clone()).collect();
             drop(buf);
             for c in clones.iter().skip(1) {
-                assert!(c.as_ref().data() == pattern(100, 4).as_slice());
+                assert_eq!(c.as_ref().data(), pattern(100, 4).as_slice());
             }
             let mut clones = clones.into_iter();
             let last = clones.next().unwrap();
@@ -414,17 +422,17 @@ mod reference {
                 assert_eq!(m.as_ref().len(), size);
                 let cut = size / 3;
                 m.advance(cut);
-                assert!(m.as_ref().data() == &want[cut..]);
+                assert_eq!(m.as_ref().data(), &want[cut..]);
                 m.truncate((size - cut) / 2);
                 let end = cut + (size - cut) / 2;
-                assert!(m.as_ref().data() == &want[cut..end]);
+                assert_eq!(m.as_ref().data(), &want[cut..end]);
                 // Past the end: a panic, and the window stays.
                 let len = m.as_ref().len();
                 assert!(catch_unwind(AssertUnwindSafe(|| m.advance(len + 1))).is_err());
-                assert!(buf.as_ref().data() == &want[cut..end]);
+                assert_eq!(buf.as_ref().data(), &want[cut..end]);
                 // A clone keeps the window; narrowing it leaves the original.
                 let mut c = buf.clone();
-                assert!(c.as_ref().data() == buf.as_ref().data());
+                assert_eq!(c.as_ref().data(), buf.as_ref().data());
                 c.as_mut().advance(len);
                 assert!(c.as_ref().is_empty());
                 assert_eq!(buf.as_ref().len(), len);
@@ -447,9 +455,9 @@ mod reference {
         let b = BufferReference::from_owner(counted(2)).unwrap();
         let b_copy = b.clone();
         let old = a.as_mut().replace(b);
-        assert!(a.as_ref().data() == pattern(48, 2).as_slice());
+        assert_eq!(a.as_ref().data(), pattern(48, 2).as_slice());
         assert!(a.as_ref().buffer().ptr_eq(&b_copy.as_ref().buffer()));
-        assert!(old.as_ref().data() == pattern(48, 1).as_slice());
+        assert_eq!(old.as_ref().data(), pattern(48, 1).as_slice());
         assert_eq!(drops.load(Ordering::SeqCst), 0);
         // `set` releases what it replaces: the only reference to `1`.
         let mut old = old;
@@ -475,11 +483,11 @@ mod reference {
             head.fill(std::mem::MaybeUninit::new(1));
             tail[..size.min(64) / 2].fill(std::mem::MaybeUninit::new(2));
             let buf = u.fill(3);
-            assert!(buf.as_ref().data() == vec![3; size].as_slice());
+            assert_eq!(buf.as_ref().data(), vec![3; size].as_slice());
             // Back to uninitialised while sole, then refilled.
             let u = UninitBuffer::try_from(buf).unwrap();
             let buf = u.copy_from_slice(&pattern(size, 5));
-            assert!(buf.as_ref().data() == pattern(size, 5).as_slice());
+            assert_eq!(buf.as_ref().data(), pattern(size, 5).as_slice());
             let copy = buf.clone();
             let buf = UninitBuffer::try_from(buf).unwrap_err();
             drop(copy);
@@ -498,7 +506,7 @@ mod reference {
         let copy = shared;
         thread::scope(|s| {
             for _ in 0..4 {
-                s.spawn(move || assert!(copy.data() == [0u8; 32].as_slice()));
+                s.spawn(move || assert_eq!(copy.data(), [0u8; 32].as_slice()));
             }
         });
         assert_eq!(shared.len(), 32);
@@ -526,7 +534,7 @@ mod reference {
         });
     }
 
-    /// The BSan target: bytes written and read through Rust views between C's
+    /// The `BSan` target: bytes written and read through Rust views between C's
     /// accesses to the same allocations (C copies a reference's struct, holds
     /// the bytes' pointer, swaps nothing but frees the struct, and releases the
     /// bytes: `av_free` for heap data, a Rust drop for owners).
@@ -544,18 +552,18 @@ mod reference {
             BufferReference::from_heap_vec(heap).unwrap(),
             BufferReference::alloc(512).unwrap().fill(1),
         ] {
-            buf.as_mut().data_mut().unwrap()[..256].copy_from_slice(&[0xab; 256]);
+            buf.as_mut().data_mut().unwrap()[..256].copy_from_slice(&[0xAB; 256]);
             let mut copy = buf.clone();
-            assert!(copy.as_ref().data()[..256] == [0xab; 256]);
+            assert_eq!(copy.as_ref().data()[..256], [0xAB; 256]);
             copy.as_mut().advance(128);
             assert!(copy.as_mut().data_mut().is_none());
             drop(copy);
             let mut m = buf.as_mut();
             let bytes = m.data_mut().unwrap();
-            bytes[256..].copy_from_slice(&[0xcd; 256]);
+            bytes[256..].copy_from_slice(&[0xCD; 256]);
             let mut other = BufferReference::alloc_zeroed(16).unwrap();
             let old = other.as_mut().replace(buf);
-            assert!(other.as_ref().data()[256..] == [0xcd; 256]);
+            assert_eq!(other.as_ref().data()[256..], [0xCD; 256]);
             drop(old);
             other.as_mut().data_mut().unwrap()[..2].copy_from_slice(&[1, 2]);
             drop(other);
@@ -565,7 +573,7 @@ mod reference {
 }
 
 /// Buffer-frame wave 2, batch 1: buffers taken from pools at every size,
-/// filled and read exactly (a read past one is an ASan report), released
+/// filled and read exactly (a read past one is an `ASan` report), released
 /// before and after their pool's owner, from many threads at once;
 /// references' counts, writability and opaques read while other threads
 /// clone and release them; and the mutators that change a reference's
@@ -577,7 +585,9 @@ mod mutation {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::buffer::{self, BufferPool, BufferReference, BufferReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{
+        self, BufferPool, BufferReference, BufferReferenceBox,
+    };
 
     use super::reference::{every_constructor, pattern};
 
@@ -601,7 +611,7 @@ mod mutation {
                 assert_eq!((u.len(), u.is_empty()), (size, size == 0));
                 let at = u.as_slice().as_ptr();
                 let buf = u.copy_from_slice(&pattern(size, round));
-                assert!(buf.as_ref().data() == pattern(size, round).as_slice());
+                assert_eq!(buf.as_ref().data(), pattern(size, round).as_slice());
                 assert_eq!(buf.as_ref().ref_count(), 1);
                 assert!(buf.as_ref().is_writable() && !buf.as_ref().opaque().is_null());
                 if round % 2 == 0 {
@@ -620,10 +630,10 @@ mod mutation {
             for (i, buf) in kept.iter_mut().enumerate() {
                 let copy = buf.clone();
                 assert!(!buf.as_ref().is_writable());
-                assert!(copy.as_ref().data() == buf.as_ref().data());
+                assert_eq!(copy.as_ref().data(), buf.as_ref().data());
                 drop(copy);
                 buf.as_mut().data_mut().unwrap().fill(i as u8);
-                assert!(buf.as_ref().data() == vec![i as u8; size].as_slice());
+                assert_eq!(buf.as_ref().data(), vec![i as u8; size].as_slice());
             }
         }
     }
@@ -698,7 +708,7 @@ mod mutation {
                             if t % 2 == 0 {
                                 kept.push(buf.clone());
                                 assert!(!kept[0].as_ref().is_writable());
-                                assert!(kept[0].as_ref().data() == want.as_slice());
+                                assert_eq!(kept[0].as_ref().data(), want.as_slice());
                             }
                             if i % 7 == 0 {
                                 kept.clear();
@@ -723,17 +733,17 @@ mod mutation {
                     let mut m = buf.as_mut();
                     let bytes = m.make_mut().unwrap();
                     assert_eq!(bytes.as_ptr(), at);
-                    assert!(bytes == want.as_slice());
+                    assert_eq!(bytes, want.as_slice());
                 }
                 // Shared or read-only: a private copy, the others untouched.
                 let copy = buf.clone();
                 let mut m = buf.as_mut();
                 let bytes = m.make_mut().unwrap();
-                assert!(bytes == want.as_slice());
+                assert_eq!(bytes, want.as_slice());
                 bytes.copy_from_slice(&pattern(size, 77));
-                assert!(buf.as_ref().data() == pattern(size, 77).as_slice());
+                assert_eq!(buf.as_ref().data(), pattern(size, 77).as_slice());
                 assert!(!buf.as_ref().buffer().ptr_eq(&copy.as_ref().buffer()));
-                assert!(copy.as_ref().data() == want.as_slice());
+                assert_eq!(copy.as_ref().data(), want.as_slice());
                 assert_eq!(
                     (buf.as_ref().ref_count(), copy.as_ref().ref_count()),
                     (1, 1)
@@ -744,12 +754,12 @@ mod mutation {
                 let mut n = narrow.as_mut();
                 n.advance(size / 3);
                 n.truncate(size / 3);
-                assert!(n.make_mut().unwrap() == &want[size / 3..2 * (size / 3)]);
+                assert_eq!(n.make_mut().unwrap(), &want[size / 3..2 * (size / 3)]);
                 drop(narrow);
                 // Released on another thread while this one copies.
                 let mut sole = copy.clone();
                 let other = thread::spawn(move || drop(copy));
-                assert!(sole.as_mut().make_mut().unwrap() == want.as_slice());
+                assert_eq!(sole.as_mut().make_mut().unwrap(), want.as_slice());
                 other.join().unwrap();
             }
         }
@@ -766,12 +776,12 @@ mod mutation {
                         let cut = cut.min(size);
                         r.as_mut().advance(cut);
                         let others = shared.then(|| r.clone());
-                        r.as_mut().resize(len, 0xe7).unwrap();
+                        r.as_mut().resize(len, 0xE7).unwrap();
                         let got = r.as_ref().data();
-                        assert!(got == resized(&want[cut..], len, 0xe7).as_slice());
-                        assert!(buf.as_ref().data() == want.as_slice());
+                        assert_eq!(got, resized(&want[cut..], len, 0xE7).as_slice());
+                        assert_eq!(buf.as_ref().data(), want.as_slice());
                         if let Some(o) = others {
-                            assert!(o.as_ref().data() == &want[cut..]);
+                            assert_eq!(o.as_ref().data(), &want[cut..]);
                         }
                         if len != size - cut {
                             assert_eq!(r.as_ref().ref_count(), 1);
@@ -800,7 +810,7 @@ mod mutation {
             ] {
                 let before = buf.as_ref().data().to_vec();
                 buf.as_mut().resize(len, fill).unwrap();
-                assert!(buf.as_ref().data() == resized(&before, len, fill).as_slice());
+                assert_eq!(buf.as_ref().data(), resized(&before, len, fill).as_slice());
                 assert!(buf.as_ref().is_writable());
             }
             // A clone or an advanced window makes C copy into a new buffer.
@@ -853,7 +863,7 @@ mod mutation {
                 u.resize(size + 13).unwrap();
                 assert_eq!((u.len(), u.as_mut_slice().len()), (size + 13, size + 13));
                 let buf = u.copy_from_slice(&pattern(size + 13, 9));
-                assert!(buf.as_ref().data() == pattern(size + 13, 9).as_slice());
+                assert_eq!(buf.as_ref().data(), pattern(size + 13, 9).as_slice());
             }
         }
     }
@@ -868,7 +878,7 @@ mod mutation {
                 let mut dst = other.clone();
                 dst.as_mut().assign(src.as_ref()).unwrap();
                 assert!(dst.as_ref().buffer().ptr_eq(&src.as_ref().buffer()));
-                assert!(dst.as_ref().data() == want.as_slice());
+                assert_eq!(dst.as_ref().data(), want.as_slice());
                 assert_eq!(
                     (src.as_ref().ref_count(), other.as_ref().ref_count()),
                     (2, 1)
@@ -877,19 +887,22 @@ mod mutation {
                 let mut narrow = src.clone();
                 narrow.as_mut().advance(size / 2);
                 dst.as_mut().assign(narrow.as_ref()).unwrap();
-                assert!(dst.as_ref().data() == &want[size / 2..]);
+                assert_eq!(dst.as_ref().data(), &want[size / 2..]);
                 narrow.as_mut().assign(src.as_ref()).unwrap();
-                assert!(narrow.as_ref().data() == want.as_slice());
+                assert_eq!(narrow.as_ref().data(), want.as_slice());
                 assert_eq!(src.as_ref().ref_count(), 3);
                 // The slot form: filled, emptied, refilled and moved.
                 let mut slot = None;
                 buffer::assign(&mut slot, Some(dst.as_ref())).unwrap();
-                assert!(slot.as_ref().unwrap().as_ref().data() == &want[size / 2..]);
+                assert_eq!(slot.as_ref().unwrap().as_ref().data(), &want[size / 2..]);
                 buffer::assign(&mut slot, Some(src.as_ref())).unwrap();
-                assert!(slot.as_ref().unwrap().as_ref().data() == want.as_slice());
+                assert_eq!(slot.as_ref().unwrap().as_ref().data(), want.as_slice());
                 assert_eq!(src.as_ref().ref_count(), 4);
                 buffer::assign(&mut slot, Some(other.as_ref())).unwrap();
-                assert!(slot.as_ref().unwrap().as_ref().data() == other_want.as_slice());
+                assert_eq!(
+                    slot.as_ref().unwrap().as_ref().data(),
+                    other_want.as_slice()
+                );
                 assert_eq!(
                     (src.as_ref().ref_count(), other.as_ref().ref_count()),
                     (3, 2)
@@ -945,7 +958,7 @@ mod mutation {
                         }
                         // Read-only: make_mut always copies.
                         let mut copy = src.try_clone().unwrap();
-                        assert!(copy.as_mut().make_mut().unwrap()[..2] == pattern(2, 5)[..]);
+                        assert_eq!(copy.as_mut().make_mut().unwrap()[..2], pattern(2, 5)[..]);
                     }
                 });
             }
@@ -955,7 +968,7 @@ mod mutation {
         assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 
-    /// The BSan target: Rust views of a reference's bytes taken and dropped
+    /// The `BSan` target: Rust views of a reference's bytes taken and dropped
     /// between C's copies, reallocations and struct rewrites of the same
     /// allocations (`av_buffer_make_writable`'s memcpy, `av_buffer_realloc`'s
     /// in-place `av_realloc` and copy, `av_buffer_replace`'s window copy).
@@ -963,26 +976,26 @@ mod mutation {
     #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_mutations_across_rust_reborrows() {
         let mut buf = BufferReference::alloc_resizable(512).unwrap().fill(1);
-        buf.as_mut().data_mut().unwrap()[..256].copy_from_slice(&[0xab; 256]);
+        buf.as_mut().data_mut().unwrap()[..256].copy_from_slice(&[0xAB; 256]);
         let copy = buf.clone();
         let mut m = buf.as_mut();
         let bytes = m.make_mut().unwrap();
-        assert!(bytes[..256] == [0xab; 256]);
-        bytes[256..].copy_from_slice(&[0xcd; 256]);
+        assert_eq!(bytes[..256], [0xAB; 256]);
+        bytes[256..].copy_from_slice(&[0xCD; 256]);
         drop(copy);
         // Sole, resizable and at its start: C reallocates in place.
-        m.resize(1024, 0xef).unwrap();
+        m.resize(1024, 0xEF).unwrap();
         let data = m.as_ref().data();
-        assert!(data[256..512] == [0xcd; 256] && data[512..] == [0xef; 512]);
+        assert!(data[256..512] == [0xCD; 256] && data[512..] == [0xEF; 512]);
         m.data_mut().unwrap()[..8].copy_from_slice(&[9; 8]);
         m.resize(300, 0).unwrap();
-        assert!(m.as_ref().data()[..8] == [9; 8]);
+        assert_eq!(m.as_ref().data()[..8], [9; 8]);
         let mut other = BufferReference::alloc_resizable(16).unwrap().fill(2);
         other.as_mut().assign(buf.as_ref()).unwrap();
         let mut narrow = other.clone();
         narrow.as_mut().advance(100);
         other.as_mut().assign(narrow.as_ref()).unwrap();
-        assert!(other.as_ref().data()[..200] == buf.as_ref().data()[100..]);
+        assert_eq!(other.as_ref().data()[..200], buf.as_ref().data()[100..]);
         drop(narrow);
         drop(other);
         buf.as_mut().make_mut().unwrap()[299] = 3;
@@ -993,7 +1006,7 @@ mod mutation {
 /// Review of buffer-frame wave 2: `UninitBuffer::from_owner`, buffers over
 /// Rust owners of uninitialised bytes, at sizes from empty to 64 KiB and in
 /// every owner shape: their views are exactly the owner's bytes (a read
-/// past one is an ASan report), filled, resized (a copy, as the buffer has
+/// past one is an `ASan` report), filled, resized (a copy, as the buffer has
 /// an opaque) and released once, on whichever thread drops the last
 /// reference; the conversion back refuses them, as it does initialised
 /// owners.
@@ -1039,13 +1052,13 @@ mod uninit_owner {
             for u in owners {
                 assert_eq!((u.len(), u.as_slice().len()), (size, size));
                 let buf = u.copy_from_slice(&want);
-                assert!(buf.as_ref().data() == want.as_slice());
+                assert_eq!(buf.as_ref().data(), want.as_slice());
                 assert!(!buf.as_ref().opaque().is_null());
             }
         }
         // An inline array, moved into the buffer with its owner.
         let inline = UninitBuffer::from_owner([MaybeUninit::new(7u8); 33]).unwrap();
-        assert!(inline.fill(8).as_ref().data() == [8; 33].as_slice());
+        assert_eq!(inline.fill(8).as_ref().data(), [8; 33].as_slice());
     }
 
     #[test]
@@ -1066,10 +1079,10 @@ mod uninit_owner {
             assert_eq!(drops.load(Ordering::SeqCst), 1);
             assert!(size == 0 || u.as_slice().as_ptr() != at);
             let mut buf = u.fill(0x42);
-            assert!(buf.as_ref().data() == vec![0x42; size + 9].as_slice());
+            assert_eq!(buf.as_ref().data(), vec![0x42; size + 9].as_slice());
             assert!(buf.as_ref().opaque().is_null());
             buf.as_mut().resize(size, 0).unwrap();
-            assert!(buf.as_ref().data() == vec![0x42; size].as_slice());
+            assert_eq!(buf.as_ref().data(), vec![0x42; size].as_slice());
 
             let drops = Arc::new(AtomicUsize::new(0));
             let owner = Counted {
@@ -1084,7 +1097,7 @@ mod uninit_owner {
             let buf = UninitBuffer::try_from(buf).unwrap_err();
             drop(buf);
             thread::spawn(move || {
-                assert!(copy.as_ref().data() == vec![1; size].as_slice());
+                assert_eq!(copy.as_ref().data(), vec![1; size].as_slice());
                 let copy = UninitBuffer::try_from(copy).unwrap_err();
                 assert_eq!(copy.as_ref().ref_count(), 1);
             })
@@ -1100,6 +1113,6 @@ mod uninit_owner {
         let mut buf = BufferReference::from_owner(vec![5u8; 12]).unwrap();
         assert!(buf.as_mut().data_mut().is_some());
         let buf = UninitBuffer::try_from(buf).unwrap_err();
-        assert!(buf.as_ref().data() == [5; 12].as_slice());
+        assert_eq!(buf.as_ref().data(), [5; 12].as_slice());
     }
 }

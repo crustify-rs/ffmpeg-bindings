@@ -3,18 +3,15 @@
 //! Two layouts here are opaque to the public API, so neither has field
 //! accessors:
 //!
-//! - [`Buffer`] (`AVBuffer`) is a reference-counted data buffer. Nothing owns
-//!   one directly: each `AVBufferRef` holds a counted reference, and the last
-//!   one to go runs the buffer's data release callback and frees the body. A
-//!   [`BufferRef`] handle is therefore always borrowed from a reference, and
-//!   its one public operation is identity ([`BufferRef::ptr_eq`]), which tells
-//!   whether two references share a data buffer. The `BufferRef` and
-//!   `BufferMut` names are this layout's handles, so `AVBufferRef`'s own
-//!   wrapper is [`BufferReference`].
-//! - [`BufferPool`] (`AVBufferPool`) recycles equally sized buffers. The
-//!   caller's pool is a sole owner, [`BufferPoolBox`], released with
-//!   `av_buffer_pool_uninit`; buffers taken from the pool keep its body alive
-//!   after that, so they never borrow from the box.
+//! - [`Buffer`] (`AVBuffer`) is a reference-counted data buffer. Nothing owns one directly: each
+//!   `AVBufferRef` holds a counted reference, and the last one to go runs the buffer's data release
+//!   callback and frees the body. A [`BufferRef`] handle is therefore always borrowed from a
+//!   reference, and its one public operation is identity ([`BufferRef::ptr_eq`]), which tells
+//!   whether two references share a data buffer. The `BufferRef` and `BufferMut` names are this
+//!   layout's handles, so `AVBufferRef`'s own wrapper is [`BufferReference`].
+//! - [`BufferPool`] (`AVBufferPool`) recycles equally sized buffers. The caller's pool is a sole
+//!   owner, [`BufferPoolBox`], released with `av_buffer_pool_uninit`; buffers taken from the pool
+//!   keep its body alive after that, so they never borrow from the box.
 //!
 //! [`default_free`] is the release an `AVBuffer` applies to its data when it
 //! was created without a free callback (`av_buffer_default_free`): the data
@@ -41,10 +38,9 @@
 //! through [`BufferPoolRef::get`].
 
 use core::ffi::{c_int, c_uint, c_void};
-use core::fmt;
 use core::mem::MaybeUninit;
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
-use core::slice;
+use core::{fmt, slice};
 
 use ffibox::{CBox, CDrop, CDupClone, define_ctype};
 
@@ -140,7 +136,7 @@ unsafe impl Sync for BufferPoolRef<'_> {}
 // handle.
 unsafe impl Sync for BufferPoolMut<'_> {}
 
-/// Wraps: av_buffer_pool_uninit
+/// Wraps: `av_buffer_pool_uninit`
 /// Handwritten
 ///
 /// Releases the caller's reference to a pool. `impl_cdrop!` would need a
@@ -162,7 +158,7 @@ unsafe impl CDrop<BufferPool> for BufferPoolUninit {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferPool>();
         // SAFETY: the caller hands over the box's sole claim on a live pool;
         // C NULLs only this local slot and keeps no pointer to it.
-        unsafe { ffi::av_buffer_pool_uninit(&mut slot) }
+        unsafe { ffi::av_buffer_pool_uninit(&raw mut slot) }
     }
 }
 
@@ -189,7 +185,7 @@ unsafe impl CDrop<BufferPool> for BufferPoolUninit {
 pub type BufferPoolBox = CBox<BufferPool, BufferPoolUninit>;
 
 impl BufferPool {
-    /// Wraps: av_buffer_pool_init
+    /// Wraps: `av_buffer_pool_init`
     ///
     /// A pool of `size`-byte buffers allocated with C's default allocator,
     /// `av_buffer_alloc`. Nothing is allocated for the buffers until one is
@@ -200,13 +196,15 @@ impl BufferPool {
     /// which also covers `av_buffer_pool_init`'s non-NULL `alloc`.
     #[must_use]
     pub fn new(size: usize) -> Option<BufferPoolBox> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_pool_init = unsafe { ffi::av_buffer_pool_init(size, None) };
         // SAFETY: a NULL allocator selects av_buffer_alloc; C returns NULL or
         // a fresh pool holding the one reference the box adopts and
         // BufferPoolUninit releases.
-        unsafe { BufferPoolBox::from_c(ffi::av_buffer_pool_init(size, None)) }
+        unsafe { BufferPoolBox::from_c(buffer_pool_init) }
     }
 
-    /// Wraps: av_buffer_pool_init2
+    /// Wraps: `av_buffer_pool_init2`
     ///
     /// A pool of `size`-byte buffers drawn from `alloc`, called with `size`
     /// whenever the pool has no free buffer. The pool owns `alloc`: it is
@@ -296,7 +294,7 @@ impl BufferPool {
 }
 
 impl BufferPoolRef<'_> {
-    /// Wraps: av_buffer_pool_get
+    /// Wraps: `av_buffer_pool_get`
     ///
     /// A buffer of the pool's size: one of its free buffers, its bytes as
     /// their last user left them, or else a new one from the pool's
@@ -316,11 +314,13 @@ impl BufferPoolRef<'_> {
     #[must_use]
     pub fn get(&self) -> Option<UninitBuffer> {
         let pool = self.as_ptr().cast_mut();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_pool_get = unsafe { ffi::av_buffer_pool_get(pool) };
         // SAFETY: a live pool, which C locks around its free list and the
         // allocator call, counting the buffer atomically; it returns NULL or
         // a fresh reference whose release (av_buffer_unref) returns the
         // buffer to the pool. Its bytes go straight into an `UninitBuffer`.
-        let buf = unsafe { BufferReferenceBox::from_c(ffi::av_buffer_pool_get(pool)) }?;
+        let buf = unsafe { BufferReferenceBox::from_c(buffer_pool_get) }?;
         // A reference fresh from a pool is its buffer's only one, and C
         // creates recycled buffers writable; a first one is the allocator's,
         // writable for the pools this crate builds. Its bytes are those of
@@ -329,7 +329,7 @@ impl BufferPoolRef<'_> {
         buf.as_ref().is_writable().then_some(UninitBuffer(buf))
     }
 
-    /// Wraps: av_buffer_pool_buffer_get_opaque
+    /// Wraps: `av_buffer_pool_buffer_get_opaque`
     ///
     /// A buffer as [`get`](Self::get) hands it out, and the opaque its
     /// allocator created it with: a pool takes its buffers' own opaque over
@@ -377,7 +377,7 @@ where
     drop(unsafe { Box::from_raw(state.cast::<F>()) });
 }
 
-/// Wraps: av_buffer_default_free
+/// Wraps: `av_buffer_default_free`
 ///
 /// Releases `data` as an `AVBuffer` created without a free callback releases
 /// its data: C frees the `av_malloc`-family block with `av_free` and ignores
@@ -449,7 +449,7 @@ unsafe impl Send for BufferReferenceMut<'_> {}
 // a shared handle; the setters need `&mut`.
 unsafe impl Sync for BufferReferenceMut<'_> {}
 
-/// Wraps: av_buffer_unref
+/// Wraps: `av_buffer_unref`
 /// Handwritten
 ///
 /// Releases a [`BufferReferenceBox`]'s reference: C frees the struct and drops
@@ -475,7 +475,7 @@ unsafe impl CDrop<BufferReference> for BufferUnref {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
         // SAFETY: the caller hands over the box's sole claim on a live
         // reference; C keeps no pointer to the slot.
-        unsafe { ffi::av_buffer_unref(&mut slot) }
+        unsafe { ffi::av_buffer_unref(&raw mut slot) }
     }
 }
 
@@ -495,14 +495,14 @@ pub(crate) fn may_add_reference(count: c_uint) -> bool {
 }
 
 /// `AVERROR(ENOMEM)`, the one error buffer.h's routines report.
-pub(crate) const ENOMEM: c_int = -(ffi::ENOMEM as c_int);
+pub(crate) const ENOMEM: c_int = -(ffi::ENOMEM.cast_signed());
 
 /// A buffer.h status as a `Result`.
 fn status(ret: c_int) -> Result<(), c_int> {
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: av_buffer_ref
+/// Wraps: `av_buffer_ref`
 ///
 /// A new reference to the same buffer, the same window of the same bytes.
 // SAFETY: a non-null result is a fresh av_mallocz'd struct, independent of
@@ -562,7 +562,7 @@ unsafe impl CDupClone<BufferReference> for BufferUnref {
 pub type BufferReferenceBox = CBox<BufferReference, BufferUnref>;
 
 impl BufferReference {
-    /// Wraps: av_buffer_alloc
+    /// Wraps: `av_buffer_alloc`
     ///
     /// A reference to a new buffer of `size` uninitialised `av_malloc` bytes,
     /// which C frees with `av_free`; `None` when C cannot allocate them (more
@@ -571,26 +571,30 @@ impl BufferReference {
     /// one step, see [`alloc_zeroed`](Self::alloc_zeroed).
     #[must_use]
     pub fn alloc(size: usize) -> Option<UninitBuffer> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_alloc = unsafe { ffi::av_buffer_alloc(size) };
         // SAFETY: av_buffer_alloc takes any size and returns NULL or a fresh,
         // sole and writable reference to `size` av_malloc bytes, released by
         // av_buffer_unref. Its bytes are uninitialised, so the box goes
         // straight into an `UninitBuffer`, which never lends its handles.
-        unsafe { BufferReferenceBox::from_c(ffi::av_buffer_alloc(size)) }.map(UninitBuffer)
+        unsafe { BufferReferenceBox::from_c(buffer_alloc) }.map(UninitBuffer)
     }
 
-    /// Wraps: av_buffer_allocz
+    /// Wraps: `av_buffer_allocz`
     ///
     /// A reference to a new buffer of `size` zeroed `av_malloc` bytes, which C
     /// frees with `av_free`; `None` when C cannot allocate them.
     #[must_use]
     pub fn alloc_zeroed(size: usize) -> Option<BufferReferenceBox> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_allocz = unsafe { ffi::av_buffer_allocz(size) };
         // SAFETY: av_buffer_allocz returns NULL or a fresh, sole reference to
         // `size` zeroed av_malloc bytes, released by av_buffer_unref with
         // av_free, on any thread.
-        unsafe { BufferReferenceBox::from_c(ffi::av_buffer_allocz(size)) }
+        unsafe { BufferReferenceBox::from_c(buffer_allocz) }
     }
 
-    /// Wraps: av_buffer_realloc
+    /// Wraps: `av_buffer_realloc`
     ///
     /// A reference to a new buffer of `size` uninitialised bytes, as
     /// [`alloc`](Self::alloc), that can be resized in place: C allocates
@@ -606,19 +610,23 @@ impl BufferReference {
         // SAFETY: an empty slot asks C for a new buffer: it stores a fresh,
         // sole, writable reference to `size` av_realloc'ed bytes, released by
         // av_buffer_unref with av_free, or leaves the slot NULL on failure.
-        unsafe { ffi::av_buffer_realloc(&mut slot, size) };
+        unsafe { ffi::av_buffer_realloc(&raw mut slot, size) };
         // SAFETY: NULL, or that reference. Its bytes are uninitialised, so the
         // box goes straight into an `UninitBuffer`, which never lends its
         // handles.
         unsafe { BufferReferenceBox::from_c(slot) }.map(UninitBuffer)
     }
 
-    /// Wraps: av_buffer_create
+    /// Wraps: `av_buffer_create`
     ///
     /// A reference to a new, writable buffer over `data`, which it then owns:
     /// C frees the block with `av_free` once the last reference is released
     /// (`av_buffer_default_free`). An empty array makes an empty buffer. When
     /// C cannot allocate the buffer, `data` comes back untouched.
+    ///
+    /// # Errors
+    ///
+    /// Returns `data`, untouched, when C cannot allocate the buffer.
     pub fn from_heap_vec(data: HeapVec<u8>) -> Result<BufferReferenceBox, HeapVec<u8>> {
         let (ptr, len) = data.into_raw_parts();
         // SAFETY: `ptr` is NULL with `len` 0, or the `len` initialised bytes
@@ -634,7 +642,7 @@ impl BufferReference {
         })
     }
 
-    /// Wraps: av_buffer_create
+    /// Wraps: `av_buffer_create`
     ///
     /// A reference to a new, writable buffer over the bytes of `owner`, which
     /// the buffer then owns: `owner` is dropped once the last reference is
@@ -645,6 +653,10 @@ impl BufferReference {
     /// `as_mut` is called once, and the bytes it returns are the buffer's for
     /// as long as `owner` lives, so they must not move or change size while
     /// it is left alone, as for a `Vec<u8>`, a `Box<[u8]>` or an array.
+    ///
+    /// # Errors
+    ///
+    /// Returns `owner` when C cannot allocate the buffer.
     pub fn from_owner<T>(owner: T) -> Result<BufferReferenceBox, T>
     where
         T: AsMut<[u8]> + Send + 'static,
@@ -655,7 +667,7 @@ impl BufferReference {
         // bytes stay exclusively the buffer's.
         let bytes = unsafe { (*owner).as_mut() };
         let (data, len) = (bytes.as_mut_ptr(), bytes.len());
-        let (free, opaque) = (Some(release_owner::<T> as ReleaseFn), owner.cast());
+        let (free, opaque) = (Some::<ReleaseFn>(release_owner::<T>), owner.cast());
         // SAFETY: `data` addresses `len` initialised, writable bytes that
         // live, unmoved, as long as the leaked `owner`, which C keeps as the
         // opaque of `release_owner::<T>`, or neither when it fails.
@@ -668,7 +680,7 @@ impl BufferReference {
         })
     }
 
-    /// Wraps: av_buffer_create
+    /// Wraps: `av_buffer_create`
     ///
     /// A reference to a new, read-only buffer over the bytes of `owner`, which
     /// the buffer then owns, as [`from_owner`](Self::from_owner). The buffer
@@ -676,6 +688,10 @@ impl BufferReference {
     /// writable and the bytes are never written, by Rust or C; anything that
     /// needs to write copies them first. `owner` may thus share its bytes,
     /// as an `Arc<[u8]>` or a `&'static [u8]` does.
+    ///
+    /// # Errors
+    ///
+    /// Returns `owner` when C cannot allocate the buffer.
     pub fn from_read_only<T>(owner: T) -> Result<BufferReferenceBox, T>
     where
         T: AsRef<[u8]> + Send + 'static,
@@ -685,8 +701,8 @@ impl BufferReference {
         // bytes are only read.
         let bytes = unsafe { (*owner).as_ref() };
         let (data, len) = (bytes.as_ptr().cast_mut(), bytes.len());
-        let (free, opaque) = (Some(release_owner::<T> as ReleaseFn), owner.cast());
-        let flags = ffi::AV_BUFFER_FLAG_READONLY as c_int;
+        let (free, opaque) = (Some::<ReleaseFn>(release_owner::<T>), owner.cast());
+        let flags = ffi::AV_BUFFER_FLAG_READONLY.cast_signed();
         // SAFETY: as in `from_owner`, for bytes unwritten by anyone: the flag
         // makes every reference unwritable, so C never writes them either.
         let buf = unsafe { ffi::av_buffer_create(data, len, free, opaque, flags) };
@@ -718,14 +734,15 @@ impl<'a> BufferReferenceRef<'a> {
     /// pointer is C's own, which writes may go through where the buffer is
     /// writable.
     pub(crate) fn parts(&self) -> (NonNull<u8>, usize) {
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*self.as_ptr()).data };
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*self.as_ptr()).size };
         // SAFETY: reads of two fields projected through the shared handle's
         // pointer to a live, initialised `AVBufferRef`.
-        let (data, len) = unsafe {
-            (
-                addr_of!((*self.as_ptr()).data).read(),
-                addr_of!((*self.as_ptr()).size).read(),
-            )
-        };
+        let (data, len) = (unsafe { data_ptr.read() }, unsafe { size_ptr.read() });
         match NonNull::new(data) {
             Some(data) if len > 0 => (data, len),
             _ => (NonNull::dangling(), 0),
@@ -734,12 +751,15 @@ impl<'a> BufferReferenceRef<'a> {
 
     /// Whether the window is C's NULL, which only an empty one can be.
     fn data_is_null(&self) -> bool {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field projected through the shared
         // handle's pointer to a live, initialised `AVBufferRef`.
-        unsafe { addr_of!((*self.as_ptr()).data).read() }.is_null()
+        unsafe { data_ptr.read() }.is_null()
     }
 
-    /// Wraps: av_buffer_is_writable
+    /// Wraps: `av_buffer_is_writable`
     ///
     /// Whether the buffer has this one reference and is not read-only, so
     /// that its bytes are this reference's alone to write
@@ -754,7 +774,7 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { ffi::av_buffer_is_writable(self.as_ptr()) != 0 }
     }
 
-    /// Wraps: av_buffer_get_ref_count
+    /// Wraps: `av_buffer_get_ref_count`
     ///
     /// The number of references to the buffer, this one included. Other
     /// threads may clone or release references to it meanwhile, so the
@@ -764,10 +784,10 @@ impl<'a> BufferReferenceRef<'a> {
         // SAFETY: a live reference; C atomically loads its buffer's count.
         let count = unsafe { ffi::av_buffer_get_ref_count(self.as_ptr()) };
         // C converts its unsigned count to `int`, which converts back to it.
-        count as c_uint
+        count.cast_unsigned()
     }
 
-    /// Wraps: av_buffer_get_opaque
+    /// Wraps: `av_buffer_get_opaque`
     ///
     /// The opaque the buffer was created with, as the address it is. C hands
     /// it to the buffer's data release and never reads it otherwise, so what
@@ -813,9 +833,12 @@ impl<'a> BufferReferenceRef<'a> {
     /// its buffer holds.
     #[must_use]
     pub fn len(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { addr_of!((*self.as_ptr()).size) };
         // SAFETY: a read of the `size` field projected through the shared
         // handle's pointer to a live, initialised `AVBufferRef`.
-        unsafe { addr_of!((*self.as_ptr()).size).read() }
+        unsafe { size_ptr.read() }
     }
 
     /// Whether this reference describes no byte.
@@ -828,11 +851,18 @@ impl<'a> BufferReferenceRef<'a> {
     ///
     /// The buffer this reference counts, whose identity tells whether two
     /// references share their data ([`BufferRef::ptr_eq`]).
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference counts a buffer.
     #[must_use]
     pub fn buffer(&self) -> BufferRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `buffer` field is in bounds; nothing is accessed here.
+        let buffer_ptr = unsafe { addr_of!((*self.as_ptr()).buffer) };
         // SAFETY: a read of the `buffer` pointer projected through the shared
         // handle's pointer to a live `AVBufferRef`.
-        let buffer = unsafe { addr_of!((*self.as_ptr()).buffer).read() };
+        let buffer = unsafe { buffer_ptr.read() };
         // SAFETY: by the type's invariant, the pointer addresses the live
         // buffer this reference counts, kept alive by it for `'a`.
         unsafe { BufferRef::from_ptr(buffer) }.expect("a reference counts a buffer")
@@ -905,13 +935,23 @@ impl BufferReferenceMut<'_> {
             return;
         }
         let p = self.as_mut_ptr();
-        // SAFETY: writes of two fields projected through the exclusive
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw mut (*p).size };
+        // For the unsafe operations below: writes of two fields projected through the exclusive
         // handle's pointer to a live `AVBufferRef`. A window of `len > 0`
         // bytes starts at its real `data`, and the new one is its tail, at
         // most one past its end, so it keeps the type's invariant.
-        unsafe {
-            addr_of_mut!((*p).data).write(data.as_ptr().add(n));
-            addr_of_mut!((*p).size).write(len - n);
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_ptr_add = unsafe { data.as_ptr().add(n) };
+            // SAFETY: as the comment above this block states.
+            unsafe { data_ptr.write(as_ptr_add) };
+            // SAFETY: as the comment above this block states.
+            unsafe { size_ptr.write(len - n) };
         }
     }
 
@@ -922,10 +962,13 @@ impl BufferReferenceMut<'_> {
     /// no longer than that already.
     pub fn truncate(&mut self, len: usize) {
         if len < self.as_ref().len() {
+            // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+            // so the place of its `size` field is in bounds; nothing is accessed here.
+            let size_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).size) };
             // SAFETY: a write of the `size` field projected through the
             // exclusive handle's pointer to a live `AVBufferRef`; the shorter
             // window keeps the type's invariant.
-            unsafe { addr_of_mut!((*self.as_mut_ptr()).size).write(len) }
+            unsafe { size_ptr.write(len) }
         }
     }
 
@@ -952,7 +995,7 @@ impl BufferReferenceMut<'_> {
         drop(self.replace(with));
     }
 
-    /// Wraps: av_buffer_make_writable
+    /// Wraps: `av_buffer_make_writable`
     ///
     /// The bytes this reference describes, writable, as
     /// [`data_mut`](Self::data_mut) hands them out, after C copies them
@@ -965,6 +1008,11 @@ impl BufferReferenceMut<'_> {
     ///
     /// `AVERROR(ENOMEM)` when C cannot allocate the copy; the reference is
     /// then left as it was.
+    ///
+    /// # Panics
+    ///
+    /// Only if C reports success from `av_buffer_make_writable` without making the reference
+    /// writable.
     pub fn make_mut(&mut self) -> Result<&mut [u8], c_int> {
         let shared = self.as_ref();
         if !shared.is_writable() && shared.data_is_null() {
@@ -981,12 +1029,12 @@ impl BufferReferenceMut<'_> {
             // SAFETY: `slot` holds this live, exclusively borrowed reference,
             // whose window is `len` initialised bytes, at a non-NULL address
             // unless writable; C never writes the slot itself.
-            status(unsafe { ffi::av_buffer_make_writable(&mut slot) })?;
+            status(unsafe { ffi::av_buffer_make_writable(&raw mut slot) })?;
         }
         Ok(self.data_mut().expect("C made the reference writable"))
     }
 
-    /// Wraps: av_buffer_realloc
+    /// Wraps: `av_buffer_realloc`
     ///
     /// Resizes the window this reference describes to `len` bytes, as
     /// `Vec::resize`: its first bytes up to the shorter length are kept, and
@@ -1008,12 +1056,15 @@ impl BufferReferenceMut<'_> {
         self.realloc(len)?;
         if len > old {
             let (data, _) = self.as_ref().parts();
+            // SAFETY: `old` is within the block `data.as_ptr()` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let elem = unsafe { data.as_ptr().add(old) };
             // SAFETY: C grew the window to `len` bytes of a buffer this
             // reference alone holds, in place only when it was sole and
             // writable, and as a new one otherwise. Its first `old` bytes are
             // initialised and the rest, inside it, are written here before
             // anything reads them, in one operation.
-            unsafe { ptr::write_bytes(data.as_ptr().add(old), value, len - old) };
+            unsafe { ptr::write_bytes(elem, value, len - old) };
         }
         Ok(())
     }
@@ -1036,7 +1087,7 @@ impl BufferReferenceMut<'_> {
         // whose window is at a non-NULL address unless `len` is its length,
         // and whose buffer has no opaque, so no pool entry records its block;
         // C never writes the slot itself.
-        status(unsafe { ffi::av_buffer_realloc(&mut slot, len) })
+        status(unsafe { ffi::av_buffer_realloc(&raw mut slot, len) })
     }
 
     /// `av_buffer_realloc`'s copy path, taken here where C's own call would
@@ -1064,7 +1115,7 @@ impl BufferReferenceMut<'_> {
         Ok(())
     }
 
-    /// Wraps: av_buffer_replace
+    /// Wraps: `av_buffer_replace`
     ///
     /// Makes this reference describe what `src` does, buffer and window:
     /// when both count the same buffer, only the window changes; otherwise
@@ -1088,11 +1139,11 @@ impl BufferReferenceMut<'_> {
         // one is borrowed exclusively and `src` shared: C copies `src`'s
         // window, initialised bytes of that buffer, into this struct, and
         // allocates, frees or counts nothing, leaving the slot as it is.
-        status(unsafe { ffi::av_buffer_replace(&mut slot, src.as_ptr()) })
+        status(unsafe { ffi::av_buffer_replace(&raw mut slot, src.as_ptr()) })
     }
 }
 
-/// Wraps: av_buffer_replace
+/// Wraps: `av_buffer_replace`
 ///
 /// Makes `dst` a reference to what `src` describes, buffer and window, or
 /// empty for `None`, as C does with a reference slot: a `dst` that counts
@@ -1133,13 +1184,13 @@ pub fn assign(
     // reference `src`'s window into the same buffer, or releases it and
     // stores a new reference to `src`'s buffer and window; every such
     // reference keeps the type's invariant.
-    let ret = unsafe { ffi::av_buffer_replace(&mut slot, src) };
+    let ret = unsafe { ffi::av_buffer_replace(&raw mut slot, src) };
     // SAFETY: NULL, or the reference C left in the slot, ours alone.
     *dst = unsafe { BufferReferenceBox::from_c(slot) };
     status(ret)
 }
 
-/// Wraps: AVBufferRef
+/// Wraps: `AVBufferRef`
 /// Handwritten
 ///
 /// A reference to a buffer whose bytes may not be initialised yet: what
@@ -1181,7 +1232,7 @@ pub fn assign(
 pub struct UninitBuffer(BufferReferenceBox);
 
 impl UninitBuffer {
-    /// Wraps: av_buffer_create
+    /// Wraps: `av_buffer_create`
     ///
     /// A reference to a new, writable buffer over the possibly uninitialised
     /// bytes of `owner`, which the buffer then owns, as
@@ -1205,6 +1256,10 @@ impl UninitBuffer {
     /// use ffmpeg_bindings::libavutil::libavutil::buffer::UninitBuffer;
     /// let _ = UninitBuffer::from_owner(vec![0u8; 4]);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `owner` when C cannot allocate the buffer.
     pub fn from_owner<T>(owner: T) -> Result<Self, T>
     where
         T: AsMut<[MaybeUninit<u8>]> + Send + 'static,
@@ -1215,7 +1270,7 @@ impl UninitBuffer {
         // bytes stay exclusively the buffer's.
         let bytes = unsafe { (*owner).as_mut() };
         let (data, len) = (bytes.as_mut_ptr().cast::<u8>(), bytes.len());
-        let (free, opaque) = (Some(release_owner::<T> as ReleaseFn), owner.cast());
+        let (free, opaque) = (Some::<ReleaseFn>(release_owner::<T>), owner.cast());
         // SAFETY: `data` addresses `len` writable bytes that live, unmoved,
         // as long as the leaked `owner`, which C keeps as the opaque of
         // `release_owner::<T>`, or neither when it fails.
@@ -1293,7 +1348,7 @@ impl UninitBuffer {
         unsafe { self.assume_init() }
     }
 
-    /// Wraps: av_buffer_realloc
+    /// Wraps: `av_buffer_realloc`
     ///
     /// Resizes the bytes to `len`, keeping the first ones up to the shorter
     /// length; any new ones are uninitialised. A buffer from
@@ -1362,10 +1417,29 @@ impl fmt::Debug for UninitBuffer {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 pub(crate) mod unit_tests {
-    use super::*;
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+
+    use super::*;
 
     /// Counts the drops of a value it is moved into.
     struct DropCount(Arc<AtomicUsize>);
@@ -1383,7 +1457,7 @@ pub(crate) mod unit_tests {
 
     fn unref(mut buf: *mut ffi::AVBufferRef) {
         // SAFETY: `buf` is a reference this test owns and never uses again.
-        unsafe { ffi::av_buffer_unref(&mut buf) };
+        unsafe { ffi::av_buffer_unref(&raw mut buf) };
     }
 
     #[test]
@@ -1444,13 +1518,23 @@ pub(crate) mod unit_tests {
         // SAFETY: as above.
         let c = unsafe { ffi::av_buffer_alloc(16) };
         assert!(!b.is_null() && !c.is_null());
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_2 = unsafe { (*a).buffer };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_ptr_2 = unsafe { BufferRef::from_ptr(buffer_2) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_2 = unsafe { (*b).buffer };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_ptr_3 = unsafe { BufferRef::from_ptr(buffer_2) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let buffer_2 = unsafe { (*c).buffer };
         // SAFETY: each reference keeps its buffer alive until unref below,
         // after the handles' last use; `buffer` is a non-NULL body pointer.
         let (ha, hb, hc) = unsafe {
             (
-                BufferRef::from_ptr((*a).buffer).unwrap(),
-                BufferRef::from_ptr((*b).buffer).unwrap(),
-                BufferRef::from_ptr((*c).buffer).unwrap(),
+                from_ptr_2.unwrap(),
+                from_ptr_3.unwrap(),
+                BufferRef::from_ptr(buffer_2).unwrap(),
             )
         };
         assert!(ha.ptr_eq(&hb) && hb.ptr_eq(&ha) && ha.ptr_eq(&ha));
@@ -1484,7 +1568,7 @@ pub(crate) mod unit_tests {
         // `a` waits in the pool's free list, `b` is outstanding: dropping the
         // box flushes `a` and leaves the pool alive for `b`.
         drop(pool);
-        assert_eq!(b.fill(0x5a).as_ref().data(), &[0x5a; 8]);
+        assert_eq!(b.fill(0x5A).as_ref().data(), &[0x5A; 8]);
     }
 
     #[test]
@@ -1856,18 +1940,24 @@ pub(crate) mod unit_tests {
         let body = buf.as_ref().buffer().as_ptr().cast::<BufferBody>();
         // SAFETY: a live reference; C atomically loads its buffer's count.
         let c = unsafe { ffi::av_buffer_get_ref_count(buf.as_c_ptr()) };
+        // SAFETY: `body` is to a live object, as the access below relies on,
+        // so the place of its `refcount` field is in bounds; nothing is accessed here.
+        let refcount_ptr = unsafe { addr_of!((*body).refcount) };
         // SAFETY: `body` is the live 48-byte body `buf` counts, which this
         // single-threaded test alone references.
-        (c, unsafe { addr_of!((*body).refcount).read() })
+        (c, unsafe { refcount_ptr.read() })
     }
 
     /// Sets the count of `buf`'s buffer behind C's back.
     pub(crate) fn set_count(buf: &BufferReferenceBox, count: c_uint) {
         let body = buf.as_ref().buffer().as_ptr().cast_mut();
         let body = body.cast::<BufferBody>();
+        // SAFETY: `body` is to a live object, as the access below relies on,
+        // so the place of its `refcount` field is in bounds; nothing is accessed here.
+        let refcount_ptr = unsafe { addr_of_mut!((*body).refcount) };
         // SAFETY: as in `counts`; no other thread reaches the body, and the
         // caller restores the true count before any reference is released.
-        unsafe { addr_of_mut!((*body).refcount).write(count) }
+        unsafe { refcount_ptr.write(count) }
     }
 
     /// The copy refuses at `MAX_REFERENCES` without calling `av_buffer_ref`,
@@ -1979,7 +2069,7 @@ pub(crate) mod unit_tests {
 
     /// C copies a reference's window with `memcpy` from its data, which is
     /// NULL for an empty `av_buffer_create(NULL, 0)` window (`from_heap_vec`
-    /// of an empty array): UB even for 0 bytes (UBSan `buffer.c:176` in
+    /// of an empty array): UB even for 0 bytes (`UBSan` `buffer.c:176` in
     /// `av_buffer_make_writable`, `:218` in `av_buffer_realloc`). The
     /// wrappers take a fresh buffer there instead, C's copy of nothing; an
     /// asan-ubsan run of this test prints no `runtime error:`.

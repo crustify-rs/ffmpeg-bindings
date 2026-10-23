@@ -2,7 +2,6 @@
 //! logging context, as [`Record::class`] reads it inside a log callback.
 //! Shared by the `log` suites of `equiv` and `ub_unsafe`, which include it
 //! with `#[path]`.
-#![allow(dead_code)]
 
 use core::cell::Cell;
 use core::ffi::c_void;
@@ -41,7 +40,10 @@ impl Callback for Visit {
 ///
 /// `obj` must be NULL, a struct led by a NULL class pointer, or satisfy
 /// `ObjectRef::from_ptr`'s contract for the call.
-pub unsafe fn with_class<R>(obj: *mut c_void, f: impl FnOnce(Option<ClassRef<'_>>) -> R) -> R {
+pub(crate) unsafe fn with_class<R>(
+    obj: *mut c_void,
+    f: impl FnOnce(Option<ClassRef<'_>>) -> R,
+) -> R {
     let mut f = Some(f);
     let mut out = None;
     let mut visit = |class: Option<ClassRef<'_>>| out = Some((f.take().unwrap())(class));

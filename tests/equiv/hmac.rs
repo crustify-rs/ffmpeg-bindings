@@ -1,15 +1,24 @@
 //! C allocation observes the enum's ABI values, including invalid encodings.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
-use ffmpeg_bindings::libavutil::libavutil::{ffi, hmac::HmacType};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::hmac::HmacType;
 
 fn c_accepts(algorithm: ffi::AVHMACType) -> bool {
-    // SAFETY: C accepts all enum integers and returns NULL for unknown ones.
-    // A successful allocation is uniquely owned, and even an uninitialized
+    // For the unsafe operations below: C accepts all enum integers and returns NULL for unknown
+    // ones. A successful allocation is uniquely owned, and even an uninitialized
     // hashing state is valid for av_hmac_free. No pointer escapes this helper.
-    unsafe {
-        let context = ffi::av_hmac_alloc(algorithm);
+    {
+        // SAFETY: as the comment above this block states.
+        let context = unsafe { ffi::av_hmac_alloc(algorithm) };
         let success = !context.is_null();
-        ffi::av_hmac_free(context);
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_hmac_free(context) };
         success
     }
 }
@@ -103,19 +112,25 @@ fn keyed_construction_and_reinitialization_agree() {
             }
             let mut a = [0xCC; 80];
             let mut b = [0xCC; 80];
-            // SAFETY: both contexts are keyed and live, and both independent
-            // output arrays hold 80 writable bytes. The short final is rejected
-            // without touching state or output; the following full final fits.
-            unsafe {
-                assert_eq!(
-                    ffi::av_hmac_final(raw.0, a.as_mut_ptr(), digest_len - 1),
-                    -22
-                );
+            // For the unsafe operations below: both contexts are keyed and live, and both
+            // independent output arrays hold 80 writable bytes. The short final is
+            // rejected without touching state or output; the following full final fits.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    assert_eq!(
+                        ffi::av_hmac_final(raw.0, a.as_mut_ptr(), digest_len - 1),
+                        -22
+                    );
+                };
 
-                assert_eq!(
-                    ffi::av_hmac_final(raw.0, a.as_mut_ptr(), 80),
-                    digest_len as i32
-                );
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    assert_eq!(
+                        ffi::av_hmac_final(raw.0, a.as_mut_ptr(), 80),
+                        digest_len as i32
+                    );
+                };
             }
             assert_eq!(
                 safe.as_mut().finalize(&mut b[..digest_len as usize - 1]),
@@ -151,7 +166,7 @@ fn calculate_and_failed_output_preserve_c_state() {
                 for capacity in [0, 1, 15, 16, 20, 28, 32, 48, 64, 80] {
                     let mut actual = vec![0x5A; capacity];
                     let mut expected = actual.clone();
-                    let src = &data[1..1 + len];
+                    let src = &data[1..=len];
                     let key = &key[1..];
                     // SAFETY: live valid context; source/key slices are backed by
                     // real allocations even when empty, checked small lengths;
@@ -179,11 +194,14 @@ fn calculate_and_failed_output_preserve_c_state() {
                     let mut a = [0xA5; 80];
                     let mut b = a;
                     safe.as_mut().update(b"suffix").unwrap();
-                    // SAFETY: live initialized/post-final context; six readable
-                    // suffix bytes, 80 writable bytes, no retained pointers.
-                    let written = unsafe {
-                        ffi::av_hmac_update(raw.0, b"suffix".as_ptr(), 6);
-                        ffi::av_hmac_final(raw.0, b.as_mut_ptr(), 80)
+                    // For the unsafe operations below: live initialized/post-final context; six
+                    // readable suffix bytes, 80 writable bytes, no retained
+                    // pointers.
+                    let written = {
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_hmac_update(raw.0, b"suffix".as_ptr(), 6) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_hmac_final(raw.0, b.as_mut_ptr(), 80) }
                     };
                     assert_eq!(safe.as_mut().finalize(&mut a), Ok(written as usize));
                     assert_eq!(a, b);
@@ -197,16 +215,15 @@ fn calculate_and_failed_output_preserve_c_state() {
 /// offer as `UINT_MAX` bytes (crypto wave-1 review,
 /// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
 mod beyond_uint_max {
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hmac::{Hmac, HmacType};
+
     use super::Reference;
-    use ffmpeg_bindings::libavutil::libavutil::{
-        ffi,
-        hmac::{Hmac, HmacType},
-    };
 
     const LEN: usize = u32::MAX as usize + 1;
     const HEAD: usize = 80;
 
-    /// BSan cost grows with a 4 GiB allocation's history (see the campaign's
+    /// `BSan` cost grows with a 4 GiB allocation's history (see the campaign's
     /// test recipes); the plain and other sanitized runs cover these.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -233,16 +250,21 @@ mod beyond_uint_max {
             for calculate in [false, true] {
                 let raw = Reference::new(raw_type);
                 let mut expected = buffer();
-                // SAFETY: a live context, readable key and data, and an
+                // For the unsafe operations below: a live context, readable key and data, and an
                 // output writable for `UINT_MAX` bytes; C writes the digest.
-                let ret = unsafe {
-                    ffi::av_hmac_init(raw.0, key.as_ptr(), 3);
+                let ret = {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_hmac_init(raw.0, key.as_ptr(), 3) };
+                    // For the unsafe operations below: as the comment above this block states.
                     if calculate {
                         let (data, out) = (b"crustify".as_ptr(), expected.as_mut_ptr());
-                        ffi::av_hmac_calc(raw.0, data, 8, key.as_ptr(), 3, out, u32::MAX)
+                        // SAFETY: as the comment at the head of this block states.
+                        unsafe { ffi::av_hmac_calc(raw.0, data, 8, key.as_ptr(), 3, out, u32::MAX) }
                     } else {
-                        ffi::av_hmac_update(raw.0, b"crustify".as_ptr(), 8);
-                        ffi::av_hmac_final(raw.0, expected.as_mut_ptr(), u32::MAX)
+                        // SAFETY: as the comment at the head of this block states.
+                        unsafe { ffi::av_hmac_update(raw.0, b"crustify".as_ptr(), 8) };
+                        // SAFETY: as the comment at the head of this block states.
+                        unsafe { ffi::av_hmac_final(raw.0, expected.as_mut_ptr(), u32::MAX) }
                     }
                 };
                 let expected = (Ok(ret as usize), expected[..HEAD].to_vec());

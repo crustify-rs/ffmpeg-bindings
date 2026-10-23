@@ -89,7 +89,7 @@ pub type Sha512Box = CBox<Sha512, Sha512Free>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Sha512Free;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: Sha512Box adopts only `av_sha512_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Sha512> for Sha512Free {
@@ -100,7 +100,7 @@ unsafe impl CDrop<Sha512> for Sha512Free {
 }
 
 impl Sha512 {
-    /// Wraps: av_sha512_alloc
+    /// Wraps: `av_sha512_alloc`
     ///
     /// Allocate and initialize a context for `algorithm`; `None` on allocation
     /// failure. Invalid digest sizes cannot be represented by [`Algorithm`].
@@ -151,7 +151,7 @@ unsafe impl CNew<Sha512> for Sha512Free {
 }
 
 impl Sha512Mut<'_> {
-    /// Wraps: av_sha512_init
+    /// Wraps: `av_sha512_init`
     ///
     /// Start a new hash, discarding the previous state. The buffer need not be
     /// cleared: C resets the count and never reads stale bytes before filling
@@ -164,9 +164,10 @@ impl Sha512Mut<'_> {
     }
 }
 
-/// Wraps: av_sha512_size
+/// Wraps: `av_sha512_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -174,7 +175,7 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl Sha512Mut<'_> {
-    /// Wraps: av_sha512_update
+    /// Wraps: `av_sha512_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
     pub fn update(&mut self, data: &[u8]) {
@@ -190,11 +191,11 @@ impl Sha512Mut<'_> {
                     data.as_ptr()
                 },
                 data.len(),
-            )
+            );
         }
     }
 
-    /// Wraps: av_sha512_final
+    /// Wraps: `av_sha512_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.
@@ -223,22 +224,10 @@ mod unit_tests {
 
     #[test]
     fn pointer_layout_matches_the_ffi_seam() {
-        assert_eq!(
-            core::mem::size_of::<Sha512Box>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<Option<Sha512Box>>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<Sha512Ref<'_>>(),
-            core::mem::size_of::<*mut ()>()
-        );
-        assert_eq!(
-            core::mem::size_of::<Sha512Mut<'_>>(),
-            core::mem::size_of::<*mut ()>()
-        );
+        assert_eq!(size_of::<Sha512Box>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<Option<Sha512Box>>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<Sha512Ref<'_>>(), size_of::<*mut ()>());
+        assert_eq!(size_of::<Sha512Mut<'_>>(), size_of::<*mut ()>());
     }
 
     #[test]

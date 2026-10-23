@@ -1,4 +1,18 @@
 //! UB tests for `libavutil/csp.h`, through the safe API only.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// `CieXy`: inline values, `av_malloc`-family owners and arrays of them (the
 /// shape of a gamut's three primaries), every struct and coordinate handle
@@ -6,7 +20,9 @@
 mod cie_xy {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, CieXyMut, CieXyRef, WhitepointCoefficients};
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
+        CieXy, CieXyMut, CieXyRef, WhitepointCoefficients,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
@@ -123,7 +139,7 @@ mod cie_xy {
         assert_eq!(parts(copy.as_ref()), PARTS[1]);
         let mut b = copy;
         b.as_mut().y_mut().set_den(-1);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = Clone::clone(&b);
         assert_eq!(parts(copy.as_ref()), PARTS[1]);
         assert_eq!(parts(c.as_ref()), [3127, 10000, 3290, -1]);
@@ -278,7 +294,9 @@ mod cie_xy {
 mod luma_coefficients {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::csp::{LumaCoefficients, LumaCoefficientsMut, LumaCoefficientsRef};
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
+        LumaCoefficients, LumaCoefficientsMut, LumaCoefficientsRef,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
@@ -383,7 +401,7 @@ mod luma_coefficients {
         assert_eq!((cg.as_ref().num(), cg.as_ref().den()), (0, -1));
         let mut b = copy;
         b.as_mut().cr_mut().set_num(3);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let cl = Clone::clone(&b);
         assert_eq!(fields(copy.as_ref()), FIELDS[4]);
         assert_eq!(fields(cl.as_ref())[0], 3);
@@ -426,7 +444,10 @@ mod luma_coefficients {
         assert_eq!(last.den(), i32::MAX);
         let b = a.clone();
         drop(a);
-        assert_eq!(b.as_handles().iter().map(fields).collect::<Vec<_>>(), FIELDS);
+        assert_eq!(
+            b.as_handles().iter().map(fields).collect::<Vec<_>>(),
+            FIELDS
+        );
     }
 
     #[test]
@@ -645,7 +666,7 @@ mod primary_coefficients {
         assert_eq!((g.as_ref().x().num(), g.as_ref().y().den()), (i32::MIN, 1));
         let mut b = copy;
         b.as_mut().r_mut().x_mut().set_num(3);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let cl = Clone::clone(&b);
         assert_eq!(fields(copy.as_ref()), FIELDS[4]);
         assert_eq!(fields(cl.as_ref())[0], 3);
@@ -783,7 +804,7 @@ mod primary_coefficients {
 /// The `ColorTransfer` getters on every value, the `unsigned` extremes
 /// included, and the handles they return called on every input class, from
 /// other threads, and after the getters ran again: the EOTFs on exactly
-/// sized heap arrays, so a write past the three channels is an ASan report.
+/// sized heap arrays, so a write past the three channels is an `ASan` report.
 mod color_transfer {
     use std::thread;
 
@@ -1119,7 +1140,7 @@ mod color_primaries_descriptor {
         assert_eq!(prim.as_ref().r().x().num(), -1);
         let mut b = copy;
         b.as_mut().white_point_mut().x_mut().set_num(3);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let cl = Clone::clone(&b);
         assert_eq!(fields(copy.as_ref()), FIELDS[4]);
         assert_eq!(fields(cl.as_ref())[0], 3);

@@ -3,6 +3,28 @@
 //! adopts and on classes `with_class` reaches through a logging context, the
 //! safe getters and setters of the lists and ranges they return, and the
 //! option setters, getters, lookups and evaluators on adopted objects.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::items_after_statements,
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::CStr;
 
@@ -12,6 +34,10 @@ use ffmpeg_bindings::libavutil::libavutil::opt::{
     ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
 };
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/opt.rs"]
 pub(crate) mod fixture;
 use fixture::{CB_FAKE, EINVAL, FAKE, FakeObj, Owned, RANGED, UNKNOWN, UNRANGED};
@@ -192,7 +218,7 @@ mod query {
     /// A list and its handles cross threads: one is read by several threads
     /// at once through copies of a shared handle, moved to another thread and
     /// dropped there, and a class is queried on many threads concurrently
-    /// (`Send` / `Sync` on `OptionRanges` and `ClassRef`; ThreadSanitizer
+    /// (`Send` / `Sync` on `OptionRanges` and `ClassRef`; `ThreadSanitizer`
     /// reports any race).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -329,20 +355,25 @@ mod query_default {
 /// rewriting bounds, replacing, taking and clearing owned strings, across
 /// threads and drops.
 mod range_handles {
-    use super::*;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapString, string_from_c_str};
+
+    use super::*;
 
     fn query(fake: &'static FakeObj, key: &CStr, flags: RangeFlags) -> OptionRangesBox {
         with_fake_class(fake, |c| c.option_ranges(key, flags)).unwrap()
     }
 
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the signature mirrors the wrapper it stands in for"
+    )]
     fn heap(s: &CStr) -> Option<HeapString> {
         Some(string_from_c_str(s).unwrap())
     }
 
     /// Every element of a callback list gets a new label and bounds; the
     /// drop then releases the new strings (and the replaced ones were
-    /// released at once): LeakSanitizer reports a miss, ASan a double free.
+    /// released at once): `LeakSanitizer` reports a miss, `ASan` a double free.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn labels_replaced_on_every_element_are_released_once() {
@@ -430,7 +461,7 @@ mod range_handles {
     /// A list is rewritten on one thread through its exclusive handle, read
     /// by several at once through copies of range handles, then rewritten
     /// and dropped on others (`Send` / `Sync` on `OptionRange` and its
-    /// handles; ThreadSanitizer reports any race).
+    /// handles; `ThreadSanitizer` reports any race).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn ranges_are_written_read_and_moved_across_threads() {
@@ -555,7 +586,7 @@ mod set_options_string {
     }
 
     /// Owned values replaced many times, with values of growing size, and
-    /// cleared: ASan sees every block C frees and allocates, LSan any left.
+    /// cleared: `ASan` sees every block C frees and allocates, `LSan` any left.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn owned_values_replaced_and_cleared() {
@@ -583,7 +614,7 @@ mod set_options_string {
         assert!(c.binary.is_null() && c.array.is_null() && c.strings.is_null());
     }
 
-    /// Lists in exactly sized heap strings, so ASan sees any read past
+    /// Lists in exactly sized heap strings, so `ASan` sees any read past
     /// their NUL; the separators likewise.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -730,7 +761,7 @@ mod set_options_string {
     static PARENT_CLASS: super::fixture::Class = super::fixture::Class(ffi::AVClass {
         class_name: c"crustify-opt-parent".as_ptr(),
         item_name: Some(ffi::av_default_item_name),
-        option: &PARENT_OPTIONS.0[0],
+        option: &raw const PARENT_OPTIONS.0[0],
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
@@ -750,7 +781,7 @@ mod set_options_string {
         }
         let child = Owned::new();
         let mut parent = Parent {
-            class: &PARENT_CLASS.0,
+            class: &raw const PARENT_CLASS.0,
             child: child.ptr(),
         };
         // SAFETY: a live parent of a well-formed class whose only child is a
@@ -798,7 +829,7 @@ mod set_options_string {
     #[cfg_attr(miri, ignore = "calls C")]
     fn class_is_the_fixture_class() {
         let o = Owned::new();
-        assert!(core::ptr::eq(obj(&o).class, &OBJ_CLASS.0));
+        assert!(core::ptr::eq(obj(&o).class, &raw const OBJ_CLASS.0));
     }
 }
 
@@ -813,7 +844,9 @@ mod objects {
     use std::ffi::CString;
 
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
-    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectMut, ObjectRef, SearchFlags, SerializeFlags};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        BareObject, ObjectMut, ObjectRef, SearchFlags, SerializeFlags,
+    };
 
     use super::fixture::{OBJ_OPTIONS, Obj, Owned};
 
@@ -902,18 +935,31 @@ mod objects {
         read_all(child);
         // Values at the edges of what C reads, written raw while no handle
         // is live.
-        // SAFETY: raw writes of the live object's fields, each a valid value
-        // of its type.
-        unsafe {
+        // For the unsafe operations below: raw writes of the live object's fields, each a valid
+        // value of its type.
+        {
             let p = o.ptr();
-            (*p).q = ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 1, den: 0 };
-            (*p).wide_q = ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 0, den: 0 };
-            (*p).dbl = f64::NAN;
-            (*p).flt = f32::INFINITY;
-            (*p).duration = i64::MIN;
-            (*p).big = i64::MIN;
-            (*p).uint64 = u64::MAX;
-            (*p).flags = -1;
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                (*p).q = ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 1, den: 0 }
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                (*p).wide_q =
+                    ffmpeg_bindings::libavutil::libavutil::ffi::AVRational { num: 0, den: 0 }
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).dbl = f64::NAN };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).flt = f32::INFINITY };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).duration = i64::MIN };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).big = i64::MIN };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).uint64 = u64::MAX };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).flags = -1 };
         }
         read_all(shared(&o));
         // SAFETY: as above.
@@ -1029,7 +1075,10 @@ mod objects {
         read_all(m.as_ref());
         m.free_options();
         m.set_defaults();
-        m.set_defaults_masked(ffmpeg_bindings::libavutil::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32, 0);
+        m.set_defaults_masked(
+            ffmpeg_bindings::libavutil::libavutil::ffi::AV_OPT_FLAG_ENCODING_PARAM as i32,
+            0,
+        );
         assert_eq!(
             m.set_from_string(c"7:+eight", &[c"int", c"flags"], c"=", c":"),
             Ok(2)
@@ -1109,7 +1158,7 @@ mod objects {
             "x",
             "-9223372036854775809",
         ];
-        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut state = 0x2545_F491_4F6C_DD1Du64;
         let mut next = || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -1143,7 +1192,7 @@ mod objects {
     /// defaults, which C parses): typed setters, failed color lookups and
     /// their restore, frees with the length reset, copies, children and
     /// formatted reads, each through a fresh reborrow of the handle. The
-    /// object tests BSan runs.
+    /// object tests `BSan` runs.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn typed_paths_across_reborrows() {
@@ -1228,7 +1277,7 @@ mod log_contexts {
     impl Ctx {
         fn new(class: &'static Class) -> Self {
             Self {
-                class: &class.0,
+                class: &raw const class.0,
                 payload: [1, 2],
             }
         }
@@ -1457,7 +1506,9 @@ mod previewed_values {
             help: null(),
             offset: offset as c_int,
             type_: ffi::AVOptionType(base.0 | ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY.0),
-            default_val: ffi::AVOption__bindgen_ty_1 { arr: &DEF.0 },
+            default_val: ffi::AVOption__bindgen_ty_1 {
+                arr: &raw const DEF.0,
+            },
             min,
             max,
             flags: 0,
@@ -1496,7 +1547,7 @@ mod previewed_values {
     static CLASS: Class = Class(ffi::AVClass {
         class_name: c"crustify-opt-arrays".as_ptr(),
         item_name: Some(ffi::av_default_item_name),
-        option: &OPTIONS.0[0],
+        option: &raw const OPTIONS.0[0],
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
@@ -1517,7 +1568,7 @@ mod previewed_values {
             return;
         }
         let o = Box::into_raw(Box::new(Arrays {
-            class: &CLASS.0,
+            class: &raw const CLASS.0,
             flags: null_mut(),
             nb_flags: 0,
             q: null_mut(),
@@ -1555,7 +1606,7 @@ mod previewed_values {
 
     /// Operands that read the clock are refused, whatever its reading; the
     /// loop straddles the check and C's evaluation as the reproducer does,
-    /// and must leave no sanitizer report (UBSan recovers: the suite's log
+    /// and must leave no sanitizer report (`UBSan` recovers: the suite's log
     /// is grepped for `runtime error:`).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -1834,7 +1885,7 @@ mod typed_setters {
     /// C copies each borrowed layout and dictionary: the Rust values are
     /// reborrowed, rewritten and dropped afterwards without touching what
     /// the object holds, which is read and freed by C. On zeroed objects,
-    /// with no string parses, so that BorrowSanitizer runs it without C's
+    /// with no string parses, so that `BorrowSanitizer` runs it without C's
     /// evaluator (whose `av_strtod` end pointers it misreports).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -1903,7 +1954,7 @@ mod typed_setters {
 
     /// Dictionaries handed to C and taken back: the leftovers are owned
     /// again, a failure leaves the dictionary as it was, and every block is
-    /// freed once (LeakSanitizer).
+    /// freed once (`LeakSanitizer`).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn dictionaries_handed_over_and_back() {
@@ -1971,7 +2022,7 @@ mod typed_setters {
 /// down, then fails `av_realloc_array` under an `av_max_alloc` limit and
 /// keeps the old count, so the last elements repeat or address released
 /// values: reading them is a use after free, and `av_opt_free` a double
-/// free (ASan). The wrapper sets the count to the new size.
+/// free (`ASan`). The wrapper sets the count to the new size.
 mod remove_array_shrink_failure {
     use core::ffi::CStr;
 
@@ -2107,13 +2158,14 @@ mod remove_array_shrink_failure {
 /// class: found options and walks outliving the handles that found them,
 /// defaults checked across writes and frees on a parent and its child,
 /// every evaluator on every option with the values C turns into undefined
-/// behaviour (UBSan reports a `runtime error:` C reaches), a class context
-/// shared by many threads (ThreadSanitizer), and lookups interleaved with
-/// writes through an exclusive handle's reborrows (BorrowSanitizer).
+/// behaviour (`UBSan` reports a `runtime error:` C reaches), a class context
+/// shared by many threads (`ThreadSanitizer`), and lookups interleaved with
+/// writes through an exclusive handle's reborrows (`BorrowSanitizer`).
 mod lookups {
-    use super::*;
     use ffmpeg_bindings::libavutil::libavutil::opt::{EvalContext, ObjectMut, SearchFlags};
     use fixture::OBJ_OPTIONS;
+
+    use super::*;
 
     /// The exclusive handle of `o`.
     fn exclusive(o: &Owned) -> ObjectMut<'_> {
@@ -2159,7 +2211,7 @@ mod lookups {
                     0 => {}
                     1 => {
                         m.set_int(c"int", 8, SearchFlags::CHILDREN).unwrap();
-                        m.set_bin(c"binary", &[0x0a, 0x0b], SearchFlags::NONE)
+                        m.set_bin(c"binary", &[0x0A, 0x0B], SearchFlags::NONE)
                             .unwrap();
                         m.set_bin(c"binary", &[1, 2, 3], SearchFlags::CHILDREN)
                             .unwrap();
@@ -2251,7 +2303,8 @@ mod lookups {
                         e.eval_int64(ctx, val).map(|v| v as f64),
                         e.eval_float(ctx, val).map(f64::from),
                         e.eval_double(ctx, val),
-                        e.eval_rational(ctx, val).map(|q| q.into_raw().num as f64),
+                        e.eval_rational(ctx, val)
+                            .map(|q| f64::from(q.into_raw().num)),
                     ];
                     for r in results {
                         match r {
@@ -2340,7 +2393,7 @@ mod lookups {
     /// Lookups, walks, default checks and range queries through shared
     /// reborrows of one exclusive handle, interleaved with typed writes
     /// through it and through a child's exclusive handle, on a zeroed object:
-    /// nothing here parses a string, which BorrowSanitizer misreports at
+    /// nothing here parses a string, which `BorrowSanitizer` misreports at
     /// glibc-written end pointers.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]

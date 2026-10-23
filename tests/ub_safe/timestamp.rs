@@ -11,7 +11,7 @@ const SIZE: usize = ffi::AV_TS_MAX_STRING_SIZE as usize;
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn extreme_stamps_fit_a_heap_buffer() {
-    let mut buf = Box::new([0xffu8; SIZE]);
+    let mut buf = Box::new([0xFFu8; SIZE]);
     for ts in [i64::MIN, i64::MIN + 1, -1, 0, 1, i64::MAX] {
         let s = make_string(&mut buf, ts);
         assert!(s.count_bytes() < SIZE);
@@ -77,11 +77,11 @@ mod time_string {
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_stamp_and_base_fits_a_heap_buffer() {
         // An exact-size heap block: ASan reports any byte written past it.
-        let mut buf = Box::new([0xffu8; SIZE]);
+        let mut buf = Box::new([0xFFu8; SIZE]);
         let start = buf.as_ptr();
         for ts in STAMPS {
             for (num, den) in BASES {
-                buf.fill(0xff);
+                buf.fill(0xFF);
                 let s = make_time_string(&mut buf, ts, Rational::new(num, den));
                 assert_eq!(s.as_ptr().cast::<u8>(), start);
                 assert!(!s.is_empty() && s.count_bytes() < SIZE, "{ts} {num}/{den}");
@@ -153,7 +153,7 @@ mod time_string_by_ref {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_time_base_fits_a_heap_buffer() {
-        let mut buf = Box::new([0xffu8; SIZE]);
+        let mut buf = Box::new([0xFFu8; SIZE]);
         for num in PARTS {
             for den in PARTS {
                 let tb = Rational::new(num, den);

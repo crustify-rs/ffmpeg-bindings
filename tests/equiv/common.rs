@@ -1,6 +1,12 @@
 //! Equivalence of `libavutil/common.h`'s safe clamps, [`zero_extend`],
 //! `ceil_log2` and bit-counting helpers with the raw C functions, on every
 //! edge their branches test.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::c_int;
 
@@ -77,12 +83,16 @@ fn bounded_integer_clamps_match_c() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn saturations_match_c() {
     for a in ints() {
-        // SAFETY: each takes and returns integers by value.
-        unsafe {
-            assert_eq!(clamp_to_u8(a), ffi::av_clip_uint8_c(a), "{a}");
-            assert_eq!(clamp_to_i8(a), ffi::av_clip_int8_c(a), "{a}");
-            assert_eq!(clamp_to_u16(a), ffi::av_clip_uint16_c(a), "{a}");
-            assert_eq!(clamp_to_i16(a), ffi::av_clip_int16_c(a), "{a}");
+        // For the unsafe operations below: each takes and returns integers by value.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(clamp_to_u8(a), ffi::av_clip_uint8_c(a), "{a}") };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(clamp_to_i8(a), ffi::av_clip_int8_c(a), "{a}") };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(clamp_to_u16(a), ffi::av_clip_uint16_c(a), "{a}") };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(clamp_to_i16(a), ffi::av_clip_int16_c(a), "{a}") };
         }
     }
     for a in longs() {
@@ -98,12 +108,9 @@ fn power_of_two_clamps_match_c_at_every_defined_position() {
         for a in ints() {
             // SAFETY: both take and return integers by value; `p <= 31` keeps
             // their shifts defined.
-            let (s, u) = unsafe {
-                (
-                    ffi::av_clip_intp2_c(a, p as c_int),
-                    ffi::av_clip_uintp2_c(a, p as c_int),
-                )
-            };
+            let (s, u) = (unsafe { ffi::av_clip_intp2_c(a, p as c_int) }, unsafe {
+                ffi::av_clip_uintp2_c(a, p as c_int)
+            });
             assert_eq!(clamp_to_signed_pow2(a, p), Some(s), "a = {a}, p = {p}");
             assert_eq!(clamp_to_unsigned_pow2(a, p), Some(u), "a = {a}, p = {p}");
         }
@@ -134,12 +141,9 @@ fn float_clamps_match_c() {
 fn ceil_log2_matches_c_and_av_log2() {
     for x in ints() {
         // SAFETY: both take and return integers by value.
-        let (c, log2) = unsafe {
-            (
-                ffi::av_ceil_log2_c(x),
-                ffi::av_log2((x as u32).wrapping_sub(1) << 1),
-            )
-        };
+        let (c, log2) = (unsafe { ffi::av_ceil_log2_c(x) }, unsafe {
+            ffi::av_log2((x as u32).wrapping_sub(1) << 1)
+        });
         assert_eq!(ceil_log2(x), c, "{x}");
         assert_eq!(c, log2, "{x}");
         if x >= 2 {
@@ -155,9 +159,9 @@ fn zero_extend_matches_c_at_every_defined_position() {
     let values = [
         0,
         1,
-        0x7f,
+        0x7F,
         0x80,
-        0xdead_beef,
+        0xDEAD_BEEF,
         0x8000_0000,
         i32::MAX as u32,
         u32::MAX,
@@ -251,7 +255,9 @@ mod count_and_saturate {
         for x in edges.into_iter().chain(xorshift(7).take(10_000)) {
             let lo = x as u32;
             // SAFETY: the C bodies take integers by value and read no memory.
-            let (c32, c64) = unsafe { (ffi::av_popcount_c(lo), ffi::av_popcount64_c(x)) };
+            let (c32, c64) = (unsafe { ffi::av_popcount_c(lo) }, unsafe {
+                ffi::av_popcount64_c(x)
+            });
             assert_eq!(count_ones(lo) as i32, c32, "{lo:#x}");
             assert_eq!(count_ones64(x) as i32, c64, "{x:#x}");
         }
@@ -266,14 +272,12 @@ mod count_and_saturate {
             for &b in I32.iter().chain(&ops[..64]) {
                 // SAFETY: the C bodies take integers by value, read no memory,
                 // and widen to 64 bits before saturating, so no input overflows.
-                let c = unsafe {
-                    [
-                        ffi::av_sat_add32_c(a, b),
-                        ffi::av_sat_sub32_c(a, b),
-                        ffi::av_sat_dadd32_c(a, b),
-                        ffi::av_sat_dsub32_c(a, b),
-                    ]
-                };
+                let c = [
+                    unsafe { ffi::av_sat_add32_c(a, b) },
+                    unsafe { ffi::av_sat_sub32_c(a, b) },
+                    unsafe { ffi::av_sat_dadd32_c(a, b) },
+                    unsafe { ffi::av_sat_dsub32_c(a, b) },
+                ];
                 let r = [
                     saturating_add32(a, b),
                     saturating_sub32(a, b),
@@ -294,7 +298,9 @@ mod count_and_saturate {
             for &b in I64.iter().chain(&ops[..64]) {
                 // SAFETY: the C bodies take integers by value, read no memory,
                 // and detect overflow with `__builtin_{add,sub}_overflow`.
-                let c = unsafe { [ffi::av_sat_add64_c(a, b), ffi::av_sat_sub64_c(a, b)] };
+                let c = [unsafe { ffi::av_sat_add64_c(a, b) }, unsafe {
+                    ffi::av_sat_sub64_c(a, b)
+                }];
                 assert_eq!(
                     [saturating_add64(a, b), saturating_sub64(a, b)],
                     c,
@@ -307,12 +313,12 @@ mod count_and_saturate {
 
 /// Values at every bit boundary, their neighbours, and a spread between.
 fn u32_edges() -> Vec<u32> {
-    let mut v = vec![0, 1, 2, 3, u32::MAX, u32::MAX - 1, 0x5555_5555, 0xaaaa_aaaa];
+    let mut v = vec![0, 1, 2, 3, u32::MAX, u32::MAX - 1, 0x5555_5555, 0xAAAA_AAAA];
     for bit in 0..32 {
         let p = 1u32 << bit;
         v.extend([p - 1, p, p | 1, p.wrapping_add(1)]);
     }
-    v.extend((0..4096).map(|i: u32| i.wrapping_mul(0x9e37_79b9)));
+    v.extend((0..4096).map(|i: u32| i.wrapping_mul(0x9E37_79B9)));
     v
 }
 

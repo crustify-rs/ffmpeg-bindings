@@ -2,12 +2,24 @@
 //! only: inline values, `av_malloc`-family owners and arrays of them, every
 //! handle form, copies outliving their source, and the asserted `Send` /
 //! `Sync`.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::thread;
 
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed,
+};
 use ffmpeg_bindings::libavutil::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at every edge: zero and infinite forms, both signs on either part,
@@ -89,7 +101,7 @@ fn copies_outlive_and_are_independent_of_their_source() {
     assert_eq!(parts(copy.as_ref()), (5, 7));
     let mut b = copy;
     b.as_mut().set_den(-1);
-    #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+    #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
     let c = Clone::clone(&b);
     assert_eq!((parts(copy.as_ref()), parts(c.as_ref())), ((5, 7), (5, -1)));
 }
@@ -468,7 +480,7 @@ mod arithmetic {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_triples_compare_distances() {
-        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         let all = edges();
         for i in 0..20_000 {
             let (q, a, b) = (rng.q(), rng.q(), rng.q());
@@ -482,7 +494,7 @@ mod arithmetic {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_lists_find_the_nearest() {
-        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        let mut rng = Rng(0x2545_F491_4F6C_DD1D);
         for _ in 0..5_000 {
             let len = (rng.next() % 9) as usize;
             let list: Vec<Rational> = (0..len).map(|_| rng.q()).collect();

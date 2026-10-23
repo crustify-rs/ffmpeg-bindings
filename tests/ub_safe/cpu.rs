@@ -4,7 +4,9 @@
 
 use std::sync::Barrier;
 
-use ffmpeg_bindings::libavutil::libavutil::cpu::{cpu_count, cpu_flags, cpu_max_align, force_cpu_count};
+use ffmpeg_bindings::libavutil::libavutil::cpu::{
+    cpu_count, cpu_flags, cpu_max_align, force_cpu_count,
+};
 
 /// The only test touching the process-global override, so the sequential
 /// checks see no other writer.

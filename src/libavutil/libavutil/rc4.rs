@@ -8,14 +8,18 @@ use core::ptr::{NonNull, addr_of, addr_of_mut};
 use ffibox::{CBox, CNew, CSlice, CSliceMut, CZeroable, define_ctype};
 
 use super::aes::CryptError;
-use super::{ffi, mem::Heap};
+use super::ffi;
+use super::mem::Heap;
 
 define_ctype!(
     /// Wraps: AVRC4
     ///
     /// Resource-free RC4 state. Copies are independent stream checkpoints.
     #[derive(Clone, Copy)]
-    Rc4, Rc4Ref, Rc4Mut, ffi::AVRC4
+    Rc4,
+    Rc4Ref,
+    Rc4Mut,
+    ffi::AVRC4
 );
 
 /// A sole C-allocated RC4 context, released by the existing [`Heap`] policy.
@@ -33,7 +37,7 @@ pub type Rc4Box = CBox<Rc4, Heap>;
 // no permutation invariant is required for memory safety. Heap frees only storage.
 unsafe impl CZeroable for Rc4 {}
 
-/// Wraps: av_rc4_alloc
+/// Wraps: `av_rc4_alloc`
 // SAFETY: av_rc4_alloc returns a fresh, zero-filled AVRC4 (or NULL), with
 // exactly Rc4's layout; Heap releases that av_malloc-family allocation.
 unsafe impl CNew<Rc4> for Heap {
@@ -47,6 +51,11 @@ impl Rc4 {
     /// Allocate and initialize an RC4 stream. Errors are negative AVERROR codes:
     /// EINVAL for an empty/oversized key, ENOMEM if allocation fails.
     /// Encryption and decryption use identical initialization.
+    ///
+    /// # Errors
+    ///
+    /// Errors are negative AVERROR codes: EINVAL for an empty/oversized key, ENOMEM if allocation
+    /// fails.
     pub fn new(key: &[u8]) -> Result<Rc4Box, i32> {
         key_bits(key.len())?;
         let mut context = Rc4Box::new().ok_or(-12)?;
@@ -55,6 +64,10 @@ impl Rc4 {
     }
 
     /// Initialize resource-free, Rust-owned inline storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns C's negative `AVERROR` code when it fails.
     pub fn from_key(key: &[u8]) -> Result<Self, i32> {
         let mut context = Self::zeroed();
         context.as_mut().init(key)?;
@@ -62,6 +75,11 @@ impl Rc4 {
     }
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "`len <= i32::MAX / 8`, checked above"
+)]
 fn key_bits(len: usize) -> Result<i32, i32> {
     if len == 0 || len > (i32::MAX / 8) as usize {
         return Err(-22);
@@ -71,38 +89,57 @@ fn key_bits(len: usize) -> Result<i32, i32> {
 
 impl<'a> Rc4Ref<'a> {
     /// Field: AVRC4.x
+    #[must_use]
     pub fn x(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `x` field is in bounds; nothing is accessed here.
+        let x_ptr = unsafe { addr_of!((*self.as_ptr()).x) };
         // SAFETY: the shared handle keeps this initialized integer alive.
-        unsafe { addr_of!((*self.as_ptr()).x).read() }
+        unsafe { x_ptr.read() }
     }
 
     /// Field: AVRC4.y
+    #[must_use]
     pub fn y(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `y` field is in bounds; nothing is accessed here.
+        let y_ptr = unsafe { addr_of!((*self.as_ptr()).y) };
         // SAFETY: the shared handle keeps this initialized integer alive.
-        unsafe { addr_of!((*self.as_ptr()).y).read() }
+        unsafe { y_ptr.read() }
     }
 
     /// Field: AVRC4.state
     ///
     /// A shared view of all 256 bytes, tied to the context borrow rather than a
     /// Rust reference over C-owned memory.
+    #[must_use]
     pub fn state(&self) -> CSlice<'a, u8> {
-        // SAFETY: state is an initialized inline 256-byte array in the live
-        // context. Its projected pointer is non-null; the view cannot outlive
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `state` field is in bounds; nothing is accessed here.
+        let state_ptr = unsafe { &raw const (*self.as_ptr()).state };
+        // For the unsafe operations below: state is an initialized inline 256-byte array in the
+        // live context. Its projected pointer is non-null; the view cannot outlive
         // the context borrow or overlap any safe mutable access.
-        unsafe {
-            let ptr = addr_of!((*self.as_ptr()).state).cast::<u8>().cast_mut();
-            CSlice::from_raw_parts(NonNull::new_unchecked(ptr), 256)
+        {
+            let ptr = state_ptr.cast::<u8>().cast_mut();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_unchecked_3 = unsafe { NonNull::new_unchecked(ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe { CSlice::from_raw_parts(new_unchecked_3, 256) }
         }
     }
 }
 
 impl Rc4Mut<'_> {
-    /// Wraps: av_rc4_init
+    /// Wraps: `av_rc4_init`
     ///
     /// Reset the stream with a nonempty byte key. Rejects empty keys (C
     /// reads past them) and lengths whose bit count cannot fit a C int,
     /// leaving the old state untouched. The key is not retained.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_rc4_init` returns when it fails.
     pub fn init(&mut self, key: &[u8]) -> Result<(), i32> {
         let bits = key_bits(key.len())?;
         // SAFETY: this handle is exclusive; C writes the complete context,
@@ -114,34 +151,49 @@ impl Rc4Mut<'_> {
 
     /// Set the C index verbatim; C truncates it to a byte when used.
     pub fn set_x(&mut self, value: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `x` field is in bounds; nothing is accessed here.
+        let x_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).x) };
         // SAFETY: the exclusive handle permits writing this initialized field;
         // every i32 is valid and C indexes with its byte-sized truncation.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).x).write(value) }
+        unsafe { x_ptr.write(value) }
     }
 
     /// Set the C index verbatim; C truncates it to a byte when used.
     pub fn set_y(&mut self, value: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `y` field is in bounds; nothing is accessed here.
+        let y_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).y) };
         // SAFETY: as set_x, for the y field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).y).write(value) }
+        unsafe { y_ptr.write(value) }
     }
 
     /// Exclusively reborrow the 256 state bytes; arbitrary byte values are
     /// memory-safe, though changing them changes the stream algorithm.
     pub fn state_mut(&mut self) -> CSliceMut<'_, u8> {
-        // SAFETY: state is an initialized inline 256-byte array; this handle
-        // grants exclusive access, and the view's lifetime freezes the handle
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `state` field is in bounds; nothing is accessed here.
+        let state_ptr = unsafe { &raw mut (*self.as_mut_ptr()).state };
+        // For the unsafe operations below: state is an initialized inline 256-byte array; this
+        // handle grants exclusive access, and the view's lifetime freezes the handle
         // until the reborrow ends. No reference covers the C array.
-        unsafe {
-            let ptr = addr_of_mut!((*self.as_mut_ptr()).state).cast::<u8>();
-            CSliceMut::from_raw_parts(NonNull::new_unchecked(ptr), 256)
+        {
+            let ptr = state_ptr.cast::<u8>();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_unchecked_2 = unsafe { NonNull::new_unchecked(ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe { CSliceMut::from_raw_parts(new_unchecked_2, 256) }
         }
     }
 
     /// Replace all state bytes without retaining the input.
     pub fn set_state(&mut self, state: &[u8; 256]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `state` field is in bounds; nothing is accessed here.
+        let state_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).state) };
         // SAFETY: the exclusive handle permits overwriting this array;
         // all byte values are valid and reading state copies a Rust array.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).state).write(*state) }
+        unsafe { state_ptr.write(*state) }
     }
 }
 
@@ -153,10 +205,10 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl Rc4Mut<'_> {
-    /// Wraps: av_rc4_crypt
+    /// Wraps: `av_rc4_crypt`
     ///
     /// Encrypt or decrypt bytes into a separate buffer. Only `src.len()` output
-    /// bytes change. Returns an error for a short output or a length above C INT_MAX,
+    /// bytes change. Returns an error for a short output or a length above C `INT_MAX`,
     /// without changing the stream or output. C's unused IV/direction are omitted.
     ///
     /// Use the in-place method when input and output are the same buffer:
@@ -166,6 +218,11 @@ impl Rc4Mut<'_> {
     /// let mut bytes = [0; 16];
     /// cipher.as_mut().crypt(&mut bytes, &bytes).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt(&mut self, dst: &mut [u8], src: &[u8]) -> Result<(), CryptError> {
         let count = crypt_count(src.len(), dst.len())?;
         // SAFETY: exclusive live context, count readable/writable bytes in
@@ -178,12 +235,17 @@ impl Rc4Mut<'_> {
                 count,
                 core::ptr::null_mut(),
                 0,
-            )
+            );
         };
         Ok(())
     }
 
     /// Encrypt or decrypt in place; the same length limit as `crypt` applies.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt_in_place(&mut self, data: &mut [u8]) -> Result<(), CryptError> {
         let count = crypt_count(data.len(), data.len())?;
         // SAFETY: exclusive context and writable data; C explicitly supports
@@ -197,13 +259,18 @@ impl Rc4Mut<'_> {
                 count,
                 core::ptr::null_mut(),
                 0,
-            )
+            );
         };
         Ok(())
     }
 
     /// Write stream bytes without input (C's nullable source contract).
-    /// Returns an error without changing state for lengths above C INT_MAX.
+    /// Returns an error without changing state for lengths above C `INT_MAX`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn keystream(&mut self, dst: &mut [u8]) -> Result<(), CryptError> {
         let count = crypt_count(dst.len(), dst.len())?;
         // SAFETY: exclusive context and count writable bytes; a null source
@@ -216,7 +283,7 @@ impl Rc4Mut<'_> {
                 count,
                 core::ptr::null_mut(),
                 0,
-            )
+            );
         };
         Ok(())
     }
@@ -242,12 +309,12 @@ mod unit_tests {
     fn short_output_leaves_stream_unchanged() {
         let mut context = Rc4::from_key(b"key").unwrap();
         let mut reference = context;
-        let mut short = [0x7b; 2];
+        let mut short = [0x7B; 2];
         assert_eq!(
             context.as_mut().crypt(&mut short, b"abc"),
             Err(CryptError::LengthMismatch)
         );
-        assert_eq!(short, [0x7b; 2]);
+        assert_eq!(short, [0x7B; 2]);
         let mut actual = [0; 32];
         let mut expected = actual;
         context.as_mut().keystream(&mut actual).unwrap();
@@ -267,14 +334,8 @@ mod unit_tests {
 
     #[test]
     fn inline_layout_and_copy_are_ffi_free() {
-        assert_eq!(
-            core::mem::size_of::<Rc4>(),
-            core::mem::size_of::<ffi::AVRC4>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Rc4>(),
-            core::mem::align_of::<ffi::AVRC4>()
-        );
+        assert_eq!(size_of::<Rc4>(), size_of::<ffi::AVRC4>());
+        assert_eq!(align_of::<Rc4>(), align_of::<ffi::AVRC4>());
         let mut context = Rc4::zeroed();
         context.as_mut().set_x(i32::MIN);
         context.as_mut().set_y(i32::MAX);

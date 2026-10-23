@@ -15,15 +15,15 @@
 
 use core::ffi::{CStr, c_int, c_uint};
 
-use super::eval;
-use super::ffi;
+use super::{eval, ffi};
 
-/// Wraps: av_cpu_count
+/// Wraps: `av_cpu_count`
 ///
 /// The number of logical CPU cores this process may run on (its scheduler
 /// affinity), or the count [`force_cpu_count`] set. The first call logs the
 /// detected count at `AV_LOG_DEBUG`.
 #[inline]
+#[must_use]
 pub fn cpu_count() -> i32 {
     // SAFETY: `av_cpu_count` takes no arguments; it reads the process
     // affinity into a local set, and the override and its log-once flag are
@@ -31,7 +31,7 @@ pub fn cpu_count() -> i32 {
     unsafe { ffi::av_cpu_count() }
 }
 
-/// Wraps: av_cpu_force_count
+/// Wraps: `av_cpu_force_count`
 ///
 /// Makes every later [`cpu_count`] in the process return `count` when it is
 /// at least 1, and restores detection when it is less.
@@ -42,19 +42,20 @@ pub fn force_cpu_count(count: i32) {
     unsafe { ffi::av_cpu_force_count(count) }
 }
 
-/// Wraps: av_cpu_max_align
+/// Wraps: `av_cpu_max_align`
 ///
 /// The largest data alignment, in bytes, FFmpeg's code may require on this
 /// CPU: 8, 16, 32 or 64 on x86, by the SIMD extensions both the build and the
 /// current CPU flags mask enable.
 #[inline]
+#[must_use]
 pub fn cpu_max_align() -> usize {
     // SAFETY: `av_cpu_max_align` takes no arguments and reads the CPU flags
     // through `av_get_cpu_flags`, whose cache is a C atomic.
     unsafe { ffi::av_cpu_max_align() }
 }
 
-/// Wraps: av_get_cpu_flags
+/// Wraps: `av_get_cpu_flags`
 ///
 /// The CPU extensions FFmpeg's optimized code may use, as `AV_CPU_FLAG_*`
 /// bits: those detected on the running CPU at the first call, or the set
@@ -69,7 +70,7 @@ pub fn cpu_flags() -> c_int {
     unsafe { ffi::av_get_cpu_flags() }
 }
 
-/// Wraps: av_force_cpu_flags
+/// Wraps: `av_force_cpu_flags`
 ///
 /// Replaces the CPU flags [`cpu_flags`] reports with `flags`, or, for `-1`, makes
 /// the next [`cpu_flags`] detect the running CPU again. On x86 a set naming an
@@ -78,15 +79,14 @@ pub fn cpu_flags() -> c_int {
 ///
 /// # Safety
 ///
-/// - Every extension `flags` names must be supported by the running CPU
-///   (`-1` always qualifies). Code selected for an unsupported extension may
-///   fault, or decode as other instructions and compute wrong offsets.
-/// - No FFmpeg state that chose its code paths or buffer alignment under the
-///   previous set may meet code or buffers chosen under the new one: the
-///   alignment FFmpeg allocates with ([`cpu_max_align`], e.g. 32 bytes for
-///   AVX) changes with the set, and code selected for a wider extension
-///   assumes it. Force the flags before using any other FFmpeg facility, as
-///   FFmpeg's own tools do.
+/// - Every extension `flags` names must be supported by the running CPU (`-1` always qualifies).
+///   Code selected for an unsupported extension may fault, or decode as other instructions and
+///   compute wrong offsets.
+/// - No FFmpeg state that chose its code paths or buffer alignment under the previous set may meet
+///   code or buffers chosen under the new one: the alignment FFmpeg allocates with
+///   ([`cpu_max_align`], e.g. 32 bytes for AVX) changes with the set, and code selected for a wider
+///   extension assumes it. Force the flags before using any other FFmpeg facility, as FFmpeg's own
+///   tools do.
 pub unsafe fn force_cpu_flags(flags: c_int) {
     // SAFETY: `av_force_cpu_flags` takes its argument by value and stores it
     // into its atomic flag set; the caller upholds what the new set implies
@@ -104,7 +104,7 @@ const ERANGE: i32 = -34;
 /// 255 bytes (`buf[256]` in `set_string_number`).
 const TOKEN_MAX: usize = 255;
 
-/// Wraps: av_parse_cpu_caps
+/// Wraps: `av_parse_cpu_caps`
 ///
 /// Applies the flags string `s` to `flags`, token by token: a token names a
 /// set of `AV_CPU_FLAG_*` bits (a CPU feature such as `sse2` or `neon`, a
@@ -117,20 +117,19 @@ const TOKEN_MAX: usize = 255;
 /// with `AVERROR(EINVAL)` what would reach undefined behaviour in C's option
 /// evaluator:
 ///
-/// - a token of anything but ASCII letters, digits, `_` and `.`: C evaluates
-///   it as an arithmetic expression, whose evaluator converts out-of-range
-///   doubles to integers (`ld(1e300)`);
-/// - an empty token after a `+` or `-` (`"++sse"`, `"sse-"`), which C
-///   evaluates together with the rest of the string as one expression.
+/// - a token of anything but ASCII letters, digits, `_` and `.`: C evaluates it as an arithmetic
+///   expression, whose evaluator converts out-of-range doubles to integers (`ld(1e300)`);
+/// - an empty token after a `+` or `-` (`"++sse"`, `"sse-"`), which C evaluates together with the
+///   rest of the string as one expression.
 ///
-/// A token after `+` or `-` is combined as C combines it: its value,
-/// truncated to an integer (`+2.5` sets bit 1, `-0.999` clears nothing,
-/// `-5G` clears the low 32 bits of 5·10⁹), is or-ed into `flags` or masked
-/// out of it, and the call fails with C's `AVERROR(ERANGE)` when the
-/// combination is not a 32-bit flag set (`+0x100000000`, `+min`). C converts
-/// the value to an `int64_t` before combining it, which overflows for `max`,
-/// `inf` or `1e300`: the wrapper fails those with `AVERROR(ERANGE)` instead
-/// of reaching that undefined behaviour.
+/// # Errors
+///
+/// A token after `+` or `-` is combined as C combines it: its value, truncated to an integer
+/// (`+2.5` sets bit 1, `-0.999` clears nothing, `-5G` clears the low 32 bits of 5·10⁹), is or-ed
+/// into `flags` or masked out of it, and the call fails with C's `AVERROR(ERANGE)` when the
+/// combination is not a 32-bit flag set (`+0x100000000`, `+min`). C converts the value to an
+/// `int64_t` before combining it, which overflows for `max`, `inf` or `1e300`: the wrapper fails
+/// those with `AVERROR(ERANGE)` instead of reaching that undefined behaviour.
 pub fn parse_cpu_caps(flags: &mut u32, s: &CStr) -> Result<(), i32> {
     let mut rest = s.to_bytes();
     if rest.is_empty() {
@@ -179,7 +178,7 @@ fn token_flags(token: &[u8]) -> Result<u32, i32> {
     // SAFETY: `bits` is a live, writable local, which C reads and writes
     // only for the call. `buf` holds the token NUL-terminated (it is at most
     // `TOKEN_MAX` bytes and the rest of `buf` is zero), which C only reads.
-    let ret = unsafe { ffi::av_parse_cpu_caps(&mut bits, buf.as_ptr().cast()) };
+    let ret = unsafe { ffi::av_parse_cpu_caps(&raw mut bits, buf.as_ptr().cast()) };
     if ret < 0 { Err(ret) } else { Ok(bits) }
 }
 
@@ -190,6 +189,11 @@ fn token_flags(token: &[u8]) -> Result<u32, i32> {
 /// combination as it does a bare token's value. Unprefixed evaluation cannot
 /// stand in for the operand: it rounds the value to the nearest integer and
 /// rejects values outside the 32-bit range, where C truncates and combines.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    reason = "C's own `double` and `int64_t` conversions, mirrored after the range checks"
+)]
 fn combine_flags(flags: u32, op: u8, token: &[u8]) -> Result<u32, i32> {
     let operand = match expression_value(token) {
         // C's conversion is defined below 2^63 only (`i64::MAX as f64` rounds
@@ -212,7 +216,7 @@ fn combine_flags(flags: u32, op: u8, token: &[u8]) -> Result<u32, i32> {
     if !(-1.5..=4_294_967_295.5).contains(&(combined as f64)) {
         return Err(ERANGE);
     }
-    Ok(combined as i32 as u32)
+    Ok((combined as i32).cast_unsigned())
 }
 
 /// The value C's expression evaluator gives a bare token: a number, read
@@ -220,6 +224,10 @@ fn combine_flags(flags: u32, op: u8, token: &[u8]) -> Result<u32, i32> {
 /// constants the option evaluator and the expression evaluator define.
 /// `None` for anything else, which C resolves as a CPU-flag name or rejects,
 /// and for a NaN, which C rejects.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the option evaluator's `max` and `min` constants are C's `double` conversions"
+)]
 fn expression_value(token: &[u8]) -> Option<f64> {
     let buf = c_token(token);
     let buf = CStr::from_bytes_until_nul(&buf).expect("a valid token leaves a NUL");
@@ -244,6 +252,14 @@ fn expression_value(token: &[u8]) -> Option<f64> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::decimal_bitwise_operands,
+    reason = "constants as the C sources and specifications spell them"
+)]
 mod unit_tests {
     use super::*;
 
@@ -377,7 +393,16 @@ mod unit_tests {
         assert_eq!(expression_value(b"PHI"), Some(ffi::M_PHI));
         assert_eq!(expression_value(b"inf"), Some(f64::INFINITY));
         // Trailing bytes, NaN, and names C's option table resolves.
-        for t in [&b"3dnow"[..], b"1x", b"0x", b"nan", b"sse2", b"", b"PIx", b"E3"] {
+        for t in [
+            &b"3dnow"[..],
+            b"1x",
+            b"0x",
+            b"nan",
+            b"sse2",
+            b"",
+            b"PIx",
+            b"E3",
+        ] {
             assert_eq!(expression_value(t), None, "{t:?}");
         }
     }

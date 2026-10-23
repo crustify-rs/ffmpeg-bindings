@@ -17,16 +17,15 @@
 //! methods on it.
 
 use core::ffi::{CStr, c_int};
-use core::fmt;
 use core::mem::MaybeUninit;
-use core::ptr;
+use core::{fmt, ptr};
 
 use ffibox::CPlainElem;
 
 use super::ffi;
 use super::mem::HeapVec;
 
-/// Wraps: AVSampleFormat
+/// Wraps: `AVSampleFormat`
 /// Handwritten
 ///
 /// The format of an audio sample: its native-endian C type (`u8`, `i16`,
@@ -63,33 +62,6 @@ use super::mem::HeapVec;
 pub struct SampleFormat(ffi::AVSampleFormat);
 
 impl SampleFormat {
-    /// No sample format: unknown or unset.
-    pub const NONE: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE);
-    /// Unsigned 8 bits.
-    pub const U8: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8);
-    /// Signed 16 bits.
-    pub const S16: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16);
-    /// Signed 32 bits.
-    pub const S32: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32);
-    /// `float`.
-    pub const FLT: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLT);
-    /// `double`.
-    pub const DBL: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBL);
-    /// Unsigned 8 bits, planar.
-    pub const U8P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P);
-    /// Signed 16 bits, planar.
-    pub const S16P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P);
-    /// Signed 32 bits, planar.
-    pub const S32P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32P);
-    /// `float`, planar.
-    pub const FLTP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLTP);
-    /// `double`, planar.
-    pub const DBLP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBLP);
-    /// Signed 64 bits.
-    pub const S64: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64);
-    /// Signed 64 bits, planar.
-    pub const S64P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64P);
-
     /// The number of sample formats from [`U8`](Self::U8) to
     /// [`S64P`](Self::S64P) these bindings were generated with
     /// (`AV_SAMPLE_FMT_NB`): the length of an array indexed by
@@ -99,15 +71,43 @@ impl SampleFormat {
     /// [`index`](Self::index) reports as `None`; this is why C warns against
     /// `AV_SAMPLE_FMT_NB` when linking dynamically.
     pub const COUNT: usize = ffi::AVSampleFormat::AV_SAMPLE_FMT_NB.0 as usize;
+    /// `double`.
+    pub const DBL: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBL);
+    /// `double`, planar.
+    pub const DBLP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBLP);
+    /// `float`.
+    pub const FLT: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLT);
+    /// `float`, planar.
+    pub const FLTP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLTP);
+    /// No sample format: unknown or unset.
+    pub const NONE: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE);
+    /// Signed 16 bits.
+    pub const S16: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16);
+    /// Signed 16 bits, planar.
+    pub const S16P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P);
+    /// Signed 32 bits.
+    pub const S32: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32);
+    /// Signed 32 bits, planar.
+    pub const S32P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32P);
+    /// Signed 64 bits.
+    pub const S64: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64);
+    /// Signed 64 bits, planar.
+    pub const S64P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64P);
+    /// Unsigned 8 bits.
+    pub const U8: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8);
+    /// Unsigned 8 bits, planar.
+    pub const U8P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P);
 
     /// The sample format C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVSampleFormat) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this sample format.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVSampleFormat {
         self.0
     }
@@ -115,10 +115,11 @@ impl SampleFormat {
     /// This sample format's position in `0..COUNT`, or `None` for
     /// [`NONE`](Self::NONE) and any value C does not name.
     #[inline]
+    #[must_use]
     pub const fn index(self) -> Option<usize> {
         let raw = self.0.0;
-        if raw >= 0 && (raw as usize) < Self::COUNT {
-            Some(raw as usize)
+        if raw >= 0 && (raw.unsigned_abs() as usize) < Self::COUNT {
+            Some(raw.unsigned_abs() as usize)
         } else {
             None
         }
@@ -182,11 +183,12 @@ impl From<SampleFormat> for ffi::AVSampleFormat {
 unsafe impl CPlainElem for SampleFormat {}
 
 impl SampleFormat {
-    /// Wraps: av_sample_fmt_is_planar
+    /// Wraps: `av_sample_fmt_is_planar`
     ///
     /// Whether each channel has a plane of its own (the `P` constants);
     /// `false` for a packed format, and for [`NONE`](Self::NONE) and every
     /// value C does not name.
+    #[must_use]
     pub fn is_planar(self) -> bool {
         // SAFETY: C bounds-checks the value before indexing its format table;
         // any `int` is accepted.
@@ -195,9 +197,9 @@ impl SampleFormat {
 }
 
 /// `AVERROR(EINVAL)`.
-const AVERROR_EINVAL: i32 = -(ffi::EINVAL as i32);
+const AVERROR_EINVAL: i32 = -(ffi::EINVAL.cast_signed());
 /// `AVERROR(ENOMEM)`.
-const AVERROR_ENOMEM: i32 = -(ffi::ENOMEM as i32);
+const AVERROR_ENOMEM: i32 = -(ffi::ENOMEM.cast_signed());
 
 /// A count as the C `int` the sample routines take; `AVERROR(EINVAL)` for
 /// one beyond `INT_MAX`, which C, seeing it negative, would refuse too.
@@ -229,16 +231,17 @@ pub struct BufferSize {
     pub linesize: usize,
 }
 
-/// Wraps: av_samples_get_buffer_size
+/// Wraps: `av_samples_get_buffer_size`
 ///
 /// The size of a buffer holding `samples` samples of each of `channels`
 /// channels in `format`, every plane padded to a multiple of `align` bytes.
 /// An `align` of 0 picks the default: `samples` rounded up to a multiple of
 /// 32 and no padding beyond that; 1 means no alignment.
 ///
-/// Fails with `AVERROR(EINVAL)` for [`SampleFormat::NONE`] or any format C
-/// does not name, for no channels or no samples, and when the buffer would
-/// not fit in an `int`.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` for [`SampleFormat::NONE`] or any format C does not name, for no
+/// channels or no samples, and when the buffer would not fit in an `int`.
 pub fn samples_buffer_size(
     channels: usize,
     samples: usize,
@@ -252,7 +255,7 @@ pub fn samples_buffer_size(
     // integer before computing with it.
     let ret = unsafe {
         ffi::av_samples_get_buffer_size(
-            &mut linesize,
+            &raw mut linesize,
             nb_channels,
             nb_samples,
             format.into_raw(),
@@ -409,7 +412,7 @@ fn fill_arrays(
     let ret = unsafe {
         ffi::av_samples_fill_arrays(
             slots.as_mut_ptr(),
-            &mut linesize,
+            &raw mut linesize,
             buf,
             nb_channels,
             nb_samples,
@@ -499,14 +502,16 @@ impl fmt::Debug for SamplesMut<'_> {
 }
 
 impl<'a> SamplesRef<'a> {
-    /// Wraps: av_samples_fill_arrays
+    /// Wraps: `av_samples_fill_arrays`
     ///
     /// Lays the planes of `samples` samples of `channels` channels in
     /// `format` over `buf`, as [`samples_buffer_size`] computes them with
     /// `align`, from the start of `buf`.
     ///
-    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and
-    /// when `buf` is shorter than the size it computes.
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and when `buf` is shorter
+    /// than the size it computes.
     pub fn from_buffer(
         buf: &'a [u8],
         channels: usize,
@@ -522,27 +527,32 @@ impl<'a> SamplesRef<'a> {
     }
 
     /// The format of the samples.
+    #[must_use]
     pub fn format(&self) -> SampleFormat {
         self.layout.format
     }
 
     /// The number of channels.
+    #[must_use]
     pub fn channels(&self) -> usize {
         self.layout.channels
     }
 
     /// The number of samples in each channel.
+    #[must_use]
     pub fn samples(&self) -> usize {
         self.layout.samples
     }
 
     /// The bytes from the start of one plane to the next.
+    #[must_use]
     pub fn linesize(&self) -> usize {
         self.layout.linesize
     }
 
     /// The number of planes: [`channels`](Self::channels) for a planar
     /// format, 1 for a packed one.
+    #[must_use]
     pub fn plane_count(&self) -> usize {
         self.layout.planes
     }
@@ -550,6 +560,7 @@ impl<'a> SamplesRef<'a> {
     /// The samples of plane `index`, its padding excluded: one channel's for
     /// a planar format, every channel's interleaved for a packed one; `None`
     /// past the last plane.
+    #[must_use]
     pub fn plane(&self, index: usize) -> Option<&'a [u8]> {
         (index < self.layout.planes).then(|| {
             let data: &'a [MaybeUninit<u8>] = self.data;
@@ -557,7 +568,7 @@ impl<'a> SamplesRef<'a> {
             let plane = &data[start..start + self.layout.plane_len()];
             // SAFETY: `MaybeUninit<u8>` has `u8`'s layout, and the view's
             // planes are initialised.
-            unsafe { &*(plane as *const [MaybeUninit<u8>] as *const [u8]) }
+            unsafe { &*(ptr::from_ref::<[MaybeUninit<u8>]>(plane) as *const [u8]) }
         })
     }
 
@@ -570,9 +581,13 @@ impl<'a> SamplesRef<'a> {
 }
 
 impl<'a> SamplesMut<'a> {
-    /// Wraps: av_samples_fill_arrays
+    /// Wraps: `av_samples_fill_arrays`
     ///
     /// As [`SamplesRef::from_buffer`], for writing the samples in `buf`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_samples_fill_arrays` returns when it fails.
     pub fn from_buffer(
         buf: &'a mut [u8],
         channels: usize,
@@ -589,6 +604,7 @@ impl<'a> SamplesMut<'a> {
     }
 
     /// A shared view of the same planes.
+    #[must_use]
     pub fn as_ref(&self) -> SamplesRef<'_> {
         SamplesRef {
             data: self.data,
@@ -612,7 +628,7 @@ impl<'a> SamplesMut<'a> {
             let plane = &mut self.data[start..start + self.layout.plane_len()];
             // SAFETY: as in `SamplesRef::plane`; a `&mut [u8]` can only
             // write initialised bytes back.
-            unsafe { &mut *(plane as *mut [MaybeUninit<u8>] as *mut [u8]) }
+            unsafe { &mut *(ptr::from_mut::<[MaybeUninit<u8>]>(plane) as *mut [u8]) }
         })
     }
 
@@ -627,17 +643,24 @@ impl<'a> SamplesMut<'a> {
             .map(move |chunk| {
                 let plane = &mut chunk[..len];
                 // SAFETY: as in `plane_mut`.
-                unsafe { &mut *(plane as *mut [MaybeUninit<u8>] as *mut [u8]) }
+                unsafe { &mut *(ptr::from_mut::<[MaybeUninit<u8>]>(plane) as *mut [u8]) }
             })
     }
 
-    /// Wraps: av_samples_set_silence
+    /// Wraps: `av_samples_set_silence`
     ///
     /// Sets samples `offset..offset + count` of every channel to silence:
     /// `0x80` bytes for [`SampleFormat::U8`] and [`SampleFormat::U8P`], zero
     /// bytes otherwise.
     ///
+    /// # Errors
+    ///
     /// Fails, writing nothing, when the samples run past the end.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "bounded by `check_range` and `Layout::new`, which keep every count within `int`"
+    )]
     pub fn set_silence(&mut self, offset: usize, count: usize) -> Result<(), SamplesError> {
         let layout = self.layout;
         layout.check_range(offset, count)?;
@@ -661,13 +684,20 @@ impl<'a> SamplesMut<'a> {
         Ok(())
     }
 
-    /// Wraps: av_samples_copy
+    /// Wraps: `av_samples_copy`
     ///
     /// Copies samples `src_offset..src_offset + count` of every channel of
     /// `src` to samples `dst_offset..` of this view.
     ///
-    /// Fails, writing nothing, when `src` has another format or channel
-    /// count, or when the samples run past the end of either.
+    /// # Errors
+    ///
+    /// Fails, writing nothing, when `src` has another format or channel count, or when the samples
+    /// run past the end of either.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "bounded by `check_range` and `Layout::new`, which keep every count within `int`"
+    )]
     pub fn copy_from(
         &mut self,
         src: SamplesRef<'_>,
@@ -711,13 +741,20 @@ impl<'a> SamplesMut<'a> {
         Ok(())
     }
 
-    /// Wraps: av_samples_copy
+    /// Wraps: `av_samples_copy`
     ///
     /// Copies samples `src_offset..src_offset + count` of every channel to
     /// samples `dst_offset..` of the same channel, within this view; the two
     /// ranges may overlap.
     ///
+    /// # Errors
+    ///
     /// Fails, writing nothing, when either range runs past the end.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "bounded by `check_range` and `Layout::new`, which keep every count within `int`"
+    )]
     pub fn copy_within(
         &mut self,
         src_offset: usize,
@@ -765,14 +802,16 @@ pub struct SampleBuffer {
 }
 
 impl SampleBuffer {
-    /// Wraps: av_samples_alloc
+    /// Wraps: `av_samples_alloc`
     ///
     /// A buffer of `samples` samples of each of `channels` channels in
     /// `format`, laid out as [`samples_buffer_size`] computes it with
     /// `align`, every sample set to silence.
     ///
-    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and
-    /// with `AVERROR(ENOMEM)` when the buffer cannot be allocated.
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and with `AVERROR(ENOMEM)`
+    /// when the buffer cannot be allocated.
     pub fn new(
         channels: usize,
         samples: usize,
@@ -791,7 +830,7 @@ impl SampleBuffer {
         let ret = unsafe {
             ffi::av_samples_alloc(
                 slots.as_mut_ptr(),
-                &mut linesize,
+                &raw mut linesize,
                 nb_channels,
                 nb_samples,
                 format.into_raw(),
@@ -809,11 +848,13 @@ impl SampleBuffer {
     }
 
     /// The bytes of the whole buffer, padding included.
+    #[must_use]
     pub fn size(&self) -> usize {
         self.data.len()
     }
 
     /// A shared view of the planes.
+    #[must_use]
     pub fn as_ref(&self) -> SamplesRef<'_> {
         SamplesRef {
             data: self.data.as_slice(),
@@ -830,6 +871,10 @@ impl SampleBuffer {
     }
 }
 
+#[expect(
+    clippy::missing_fields_in_debug,
+    reason = "the debug form shows what the buffer holds, not its raw pointers"
+)]
 impl fmt::Debug for SampleBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SampleBuffer")
@@ -864,13 +909,15 @@ unsafe impl Send for SampleBufferWithPointers {}
 unsafe impl Sync for SampleBufferWithPointers {}
 
 impl SampleBufferWithPointers {
-    /// Wraps: av_samples_alloc_array_and_samples
+    /// Wraps: `av_samples_alloc_array_and_samples`
     ///
     /// As [`SampleBuffer::new`], with C allocating the array of plane
     /// pointers too.
     ///
-    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and
-    /// with `AVERROR(ENOMEM)` when either block cannot be allocated.
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and with `AVERROR(ENOMEM)`
+    /// when either block cannot be allocated.
     pub fn new(
         channels: usize,
         samples: usize,
@@ -886,8 +933,8 @@ impl SampleBufferWithPointers {
         // failure.
         let ret = unsafe {
             ffi::av_samples_alloc_array_and_samples(
-                &mut array,
-                &mut linesize,
+                &raw mut array,
+                &raw mut linesize,
                 nb_channels,
                 nb_samples,
                 format.into_raw(),
@@ -913,11 +960,13 @@ impl SampleBufferWithPointers {
     }
 
     /// The bytes of the sample buffer, padding included.
+    #[must_use]
     pub fn size(&self) -> usize {
         self.buffer.size()
     }
 
     /// A shared view of the planes.
+    #[must_use]
     pub fn as_ref(&self) -> SamplesRef<'_> {
         self.buffer.as_ref()
     }
@@ -928,13 +977,17 @@ impl SampleBufferWithPointers {
     }
 
     /// The sample buffer alone, releasing the pointer array.
+    #[must_use]
     pub fn into_buffer(self) -> SampleBuffer {
         self.buffer
     }
 
     /// C's array of the plane pointers, `uint8_t **`, for a C routine that
     /// reads or writes the planes through it while `self` stays borrowed.
-    #[allow(dead_code, reason = "the seam for wrappers of `uint8_t **` consumers")]
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the seam for wrappers of `uint8_t **` consumers")
+    )]
     pub(crate) fn as_c_planes(&mut self) -> *mut *mut u8 {
         self.pointers.as_ptr()
     }
@@ -949,7 +1002,7 @@ impl fmt::Debug for SampleBufferWithPointers {
 }
 
 impl SampleFormat {
-    /// Wraps: av_get_alt_sample_fmt
+    /// Wraps: `av_get_alt_sample_fmt`
     ///
     /// This sample format in planar form when `planar` is set, or in packed
     /// form otherwise: itself when it already is, its counterpart with the
@@ -970,7 +1023,7 @@ impl SampleFormat {
         Some(Self(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: av_get_packed_sample_fmt
+    /// Wraps: `av_get_packed_sample_fmt`
     ///
     /// The packed form of this sample format, its channels interleaved in
     /// one plane: itself when it already is packed. `None` for
@@ -983,7 +1036,7 @@ impl SampleFormat {
         Some(Self(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: av_get_bytes_per_sample
+    /// Wraps: `av_get_bytes_per_sample`
     ///
     /// The size in bytes of one sample of one channel in this format: 1, 2,
     /// 4 or 8, the same for the packed and planar forms. 0 for
@@ -999,7 +1052,7 @@ impl SampleFormat {
 }
 
 impl SampleFormat {
-    /// Wraps: av_get_sample_fmt_name
+    /// Wraps: `av_get_sample_fmt_name`
     ///
     /// The name C gives this sample format: `u8`, `s16`, `s32`, `flt`,
     /// `dbl`, `s64`, and the same with a `p` suffix for the planar forms;
@@ -1020,7 +1073,7 @@ impl SampleFormat {
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Wraps: av_get_sample_fmt
+    /// Wraps: `av_get_sample_fmt`
     ///
     /// The sample format C names `name` (see [`name`](Self::name)), or
     /// `None` for any other string. Names are matched exactly, case
@@ -1040,7 +1093,7 @@ impl SampleFormat {
         (found != Self::NONE).then_some(found)
     }
 
-    /// Wraps: av_get_planar_sample_fmt
+    /// Wraps: `av_get_planar_sample_fmt`
     ///
     /// The planar form of this sample format: itself when it is planar, its
     /// planar alternative when packed ([`S16`](Self::S16) gives
@@ -1055,7 +1108,7 @@ impl SampleFormat {
         (planar != Self::NONE).then_some(planar)
     }
 
-    /// Wraps: av_get_sample_fmt_string
+    /// Wraps: `av_get_sample_fmt_string`
     ///
     /// Writes a line describing this sample format into `buf` and returns
     /// it, borrowed from `buf`: the name left-aligned in 6 columns and the
@@ -1074,6 +1127,11 @@ impl SampleFormat {
     /// assert_eq!(SampleFormat::NONE.describe(&mut buf), Some(c"name   depth"));
     /// assert_eq!(SampleFormat::DBLP.describe(&mut buf[..4]), Some(c"dbl"));
     /// ```
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "the format count is a few dozen"
+    )]
     pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
         if buf.is_empty() || self.0.0 >= Self::COUNT as c_int {
             // C's `snprintf` writes nothing into an empty buffer, and C
@@ -1092,10 +1150,19 @@ impl SampleFormat {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::c_int;
     use core::mem::{align_of, size_of};
+
+    use super::*;
 
     const NAMED: [(SampleFormat, &str); 13] = [
         (SampleFormat::NONE, "NONE"),
@@ -1252,8 +1319,10 @@ mod unit_tests {
             let l = layout(1, true, planes, 2, 4, 64).unwrap();
             l.with_plane_ptrs(base, |p| {
                 for i in 0..planes {
-                    // SAFETY: `with_plane_ptrs` passes `planes` pointers.
-                    assert_eq!(unsafe { *p.add(i) }, base.wrapping_add(4 * i));
+                    // SAFETY: `with_plane_ptrs` passes `planes` pointers, and `i < planes`.
+                    let at = unsafe { p.add(i) };
+                    // SAFETY: as above; the pointer is initialised.
+                    assert_eq!(unsafe { *at }, base.wrapping_add(4 * i));
                 }
             });
         }
@@ -1293,15 +1362,15 @@ mod unit_tests {
         assert!(r.planes().zip(0..).all(|(pl, p)| pl[0] == p * 10));
         // Exclusive planes are disjoint and write only the samples.
         for (p, plane) in v.planes_mut().enumerate() {
-            plane.fill(0xa0 + p as u8);
+            plane.fill(0xA0 + p as u8);
         }
         v.plane_mut(1).unwrap()[9] = 1;
         assert!(v.plane_mut(3).is_none());
         let r = v.as_ref();
-        assert_eq!(r.plane(0), Some(&[0xa0; 10][..]));
-        assert_eq!(r.plane(1).unwrap()[..9], [0xa1; 9]);
+        assert_eq!(r.plane(0), Some(&[0xA0; 10][..]));
+        assert_eq!(r.plane(1).unwrap()[..9], [0xA1; 9]);
         assert_eq!(r.plane(1).unwrap()[9], 1);
-        assert_eq!(r.plane(2), Some(&[0xa2; 10][..]));
+        assert_eq!(r.plane(2), Some(&[0xA2; 10][..]));
     }
 
     #[test]
@@ -1346,7 +1415,7 @@ mod unit_tests {
     }
 
     /// C's `FFALIGN(nb_samples, 32)` overflows for the default alignment of
-    /// `INT_MAX - 31` samples (UBSan: `samplefmt.c` `2147483616 + 32 cannot
+    /// `INT_MAX - 31` samples (`UBSan`: `samplefmt.c` `2147483616 + 32 cannot
     /// be represented in type 'int'`); the wrapper gets C's intended layout
     /// without it.
     #[test]
@@ -1494,8 +1563,10 @@ mod unit_tests {
         assert_eq!(starts.len(), 4);
         let array = b.as_c_planes();
         for (i, start) in starts.iter().enumerate() {
-            // SAFETY: the array holds one pointer per plane.
-            assert_eq!(unsafe { *array.add(i) }.cast_const(), *start);
+            // SAFETY: the array holds one pointer per plane, and `i` is a plane's index.
+            let at = unsafe { array.add(i) };
+            // SAFETY: as above; the pointer is initialised.
+            assert_eq!(unsafe { *at }.cast_const(), *start);
         }
         assert!(b.as_ref().planes().flatten().all(|&x| x == 0));
         b.as_mut().plane_mut(3).unwrap()[0] = 9;

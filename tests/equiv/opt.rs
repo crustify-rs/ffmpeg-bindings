@@ -3,6 +3,33 @@
 //! independently owned lists of the shared test classes (queried on a class,
 //! as C's fake object, and on objects); and of option types with the values
 //! C stores and reads.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_ptr_alignment,
+    clippy::cast_sign_loss,
+    trivial_numeric_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::struct_field_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::items_after_statements,
+    clippy::option_option,
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
@@ -13,6 +40,10 @@ use ffmpeg_bindings::libavutil::libavutil::opt::{
     ObjectRef, OptionRangeRef, OptionRangesBox, OptionRangesRef, RangeFlags,
 };
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/opt.rs"]
 pub(crate) mod fixture;
 use fixture::{CB_FAKE, CB_KEYS, FAKE, FakeObj, Owned, RANGED, UNKNOWN, UNRANGED};
@@ -56,16 +87,20 @@ fn range(p: *const ffi::AVOptionRange) -> Option<Range> {
     if p.is_null() {
         return None;
     }
-    // SAFETY: per each caller, `p` is an element of a live list, which owns
-    // the range and its NUL-terminated (or NULL) `str`.
-    unsafe {
-        let r = p.read();
-        Some(Range {
-            str_: (!r.str_.is_null()).then(|| CStr::from_ptr(r.str_).to_owned()),
-            value: (r.value_min, r.value_max),
-            component: (r.component_min, r.component_max),
-            is_range: r.is_range,
-        })
+    // For the unsafe operations below: per each caller, `p` is an element of a live list, which
+    // owns the range and its NUL-terminated (or NULL) `str`.
+    {
+        // SAFETY: as the comment above this block states.
+        let r = unsafe { p.read() };
+        // SAFETY: as the comment above this block states.
+        unsafe {
+            Some(Range {
+                str_: (!r.str_.is_null()).then(|| CStr::from_ptr(r.str_).to_owned()),
+                value: (r.value_min, r.value_max),
+                component: (r.component_min, r.component_max),
+                is_range: r.is_range,
+            })
+        }
     }
 }
 
@@ -77,9 +112,14 @@ fn c_list(p: *const ffi::AVOptionRanges) -> List {
     List {
         nb_ranges: l.nb_ranges as usize,
         nb_components: l.nb_components as usize,
-        // SAFETY: a list's `range` array holds `nb_ranges * nb_components`
-        // elements.
-        ranges: (0..n).map(|i| range(unsafe { *l.range.add(i) })).collect(),
+        ranges: (0..n)
+            .map(|i| {
+                // SAFETY: a list's `range` array holds `nb_ranges * nb_components` elements.
+                let at = unsafe { l.range.add(i) };
+                // SAFETY: as above, initialised.
+                range(unsafe { *at })
+            })
+            .collect(),
     }
 }
 
@@ -117,7 +157,7 @@ struct CList(*mut ffi::AVOptionRanges);
 impl Drop for CList {
     fn drop(&mut self) {
         // SAFETY: `self.0` is NULL or a list C returned, owned here.
-        unsafe { ffi::av_opt_freep_ranges(&mut self.0) };
+        unsafe { ffi::av_opt_freep_ranges(&raw mut self.0) };
         assert!(self.0.is_null(), "av_opt_freep_ranges NULLs the slot");
     }
 }
@@ -145,11 +185,15 @@ fn c_query(via: Via, on: On, key: &CStr, flags: RangeFlags) -> (c_int, CList) {
     let mut out = CList(core::ptr::null_mut());
     // SAFETY: `out.0` is a writable slot; `obj` is a fake object of a
     // well-formed fixture class with `AV_OPT_SEARCH_FAKE_OBJ`, or an object.
-    let ret = unsafe {
-        match via {
-            Via::Callback => ffi::av_opt_query_ranges(&mut out.0, obj, key.as_ptr(), flags),
-            Via::Default => ffi::av_opt_query_ranges_default(&mut out.0, obj, key.as_ptr(), flags),
-        }
+    let ret = match via {
+        // SAFETY: as the comment above this statement states.
+        Via::Callback => unsafe {
+            ffi::av_opt_query_ranges(&raw mut out.0, obj, key.as_ptr(), flags)
+        },
+        // SAFETY: as the comment above this statement states.
+        Via::Default => unsafe {
+            ffi::av_opt_query_ranges_default(&raw mut out.0, obj, key.as_ptr(), flags)
+        },
     };
     (ret, out)
 }
@@ -388,39 +432,53 @@ enum Write {
 
 /// Applies `w` to range `(i, comp)` of the C list `c` as C code would: a
 /// string is replaced by `av_freep` then `av_strdup`, and taken by moving
-/// it out and NULLing the field. Returns the taken string, if any.
+/// it out and `NULLing` the field. Returns the taken string, if any.
 fn c_write(c: &CList, i: usize, comp: usize, w: Write) -> Option<Option<CString>> {
     // SAFETY: `c.0` is a live list C returned, owned by `c`.
     let l = unsafe { c.0.read() };
     let slot = comp * l.nb_ranges as usize + i;
+    // SAFETY: as the comment below states, for this part of the operation.
+    let range_add = unsafe { l.range.add(slot) };
     // SAFETY: `slot` is within the list's `nb_ranges * nb_components`
     // elements, per each caller.
-    let r = unsafe { *l.range.add(slot) };
+    let r = unsafe { *range_add };
     assert!(!r.is_null());
-    // SAFETY: `r` is a live range the list owns; its `str` is NULL or an
-    // `av_malloc`-family string, freed and replaced as `av_opt_freep_ranges`
-    // expects.
-    unsafe {
-        match w {
-            Write::Label(s) => {
-                let mut old = (*r).str_.cast_mut().cast::<c_void>();
-                ffi::av_freep((&raw mut old).cast());
-                (*r).str_ = s.map_or(core::ptr::null(), |s| {
-                    ffi::av_strdup(s.as_ptr()).cast_const()
-                });
-            }
-            Write::Take => {
-                let old = core::mem::replace(&mut (*r).str_, core::ptr::null());
-                let taken = (!old.is_null()).then(|| CStr::from_ptr(old).to_owned());
-                ffi::av_free(old.cast_mut().cast());
-                return Some(taken);
-            }
-            Write::ValueMin(v) => (*r).value_min = v,
-            Write::ValueMax(v) => (*r).value_max = v,
-            Write::ComponentMin(v) => (*r).component_min = v,
-            Write::ComponentMax(v) => (*r).component_max = v,
-            Write::IsRange(b) => (*r).is_range = c_int::from(b),
+    // `r` is a live range the list owns; its `str` is NULL or an `av_malloc`-family string,
+    // freed and replaced as `av_opt_freep_ranges` expects.
+    match w {
+        Write::Label(s) => {
+            // SAFETY: as above: a read of its string.
+            let mut old = unsafe { (*r).str_ }.cast_mut().cast::<c_void>();
+            // SAFETY: as above: NULL or the range's string, freed once.
+            unsafe { ffi::av_freep((&raw mut old).cast()) };
+            let new = s.map_or(core::ptr::null(), |s| {
+                // SAFETY: `s` is a C string.
+                unsafe { ffi::av_strdup(s.as_ptr()) }.cast_const()
+            });
+            // SAFETY: as above: the range takes the copy.
+            unsafe { (*r).str_ = new };
         }
+        Write::Take => {
+            // SAFETY: as above: the place of its string.
+            let str_ptr = unsafe { &raw mut (*r).str_ };
+            // SAFETY: as above: the string, taken out and replaced with NULL.
+            let old = unsafe { str_ptr.replace(core::ptr::null()) };
+            // SAFETY: as above: NULL or a NUL-terminated string.
+            let taken = (!old.is_null()).then(|| unsafe { CStr::from_ptr(old) }.to_owned());
+            // SAFETY: as above: the taken string, freed once.
+            unsafe { ffi::av_free(old.cast_mut().cast()) };
+            return Some(taken);
+        }
+        // SAFETY: as above.
+        Write::ValueMin(v) => unsafe { (*r).value_min = v },
+        // SAFETY: as above.
+        Write::ValueMax(v) => unsafe { (*r).value_max = v },
+        // SAFETY: as above.
+        Write::ComponentMin(v) => unsafe { (*r).component_min = v },
+        // SAFETY: as above.
+        Write::ComponentMax(v) => unsafe { (*r).component_max = v },
+        // SAFETY: as above.
+        Write::IsRange(b) => unsafe { (*r).is_range = c_int::from(b) },
     }
     None
 }
@@ -432,7 +490,9 @@ fn rust_write(b: &mut OptionRangesBox, i: usize, comp: usize, w: Write) -> Optio
     let mut e = m.get_mut(i, comp).unwrap();
     match w {
         Write::Label(s) => {
-            e.set_label(s.map(|s| ffmpeg_bindings::libavutil::libavutil::mem::string_from_c_str(s).unwrap()))
+            e.set_label(s.map(|s| {
+                ffmpeg_bindings::libavutil::libavutil::mem::string_from_c_str(s).unwrap()
+            }));
         }
         Write::Take => return Some(e.take_label().map(|s| s.as_c_str().to_owned())),
         Write::ValueMin(v) => e.set_value_min(v),
@@ -465,7 +525,7 @@ const WRITES: [Write; 14] = [
 
 /// The same writes to a C list and a Rust list of the same query leave both
 /// equal after every step, including the strings each `take` hands back;
-/// the drops then release each side's strings once (LeakSanitizer, ASan).
+/// the drops then release each side's strings once (`LeakSanitizer`, `ASan`).
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn writes_agree_after_every_step() {
@@ -632,7 +692,7 @@ mod option_type {
             let mut n: c_uint = 7;
             // SAFETY: `obj` is the live object, `name` a live string and `n`
             // a writable count.
-            let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+            let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &raw mut n) };
             if ty.is_array() {
                 assert_eq!((ret, n), (0, 0), "{name:?} {ty:?}");
                 arrays += 1;
@@ -690,7 +750,7 @@ mod set_options_string {
                 let mut out = ptr::null_mut();
                 // SAFETY: a live, well-formed object, a live name and a
                 // writable slot.
-                let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &mut out) };
+                let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &raw mut out) };
                 let s = (!out.is_null()).then(|| {
                     // SAFETY: a returned string is an owned C string, freed
                     // here.
@@ -714,11 +774,13 @@ mod set_options_string {
         for o in objects {
             for p in [o.ptr(), o.child()] {
                 if !p.is_null() {
-                    // SAFETY: raw writes of a live object's plain fields,
+                    // For the unsafe operations below: raw writes of a live object's plain fields,
                     // while no handle is live.
-                    unsafe {
-                        (*p).size = [0; 2];
-                        (*p).color = [0; 4];
+                    {
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*p).size = [0; 2] };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*p).color = [0; 4] };
                     }
                 }
             }
@@ -846,7 +908,7 @@ mod set_options_string {
             assert_eq!(observe(&r, failed), observe(&c, failed), "{opts:?}");
         }
         // SAFETY: raw reads of the live objects, while no handle is live.
-        let sizes = unsafe { ((*r.ptr()).size, (*c.ptr()).size) };
+        let sizes = (unsafe { (*r.ptr()).size }, unsafe { (*c.ptr()).size });
         assert_eq!(sizes, ([1280, 720], [1280, 720]));
     }
 
@@ -946,7 +1008,7 @@ mod set_options_string {
 ///
 /// The option holds strings, which C splits and unescapes without its
 /// expression evaluator: number elements would reach `av_strtod`, whose
-/// glibc-written end pointer BSan misreads (see `eval.rs`'s tests).
+/// glibc-written end pointer `BSan` misreads (see `eval.rs`'s tests).
 mod array_def {
     use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
     use core::mem::offset_of;
@@ -954,10 +1016,9 @@ mod array_def {
     use core::ptr;
     use std::ffi::CString;
 
+    use ffi::AVOptionType as T;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::opt::{OptionArrayDef, OptionArrayDefMut};
-
-    use ffi::AVOptionType as T;
 
     /// An object of the one-option class `defaults` builds.
     #[repr(C)]
@@ -1003,25 +1064,29 @@ mod array_def {
             ..Default::default()
         };
         let mut obj = Obj {
-            class: &class,
+            class: &raw const class,
             elems: ptr::null_mut(),
             len: 0,
         };
         let o = (&raw mut obj).cast::<c_void>();
-        // SAFETY: `obj` is led by a valid class whose terminated table and
+        // For the unsafe operations below: `obj` is led by a valid class whose terminated table and
         // definition outlive the calls; `av_opt_set_defaults2` writes the
         // array of `len` strings, and `av_opt_free` releases them.
-        unsafe {
-            ffi::av_opt_set_defaults2(o, 0, 0);
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_set_defaults2(o, 0, 0) };
+            // For the unsafe operations below: as the comment above this block states.
             let elems = if obj.elems.is_null() {
                 Vec::new()
             } else {
-                core::slice::from_raw_parts(obj.elems, obj.len as usize)
+                // SAFETY: as the comment above this statement states.
+                unsafe { core::slice::from_raw_parts(obj.elems, obj.len as usize) }
                     .iter()
-                    .map(|&s| CStr::from_ptr(s).to_owned())
+                    .map(|&s| unsafe { CStr::from_ptr(s) }.to_owned())
                     .collect()
             };
-            ffi::av_opt_free(o);
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_free(o) };
             assert!(obj.elems.is_null() && obj.len == 0);
             elems
         }
@@ -1121,7 +1186,9 @@ mod array_def {
             // SAFETY: both definitions are live and unwritten during the
             // calls, their strings are literals, and every separator is one
             // `set_separator` accepted.
-            let (c, rust) = unsafe { (defaults(&raw const raw), defaults(rust_ptr)) };
+            let (c, rust) = (unsafe { defaults(&raw const raw) }, unsafe {
+                defaults(rust_ptr)
+            });
             assert_eq!(c, rust, "step {i}: {edit:?}");
             let expected: Vec<CString> =
                 expected.iter().map(|e| CString::new(*e).unwrap()).collect();
@@ -1134,7 +1201,9 @@ mod array_def {
     fn a_missing_definition_reads_as_the_new_one() {
         let d = OptionArrayDef::new();
         // SAFETY: NULL, and a live definition with no default.
-        let (none, new) = unsafe { (defaults(ptr::null()), defaults(ptr::from_ref(&d).cast())) };
+        let (none, new) = (unsafe { defaults(ptr::null()) }, unsafe {
+            defaults(ptr::from_ref(&d).cast())
+        });
         assert_eq!(none, new);
         assert!(new.is_empty());
     }
@@ -1194,7 +1263,7 @@ mod objects {
         let mut out = ptr::null_mut();
         // SAFETY: a live well-formed object, a live name, a writable slot;
         // callers pass `AV_OPT_ALLOW_NULL` or keep binary lengths consistent.
-        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), flags, &mut out) };
+        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), flags, &raw mut out) };
         let s = (!out.is_null()).then(|| {
             // SAFETY: a returned string is an owned C string, freed here.
             let s = unsafe { CStr::from_ptr(out.cast::<c_char>()) }
@@ -1354,10 +1423,12 @@ mod objects {
     /// `av_opt_free`, with the binary length reset the wrapper adds (C keeps
     /// it, after which its readers dereference the NULL buffer).
     fn c_free(obj: *mut super::fixture::Obj) {
-        // SAFETY: a live object whose options own what C frees.
-        unsafe {
-            ffi::av_opt_free(obj.cast());
-            (*obj).binary_len = 0;
+        // For the unsafe operations below: a live object whose options own what C frees.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_opt_free(obj.cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*obj).binary_len = 0 };
         }
     }
 
@@ -1388,13 +1459,16 @@ mod objects {
     /// parse as the wrapper does (C stores its uninitialised parse buffer).
     fn c_clobbered(o: &Owned, name: &CStr, children: bool) -> Option<(*mut u8, [u8; 8])> {
         let p = if children { o.child() } else { o.ptr() };
-        // SAFETY: field projections of the live object.
-        let field = unsafe {
-            match name.to_bytes() {
-                b"color" => (&raw mut (*p).color).cast::<u8>(),
-                b"size" => (&raw mut (*p).size).cast::<u8>(),
-                _ => return None,
-            }
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `color` field is in bounds; nothing is accessed here.
+        let color_ptr = unsafe { &raw mut (*p).color };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw mut (*p).size };
+        let field = match name.to_bytes() {
+            b"color" => color_ptr.cast::<u8>(),
+            b"size" => size_ptr.cast::<u8>(),
+            _ => return None,
         };
         let mut bytes = [0; 8];
         // SAFETY: the field holds at least 4 bytes; `size` holds 8.
@@ -1403,7 +1477,7 @@ mod objects {
                 field,
                 bytes.as_mut_ptr(),
                 if name == c"color" { 4 } else { 8 },
-            )
+            );
         };
         Some((field, bytes))
     }
@@ -1420,7 +1494,7 @@ mod objects {
                         bytes.as_ptr(),
                         field,
                         if n == c"color" { 4 } else { 8 },
-                    )
+                    );
                 };
             }
             return ret;
@@ -1429,32 +1503,40 @@ mod objects {
         // SAFETY: each call gets a live, well-formed object and live strings
         // and buffers; the corpus holds only values C handles without
         // undefined behaviour.
-        unsafe {
-            match *op {
-                Op::Set(n, v, c) => ffi::av_opt_set(obj, n.as_ptr(), v.as_ptr(), flags_of(c).0),
-                Op::Int(n, v, c) => ffi::av_opt_set_int(obj, n.as_ptr(), v, flags_of(c).0),
-                Op::Double(n, v, c) => ffi::av_opt_set_double(obj, n.as_ptr(), v, flags_of(c).0),
-                Op::Bin(n, v, c) => ffi::av_opt_set_bin(
-                    obj,
-                    n.as_ptr(),
-                    v.as_ptr(),
-                    v.len() as c_int,
-                    flags_of(c).0,
-                ),
-                Op::Size(n, w, h, c) => {
-                    ffi::av_opt_set_image_size(obj, n.as_ptr(), w, h, flags_of(c).0)
-                }
-                Op::Defaults => {
-                    ffi::av_opt_set_defaults(obj);
-                    0
-                }
-                Op::Masked(m, f) => {
-                    ffi::av_opt_set_defaults2(obj, m, f);
-                    0
-                }
-                Op::FromString(s, sh) => {
-                    let sh: Vec<*const c_char> =
-                        sh.iter().map(|s| s.as_ptr()).chain([ptr::null()]).collect();
+        match *op {
+            // SAFETY: as the comment above this statement states.
+            Op::Set(n, v, c) => unsafe {
+                ffi::av_opt_set(obj, n.as_ptr(), v.as_ptr(), flags_of(c).0)
+            },
+            // SAFETY: as the comment above this statement states.
+            Op::Int(n, v, c) => unsafe { ffi::av_opt_set_int(obj, n.as_ptr(), v, flags_of(c).0) },
+            // SAFETY: as the comment above this statement states.
+            Op::Double(n, v, c) => unsafe {
+                ffi::av_opt_set_double(obj, n.as_ptr(), v, flags_of(c).0)
+            },
+            // SAFETY: as the comment above this statement states.
+            Op::Bin(n, v, c) => unsafe {
+                ffi::av_opt_set_bin(obj, n.as_ptr(), v.as_ptr(), v.len() as c_int, flags_of(c).0)
+            },
+            Op::Size(n, w, h, c) => {
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_opt_set_image_size(obj, n.as_ptr(), w, h, flags_of(c).0) }
+            }
+            Op::Defaults => {
+                // SAFETY: as the comment at the head of this block states.
+                unsafe { ffi::av_opt_set_defaults(obj) };
+                0
+            }
+            Op::Masked(m, f) => {
+                // SAFETY: as the comment at the head of this block states.
+                unsafe { ffi::av_opt_set_defaults2(obj, m, f) };
+                0
+            }
+            Op::FromString(s, sh) => {
+                let sh: Vec<*const c_char> =
+                    sh.iter().map(|s| s.as_ptr()).chain([ptr::null()]).collect();
+                // SAFETY: as the comment at the head of this block states.
+                unsafe {
                     ffi::av_opt_set_from_string(
                         obj,
                         s.as_ptr(),
@@ -1463,15 +1545,16 @@ mod objects {
                         c":".as_ptr(),
                     )
                 }
-                Op::Free => {
-                    c_free(o.ptr());
-                    if !o.child().is_null() {
-                        c_free(o.child());
-                    }
-                    0
-                }
-                Op::CopyFrom => ffi::av_opt_copy(obj, src.as_obj()),
             }
+            Op::Free => {
+                c_free(o.ptr());
+                if !o.child().is_null() {
+                    c_free(o.child());
+                }
+                0
+            }
+            // SAFETY: as the comment at the head of this block states.
+            Op::CopyFrom => unsafe { ffi::av_opt_copy(obj, src.as_obj()) },
         }
     }
 
@@ -1524,7 +1607,7 @@ mod objects {
         }
         let mut d = 0.0;
         // SAFETY: a live object and name, a writable double.
-        let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), flags, &mut d) };
+        let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), flags, &raw mut d) };
         ret < 0 || (-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&d)
     }
 
@@ -1558,7 +1641,7 @@ mod objects {
                 let mut i = 0;
                 if c_int_defined(obj, name, cf) {
                     // SAFETY: the conversion is defined, as checked.
-                    let ret = unsafe { ffi::av_opt_get_int(obj, name.as_ptr(), cf, &mut i) };
+                    let ret = unsafe { ffi::av_opt_get_int(obj, name.as_ptr(), cf, &raw mut i) };
                     assert_eq!(
                         h.get_int(name, rf),
                         if ret < 0 { Err(ret) } else { Ok(i) },
@@ -1569,7 +1652,7 @@ mod objects {
                 }
                 let mut d = 0.0;
                 // SAFETY: a live object and name, writable outputs.
-                let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), cf, &mut d) };
+                let ret = unsafe { ffi::av_opt_get_double(obj, name.as_ptr(), cf, &raw mut d) };
                 let got = h.get_double(name, rf);
                 assert_eq!(got.err().unwrap_or(0), ret, "get_double {at}");
                 if let Ok(v) = got {
@@ -1581,7 +1664,8 @@ mod objects {
                 let (mut w, mut hh) = (0, 0);
                 let n = name.as_ptr();
                 // SAFETY: as above.
-                let ret = unsafe { ffi::av_opt_get_image_size(obj, n, cf, &mut w, &mut hh) };
+                let ret =
+                    unsafe { ffi::av_opt_get_image_size(obj, n, cf, &raw mut w, &raw mut hh) };
                 assert_eq!(
                     h.get_image_size(name, rf),
                     if ret < 0 { Err(ret) } else { Ok((w, hh)) },
@@ -1589,7 +1673,7 @@ mod objects {
                 );
                 let mut n: c_uint = 0;
                 // SAFETY: as above.
-                let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), cf, &mut n) };
+                let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), cf, &raw mut n) };
                 assert_eq!(
                     h.get_array_size(name, rf),
                     if ret < 0 { Err(ret) } else { Ok(n as usize) },
@@ -1639,7 +1723,7 @@ mod objects {
                         obj,
                         opt_flags,
                         flags.bits(),
-                        &mut out,
+                        &raw mut out,
                         kv as c_char,
                         pairs as c_char,
                     )
@@ -1674,11 +1758,16 @@ mod objects {
         let (c, r) = (Owned::with_child(), Owned::with_child());
         let (c_src, r_src) = (Owned::new(), Owned::new());
         for src in [&c_src, &r_src] {
-            // SAFETY: live objects and strings, values C handles.
-            unsafe {
-                ffi::av_opt_set(src.as_obj(), c"string".as_ptr(), c"copied".as_ptr(), 0);
-                ffi::av_opt_set(src.as_obj(), c"strings".as_ptr(), c"p|q".as_ptr(), 0);
-                ffi::av_opt_set_bin(src.as_obj(), c"binary".as_ptr(), [9u8, 8].as_ptr(), 2, 0);
+            // For the unsafe operations below: live objects and strings, values C handles.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_opt_set(src.as_obj(), c"string".as_ptr(), c"copied".as_ptr(), 0) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_opt_set(src.as_obj(), c"strings".as_ptr(), c"p|q".as_ptr(), 0) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_opt_set_bin(src.as_obj(), c"binary".as_ptr(), [9u8, 8].as_ptr(), 2, 0)
+                };
             }
         }
         assert_eq!(observe(&c), observe(&r));
@@ -1695,7 +1784,10 @@ mod objects {
             );
             assert_eq!(observe(&c), observe(&r), "{step}");
             // SAFETY: raw reads of the live objects' binary lengths.
-            unsafe { assert_eq!((*c.ptr()).binary_len, (*r.ptr()).binary_len, "{step}") };
+            let lens = (unsafe { (*c.ptr()).binary_len }, unsafe {
+                (*r.ptr()).binary_len
+            });
+            assert_eq!(lens.0, lens.1, "{step}");
             if i % getters_every == 0 {
                 compare_getters(&c, &r, &step);
             }
@@ -1772,7 +1864,7 @@ mod objects {
         if under_bsan() {
             return;
         }
-        let mut state = 0xdead_beef_cafe_f00du64;
+        let mut state = 0xDEAD_BEEF_CAFE_F00Du64;
         let mut next = move || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -1841,12 +1933,12 @@ mod objects {
                     // SAFETY: writable slots and live strings.
                     let ret = unsafe {
                         ffi::av_opt_get_key_value(
-                            &mut rest,
+                            &raw mut rest,
                             kv.as_ptr(),
                             pairs.as_ptr(),
                             flags,
-                            &mut key,
-                            &mut val,
+                            &raw mut key,
+                            &raw mut val,
                         )
                     };
                     let take = |p: *mut c_char| {
@@ -2004,7 +2096,14 @@ mod objects {
             let mut out = ptr::null_mut();
             // SAFETY: a live object, a writable slot.
             let ret = unsafe {
-                ffi::av_opt_serialize(c.as_obj(), 0, 0, &mut out, b'=' as c_char, b':' as c_char)
+                ffi::av_opt_serialize(
+                    c.as_obj(),
+                    0,
+                    0,
+                    &raw mut out,
+                    b'=' as c_char,
+                    b':' as c_char,
+                )
             };
             if !out.is_null() {
                 // SAFETY: an owned C string.
@@ -2022,18 +2121,20 @@ mod objects {
                 // SAFETY: writable slots and live strings.
                 let ret = unsafe {
                     ffi::av_opt_get_key_value(
-                        &mut rest,
+                        &raw mut rest,
                         c"=".as_ptr(),
                         c":".as_ptr(),
                         0,
-                        &mut key,
-                        &mut val,
+                        &raw mut key,
+                        &raw mut val,
                     )
                 };
-                // SAFETY: NULL or owned strings.
-                unsafe {
-                    ffi::av_free(key.cast());
-                    ffi::av_free(val.cast());
+                // For the unsafe operations below: NULL or owned strings.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_free(key.cast()) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_free(val.cast()) };
                 }
                 assert_eq!(
                     parse_key_value(opts, c"=", c":", false).err().unwrap_or(0),
@@ -2055,6 +2156,10 @@ mod objects {
     /// the lines.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
+    #[expect(
+        clippy::format_collect,
+        reason = "the expected text is built as C formats it"
+    )]
     fn listings_of_every_type_and_extreme_log_as_c() {
         if under_bsan() {
             return;
@@ -2062,8 +2167,9 @@ mod objects {
         if !isolated("opt::objects::listings_of_every_type_and_extreme_log_as_c") {
             return;
         }
-        use super::fixture::{OBJ_CLASS, Obj};
         use core::mem::offset_of;
+
+        use super::fixture::{OBJ_CLASS, Obj};
         type T = ffi::AVOptionType;
         let enc = ffi::AV_OPT_FLAG_ENCODING_PARAM as c_int;
         let end = OBJ_OPTIONS.0.len() - 1;
@@ -2101,8 +2207,8 @@ mod objects {
             offset_of!(Obj, uint),
         );
         let (flt, dbl) = (offset_of!(Obj, flt), offset_of!(Obj, dbl));
-        let (imin, imax) = (i32::MIN as f64, i32::MAX as f64);
-        let (fmax, fmin) = (f32::MAX as f64, f32::MIN_POSITIVE as f64);
+        let (imin, imax) = (f64::from(i32::MIN), f64::from(i32::MAX));
+        let (fmax, fmin) = (f64::from(f32::MAX), f64::from(f32::MIN_POSITIVE));
         table.extend([
             alias(
                 c"imax",
@@ -2141,7 +2247,7 @@ mod objects {
                 Some(u32::MAX.into()),
                 0.0,
                 0.0,
-                u32::MAX as f64,
+                f64::from(u32::MAX),
                 None,
             ),
             alias(
@@ -2211,7 +2317,7 @@ mod objects {
                 None,
                 imax,
                 imin,
-                u32::MAX as f64,
+                f64::from(u32::MAX),
                 None,
             ),
             alias(
@@ -2231,7 +2337,7 @@ mod objects {
                 Some(0x40),
                 0.0,
                 0.0,
-                u32::MAX as f64,
+                f64::from(u32::MAX),
                 Some(c"dunit"),
             ),
             alias(
@@ -2313,7 +2419,7 @@ mod objects {
             // SAFETY: `o` is live and owned; its class pointer is swapped for
             // a local class over the same fields (every alias names a field
             // of its type), live until it is restored below.
-            unsafe { (*o.ptr()).class = &class };
+            unsafe { (*o.ptr()).class = &raw const class };
         }
         let _state = LogState::lock();
         for (req, rej) in [
@@ -2362,7 +2468,7 @@ mod objects {
         }
         for o in [&c, &r] {
             // SAFETY: as above, restoring the static class.
-            unsafe { (*o.ptr()).class = &OBJ_CLASS.0 };
+            unsafe { (*o.ptr()).class = &raw const OBJ_CLASS.0 };
         }
     }
 
@@ -2429,7 +2535,7 @@ mod objects {
             let mut out = ptr::null_mut();
             // SAFETY: a live object, a writable slot; invalid separators are
             // rejected before C reads further.
-            unsafe { ffi::av_opt_serialize(c.as_obj(), 0, 0, &mut out, 0, b':' as c_char) };
+            unsafe { ffi::av_opt_serialize(c.as_obj(), 0, 0, &raw mut out, 0, b':' as c_char) };
         });
         // SAFETY: as above.
         let h = unsafe { ObjectRef::from_ptr(r.as_obj()) }.unwrap();
@@ -2457,7 +2563,9 @@ mod getters {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::log::ClassRef;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
-    use ffmpeg_bindings::libavutil::libavutil::opt::{ArrayElement, ObjectRef, OptionType, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        ArrayElement, ObjectRef, OptionType, SearchFlags,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
@@ -2468,7 +2576,7 @@ mod getters {
     const EINVAL: i32 = -22;
     const ERANGE: i32 = -34;
 
-    /// Under BSan, C's number parses misreport (`av_strtod`'s end pointer):
+    /// Under `BSan`, C's number parses misreport (`av_strtod`'s end pointer):
     /// the object suites return early, as the wave-0 ones do.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -2533,7 +2641,7 @@ mod getters {
         let mut buf: *mut c_char = ptr::null_mut();
         let (kv, pairs) = (b'=' as c_char, b';' as c_char);
         // SAFETY: a live dictionary and our slot.
-        let ret = unsafe { ffi::av_dict_get_string(m, &mut buf, kv, pairs) };
+        let ret = unsafe { ffi::av_dict_get_string(m, &raw mut buf, kv, pairs) };
         assert_eq!(ret, 0);
         // SAFETY: a fresh string we own, read then freed once.
         let s = unsafe { CStr::from_ptr(buf) }.to_bytes().to_vec();
@@ -2556,7 +2664,7 @@ mod getters {
 
         let mut q = ffi::AVRational { num: 0, den: 0 };
         // SAFETY: a live well-formed object, a live name, a writable value.
-        let ret = unsafe { ffi::av_opt_get_q(c, n, cf, &mut q) };
+        let ret = unsafe { ffi::av_opt_get_q(c, n, cf, &raw mut q) };
         cs.push(format!("q {ret} {:?}", (ret >= 0).then(|| rational(q))));
         let v = r.get_rational(name, rf);
         rs.push(format!(
@@ -2567,7 +2675,7 @@ mod getters {
 
         let mut q = ffi::AVRational { num: 0, den: 0 };
         // SAFETY: as above.
-        let ret = unsafe { ffi::av_opt_get_video_rate(c, n, cf, &mut q) };
+        let ret = unsafe { ffi::av_opt_get_video_rate(c, n, cf, &raw mut q) };
         let v = r.get_video_rate(name, rf);
         let is_rate = r.find_type(name, rf) == Some(OptionType::VIDEO_RATE);
         if is_rate {
@@ -2576,7 +2684,7 @@ mod getters {
             assert_eq!(ret, EINVAL);
             let mut s = ptr::null_mut();
             // SAFETY: as above, with a writable string slot.
-            assert_eq!(unsafe { ffi::av_opt_get(c, n, cf, &mut s) }, 0);
+            assert_eq!(unsafe { ffi::av_opt_get(c, n, cf, &raw mut s) }, 0);
             // SAFETY: a fresh string we own, read then freed once.
             let text = unsafe { CStr::from_ptr(s.cast::<c_char>()) }
                 .to_str()
@@ -2598,7 +2706,7 @@ mod getters {
 
         let mut p = ffi::AVPixelFormat(0);
         // SAFETY: as above.
-        let ret = unsafe { ffi::av_opt_get_pixel_fmt(c, n, cf, &mut p) };
+        let ret = unsafe { ffi::av_opt_get_pixel_fmt(c, n, cf, &raw mut p) };
         cs.push(format!("pix {ret} {:?}", (ret >= 0).then_some(p.0)));
         let v = r.get_pixel_format(name, rf);
         rs.push(format!(
@@ -2609,7 +2717,7 @@ mod getters {
 
         let mut f = ffi::AVSampleFormat(0);
         // SAFETY: as above.
-        let ret = unsafe { ffi::av_opt_get_sample_fmt(c, n, cf, &mut f) };
+        let ret = unsafe { ffi::av_opt_get_sample_fmt(c, n, cf, &raw mut f) };
         cs.push(format!("sample {ret} {:?}", (ret >= 0).then_some(f.0)));
         let v = r.get_sample_format(name, rf);
         rs.push(format!(
@@ -2621,13 +2729,13 @@ mod getters {
         // SAFETY: an all-zero layout is the empty one C takes as output.
         let mut l: ffi::AVChannelLayout = unsafe { core::mem::zeroed() };
         // SAFETY: as above, with an initialised layout C may overwrite.
-        let ret = unsafe { ffi::av_opt_get_chlayout(c, n, cf, &mut l) };
+        let ret = unsafe { ffi::av_opt_get_chlayout(c, n, cf, &raw mut l) };
         cs.push(format!(
             "layout {ret} {:?}",
-            (ret >= 0).then(|| describe(&l))
+            (ret >= 0).then(|| describe(&raw const l))
         ));
         // SAFETY: the copy C made (or the empty layout), disposed once.
-        unsafe { ffi::av_channel_layout_uninit(&mut l) };
+        unsafe { ffi::av_channel_layout_uninit(&raw mut l) };
         let v = r.get_channel_layout(name, rf);
         rs.push(format!(
             "layout {} {:?}",
@@ -2637,13 +2745,13 @@ mod getters {
 
         let mut d = ptr::null_mut();
         // SAFETY: as above, with a NULL dictionary slot.
-        let ret = unsafe { ffi::av_opt_get_dict_val(c, n, cf, &mut d) };
+        let ret = unsafe { ffi::av_opt_get_dict_val(c, n, cf, &raw mut d) };
         cs.push(format!(
             "dict {ret} {:?}",
             (ret >= 0).then(|| c_dict_string(d))
         ));
         // SAFETY: NULL or the copy C made, ours to free.
-        unsafe { ffi::av_dict_free(&mut d) };
+        unsafe { ffi::av_dict_free(&raw mut d) };
         let v = r.get_dict(name, rf);
         rs.push(format!(
             "dict {} {:?}",
@@ -2728,7 +2836,10 @@ mod getters {
     /// `T`, C writing `size` bytes per element of output type `ty`, read back
     /// by `c_show` (which releases what C allocated) and compared with
     /// `r_show` of each Rust element.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors the arguments of the C routine it stands for"
+    )]
     fn array_case<T: ArrayElement>(
         c: *mut c_void,
         r: ObjectRef<'_>,
@@ -2985,7 +3096,7 @@ mod getters {
         let mut out = Vec::new();
         loop {
             // SAFETY: a live class and the state its callback alone advanced.
-            let c = unsafe { ffi::av_opt_child_class_iterate(class, &mut state) };
+            let c = unsafe { ffi::av_opt_child_class_iterate(class, &raw mut state) };
             if c.is_null() {
                 return out;
             }
@@ -3004,8 +3115,12 @@ mod getters {
         ] {
             let c: Vec<&CStr> = c_children(raw)
                 .into_iter()
-                // SAFETY: each child is a live static class with a name.
-                .map(|k| unsafe { CStr::from_ptr((*k).class_name) })
+                .map(|k| {
+                    // SAFETY: each child is a live static class: a read of its name.
+                    let name = unsafe { (*k).class_name };
+                    // SAFETY: as above, a literal.
+                    unsafe { CStr::from_ptr(name) }
+                })
                 .collect();
             let class: ClassRef<'_> = obj(o).class();
             let r: Vec<&CStr> = class
@@ -3026,6 +3141,7 @@ mod typed_setters {
     use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
     use core::ptr;
 
+    use ffi::AVOptionType as T;
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
     use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryRef};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
@@ -3035,7 +3151,6 @@ mod typed_setters {
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     use super::fixture::{ARRAYS_NAMES, Arrays, OBJ_OPTIONS, Owned, OwnedArrays};
-    use ffi::AVOptionType as T;
 
     const ALLOW_NULL: c_int = ffi::AV_OPT_ALLOW_NULL as c_int;
     const CHILDREN: c_int = ffi::AV_OPT_SEARCH_CHILDREN as c_int;
@@ -3065,7 +3180,7 @@ mod typed_setters {
         let mut out = ptr::null_mut();
         // SAFETY: a live well-formed object, a live name, a writable slot;
         // every binary length is consistent and binary arrays stay empty.
-        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &mut out) };
+        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), ALLOW_NULL, &raw mut out) };
         let s = (!out.is_null()).then(|| {
             // SAFETY: a returned string is an owned C string, freed here.
             let s = unsafe { CStr::from_ptr(out.cast::<c_char>()) }
@@ -3077,7 +3192,7 @@ mod typed_setters {
         });
         let mut n = 0;
         // SAFETY: as above, with a writable count.
-        let size = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+        let size = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &raw mut n) };
         (ret, s, size, n)
     }
 
@@ -3110,8 +3225,14 @@ mod typed_setters {
             if e.is_null() {
                 return out;
             }
+            // SAFETY: as the comment below states, for this part of the operation.
+            let key_2 = unsafe { (*e).key };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let from_ptr_2 = unsafe { CStr::from_ptr(key_2) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let value_2 = unsafe { (*e).value };
             // SAFETY: an entry of `m`, with live NUL-terminated strings.
-            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            let (k, v) = unsafe { (from_ptr_2, CStr::from_ptr(value_2)) };
             out.push((k.to_bytes().to_vec(), v.to_bytes().to_vec()));
         }
     }
@@ -3131,7 +3252,7 @@ mod typed_setters {
             // SAFETY: a live slot and strings; failures abort the test.
             let ret = unsafe {
                 ffi::av_dict_set(
-                    &mut m,
+                    &raw mut m,
                     k.as_ptr(),
                     v.as_ptr(),
                     ffi::AV_DICT_MULTIKEY as c_int,
@@ -3144,21 +3265,21 @@ mod typed_setters {
 
     fn c_dict_free(mut m: *mut ffi::AVDictionary) {
         // SAFETY: NULL or a dictionary this test built and owns.
-        unsafe { ffi::av_dict_free(&mut m) };
+        unsafe { ffi::av_dict_free(&raw mut m) };
     }
 
     /// A C layout parsed from `desc`, which the caller uninitialises.
     fn c_layout(desc: &CStr) -> ffi::AVChannelLayout {
         let mut l = ffi::AVChannelLayout::default();
         // SAFETY: a writable zeroed local and a live string.
-        let ret = unsafe { ffi::av_channel_layout_from_string(&mut l, desc.as_ptr()) };
+        let ret = unsafe { ffi::av_channel_layout_from_string(&raw mut l, desc.as_ptr()) };
         assert_eq!(ret, 0, "{desc:?}");
         l
     }
 
     fn c_layout_uninit(mut l: ffi::AVChannelLayout) {
         // SAFETY: a layout `c_layout` built, owned here.
-        unsafe { ffi::av_channel_layout_uninit(&mut l) };
+        unsafe { ffi::av_channel_layout_uninit(&raw mut l) };
     }
 
     type Pairs = &'static [(&'static CStr, &'static CStr)];
@@ -3339,40 +3460,56 @@ mod typed_setters {
         // SAFETY: each call gets a live, well-formed object, live strings and
         // values; the corpus holds only values C handles without undefined
         // behaviour.
-        unsafe {
-            match op {
-                Op::Q(name, (num, den), c) => {
+        match op {
+            Op::Q(name, (num, den), c) => {
+                // SAFETY: as the comment above this statement states.
+                unsafe {
                     ffi::av_opt_set_q(obj, n(name), ffi::AVRational { num, den }, flags_of(c).0)
                 }
-                Op::Rate(name, (num, den), c) => ffi::av_opt_set_video_rate(
+            }
+            // SAFETY: as the comment at the head of this block states.
+            Op::Rate(name, (num, den), c) => unsafe {
+                ffi::av_opt_set_video_rate(
                     obj,
                     n(name),
                     ffi::AVRational { num, den },
                     flags_of(c).0,
-                ),
-                Op::Pix(name, p, c) => {
+                )
+            },
+            Op::Pix(name, p, c) => {
+                // SAFETY: as the comment at the head of this block states.
+                unsafe {
                     ffi::av_opt_set_pixel_fmt(obj, n(name), ffi::AVPixelFormat(p), flags_of(c).0)
                 }
-                Op::Sample(name, s, c) => {
+            }
+            Op::Sample(name, s, c) => {
+                // SAFETY: as the comment at the head of this block states.
+                unsafe {
                     ffi::av_opt_set_sample_fmt(obj, n(name), ffi::AVSampleFormat(s), flags_of(c).0)
                 }
-                Op::Layout(name, desc, c) => {
-                    let l = c_layout(desc);
-                    let ret = ffi::av_opt_set_chlayout(obj, n(name), &l, flags_of(c).0);
-                    c_layout_uninit(l);
-                    ret
-                }
-                Op::DictVal(name, pairs, c) => {
-                    let d = pairs.map_or(ptr::null_mut(), c_dict);
-                    let ret = ffi::av_opt_set_dict_val(obj, n(name), d, flags_of(c).0);
-                    c_dict_free(d);
-                    ret
-                }
-                Op::Insert(name, start, vals, c) => c_array(obj, name, flags_of(c).0, start, vals),
-                Op::Replace(name, start, vals, c) => {
-                    c_array(obj, name, flags_of(c).0 | REPLACE, start, vals)
-                }
-                Op::Remove(name, start, count, c) => ffi::av_opt_set_array(
+            }
+            Op::Layout(name, desc, c) => {
+                let l = c_layout(desc);
+                // SAFETY: as the comment at the head of this block states.
+                let ret =
+                    unsafe { ffi::av_opt_set_chlayout(obj, n(name), &raw const l, flags_of(c).0) };
+                c_layout_uninit(l);
+                ret
+            }
+            Op::DictVal(name, pairs, c) => {
+                let d = pairs.map_or(ptr::null_mut(), c_dict);
+                // SAFETY: as the comment at the head of this block states.
+                let ret = unsafe { ffi::av_opt_set_dict_val(obj, n(name), d, flags_of(c).0) };
+                c_dict_free(d);
+                ret
+            }
+            Op::Insert(name, start, vals, c) => c_array(obj, name, flags_of(c).0, start, vals),
+            Op::Replace(name, start, vals, c) => {
+                c_array(obj, name, flags_of(c).0 | REPLACE, start, vals)
+            }
+            // SAFETY: as the comment at the head of this block states.
+            Op::Remove(name, start, count, c) => unsafe {
+                ffi::av_opt_set_array(
                     obj,
                     n(name),
                     flags_of(c).0,
@@ -3380,17 +3517,19 @@ mod typed_setters {
                     count,
                     T::AV_OPT_TYPE_INT,
                     ptr::null(),
-                ),
-                Op::FromDict(pairs, flags) => {
-                    let mut d = c_dict(pairs);
-                    let ret = match flags {
-                        None => ffi::av_opt_set_dict(obj, &mut d),
-                        Some(c) => ffi::av_opt_set_dict2(obj, &mut d, flags_of(c).0),
-                    };
-                    *leftover = c_entries(d);
-                    c_dict_free(d);
-                    ret
-                }
+                )
+            },
+            Op::FromDict(pairs, flags) => {
+                let mut d = c_dict(pairs);
+                let ret = match flags {
+                    // SAFETY: as the comment at the head of this block states.
+                    None => unsafe { ffi::av_opt_set_dict(obj, &raw mut d) },
+                    // SAFETY: as the comment at the head of this block states.
+                    Some(c) => unsafe { ffi::av_opt_set_dict2(obj, &raw mut d, flags_of(c).0) },
+                };
+                *leftover = c_entries(d);
+                c_dict_free(d);
+                ret
             }
         }
     }
@@ -3471,7 +3610,7 @@ mod typed_setters {
             return Some(EINVAL);
         }
         let (min, max) = match name.to_bytes() {
-            b"qs" | b"rates" => (0.0, i32::MAX as f64),
+            b"qs" | b"rates" => (0.0, f64::from(i32::MAX)),
             b"wide_qs" => (-1e300, 1e300),
             _ => return None,
         };
@@ -3658,70 +3797,52 @@ mod typed_setters {
             }
             ops.extend([
                 (Op::Remove(name, 0, 2, false), None),
-                (Op::Replace(name, 0, Vals::I32(&[]), true), None),
-                (Op::Insert(name, 0, Vals::Str(&[]), false), None),
+                (Op::Replace(name, 0, I32(&[]), true), None),
+                (Op::Insert(name, 0, Str(&[]), false), None),
                 (Op::Remove(name, 0, 100, false), None),
                 (Op::Remove(name, 0, 0, true), None),
             ]);
         }
         ops.extend([
             // Undefined conversions in C, refused.
+            (Op::Insert(c"qs", 0, F64(&[f64::NAN]), false), Some(ERANGE)),
             (
-                Op::Insert(c"qs", 0, Vals::F64(&[f64::NAN]), false),
+                Op::Insert(c"wide_qs", 0, F64(&[0.5, 1e10]), false),
                 Some(ERANGE),
             ),
             (
-                Op::Insert(c"wide_qs", 0, Vals::F64(&[0.5, 1e10]), false),
+                Op::Replace(c"wide_qs", 0, I64(&[1 << 40]), true),
                 Some(ERANGE),
             ),
             (
-                Op::Replace(c"wide_qs", 0, Vals::I64(&[1 << 40]), true),
+                Op::Insert(c"rates", 0, F32(&[f32::NAN]), false),
                 Some(ERANGE),
             ),
             (
-                Op::Insert(c"rates", 0, Vals::F32(&[f32::NAN]), false),
-                Some(ERANGE),
-            ),
-            (
-                Op::Insert(c"dbls", 0, Vals::Str(&[c"1", c"ld(1e300)"]), false),
+                Op::Insert(c"dbls", 0, Str(&[c"1", c"ld(1e300)"]), false),
                 Some(EINVAL),
             ),
             (
-                Op::Insert(c"colors", 0, Vals::Str(&[c"red@nan"]), false),
+                Op::Insert(c"colors", 0, Str(&[c"red@nan"]), false),
                 Some(EINVAL),
             ),
-            (
-                Op::Insert(c"bins", 0, Vals::Str(&[c"0a"]), false),
-                Some(EINVAL),
-            ),
-            (
-                Op::Insert(c"bins", 0, Vals::OptStr(&[None]), false),
-                Some(EINVAL),
-            ),
+            (Op::Insert(c"bins", 0, Str(&[c"0a"]), false), Some(EINVAL)),
+            (Op::Insert(c"bins", 0, OptStr(&[None]), false), Some(EINVAL)),
             // `write_number`'s 64-bit extremes: `INT64_MAX` and `UINT64_MAX`
             // as doubles, and a `uint64_t` beyond the `int64_t` range.
-            (Op::Insert(c"i64s", 0, Vals::F64(I64_MAX_F), false), None),
-            (Op::Insert(c"durations", 0, Vals::F64(I64_MAX_F), false), None),
-            (Op::Insert(c"u64s", 0, Vals::F64(U64_HIGH_F), false), None),
+            (Op::Insert(c"i64s", 0, F64(I64_MAX_F), false), None),
+            (Op::Insert(c"durations", 0, F64(I64_MAX_F), false), None),
+            (Op::Insert(c"u64s", 0, F64(U64_HIGH_F), false), None),
             // C's own failures.
             (
-                Op::Insert(c"strs", 0, Vals::Str(&[c"x", c"y", c"z"]), false),
+                Op::Insert(c"strs", 0, Str(&[c"x", c"y", c"z"]), false),
                 None,
             ),
             (Op::Remove(c"strs", 0, 2, false), None),
-            (
-                Op::Insert(c"ints", 0, Vals::I32(&[1, 2, 3, 4, 5]), false),
-                None,
-            ),
-            (Op::Insert(c"ints", 0, Vals::F64(&[1e9]), false), None),
-            (
-                Op::Insert(c"wide_qs", 0, Vals::F64(&[0.5, 2.5]), false),
-                None,
-            ),
-            (
-                Op::Insert(c"wide_qs", 0, Vals::I32(&[i32::MIN]), false),
-                None,
-            ),
+            (Op::Insert(c"ints", 0, I32(&[1, 2, 3, 4, 5]), false), None),
+            (Op::Insert(c"ints", 0, F64(&[1e9]), false), None),
+            (Op::Insert(c"wide_qs", 0, F64(&[0.5, 2.5]), false), None),
+            (Op::Insert(c"wide_qs", 0, I32(&[i32::MIN]), false), None),
             (
                 Op::FromDict(
                     &[
@@ -3758,12 +3879,12 @@ mod typed_setters {
     }
 
     /// Random edits, without string parses, on zeroed objects, so that
-    /// BorrowSanitizer runs them without C's evaluator (whose `av_strtod`
+    /// `BorrowSanitizer` runs them without C's evaluator (whose `av_strtod`
     /// end pointers it misreports).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_array_edits_agree() {
-        let mut state = 0xfeed_face_0123_4567u64;
+        let mut state = 0xFEED_FACE_0123_4567u64;
         let mut next = move || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -3886,8 +4007,8 @@ mod typed_setters {
             let mut m = unsafe { ObjectMut::from_ptr(ro[0]) }.unwrap();
             set_limit(limit);
             // SAFETY: live objects, names and values of the C element types.
-            let c_codes = unsafe {
-                [
+            let c_codes = [
+                unsafe {
                     ffi::av_opt_set_array(
                         co[0],
                         c"layouts".as_ptr(),
@@ -3896,7 +4017,9 @@ mod typed_setters {
                         1,
                         T::AV_OPT_TYPE_CHLAYOUT,
                         c_layouts.as_ptr().cast(),
-                    ),
+                    )
+                },
+                unsafe {
                     ffi::av_opt_set_array(
                         co[0],
                         c"dicts".as_ptr(),
@@ -3905,10 +4028,10 @@ mod typed_setters {
                         1,
                         T::AV_OPT_TYPE_DICT,
                         c_dicts.as_ptr().cast(),
-                    ),
-                    ffi::av_opt_set_dict(co[0], &mut c_applied),
-                ]
-            };
+                    )
+                },
+                unsafe { ffi::av_opt_set_dict(co[0], &raw mut c_applied) },
+            ];
             let r_codes = [
                 code(m.replace_array(c"layouts", 0, &[r_layouts[0].as_ref()], SearchFlags::NONE)),
                 code(m.insert_array(c"dicts", 0, &[r_dicts[0].as_ref()], SearchFlags::CHILDREN)),
@@ -3930,7 +4053,9 @@ mod typed_setters {
             let rl = ChannelLayout::parse(c"FL@abc+FR@def").unwrap();
             set_limit(limit);
             // SAFETY: live objects, name and layout.
-            let cr = unsafe { ffi::av_opt_set_chlayout(c.as_obj(), c"layout".as_ptr(), &l, 0) };
+            let cr = unsafe {
+                ffi::av_opt_set_chlayout(c.as_obj(), c"layout".as_ptr(), &raw const l, 0)
+            };
             // SAFETY: a live, well-formed object used through this handle only.
             let mut m = unsafe { ObjectMut::from_ptr(r.as_obj()) }.unwrap();
             let rr = code(m.set_channel_layout(c"layout", rl.as_ref(), SearchFlags::NONE));
@@ -3938,12 +4063,18 @@ mod typed_setters {
             c_layout_uninit(l);
             assert_eq!(cr, rr, "at {limit}");
             if cr < 0 {
-                // SAFETY: the live object's layout, which C left with a NULL
-                // map and owns nothing.
-                unsafe {
-                    let p = &raw mut (*c.ptr()).layout;
-                    assert!((*p).u.map.is_null());
-                    p.write(ffi::AVChannelLayout::default());
+                // For the unsafe operations below: the live object's layout, which C left with a
+                // NULL map and owns nothing.
+                {
+                    // SAFETY: as the comment above this block states.
+                    let p = unsafe { &raw mut (*c.ptr()).layout };
+                    // SAFETY: as the comment above this block states: a copy of the union.
+                    let u = unsafe { (*p).u };
+                    // SAFETY: as the comment above this block states: an unspecified-order
+                    // layout's 8 union bytes, read as the map pointer.
+                    assert!(unsafe { u.map }.is_null());
+                    // SAFETY: as the comment above this block states.
+                    unsafe { p.write(ffi::AVChannelLayout::default()) };
                 }
             }
             let names = obj_names();
@@ -3974,7 +4105,7 @@ mod rational_array_conversion {
     fn c_ints(obj: *mut c_void, name: &CStr) -> (i32, Vec<i64>) {
         let mut n = 0;
         // SAFETY: a live fixture object; `n` is a writable `unsigned`.
-        let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &mut n) };
+        let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &raw mut n) };
         let mut out = vec![0i64; n as usize];
         let ty = ffi::AVOptionType::AV_OPT_TYPE_INT64;
         // SAFETY: `out` holds `n` zeroed `int64_t`s, the range lies in the
@@ -4035,7 +4166,8 @@ mod rational_array_conversion {
             assert_eq!(rret.err().unwrap_or(0), cret, "{num}/{den}");
             let mut cv = 0i64;
             // SAFETY: as above; `cv` is writable.
-            let got = unsafe { ffi::av_opt_get_int(c.as_obj(), c"scalar".as_ptr(), 0, &mut cv) };
+            let got =
+                unsafe { ffi::av_opt_get_int(c.as_obj(), c"scalar".as_ptr(), 0, &raw mut cv) };
             assert_eq!(got, 0 as c_int);
             assert_eq!(
                 m.as_ref().get_int(c"scalar", SearchFlags::NONE),
@@ -4059,7 +4191,9 @@ mod lookups {
     use core::ptr;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::opt::{EvalContext, ObjectMut, ObjectRef, OptionDefRef, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        EvalContext, ObjectMut, ObjectRef, OptionDefRef, SearchFlags,
+    };
 
     use super::fixture::{OBJ_CLASS, OBJ_OPTIONS, Obj, Owned};
 
@@ -4146,8 +4280,9 @@ mod lookups {
 
     impl Fake {
         fn new() -> Self {
-            Self(&OBJ_CLASS.0)
+            Self(&raw const OBJ_CLASS.0)
         }
+
         fn obj(&self) -> *mut c_void {
             (&raw const self.0).cast_mut().cast()
         }
@@ -4192,7 +4327,7 @@ mod lookups {
                             let mut target = ptr::null_mut();
                             // SAFETY: as above; `target` is a writable slot.
                             let c2 = unsafe {
-                                ffi::av_opt_find2(o.as_obj(), n, u, opt_flags, sf, &mut target)
+                                ffi::av_opt_find2(o.as_obj(), n, u, opt_flags, sf, &raw mut target)
                             };
                             let rust2 = obj.find_with_target(name, unit, opt_flags, flags);
                             assert_eq!(rust2.map(|(o, _)| rust_ident(o)), c_ident(c2), "{ctx}");
@@ -4228,7 +4363,7 @@ mod lookups {
         let class = unsafe { ObjectRef::from_ptr(o.as_obj()) }.unwrap().class();
         let child = Owned::new();
         let child_class = shared(&child).class();
-        let fake: *const ffi::AVClass = &super::fixture::ARR_CLASS.0;
+        let fake: *const ffi::AVClass = &raw const super::fixture::ARR_CLASS.0;
         let fake_obj = (&raw const fake).cast_mut().cast::<c_void>();
         let mut found = 0;
         for name in names() {
@@ -4414,16 +4549,16 @@ mod lookups {
         let mut f = 3;
         let rust = vec![
             code(e.eval_flags(ctx, val, &mut f).map(|()| f), |v| {
-                v as u32 as u64
+                u64::from(v as u32)
             }),
-            code(e.eval_int(ctx, val), |v| v as u32 as u64),
+            code(e.eval_int(ctx, val), |v| u64::from(v as u32)),
             code(e.eval_uint(ctx, val), u64::from),
             code(e.eval_int64(ctx, val), |v| v as u64),
             code(e.eval_float(ctx, val), |v| u64::from(v.to_bits())),
             code(e.eval_double(ctx, val), f64::to_bits),
             code(e.eval_rational(ctx, val), |q| {
                 let q = q.into_raw();
-                (q.num as u32 as u64) << 32 | q.den as u32 as u64
+                u64::from(q.num as u32) << 32 | u64::from(q.den as u32)
             }),
         ];
         let v = val.as_ptr();
@@ -4432,29 +4567,36 @@ mod lookups {
         // SAFETY: a live object of `OBJ_CLASS`, or the class's fake object
         // for an option without child constants; an entry of its table; a
         // live value no refusal applies to; writable outputs.
-        let c = unsafe {
-            vec![
-                c_code(
-                    ffi::av_opt_eval_flags(c_obj, c_e, v, &mut fl),
-                    fl as u32 as u64,
-                ),
-                c_code(ffi::av_opt_eval_int(c_obj, c_e, v, &mut i), i as u32 as u64),
-                c_code(ffi::av_opt_eval_uint(c_obj, c_e, v, &mut u), u64::from(u)),
-                c_code(
-                    ffi::av_opt_eval_int64(c_obj, c_e, v, &mut i64_),
-                    i64_ as u64,
-                ),
-                c_code(
-                    ffi::av_opt_eval_float(c_obj, c_e, v, &mut fv),
-                    u64::from(fv.to_bits()),
-                ),
-                c_code(ffi::av_opt_eval_double(c_obj, c_e, v, &mut d), d.to_bits()),
-                c_code(
-                    ffi::av_opt_eval_q(c_obj, c_e, v, &mut q),
-                    (q.num as u32 as u64) << 32 | q.den as u32 as u64,
-                ),
-            ]
-        };
+        let c = vec![
+            c_code(
+                unsafe { ffi::av_opt_eval_flags(c_obj, c_e, v, &raw mut fl) },
+                u64::from(fl as u32),
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_int(c_obj, c_e, v, &raw mut i) },
+                u64::from(i as u32),
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_uint(c_obj, c_e, v, &raw mut u) },
+                u64::from(u),
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_int64(c_obj, c_e, v, &raw mut i64_) },
+                i64_ as u64,
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_float(c_obj, c_e, v, &raw mut fv) },
+                u64::from(fv.to_bits()),
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_double(c_obj, c_e, v, &raw mut d) },
+                d.to_bits(),
+            ),
+            c_code(
+                unsafe { ffi::av_opt_eval_q(c_obj, c_e, v, &raw mut q) },
+                u64::from(q.num as u32) << 32 | u64::from(q.den as u32),
+            ),
+        ];
         (rust, c)
     }
 
@@ -4557,7 +4699,7 @@ mod lookups {
             for val in steps {
                 let r = e.eval_flags(ctx, val, &mut rust);
                 // SAFETY: as in `evaluate`.
-                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &mut c) };
+                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &raw mut c) };
                 assert_eq!(r.err().unwrap_or(0), ret, "{cflags:?} {val:?}");
                 assert_eq!(rust, c, "{cflags:?} {val:?}");
             }
@@ -4621,7 +4763,7 @@ mod lookups {
             for val in &agreed {
                 let r = e.eval_flags(ctx, val, &mut rust);
                 // SAFETY: as in `evaluate`.
-                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &mut c) };
+                let ret = unsafe { ffi::av_opt_eval_flags(c_obj, c_e, val.as_ptr(), &raw mut c) };
                 assert_eq!(r.err().unwrap_or(0), ret, "{cflags:?} {val:?}");
                 assert_eq!(rust, c, "{cflags:?} {val:?}");
             }
@@ -4676,7 +4818,7 @@ mod lookups {
         static CLASS: Class = Class(ffi::AVClass {
             class_name: c"crustify-opt-bad-dict".as_ptr(),
             item_name: Some(ffi::av_default_item_name),
-            option: &OPTIONS.0[0],
+            option: &raw const OPTIONS.0[0],
             version: 0,
             log_level_offset_offset: 0,
             parent_log_context_offset: 0,
@@ -4689,7 +4831,7 @@ mod lookups {
         });
 
         let o = Box::into_raw(Box::new(DictObj {
-            class: &CLASS.0,
+            class: &raw const CLASS.0,
             dict: ptr::null_mut(),
         }));
         let obj = o.cast::<c_void>();
@@ -4710,10 +4852,14 @@ mod lookups {
             // SAFETY: the live object and an entry of its class's table.
             let c = unsafe { ffi::av_opt_is_set_to_default(obj, c_o) };
             // SAFETY: as above.
-            let c_named = unsafe { ffi::av_opt_is_set_to_default_by_name(obj, c"dict".as_ptr(), 0) };
+            let c_named =
+                unsafe { ffi::av_opt_is_set_to_default_by_name(obj, c"dict".as_ptr(), 0) };
             assert_eq!(c, EINVAL);
             assert_eq!(handle.is_option_set_to_default(o_rust), Err(c));
-            assert_eq!(handle.is_set_to_default(c"dict", SearchFlags::NONE), Err(c_named));
+            assert_eq!(
+                handle.is_set_to_default(c"dict", SearchFlags::NONE),
+                Err(c_named)
+            );
         }
         {
             // SAFETY: as above.

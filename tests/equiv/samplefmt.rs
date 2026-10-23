@@ -2,6 +2,16 @@
 //! as C observes it: through `av_get_sample_fmt_name`, `av_get_sample_fmt`,
 //! `av_get_bytes_per_sample` and `av_sample_fmt_is_planar`, and through
 //! C-allocated storage holding the values.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
@@ -106,12 +116,9 @@ fn c_parse(name: &CStr) -> ffi::AVSampleFormat {
 fn c_properties(f: ffi::AVSampleFormat) -> (c_int, c_int) {
     // SAFETY: both take the enum by value and range-check it, returning 0 for
     // a value outside the table.
-    unsafe {
-        (
-            ffi::av_get_bytes_per_sample(f),
-            ffi::av_sample_fmt_is_planar(f),
-        )
-    }
+    (unsafe { ffi::av_get_bytes_per_sample(f) }, unsafe {
+        ffi::av_sample_fmt_is_planar(f)
+    })
 }
 
 /// A C block of `ffi::AVSampleFormat`, freed with `av_free` on drop.
@@ -127,14 +134,18 @@ impl CFormats {
 
     fn get(&self, i: usize) -> ffi::AVSampleFormat {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_2 = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live, initialised block.
-        unsafe { self.0.add(i).read() }
+        unsafe { v_0_add_2.read() }
     }
 
     fn set(&mut self, i: usize, f: ffi::AVSampleFormat) {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live block, which we own.
-        unsafe { self.0.add(i).write(f) }
+        unsafe { v_0_add.write(f) }
     }
 }
 
@@ -149,10 +160,14 @@ impl Drop for CFormats {
 fn rust_as_c(a: &HeapVec<SampleFormat>) -> Vec<ffi::AVSampleFormat> {
     let ptr = a.as_ptr().cast::<ffi::AVSampleFormat>();
     (0..a.len())
-        // SAFETY: `SampleFormat` is `#[repr(transparent)]` over
-        // `ffi::AVSampleFormat`, and `i` is in bounds of the live, initialised
-        // array `a` borrows.
-        .map(|i| unsafe { ptr.add(i).read() })
+        .map(|i| {
+            // SAFETY: `i` is in bounds of the array `ptr` points into.
+            let at = unsafe { ptr.add(i) };
+            // SAFETY: `SampleFormat` is `#[repr(transparent)]` over
+            // `ffi::AVSampleFormat`, and `i` is in bounds of the live, initialised
+            // array `a` borrows.
+            unsafe { at.read() }
+        })
         .collect()
 }
 
@@ -277,7 +292,7 @@ fn values_c_writes_are_read_back_unchanged() {
     // adopt the C block and read it as `SampleFormat`s.
     let len = c.1;
     let ptr = c.0;
-    core::mem::forget(c);
+    let _ = core::mem::ManuallyDrop::new(c);
     // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
     // `ffi::AVSampleFormat`, whose ownership `forget` gave up; `SampleFormat`
     // is layout-compatible with it, and `av_free` releases it.
@@ -340,12 +355,14 @@ fn default_is_the_format_c_gives_a_fresh_frame() {
     // SAFETY: no arguments; NULL on failure, checked below.
     let mut f = unsafe { ffi::av_frame_alloc() };
     assert!(!f.is_null());
-    // SAFETY: `f` is a live frame `av_frame_alloc` initialised; `format` is
-    // read in place, and `av_frame_free` then releases the frame and NULLs
+    // For the unsafe operations below: `f` is a live frame `av_frame_alloc` initialised; `format`
+    // is read in place, and `av_frame_free` then releases the frame and NULLs
     // the slot.
-    let format = unsafe {
-        let format = core::ptr::addr_of!((*f).format).read();
-        ffi::av_frame_free(&mut f);
+    let format = {
+        // SAFETY: as the comment above this block states.
+        let format = unsafe { (*f).format };
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_frame_free(&raw mut f) };
         format
     };
     assert_eq!(SampleFormat::default().into_raw().0, format);
@@ -436,7 +453,13 @@ mod buffers {
         let mut linesize = -1;
         // SAFETY: C writes only the live local `linesize`.
         let ret = unsafe {
-            ffi::av_samples_get_buffer_size(&mut linesize, channels, samples, f.into_raw(), align)
+            ffi::av_samples_get_buffer_size(
+                &raw mut linesize,
+                channels,
+                samples,
+                f.into_raw(),
+                align,
+            )
         };
         (ret, linesize)
     }
@@ -534,7 +557,7 @@ mod buffers {
         let ret = unsafe {
             ffi::av_samples_alloc(
                 slots.as_mut_ptr(),
-                &mut linesize,
+                &raw mut linesize,
                 channels as c_int,
                 samples as c_int,
                 f.into_raw(),
@@ -560,11 +583,13 @@ mod buffers {
 
     impl Drop for CArray {
         fn drop(&mut self) {
-            // SAFETY: slot 0 of the array owns the sample block, and the
+            // For the unsafe operations below: slot 0 of the array owns the sample block, and the
             // array is itself an `av_calloc` block; each is freed once.
-            unsafe {
-                ffi::av_freep(self.0.cast::<c_void>());
-                ffi::av_freep((&raw mut self.0).cast::<c_void>());
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_freep(self.0.cast::<c_void>()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_freep((&raw mut self.0).cast::<c_void>()) };
             }
         }
     }
@@ -580,8 +605,8 @@ mod buffers {
         // SAFETY: C writes the live locals only.
         let ret = unsafe {
             ffi::av_samples_alloc_array_and_samples(
-                &mut array,
-                &mut linesize,
+                &raw mut array,
+                &raw mut linesize,
                 channels as c_int,
                 samples as c_int,
                 f.into_raw(),
@@ -783,7 +808,7 @@ mod buffers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_lays_out_and_silences_as_c() {
-        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         for f in FORMATS {
             for channels in CHANNELS {
                 for samples in SAMPLES {
@@ -814,7 +839,7 @@ mod buffers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn alloc_array_lays_out_and_silences_as_c() {
-        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        let mut rng = Rng(0x2545_F491_4F6C_DD1D);
         for f in FORMATS {
             for channels in CHANNELS {
                 for samples in SAMPLES {
@@ -868,7 +893,7 @@ mod buffers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn fill_arrays_lays_planes_over_the_buffer_as_c() {
-        let mut rng = Rng(0x1234_5678_9abc_def1);
+        let mut rng = Rng(0x1234_5678_9ABC_DEF1);
         for f in FORMATS {
             for channels in CHANNELS {
                 for align in ALIGNS {
@@ -888,7 +913,7 @@ mod buffers {
                     let ret = unsafe {
                         ffi::av_samples_fill_arrays(
                             slots.as_mut_ptr(),
-                            &mut linesize,
+                            &raw mut linesize,
                             c_buf.as_mut_ptr(),
                             channels as c_int,
                             samples as c_int,
@@ -941,7 +966,7 @@ mod buffers {
             // NULL buffer is only offset.
             let ret = unsafe {
                 ffi::av_samples_fill_arrays(
-                    &mut slot,
+                    &raw mut slot,
                     ptr::null_mut(),
                     ptr::null(),
                     channels,

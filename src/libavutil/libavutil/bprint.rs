@@ -12,13 +12,11 @@
 //! in place and its string may live inside the structure, so Rust keeps it
 //! behind an `av_malloc` block, never by value, under one of two owners:
 //!
-//! - [`BPrintBox`], from [`BPrint::new`] (`av_bprint_init`): the string lives
-//!   in the structure or in an `av_realloc` block it owns; dropping it runs
-//!   `av_bprint_finalize(buf, NULL)`, and [`BPrint::into_string`] /
-//!   [`BPrint::into_bytes`] hand the string out instead;
-//! - [`BPrintOnBuffer`], from [`BPrint::for_buffer`]
-//!   (`av_bprint_init_for_buffer`): the string lives in a caller buffer the
-//!   owner borrows, which C never reallocates or frees, so it is never
+//! - [`BPrintBox`], from [`BPrint::new`] (`av_bprint_init`): the string lives in the structure or
+//!   in an `av_realloc` block it owns; dropping it runs `av_bprint_finalize(buf, NULL)`, and
+//!   [`BPrint::into_string`] / [`BPrint::into_bytes`] hand the string out instead;
+//! - [`BPrintOnBuffer`], from [`BPrint::for_buffer`] (`av_bprint_init_for_buffer`): the string
+//!   lives in a caller buffer the owner borrows, which C never reallocates or frees, so it is never
 //!   finalized.
 //!
 //! Both hand out the same [`BPrintRef`] and [`BPrintMut`] handles. The
@@ -44,7 +42,7 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Wraps: FF_PAD_STRUCTURE
+/// Wraps: `FF_PAD_STRUCTURE`
 ///
 /// A structure `FF_PAD_STRUCTURE(name, size, fields...)` defines: `fields`,
 /// then `char reserved_padding[]` up to exactly `size` bytes, so that later
@@ -80,7 +78,8 @@ mod sealed {
 /// ```
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::{bprint::PaddedStruct, ffi};
+/// use ffmpeg_bindings::libavutil::libavutil::bprint::PaddedStruct;
+/// use ffmpeg_bindings::libavutil::libavutil::ffi;
 /// assert_eq!(<ffi::AVBPrint as PaddedStruct>::SIZE, 1024);
 /// ```
 pub trait PaddedStruct: sealed::Sealed + Sized {
@@ -102,8 +101,9 @@ impl sealed::Sealed for ffi::AVBPrint {}
 
 /// `FF_PAD_STRUCTURE(AVBPrint, 1024, ...)`.
 impl PaddedStruct for ffi::AVBPrint {
-    const SIZE: usize = 1024;
     type Fields = BPrintFields;
+
+    const SIZE: usize = 1024;
 }
 
 // The generator's layout, which `PaddedStruct`'s constants describe: exactly
@@ -204,15 +204,18 @@ impl fmt::Debug for BPrintFieldsRef<'_> {
 }
 
 impl<'a> BPrintFieldsRef<'a> {
-    /// Field: ff_pad_helper_AVBPrint.str
+    /// Field: `ff_pad_helper_AVBPrint.str`
     ///
     /// The string the value borrows, or `None` when `str` is NULL (as in a
     /// zeroed value).
     #[must_use]
     pub fn str(&self) -> Option<&'a CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `str_` field is in bounds; nothing is accessed here.
+        let str_ptr = unsafe { addr_of!((*self.as_ptr()).str_) };
         // SAFETY: a read of the `str` field projected through the shared
         // handle's pointer to a live, initialised `ff_pad_helper_AVBPrint`.
-        let str = unsafe { addr_of!((*self.as_ptr()).str_).read() };
+        let str = unsafe { str_ptr.read() };
         // SAFETY: every writer of `str` leaves it NULL (`zeroed`) or the
         // address of a NUL-terminated string that stays valid and unwritten
         // while this value or a copy can read it: a `&'static CStr`
@@ -221,58 +224,75 @@ impl<'a> BPrintFieldsRef<'a> {
         NonNull::new(str).map(|p| unsafe { CStr::from_ptr(p.as_ptr()) })
     }
 
-    /// Field: ff_pad_helper_AVBPrint.len
+    /// Field: `ff_pad_helper_AVBPrint.len`
     ///
     /// The `len` field: in an `AVBPrint`, the length of everything printed,
     /// which may exceed `size`.
     #[must_use]
-    #[allow(clippy::len_without_is_empty)] // a stored count, not a container
+    #[expect(
+        clippy::len_without_is_empty,
+        reason = "a stored count, not a container"
+    )]
     pub fn len(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `len` field is in bounds; nothing is accessed here.
+        let len_ptr = unsafe { addr_of!((*self.as_ptr()).len) };
         // SAFETY: a read of the `len` field projected through the shared
         // handle's pointer to a live, initialised `ff_pad_helper_AVBPrint`;
         // every bit pattern is a valid `unsigned`.
-        unsafe { addr_of!((*self.as_ptr()).len).read() }
+        unsafe { len_ptr.read() }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.size
+    /// Field: `ff_pad_helper_AVBPrint.size`
     ///
     /// The `size` field: in an `AVBPrint`, the bytes of storage `str` has.
     #[must_use]
     pub fn size(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { addr_of!((*self.as_ptr()).size) };
         // SAFETY: a read of the `size` field projected through the shared
         // handle's pointer to a live, initialised `ff_pad_helper_AVBPrint`;
         // every bit pattern is a valid `unsigned`.
-        unsafe { addr_of!((*self.as_ptr()).size).read() }
+        unsafe { size_ptr.read() }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.size_max
+    /// Field: `ff_pad_helper_AVBPrint.size_max`
     ///
     /// The `size_max` field: in an `AVBPrint`, the most storage `str` may
     /// grow to.
     #[must_use]
     pub fn size_max(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size_max` field is in bounds; nothing is accessed here.
+        let size_max_ptr = unsafe { addr_of!((*self.as_ptr()).size_max) };
         // SAFETY: a read of the `size_max` field projected through the
         // shared handle's pointer to a live, initialised
         // `ff_pad_helper_AVBPrint`; every bit pattern is a valid `unsigned`.
-        unsafe { addr_of!((*self.as_ptr()).size_max).read() }
+        unsafe { size_max_ptr.read() }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.reserved_internal_buffer
+    /// Field: `ff_pad_helper_AVBPrint.reserved_internal_buffer`
     ///
     /// The one byte of `reserved_internal_buffer`: in an `AVBPrint`, the
     /// start of the storage that runs on through the padding.
     #[must_use]
     pub fn internal_buffer(&self) -> [u8; 1] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `reserved_internal_buffer` field is in bounds; nothing is accessed
+        // here.
+        let reserved_internal_buffer_ptr =
+            unsafe { addr_of!((*self.as_ptr()).reserved_internal_buffer) };
         // SAFETY: a read of the `reserved_internal_buffer` field projected
         // through the shared handle's pointer to a live, initialised
         // `ff_pad_helper_AVBPrint`; every bit pattern is a valid `char`.
-        let [b] = unsafe { addr_of!((*self.as_ptr()).reserved_internal_buffer).read() };
-        [b as u8]
+        let [b] = unsafe { reserved_internal_buffer_ptr.read() };
+        [b.cast_unsigned()]
     }
 }
 
 impl BPrintFieldsMut<'_> {
-    /// Field: ff_pad_helper_AVBPrint.str
+    /// Field: `ff_pad_helper_AVBPrint.str`
     ///
     /// Points `str` at `s`, or NULL for `None`. The value only borrows the
     /// string, which outlives it; the old one is not freed.
@@ -282,7 +302,7 @@ impl BPrintFieldsMut<'_> {
         unsafe { self.set_str_borrowed(s) }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.str
+    /// Field: `ff_pad_helper_AVBPrint.str`
     ///
     /// Points `str` at `s`, or NULL for `None`, with a lifetime the value
     /// cannot carry. The value only borrows the string; the old one is not
@@ -296,54 +316,70 @@ impl BPrintFieldsMut<'_> {
     pub unsafe fn set_str_borrowed(&mut self, s: Option<&CStr>) {
         // `str` is `char *` in C, but nothing writes through it: `str()` only
         // reads.
-        let str = s.map_or(core::ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let str = s.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `str_` field is in bounds; nothing is accessed here.
+        let str_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).str_) };
         // SAFETY: a write of the `str` field projected through the exclusive
         // handle's pointer to a live `ff_pad_helper_AVBPrint`; the old value
         // is a borrow, so nothing leaks, and the caller keeps the new string
         // alive for as long as `str()` can return it.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).str_).write(str) }
+        unsafe { str_ptr.write(str) }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.len
+    /// Field: `ff_pad_helper_AVBPrint.len`
     ///
     /// Sets `len`, leaving the other fields as they are.
     pub fn set_len(&mut self, len: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `len` field is in bounds; nothing is accessed here.
+        let len_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).len) };
         // SAFETY: a write of the `len` field projected through the exclusive
         // handle's pointer to a live `ff_pad_helper_AVBPrint`; the old value
         // owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).len).write(len) }
+        unsafe { len_ptr.write(len) }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.size
+    /// Field: `ff_pad_helper_AVBPrint.size`
     ///
     /// Sets `size`, leaving the other fields as they are.
     pub fn set_size(&mut self, size: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).size) };
         // SAFETY: a write of the `size` field projected through the exclusive
         // handle's pointer to a live `ff_pad_helper_AVBPrint`; the old value
         // owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).size).write(size) }
+        unsafe { size_ptr.write(size) }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.size_max
+    /// Field: `ff_pad_helper_AVBPrint.size_max`
     ///
     /// Sets `size_max`, leaving the other fields as they are.
     pub fn set_size_max(&mut self, size_max: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size_max` field is in bounds; nothing is accessed here.
+        let size_max_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).size_max) };
         // SAFETY: a write of the `size_max` field projected through the
         // exclusive handle's pointer to a live `ff_pad_helper_AVBPrint`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).size_max).write(size_max) }
+        unsafe { size_max_ptr.write(size_max) }
     }
 
-    /// Field: ff_pad_helper_AVBPrint.reserved_internal_buffer
+    /// Field: `ff_pad_helper_AVBPrint.reserved_internal_buffer`
     ///
     /// Sets the one byte of `reserved_internal_buffer`.
     pub fn set_internal_buffer(&mut self, buffer: [u8; 1]) {
         let [b] = buffer;
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `reserved_internal_buffer` field is in bounds; nothing is accessed here.
+        let reserved_internal_buffer_ptr =
+            unsafe { &raw mut (*self.as_mut_ptr()).reserved_internal_buffer };
         // SAFETY: a write of the `reserved_internal_buffer` field projected
         // through the exclusive handle's pointer to a live
         // `ff_pad_helper_AVBPrint`; the old byte owns nothing to leak.
         unsafe {
-            addr_of_mut!((*self.as_mut_ptr()).reserved_internal_buffer).write([b as c_char])
+            reserved_internal_buffer_ptr.write([b.cast_signed()]);
         }
     }
 }
@@ -394,7 +430,7 @@ unsafe impl Send for BPrintMut<'_> {}
 // handle.
 unsafe impl Sync for BPrintMut<'_> {}
 
-/// Wraps: av_bprint_finalize
+/// Wraps: `av_bprint_finalize`
 ///
 /// # Safety
 ///
@@ -442,7 +478,7 @@ pub type BPrintBox = CBox<BPrint, BPrintFinalize>;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct BufferStorage<'b>(PhantomData<&'b mut [u8]>);
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 ///
 /// # Safety
 ///
@@ -474,25 +510,26 @@ impl_cdrop!(BufferStorage<'_>, BPrint, free_storage);
 pub type BPrintOnBuffer<'b> = CBox<BPrint, BufferStorage<'b>>;
 
 impl BPrint {
-    /// `AV_BPRINT_SIZE_UNLIMITED` as a `size_max`: grow without limit (up to
-    /// `u32::MAX` bytes). The macro is `((unsigned)-1)`, a cast bindgen does
-    /// not evaluate.
-    pub const SIZE_UNLIMITED: u32 = u32::MAX;
-
+    /// The bytes of string, NUL included, the structure holds itself: from
+    /// `reserved_internal_buffer` to its end, as `av_bprint_init` sizes its
+    /// automatic storage.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the structure holds a few hundred bytes of inline storage"
+    )]
+    pub const INLINE_CAPACITY: u32 =
+        (size_of::<ffi::AVBPrint>() - offset_of!(ffi::AVBPrint, reserved_internal_buffer)) as u32;
     /// `AV_BPRINT_SIZE_AUTOMATIC` as a `size_max`: replaced by
     /// [`INLINE_CAPACITY`](Self::INLINE_CAPACITY), so the string stays in the
     /// structure and nothing is allocated for it.
     pub const SIZE_AUTOMATIC: u32 = ffi::AV_BPRINT_SIZE_AUTOMATIC;
-
     /// `AV_BPRINT_SIZE_COUNT_ONLY` as a `size_max`: store nothing, only count
     /// the length.
     pub const SIZE_COUNT_ONLY: u32 = ffi::AV_BPRINT_SIZE_COUNT_ONLY;
-
-    /// The bytes of string, NUL included, the structure holds itself: from
-    /// `reserved_internal_buffer` to its end, as `av_bprint_init` sizes its
-    /// automatic storage.
-    pub const INLINE_CAPACITY: u32 =
-        (size_of::<ffi::AVBPrint>() - offset_of!(ffi::AVBPrint, reserved_internal_buffer)) as u32;
+    /// `AV_BPRINT_SIZE_UNLIMITED` as a `size_max`: grow without limit (up to
+    /// `u32::MAX` bytes). The macro is `((unsigned)-1)`, a cast bindgen does
+    /// not evaluate.
+    pub const SIZE_UNLIMITED: u32 = u32::MAX;
 
     /// Storage for a buffer, which `fill` initialises in place, then adopted
     /// under `policy`; `None` when the storage cannot be allocated.
@@ -515,7 +552,7 @@ impl BPrint {
         Some(buf)
     }
 
-    /// Wraps: av_bprint_init
+    /// Wraps: `av_bprint_init`
     ///
     /// An empty buffer that may grow to `size_max` bytes, NUL included, with
     /// room for `size_init` bytes up front. The string starts inside the
@@ -527,6 +564,7 @@ impl BPrint {
     /// that cannot be allocated leaves the buffer inline, as C does.
     ///
     /// `None` only when the structure itself cannot be allocated.
+    #[must_use]
     pub fn new(size_init: u32, size_max: u32) -> Option<BPrintBox> {
         let fill = |buf| {
             // SAFETY: `buf` is writable storage for one `AVBPrint`.
@@ -538,7 +576,7 @@ impl BPrint {
         unsafe { Self::init_with(BPrintFinalize, fill) }
     }
 
-    /// Wraps: av_bprint_init_for_buffer
+    /// Wraps: `av_bprint_init_for_buffer`
     ///
     /// An empty buffer printing into `buffer`, never beyond it: appends past
     /// `buffer.len() - 1` bytes are counted but truncated. C writes the NUL
@@ -575,9 +613,12 @@ impl BPrint {
         // `av_realloc` block resized to `min(len + 1, size)`, or an
         // `av_memdup` of the inline one, NULL on failure; and sets `size` to
         // that length.
-        let ret = unsafe { ffi::av_bprint_finalize(p, &mut str) };
+        let ret = unsafe { ffi::av_bprint_finalize(p, &raw mut str) };
+        // SAFETY: `p` is to a live object, as the access below relies on,
+        // so the place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { addr_of!((*p).size) };
         // SAFETY: a read of a projected field of the live structure.
-        let real_size = unsafe { addr_of!((*p).size).read() };
+        let real_size = unsafe { size_ptr.read() };
         // SAFETY: the structure's storage is ours, released once; the string
         // no longer points into it.
         unsafe { ffi::av_free(p.cast()) };
@@ -593,7 +634,7 @@ impl BPrint {
         Ok(Some((str, real_size as usize - 1)))
     }
 
-    /// Wraps: av_bprint_finalize
+    /// Wraps: `av_bprint_finalize`
     ///
     /// The stored string of `buf` as an owned C string, consuming the buffer
     /// without copying an allocated string. It ends at its first NUL, as C
@@ -603,8 +644,12 @@ impl BPrint {
     ///
     /// A count-only buffer yields an empty string, where C hands back a
     /// block that holds no string.
+    ///
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(ENOMEM)` when an inline string cannot be copied out.
     pub fn into_string(buf: BPrintBox) -> Result<HeapString, i32> {
-        let enomem = -(ffi::ENOMEM as i32);
+        let enomem = -(ffi::ENOMEM.cast_signed());
         match Self::finalize(buf)? {
             // SAFETY: on success `str` is a fresh `av_realloc` or `av_memdup`
             // block the caller owns, NUL-terminated at `stored` (C's invariant
@@ -615,14 +660,18 @@ impl BPrint {
         }
     }
 
-    /// Wraps: av_bprint_finalize
+    /// Wraps: `av_bprint_finalize`
     ///
     /// The stored bytes of `buf`, [`BPrintRef::as_bytes`] as an owned array,
     /// consuming the buffer without copying an allocated string; the NUL
     /// terminator follows them in the allocation. Fails with
     /// `AVERROR(ENOMEM)` when an inline string cannot be copied out.
+    ///
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(ENOMEM)` when an inline string cannot be copied out.
     pub fn into_bytes(buf: BPrintBox) -> Result<HeapVec<u8>, i32> {
-        let enomem = -(ffi::ENOMEM as i32);
+        let enomem = -(ffi::ENOMEM.cast_signed());
         match Self::finalize(buf)? {
             Some((str, stored)) => {
                 // SAFETY: `str` is a fresh `av_malloc`-family block the
@@ -639,20 +688,28 @@ impl<'a> BPrintRef<'a> {
     /// `(str, len, size)`, read by value.
     fn state(&self) -> (*mut c_char, u32, u32) {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `len` field is in bounds; nothing is accessed here.
+        let len_ptr = unsafe { &raw const (*p).len };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*p).size };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `str_` field is in bounds; nothing is accessed here.
+        let str_ptr = unsafe { &raw const (*p).str_ };
         // SAFETY: reads of projected fields through the shared handle.
-        unsafe {
-            (
-                addr_of!((*p).str_).read(),
-                addr_of!((*p).len).read(),
-                addr_of!((*p).size).read(),
-            )
-        }
+        (
+            unsafe { str_ptr.read() },
+            unsafe { len_ptr.read() },
+            unsafe { size_ptr.read() },
+        )
     }
 
     /// Field: AVBPrint.str
     ///
     /// The stored string: the first `min(len(), size() - 1)` bytes appended,
     /// NULs included, without the terminator. Empty for a count-only buffer.
+    #[must_use]
     pub fn as_bytes(&self) -> &'a [u8] {
         let (str, len, size) = self.state();
         let stored = len.min(size.saturating_sub(1)) as usize;
@@ -671,6 +728,7 @@ impl<'a> BPrintRef<'a> {
     /// The stored string as C reads it: up to its first NUL, which binary
     /// content may place before [`as_bytes`](Self::as_bytes) ends. Empty for
     /// a count-only buffer.
+    #[must_use]
     pub fn as_c_str(&self) -> &'a CStr {
         let (str, len, size) = self.state();
         if size == 0 {
@@ -687,12 +745,14 @@ impl<'a> BPrintRef<'a> {
     ///
     /// The total length of everything appended, which exceeds what is
     /// stored once the buffer is truncated (at least [`size`](Self::size)).
+    #[must_use]
     pub fn len(&self) -> u32 {
         self.state().1
     }
 
     /// Whether nothing has been appended since the buffer was initialised or
     /// last truncated to empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -701,28 +761,34 @@ impl<'a> BPrintRef<'a> {
     ///
     /// The bytes the string has room for, NUL included: 0 for a count-only
     /// buffer.
+    #[must_use]
     pub fn size(&self) -> u32 {
         self.state().2
     }
 
-    /// Field: AVBPrint.size_max
+    /// Field: `AVBPrint.size_max`
     ///
     /// The most [`size`](Self::size) may grow to: [`BPrint::SIZE_AUTOMATIC`]
     /// replaced by [`BPrint::INLINE_CAPACITY`], and `size()` itself for a
     /// [`BPrintOnBuffer`].
+    #[must_use]
     pub fn size_max(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `size_max` field is in bounds; nothing is accessed here.
+        let size_max_ptr = unsafe { addr_of!((*self.as_ptr()).size_max) };
         // SAFETY: a read of a projected field through the shared handle.
-        unsafe { addr_of!((*self.as_ptr()).size_max).read() }
+        unsafe { size_max_ptr.read() }
     }
 
-    /// Field: AVBPrint.reserved_internal_buffer
-    /// Field: AVBPrint.reserved_padding
+    /// Field: `AVBPrint.reserved_internal_buffer`
+    /// Field: `AVBPrint.reserved_padding`
     ///
     /// Whether the string is kept in the structure itself: its inline
     /// storage starts at `reserved_internal_buffer` and runs through
     /// `reserved_padding` to the end, [`BPrint::INLINE_CAPACITY`] bytes.
     /// `false` once it has moved to an allocation, and for a
     /// [`BPrintOnBuffer`] printing into a non-empty buffer.
+    #[must_use]
     pub fn is_inline(&self) -> bool {
         let p = self.as_ptr();
         // SAFETY: only the field's address is taken, through the shared
@@ -745,20 +811,25 @@ impl BPrintMut<'_> {
             return;
         }
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the access below relies on,
+        // so the place of its `len` field is in bounds; nothing is accessed here.
+        let len_ptr = unsafe { addr_of_mut!((*p).len) };
         // SAFETY: a write of a projected field through the exclusive handle.
-        unsafe { addr_of_mut!((*p).len).write(len) };
+        unsafe { len_ptr.write(len) };
         if size > 0 {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let str_3 = unsafe { str.add(len.min(size - 1) as usize) };
             // SAFETY: by `BPrint`'s invariants `str` is valid for `size`
             // bytes of writes, reached through the exclusive handle's buffer;
             // the NUL lands at `min(len, size - 1)`, within them, where C's
             // own appends keep it.
-            unsafe { str.add(len.min(size - 1) as usize).write(0) };
+            unsafe { str_3.write(0) };
         }
     }
 }
 
 impl BPrintRef<'_> {
-    /// Wraps: av_bprint_is_complete
+    /// Wraps: `av_bprint_is_complete`
     ///
     /// Whether everything appended is stored: `false` once an append was
     /// truncated, by the `size_max` limit or a failed allocation. Compare
@@ -802,10 +873,12 @@ impl Drop for Terminate<'_, '_> {
     fn drop(&mut self) {
         let (str, len, size) = self.0.as_ref().state();
         if size > 0 {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let str_2 = unsafe { str.add(len.min(size - 1) as usize) };
             // SAFETY: by `BPrint`'s invariants `str` is valid for `size`
             // bytes of writes, reached through the exclusive handle the
             // guard borrows; the NUL lands within them.
-            unsafe { str.add(len.min(size - 1) as usize).write(0) };
+            unsafe { str_2.write(0) };
         }
     }
 }
@@ -815,7 +888,7 @@ impl Drop for Terminate<'_, '_> {
 /// truncated when it cannot, which [`BPrintRef::is_complete`] reports. They
 /// never fail otherwise and never grow a [`BPrintOnBuffer`]'s string.
 impl BPrintMut<'_> {
-    /// Wraps: av_bprint_append_data
+    /// Wraps: `av_bprint_append_data`
     ///
     /// Appends `data`, NULs included. Data longer than `u32::MAX` bytes goes
     /// in `u32::MAX`-byte pieces, as many calls; empty data changes nothing.
@@ -827,20 +900,26 @@ impl BPrintMut<'_> {
             // `size` (growing only a string it owns); `piece` is valid for
             // reads of its length, which fits the `unsigned` size, and is
             // not part of the buffer, which `&mut self` excludes.
-            unsafe { ffi::av_bprint_append_data(p, piece.as_ptr().cast(), piece.len() as c_uint) }
+            unsafe {
+                ffi::av_bprint_append_data(
+                    p,
+                    piece.as_ptr().cast(),
+                    c_uint::try_from(piece.len()).unwrap_or(c_uint::MAX),
+                );
+            }
         }
     }
 
-    /// Wraps: av_bprint_chars
+    /// Wraps: `av_bprint_chars`
     ///
     /// Appends `n` copies of `byte`.
     pub fn append_repeated(&mut self, byte: u8, n: u32) {
         // SAFETY: the exclusive handle addresses an initialised buffer, which
         // `av_bprint_chars` appends to within its `size`.
-        unsafe { ffi::av_bprint_chars(self.as_mut_ptr(), byte as c_char, n) }
+        unsafe { ffi::av_bprint_chars(self.as_mut_ptr(), byte.cast_signed(), n) }
     }
 
-    /// Wraps: av_bprint_clear
+    /// Wraps: `av_bprint_clear`
     ///
     /// Empties the buffer, keeping its storage: [`len`](BPrintRef::len)
     /// becomes 0, which also makes a truncated buffer with storage
@@ -853,7 +932,7 @@ impl BPrintMut<'_> {
         unsafe { ffi::av_bprint_clear(self.as_mut_ptr()) }
     }
 
-    /// Wraps: av_bprint_escape
+    /// Wraps: `av_bprint_escape`
     ///
     /// Appends `src` escaped by `mode`, as
     /// [`avstring::escape`](super::avstring::escape) returns it: `special`
@@ -878,11 +957,11 @@ impl BPrintMut<'_> {
                 special,
                 mode.into(),
                 flags.bits(),
-            )
+            );
         }
     }
 
-    /// Wraps: av_bprintf
+    /// Wraps: `av_bprintf`
     ///
     /// Appends the text `args` formats; build `args` with [`format_args!`].
     /// Rust formats the text, since C's `printf` arguments have no safe Rust
@@ -904,7 +983,7 @@ impl BPrintMut<'_> {
         unsafe { ffi::av_bprintf(self.as_mut_ptr(), c"%s".as_ptr(), text.as_ptr()) }
     }
 
-    /// Wraps: av_vbprintf
+    /// Wraps: `av_vbprintf`
     ///
     /// Appends the string `s`, up to its NUL, through `av_vbprintf` with a
     /// `"%s"` format (its `va_list` built by the `crustify_av_vbprintf`
@@ -917,7 +996,7 @@ impl BPrintMut<'_> {
         unsafe { ffi::crustify_av_vbprintf(self.as_mut_ptr(), c"%s".as_ptr(), s.as_ptr()) }
     }
 
-    /// Wraps: av_bprint_strftime
+    /// Wraps: `av_bprint_strftime`
     ///
     /// Appends `tm` formatted by C's `strftime` under `fmt`, in the current
     /// `LC_TIME` locale (`%Z` and `%s` also read the time zone). An empty
@@ -952,7 +1031,7 @@ impl BPrintMut<'_> {
         unsafe { ffi::av_bprint_strftime(self.as_mut_ptr(), fmt.as_ptr(), tm.as_ptr()) }
     }
 
-    /// Wraps: av_bprint_get_buffer
+    /// Wraps: `av_bprint_get_buffer`
     ///
     /// Appends what `f` writes straight into the string's storage. C first
     /// makes room for `size` bytes past the stored text, growing a string the
@@ -984,6 +1063,10 @@ impl BPrintMut<'_> {
     /// });
     /// assert_eq!((n, buf.as_ref().as_bytes()), (3, &b"abc"[..]));
     /// ```
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "`written <= max < room`, which is below the buffer's `unsigned` size"
+    )]
     pub fn append_with(&mut self, size: u32, f: impl FnOnce(&mut [u8]) -> usize) -> usize {
         let mut mem = ptr::null_mut();
         let mut room = 0;
@@ -992,14 +1075,20 @@ impl BPrintMut<'_> {
         // bytes; `mem` and `room` are writable out-slots, which C sets to
         // `str + len` and the `size - len` bytes from there (NULL and 0 when
         // the buffer is truncated or has no storage).
-        unsafe { ffi::av_bprint_get_buffer(self.as_mut_ptr(), size, &mut mem, &mut room) };
+        unsafe { ffi::av_bprint_get_buffer(self.as_mut_ptr(), size, &raw mut mem, &raw mut room) };
         let len = self.as_ref().len();
         // The last byte of the room stays for the NUL, and `len` stays within
         // the cap `av_bprint_grow` keeps it under.
-        let max = room.saturating_sub(1).min(size).min(LEN_MAX.saturating_sub(len)) as usize;
+        let max = room
+            .saturating_sub(1)
+            .min(size)
+            .min(LEN_MAX.saturating_sub(len)) as usize;
         let Some(spare) = NonNull::new(mem.cast::<u8>()).filter(|_| max > 0) else {
             let written = f(&mut []);
-            assert!(written == 0, "append_with: {written} bytes written into no storage");
+            assert!(
+                written == 0,
+                "append_with: {written} bytes written into no storage"
+            );
             return 0;
         };
         let spare = spare.as_ptr();
@@ -1020,11 +1109,13 @@ impl BPrintMut<'_> {
             written <= max,
             "append_with: {written} bytes written into {max} bytes of storage"
         );
-        // SAFETY: a write of a projected field through the exclusive handle's
-        // pointer; `len + written` is below `size` (`written <= max < room`),
-        // so the guard's NUL lands right after the text, and at most
-        // `LEN_MAX`.
-        unsafe { addr_of_mut!((*terminate.0.as_mut_ptr()).len).write(len + written as u32) };
+        // SAFETY: the exclusive handle's pointer is to a live `AVBPrint`, so the place of its
+        // `len` field is in bounds; nothing is accessed here.
+        let len_ptr = unsafe { addr_of_mut!((*terminate.0.as_mut_ptr()).len) };
+        // SAFETY: a write of the projected field; `len + written` is below `size`
+        // (`written <= max < room`), so the guard's NUL lands right after the text, and at
+        // most `LEN_MAX`.
+        unsafe { len_ptr.write(len + written as u32) };
         drop(terminate);
         written
     }
@@ -1036,6 +1127,7 @@ impl BPrintMut<'_> {
 ///
 /// ```
 /// use core::fmt::Write;
+///
 /// use ffmpeg_bindings::libavutil::libavutil::bprint::BPrint;
 /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
 /// write!(buf.as_mut(), "{}-{}", 1, '\0').unwrap();
@@ -1207,9 +1299,12 @@ impl<'a> TmRef<'a> {
     /// ```
     #[must_use]
     pub fn zone(&self) -> Option<&'a CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `tm_zone` field is in bounds; nothing is accessed here.
+        let tm_zone_ptr = unsafe { addr_of!((*self.as_ptr()).tm_zone) };
         // SAFETY: a read of the `tm_zone` field projected through the shared
         // handle's pointer to a live, initialised `struct tm`.
-        let zone = unsafe { addr_of!((*self.as_ptr()).tm_zone).read() };
+        let zone = unsafe { tm_zone_ptr.read() };
         // SAFETY: every writer leaves `tm_zone` NULL (`zeroed`) or a
         // `&'static CStr` (`set_zone`), NUL-terminated and never written.
         NonNull::new(zone.cast_mut()).map(|p| unsafe { CStr::from_ptr(p.as_ptr()) })
@@ -1221,14 +1316,29 @@ impl TmMut<'_> {
     /// borrows the string.
     pub fn set_zone(&mut self, zone: Option<&'static CStr>) {
         let zone = zone.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `tm_zone` field is in bounds; nothing is accessed here.
+        let tm_zone_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).tm_zone) };
         // SAFETY: a write of the `tm_zone` field projected through the
         // exclusive handle's pointer to a live `struct tm`; the old value is
         // a borrow, so nothing leaks, and the new one lives for the program.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).tm_zone).write(zone) }
+        unsafe { tm_zone_ptr.write(zone) }
     }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use super::*;
 
@@ -1274,7 +1384,11 @@ mod unit_tests {
 
     #[test]
     fn new_default_and_zeroed_fields_are_empty() {
-        for f in [BPrintFields::new(), BPrintFields::default(), BPrintFields::zeroed()] {
+        for f in [
+            BPrintFields::new(),
+            BPrintFields::default(),
+            BPrintFields::zeroed(),
+        ] {
             let r = f.as_ref();
             assert_eq!(r.str(), None);
             assert_eq!((r.len(), r.size(), r.size_max()), (0, 0, 0));
@@ -1289,11 +1403,11 @@ mod unit_tests {
         f.as_mut().set_len(u32::MAX);
         f.as_mut().set_size(1004);
         f.as_mut().set_size_max(1);
-        f.as_mut().set_internal_buffer([0xff]);
+        f.as_mut().set_internal_buffer([0xFF]);
         let r = f.as_ref();
         assert_eq!(r.str(), Some(c"so far"));
         assert_eq!((r.len(), r.size(), r.size_max()), (u32::MAX, 1004, 1));
-        assert_eq!(r.internal_buffer(), [0xff]);
+        assert_eq!(r.internal_buffer(), [0xFF]);
         // The raw fields hold exactly what was set.
         let raw = f.0;
         assert_eq!(raw.str_.cast_const(), c"so far".as_ptr());
@@ -1373,7 +1487,7 @@ mod unit_tests {
     }
 
     /// The finalizing policy releases a grown string with the structure;
-    /// LeakSanitizer reports either one left behind.
+    /// `LeakSanitizer` reports either one left behind.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn dropping_a_grown_buffer_frees_its_string() {
@@ -1389,12 +1503,12 @@ mod unit_tests {
         assert!(buf.as_ref().size() >= 4096);
     }
 
-    /// The buffer policy frees only the structure: AddressSanitizer reports
+    /// The buffer policy frees only the structure: `AddressSanitizer` reports
     /// a free of the caller's (Rust) buffer, which then stays readable.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn dropping_a_buffer_on_a_caller_buffer_leaves_it_alone() {
-        let mut out = vec![0xaa_u8; 8];
+        let mut out = vec![0xAA_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
         chars(&mut buf.as_mut(), b'z', 20);
         assert_eq!(buf.as_ref().as_bytes(), b"zzzzzzz");
@@ -1406,7 +1520,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn truncate_moves_the_terminator_within_the_string() {
-        let mut out = [0xaa_u8; 8];
+        let mut out = [0xAA_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
         chars(&mut buf.as_mut(), b'a', 12);
         // Still truncated: the terminator stays at `size - 1`.
@@ -1442,13 +1556,15 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn terminate_reterminates_the_buffer_on_drop() {
-        let mut out = [0xa5_u8; 4];
+        let mut out = [0xA5_u8; 4];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
         buf.as_mut().append_bytes(b"ab");
         let mut m = buf.as_mut();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_2 = unsafe { m.as_ref().state().0.add(2) };
         // SAFETY: byte 2 of the 4-byte caller buffer, written through the
         // exclusive handle's string.
-        unsafe { m.as_ref().state().0.add(2).write(b'x' as c_char) };
+        unsafe { v_0_add_2.write(b'x' as c_char) };
         drop(Terminate(&mut m));
         assert_eq!(buf.as_ref().as_c_str(), c"ab");
 
@@ -1459,9 +1575,11 @@ mod unit_tests {
         }));
         assert!(r.is_err());
         buf.as_mut().append_repeated(b'c', 9);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add = unsafe { buf.as_mut().as_ref().state().0.add(3) };
         // SAFETY: as above, the last byte, where the NUL of a truncated
         // buffer sits.
-        unsafe { buf.as_mut().as_ref().state().0.add(3).write(b'x' as c_char) };
+        unsafe { v_0_add.write(b'x' as c_char) };
         drop(Terminate(&mut buf.as_mut()));
         drop(buf);
         assert_eq!(out, *b"abc\0");
@@ -1504,7 +1622,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn append_with_restores_the_terminator_when_its_closure_panics() {
-        let mut out = [0xa5_u8; 8];
+        let mut out = [0xA5_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
         buf.as_mut().append_bytes(b"ok");
         let r = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
@@ -1526,7 +1644,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn append_with_hands_out_zeroed_storage_short_of_the_last_byte() {
-        let mut out = [0xa5_u8; 8];
+        let mut out = [0xA5_u8; 8];
         let mut buf = BPrint::for_buffer(&mut out).unwrap();
         let mut seen = Vec::new();
         let n = buf.as_mut().append_with(100, |spare| {
@@ -1598,7 +1716,10 @@ mod unit_tests {
         assert_eq!(raw.tm_gmtoff, c_long::MIN);
         assert_eq!(raw.tm_zone, c"CET".as_ptr());
         let r = t.as_ref();
-        assert_eq!((r.year(), r.yday(), r.gmtoff()), (c_int::MIN, c_int::MAX, c_long::MIN));
+        assert_eq!(
+            (r.year(), r.yday(), r.gmtoff()),
+            (c_int::MIN, c_int::MAX, c_long::MIN)
+        );
         assert_eq!(r.zone(), Some(c"CET"));
         t.as_mut().set_zone(None);
         assert!(t.0.tm_zone.is_null());

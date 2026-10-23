@@ -1,6 +1,13 @@
 //! Equivalence of `libavutil/parseutils.h`'s parsers with the raw C calls,
 //! on the same inputs: results, errors, the out-parameters C writes on
 //! success, and the messages C logs.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::cell::RefCell;
 use core::ffi::{CStr, c_int, c_void};
@@ -49,7 +56,7 @@ fn color_names() -> Vec<&'static CStr> {
         .map_while(|i| {
             // SAFETY: `av_get_known_color_name` bounds-checks the index and
             // returns NULL past the table, or a static name.
-            let name = unsafe { ffi::av_get_known_color_name(i, ptr::null_mut()) };
+            let name = unsafe { ffi::av_get_known_color_name(i, null_mut()) };
             // SAFETY: a non-NULL name is a static NUL-terminated string.
             (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
         })
@@ -272,7 +279,7 @@ fn captured(f: impl FnOnce()) -> Vec<Line> {
 }
 
 /// Runs the test `name` alone in a child process, so that no other test
-/// logs through the callback it installs; true in that child. (BSan reports
+/// logs through the callback it installs; true in that child. (`BSan` reports
 /// a false use-after-free in another thread's `av_strtod` while a capturing
 /// callback is installed; see `equiv/imgutils.rs::isolated`.)
 fn isolated(name: &str) -> bool {
@@ -321,7 +328,9 @@ fn failure_messages_agree() {
         return;
     }
     let _s = LogState::lock();
-    let mut ctx = Ctx { class: &CLASS.0 };
+    let mut ctx = Ctx {
+        class: &raw const CLASS.0,
+    };
     let obj: *mut c_void = (&raw mut ctx).cast();
     for &color in COLORS {
         let len = color.count_bytes();
@@ -351,7 +360,7 @@ fn failure_messages_agree() {
 fn c_size(size: &CStr) -> Result<(i32, i32), i32> {
     let (mut w, mut h) = (-7, -7);
     // SAFETY: `w` and `h` are writable locals and `size` is NUL-terminated.
-    let ret = unsafe { ffi::av_parse_video_size(&mut w, &mut h, size.as_ptr()) };
+    let ret = unsafe { ffi::av_parse_video_size(&raw mut w, &raw mut h, size.as_ptr()) };
     if ret < 0 {
         assert_eq!((w, h), (-7, -7), "C wrote a failed size");
         Err(ret)
@@ -464,7 +473,7 @@ fn video_sizes_agree() {
 fn c_time(s: &CStr, duration: bool) -> Result<i64, i32> {
     let mut t = 0;
     // SAFETY: `t` is a writable local and `s` is NUL-terminated.
-    let ret = unsafe { ffi::av_parse_time(&mut t, s.as_ptr(), c_int::from(duration)) };
+    let ret = unsafe { ffi::av_parse_time(&raw mut t, s.as_ptr(), c_int::from(duration)) };
     if ret < 0 {
         assert_eq!(t, i64::MIN, "C stores INT64_MIN on failure");
         Err(ret)
@@ -526,8 +535,8 @@ fn durations_agree() {
 
 /// Serializes this suite's local-time parses. glibc's `mktime` and
 /// `localtime_r` refresh the cached time zone under glibc's internal
-/// `tzset_lock`, which TSan cannot see, so it reports concurrent calls as
-/// racing in `tzset_internal`; holding this lock shows TSan the order glibc's
+/// `tzset_lock`, which `TSan` cannot see, so it reports concurrent calls as
+/// racing in `tzset_internal`; holding this lock shows `TSan` the order glibc's
 /// lock already guarantees.
 static LOCAL_TIME: Mutex<()> = Mutex::new(());
 
@@ -675,7 +684,7 @@ mod info_tags_and_colors {
         for i in (0..=200).chain([i32::MAX as usize]) {
             let mut rgb = ptr::null();
             // SAFETY: `rgb` is a writable slot.
-            let name = unsafe { ffi::av_get_known_color_name(i as c_int, &mut rgb) };
+            let name = unsafe { ffi::av_get_known_color_name(i as c_int, &raw mut rgb) };
             match known_color_name(i) {
                 None => assert!(name.is_null(), "{i}"),
                 Some((n, c)) => {
@@ -688,7 +697,7 @@ mod info_tags_and_colors {
         // C bounds-checks the index as unsigned.
         let mut rgb = ptr::null();
         // SAFETY: as above.
-        assert!(unsafe { ffi::av_get_known_color_name(-1, &mut rgb) }.is_null());
+        assert!(unsafe { ffi::av_get_known_color_name(-1, &raw mut rgb) }.is_null());
     }
 }
 
@@ -794,7 +803,7 @@ mod ratios_and_dates {
         // SAFETY: a writable local, a live string, a non-negative `max`, a
         // corpus of expressions the evaluator handles without undefined
         // behaviour, and a NULL or live logging context.
-        let ret = unsafe { ffi::av_parse_ratio(&mut q, s.as_ptr(), max, log_offset, ctx) };
+        let ret = unsafe { ffi::av_parse_ratio(&raw mut q, s.as_ptr(), max, log_offset, ctx) };
         if ret < 0 {
             Err(ret)
         } else {
@@ -806,7 +815,7 @@ mod ratios_and_dates {
     fn c_rate(s: &CStr) -> Result<(i32, i32), i32> {
         let mut q = ffi::AVRational::default();
         // SAFETY: a writable local and a live string of the corpus.
-        let ret = unsafe { ffi::av_parse_video_rate(&mut q, s.as_ptr()) };
+        let ret = unsafe { ffi::av_parse_video_rate(&raw mut q, s.as_ptr()) };
         if ret < 0 {
             Err(ret)
         } else {
@@ -841,7 +850,7 @@ mod ratios_and_dates {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_ratios_agree() {
-        let mut state = 0x0bad_c0de_1234_5678u64;
+        let mut state = 0x0BAD_C0DE_1234_5678u64;
         let mut next = move || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -875,7 +884,9 @@ mod ratios_and_dates {
             return;
         }
         let _s = LogState::lock();
-        let mut ctx = Ctx { class: &CLASS.0 };
+        let mut ctx = Ctx {
+            class: &raw const CLASS.0,
+        };
         let obj: *mut c_void = (&raw mut ctx).cast();
         for s in RATIOS {
             for offset in [0, -8, 8, MAX_OFFSET] {
@@ -1031,7 +1042,7 @@ mod ratios_and_dates {
             },
             Tm::new(),
         );
-        let mut state = 0x5eed_5eed_5eed_5eedu64;
+        let mut state = 0x5EED_5EED_5EED_5EEDu64;
         let mut next = move || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -1062,7 +1073,7 @@ mod ratios_and_dates {
         };
         // SAFETY: a live local `struct tm`; every caller checked that C's
         // arithmetic does not overflow (the wrapper returned a value).
-        unsafe { ffi::av_timegm(&mut c) }
+        unsafe { ffi::av_timegm(&raw mut c) }
     }
 
     #[test]
@@ -1093,7 +1104,7 @@ mod ratios_and_dates {
             5_881_616,
             i32::MAX,
         ];
-        let mut state = 0x7777_aaaa_5555_3333u64;
+        let mut state = 0x7777_AAAA_5555_3333u64;
         let mut next = move || {
             state ^= state << 13;
             state ^= state >> 7;

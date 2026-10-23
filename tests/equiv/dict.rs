@@ -7,6 +7,16 @@
 //! entry. C's default copy (no flags) merges keys equal case-insensitively, so
 //! it matches only for dictionaries without such duplicates
 //! (`clone_matches_the_default_copy_without_duplicate_keys`).
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use core::ffi::{CStr, c_char, c_int};
 use core::ptr;
@@ -33,14 +43,14 @@ impl CDict {
     fn set(&mut self, key: &CStr, value: Option<&CStr>, flags: c_int) -> c_int {
         let value = value.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: our own slot; the strings are live for the call.
-        unsafe { ffi::av_dict_set(&mut self.0, key.as_ptr(), value, flags) }
+        unsafe { ffi::av_dict_set(&raw mut self.0, key.as_ptr(), value, flags) }
     }
 
     /// `av_dict_copy` of this dictionary into a NULL destination.
     fn copy(&self, flags: c_int) -> (c_int, Self) {
         let mut copy = Self(ptr::null_mut());
         // SAFETY: a fresh destination slot and a live (or NULL) source.
-        let ret = unsafe { ffi::av_dict_copy(&mut copy.0, self.0, flags) };
+        let ret = unsafe { ffi::av_dict_copy(&raw mut copy.0, self.0, flags) };
         (ret, copy)
     }
 }
@@ -48,7 +58,7 @@ impl CDict {
 impl Drop for CDict {
     fn drop(&mut self) {
         // SAFETY: our own slot, holding NULL or the dictionary C built.
-        unsafe { ffi::av_dict_free(&mut self.0) }
+        unsafe { ffi::av_dict_free(&raw mut self.0) }
     }
 }
 
@@ -73,14 +83,20 @@ fn observe(m: *const ffi::AVDictionary) -> Observed {
         if e.is_null() {
             break;
         }
+        // SAFETY: as the comment below states, for this part of the operation.
+        let key_3 = unsafe { (*e).key };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_ptr_3 = unsafe { CStr::from_ptr(key_3) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let value_3 = unsafe { (*e).value };
         // SAFETY: `e` is an entry of `m`, whose strings are live and
         // NUL-terminated.
-        let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+        let (k, v) = unsafe { (from_ptr_3, CStr::from_ptr(value_3)) };
         entries.push((k.to_owned(), v.to_owned()));
     }
     let mut buf: *mut c_char = ptr::null_mut();
     // SAFETY: `m` as above; `buf` is our out-slot.
-    let ret = unsafe { ffi::av_dict_get_string(m, &mut buf, b'=' as c_char, b';' as c_char) };
+    let ret = unsafe { ffi::av_dict_get_string(m, &raw mut buf, b'=' as c_char, b';' as c_char) };
     assert!(ret >= 0);
     // SAFETY: on success `buf` is an `av_malloc` NUL-terminated string.
     let string = unsafe { CStr::from_ptr(buf) }.to_owned();
@@ -160,7 +176,7 @@ fn empty_dictionary_is_c_null() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn from_entries_matches_c_multikey_inserts() {
-    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
     for n in [1, 2, 3, 7, 16, 64] {
         for _ in 0..8 {
             let p = pairs(&mut rng, n);
@@ -178,7 +194,7 @@ fn from_entries_matches_c_multikey_inserts() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn clone_matches_c_multikey_copy_step_by_step() {
-    let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+    let mut rng = Rng(0x2545_F491_4F6C_DD1D);
     for n in [1, 2, 5, 33] {
         let p = pairs(&mut rng, n);
         let mut original = Dict::from_entries(p.iter().map(|(k, v)| (k, v))).unwrap();
@@ -329,23 +345,20 @@ mod readers_and_writers {
                 let ret = code(d.set_owned(heap(k), heap(&v), rf));
                 // C's own `DONT_STRDUP` write of strings it owns.
                 let both = (ffi::AV_DICT_DONT_STRDUP_KEY | ffi::AV_DICT_DONT_STRDUP_VAL) as c_int;
+                // SAFETY: as the comment below states, for this part of the operation.
+                let strdup = unsafe { ffi::av_strdup(k.as_ptr()) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let strdup_2 = unsafe { ffi::av_strdup(v.as_ptr()) };
                 // SAFETY: two fresh `av_strdup` strings handed over to C, and
                 // our own slot.
-                let c_ret = unsafe {
-                    ffi::av_dict_set(
-                        &mut c.0,
-                        ffi::av_strdup(k.as_ptr()),
-                        ffi::av_strdup(v.as_ptr()),
-                        cf | both,
-                    )
-                };
+                let c_ret = unsafe { ffi::av_dict_set(&raw mut c.0, strdup, strdup_2, cf | both) };
                 (ret, c_ret, format!("set_owned {k:?} {v:?} {cf:#x}"))
             }
             4 => {
                 let k = key(rng);
                 let v = rng.next() as i64 >> (rng.next() % 64);
                 // SAFETY: our own slot and a live key.
-                let c_ret = unsafe { ffi::av_dict_set_int(&mut c.0, k.as_ptr(), v, cf) };
+                let c_ret = unsafe { ffi::av_dict_set_int(&raw mut c.0, k.as_ptr(), v, cf) };
                 (
                     code(d.set_int(k, v, rf)),
                     c_ret,
@@ -369,7 +382,13 @@ mod readers_and_writers {
                 };
                 // SAFETY: our own slot and live strings.
                 let c_ret = unsafe {
-                    ffi::av_dict_parse_string(&mut c.0, s.as_ptr(), kv.as_ptr(), pairs.as_ptr(), cf)
+                    ffi::av_dict_parse_string(
+                        &raw mut c.0,
+                        s.as_ptr(),
+                        kv.as_ptr(),
+                        pairs.as_ptr(),
+                        cf,
+                    )
                 };
                 let what = format!("parse_pairs {s:?} {kv:?} {pairs:?} {cf:#x}");
                 (code(d.parse_pairs(s, kv, pairs, rf)), c_ret, what)
@@ -381,7 +400,7 @@ mod readers_and_writers {
                 let rust_src = Dict::from_entries(src.iter().map(|(k, v)| (k, v))).unwrap();
                 let c_src = CDict::build(&src, ffi::AV_DICT_MULTIKEY as c_int);
                 // SAFETY: our own slot and a live (or NULL) source.
-                let c_ret = unsafe { ffi::av_dict_copy(&mut c.0, c_src.0, cf) };
+                let c_ret = unsafe { ffi::av_dict_copy(&raw mut c.0, c_src.0, cf) };
                 let what = format!("copy_from {src:?} {cf:#x}");
                 (code(d.copy_from(rust_src.as_ref(), rf)), c_ret, what)
             }
@@ -391,7 +410,7 @@ mod readers_and_writers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn write_sequences_agree_after_every_step() {
-        let mut rng = Rng(0x0dd_b1a5_e5ca_1ab1);
+        let mut rng = Rng(0x0DD_B1A5_E5CA_1AB1);
         for _ in 0..200 {
             let mut d = Dict::new();
             let mut c = CDict(ptr::null_mut());
@@ -416,8 +435,14 @@ mod readers_and_writers {
             if e.is_null() {
                 return out;
             }
+            // SAFETY: as the comment below states, for this part of the operation.
+            let key_2 = unsafe { (*e).key };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let from_ptr_2 = unsafe { CStr::from_ptr(key_2) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let value_2 = unsafe { (*e).value };
             // SAFETY: a live entry of `m`.
-            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            let (k, v) = unsafe { (from_ptr_2, CStr::from_ptr(value_2)) };
             out.push((k.to_owned(), v.to_owned()));
         }
     }
@@ -426,7 +451,8 @@ mod readers_and_writers {
     fn c_string(m: *const ffi::AVDictionary, kv: u8, pairs: u8) -> (c_int, Option<CString>) {
         let mut buf: *mut c_char = ptr::null_mut();
         // SAFETY: `m` NULL or live, `buf` our slot.
-        let ret = unsafe { ffi::av_dict_get_string(m, &mut buf, kv as c_char, pairs as c_char) };
+        let ret =
+            unsafe { ffi::av_dict_get_string(m, &raw mut buf, kv as c_char, pairs as c_char) };
         if ret < 0 {
             return (ret, None);
         }
@@ -440,7 +466,7 @@ mod readers_and_writers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn readers_agree_on_every_key_flag_and_separator() {
-        let mut rng = Rng(0x005e_ed0f_d1c7);
+        let mut rng = Rng(0x005E_ED0F_D1C7);
         let seps = [b'=', b';', b':', b',', b'\\', 0, b' '];
         for round in 0..60 {
             let n = (round % 9) as usize;
@@ -514,7 +540,7 @@ mod readers_and_writers {
         let ret = back.parse_pairs(s.as_c_str(), c"=", c";", Flags::NONE);
         // SAFETY: our own slot and live strings.
         let c_ret = unsafe {
-            ffi::av_dict_parse_string(&mut c.0, s.as_ptr(), c"=".as_ptr(), c";".as_ptr(), 0)
+            ffi::av_dict_parse_string(&raw mut c.0, s.as_ptr(), c"=".as_ptr(), c";".as_ptr(), 0)
         };
         assert_eq!(code(ret), c_ret);
         assert_eq!(observe_dict(&mut back), observe(c.0));

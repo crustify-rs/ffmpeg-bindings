@@ -21,17 +21,27 @@
 //!
 //! Kind A (`VAAPI`, hardware format `VAAPI`) allocates surfaces from a pool,
 //! maps them to software frames, or into another frames context
-//! (`map_from`), and transfers data to and from them ([`transfer`]); kind B (`DRM`, hardware format `DRM_PRIME`) maps frames of
-//! another context into its own (`map_to`) and derives frames contexts
+//! (`map_from`), and transfers data to and from them ([`transfer`]); kind B (`DRM`, hardware format
+//! `DRM_PRIME`) maps frames of another context into its own (`map_to`) and derives frames contexts
 //! (`frames_derive_to`), and transfers nothing. A surface is a
 //! [`SURFACE_SIZE`]-byte pool buffer, zeroed, which `data[3]` points at, as
 //! VA-API's surface IDs sit there.
-#![allow(dead_code)]
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_ptr_alignment,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::cell::RefCell;
 use core::ffi::{c_char, c_int, c_void};
 use core::mem::{size_of, zeroed};
-use core::ptr::{self, addr_of, addr_of_mut, null_mut};
+use core::ptr::{self, null_mut};
 
 use ffibox::define_ctype;
 
@@ -40,19 +50,19 @@ use super::ffi;
 type DeviceCtx = ffi::AVHWDeviceContext;
 type FramesCtx = ffi::AVHWFramesContext;
 
-/// hwcontext_internal.h's `HWContextType`, the backend's routines and sizes.
+/// `hwcontext_internal.h`'s `HWContextType`, the backend's routines and sizes.
 #[repr(C)]
-pub struct HwContextType {
-    pub type_: ffi::AVHWDeviceType,
-    pub name: *const c_char,
-    pub pix_fmts: *const ffi::AVPixelFormat,
-    pub device_hwctx_size: usize,
-    pub device_hwconfig_size: usize,
-    pub frames_hwctx_size: usize,
-    pub device_create: Option<
+pub(crate) struct HwContextType {
+    pub(crate) type_: ffi::AVHWDeviceType,
+    pub(crate) name: *const c_char,
+    pub(crate) pix_fmts: *const ffi::AVPixelFormat,
+    pub(crate) device_hwctx_size: usize,
+    pub(crate) device_hwconfig_size: usize,
+    pub(crate) frames_hwctx_size: usize,
+    pub(crate) device_create: Option<
         unsafe extern "C" fn(*mut DeviceCtx, *const c_char, *mut ffi::AVDictionary, c_int) -> c_int,
     >,
-    pub device_derive: Option<
+    pub(crate) device_derive: Option<
         unsafe extern "C" fn(
             *mut DeviceCtx,
             *mut DeviceCtx,
@@ -60,32 +70,33 @@ pub struct HwContextType {
             c_int,
         ) -> c_int,
     >,
-    pub device_init: Option<unsafe extern "C" fn(*mut DeviceCtx) -> c_int>,
-    pub device_uninit: Option<unsafe extern "C" fn(*mut DeviceCtx)>,
-    pub frames_get_constraints: Option<
+    pub(crate) device_init: Option<unsafe extern "C" fn(*mut DeviceCtx) -> c_int>,
+    pub(crate) device_uninit: Option<unsafe extern "C" fn(*mut DeviceCtx)>,
+    pub(crate) frames_get_constraints: Option<
         unsafe extern "C" fn(
             *mut DeviceCtx,
             *const c_void,
             *mut ffi::AVHWFramesConstraints,
         ) -> c_int,
     >,
-    pub frames_init: Option<unsafe extern "C" fn(*mut FramesCtx) -> c_int>,
-    pub frames_uninit: Option<unsafe extern "C" fn(*mut FramesCtx)>,
-    pub frames_get_buffer: Option<unsafe extern "C" fn(*mut FramesCtx, *mut ffi::AVFrame) -> c_int>,
-    pub transfer_get_formats: Option<
+    pub(crate) frames_init: Option<unsafe extern "C" fn(*mut FramesCtx) -> c_int>,
+    pub(crate) frames_uninit: Option<unsafe extern "C" fn(*mut FramesCtx)>,
+    pub(crate) frames_get_buffer:
+        Option<unsafe extern "C" fn(*mut FramesCtx, *mut ffi::AVFrame) -> c_int>,
+    pub(crate) transfer_get_formats: Option<
         unsafe extern "C" fn(
             *mut FramesCtx,
             ffi::AVHWFrameTransferDirection,
             *mut *mut ffi::AVPixelFormat,
         ) -> c_int,
     >,
-    pub transfer_data_to: Option<
+    pub(crate) transfer_data_to: Option<
         unsafe extern "C" fn(*mut FramesCtx, *mut ffi::AVFrame, *const ffi::AVFrame) -> c_int,
     >,
-    pub transfer_data_from: Option<
+    pub(crate) transfer_data_from: Option<
         unsafe extern "C" fn(*mut FramesCtx, *mut ffi::AVFrame, *const ffi::AVFrame) -> c_int,
     >,
-    pub map_to: Option<
+    pub(crate) map_to: Option<
         unsafe extern "C" fn(
             *mut FramesCtx,
             *mut ffi::AVFrame,
@@ -93,7 +104,7 @@ pub struct HwContextType {
             c_int,
         ) -> c_int,
     >,
-    pub map_from: Option<
+    pub(crate) map_from: Option<
         unsafe extern "C" fn(
             *mut FramesCtx,
             *mut ffi::AVFrame,
@@ -101,66 +112,70 @@ pub struct HwContextType {
             c_int,
         ) -> c_int,
     >,
-    pub frames_derive_to:
+    pub(crate) frames_derive_to:
         Option<unsafe extern "C" fn(*mut FramesCtx, *mut FramesCtx, c_int) -> c_int>,
-    pub frames_derive_from:
+    pub(crate) frames_derive_from:
         Option<unsafe extern "C" fn(*mut FramesCtx, *mut FramesCtx, c_int) -> c_int>,
 }
 
 /// hwcontext.c's private `FFHWDeviceContext`.
 #[repr(C)]
-pub struct DeviceInternal {
-    pub p: DeviceCtx,
-    pub hw_type: *const HwContextType,
-    pub source_device: *mut ffi::AVBufferRef,
+pub(crate) struct DeviceInternal {
+    pub(crate) p: DeviceCtx,
+    pub(crate) hw_type: *const HwContextType,
+    pub(crate) source_device: *mut ffi::AVBufferRef,
 }
 
-/// hwcontext_internal.h's `FFHWFramesContext`.
+/// `hwcontext_internal.h`'s `FFHWFramesContext`.
 #[repr(C)]
-pub struct FramesInternal {
-    pub p: FramesCtx,
-    pub hw_type: *const HwContextType,
-    pub pool_internal: *mut ffi::AVBufferPool,
-    pub source_frames: *mut ffi::AVBufferRef,
-    pub source_allocation_map_flags: c_int,
+pub(crate) struct FramesInternal {
+    pub(crate) p: FramesCtx,
+    pub(crate) hw_type: *const HwContextType,
+    pub(crate) pool_internal: *mut ffi::AVBufferPool,
+    pub(crate) source_frames: *mut ffi::AVBufferRef,
+    pub(crate) source_allocation_map_flags: c_int,
 }
 
-/// hwcontext_internal.h's `HWMapDescriptor`, the data of a mapped frame's
+/// `hwcontext_internal.h`'s `HWMapDescriptor`, the data of a mapped frame's
 /// first buffer.
 #[repr(C)]
-pub struct MapDescriptor {
-    pub source: *mut ffi::AVFrame,
-    pub hw_frames_ctx: *mut ffi::AVBufferRef,
-    pub unmap: Option<unsafe extern "C" fn(*mut FramesCtx, *mut MapDescriptor)>,
-    pub priv_: *mut c_void,
+pub(crate) struct MapDescriptor {
+    pub(crate) source: *mut ffi::AVFrame,
+    pub(crate) hw_frames_ctx: *mut ffi::AVBufferRef,
+    pub(crate) unmap: Option<unsafe extern "C" fn(*mut FramesCtx, *mut MapDescriptor)>,
+    pub(crate) priv_: *mut c_void,
 }
 
 /// A device context's `hwctx`: what its backend returns.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
-pub struct DeviceHwctx {
+pub(crate) struct DeviceHwctx {
     /// `device_init`'s result.
-    pub init_ret: c_int,
+    pub(crate) init_ret: c_int,
 }
 
 /// A frames context's `hwctx`: what its backend returns.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
+#[expect(
+    unreachable_pub,
+    reason = "`define_ctype!` publishes a newtype over it, which needs it as visible"
+)]
 pub struct FramesHwctx {
     /// `frames_init`'s result.
-    pub init_ret: c_int,
+    pub(crate) init_ret: c_int,
     /// `frames_get_buffer`'s result, when negative.
-    pub get_buffer_ret: c_int,
+    pub(crate) get_buffer_ret: c_int,
     /// When negative, kind A's `map_from` result for frames of this context,
     /// and kind B's `map_to` result for mappings into it.
-    pub map_ret: c_int,
+    pub(crate) map_ret: c_int,
     /// Kind A's `frames_derive_from` result when this context is the
     /// source, and kind B's `frames_derive_to` when it is the target.
-    pub derive_ret: c_int,
+    pub(crate) derive_ret: c_int,
     /// Nonzero for a `frames_init` that leaves the context without a pool.
-    pub no_pool: c_int,
+    pub(crate) no_pool: c_int,
     /// When negative, kind A's transfer result for frames of this context.
-    pub transfer_ret: c_int,
+    pub(crate) transfer_ret: c_int,
 }
 
 define_ctype!(
@@ -174,7 +189,7 @@ define_ctype!(
 
 impl FramesHwRef<'_> {
     /// The backend results the frames context holds.
-    pub fn get(&self) -> FramesHwctx {
+    pub(crate) fn get(&self) -> FramesHwctx {
         // SAFETY: the live frames struct the handle borrows.
         unsafe { self.as_ptr().read() }
     }
@@ -182,27 +197,27 @@ impl FramesHwRef<'_> {
 
 impl FramesHwMut<'_> {
     /// Sets the backend results of the frames context.
-    pub fn set(&mut self, hwctx: FramesHwctx) {
+    pub(crate) fn set(&mut self, hwctx: FramesHwctx) {
         // SAFETY: the live frames struct the handle borrows exclusively.
         unsafe { self.as_mut_ptr().write(hwctx) }
     }
 }
 
 /// The bytes of a surface.
-pub const SURFACE_SIZE: usize = 64;
+pub(crate) const SURFACE_SIZE: usize = 64;
 /// The bytes of a backend's hardware configuration, which only kind A has.
-pub const HWCONFIG_SIZE: usize = 24;
+pub(crate) const HWCONFIG_SIZE: usize = 24;
 
 /// One of the two test backends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
+pub(crate) enum Kind {
     A,
     B,
 }
 
 impl Kind {
     /// The backend's `HWContextType`.
-    pub fn backend(self) -> *const HwContextType {
+    pub(crate) fn backend(self) -> *const HwContextType {
         match self {
             Kind::A => &raw const BACKEND_A.0,
             Kind::B => &raw const BACKEND_B.0,
@@ -210,7 +225,7 @@ impl Kind {
     }
 
     /// The device type the backend implements.
-    pub fn device_type(self) -> ffi::AVHWDeviceType {
+    pub(crate) fn device_type(self) -> ffi::AVHWDeviceType {
         match self {
             Kind::A => ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
             Kind::B => ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
@@ -218,7 +233,7 @@ impl Kind {
     }
 
     /// The backend's hardware pixel format.
-    pub fn format(self) -> ffi::AVPixelFormat {
+    pub(crate) fn format(self) -> ffi::AVPixelFormat {
         match self {
             Kind::A => ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
             Kind::B => ffi::AVPixelFormat::AV_PIX_FMT_DRM_PRIME,
@@ -238,7 +253,7 @@ impl Kind {
 
 /// What C asked of a backend, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Event {
+pub(crate) enum Event {
     DeviceInit(Kind),
     DeviceUninit(Kind),
     DeviceFreed(Kind),
@@ -263,18 +278,18 @@ fn record(event: Event) {
 }
 
 /// The events recorded on this thread since the last call.
-pub fn take_events() -> Vec<Event> {
+pub(crate) fn take_events() -> Vec<Event> {
     EVENTS.with(|e| e.take())
 }
 
 /// `AVERROR(e)`.
-pub const fn averror(e: u32) -> c_int {
+pub(crate) const fn averror(e: u32) -> c_int {
     -(e as c_int)
 }
 
 /// A static the backends point at, which only C reads.
 #[repr(transparent)]
-pub struct Shared<T>(pub T);
+pub(crate) struct Shared<T>(pub T);
 // SAFETY: every `Shared` static is immutable data and C routines that
 // read it.
 unsafe impl<T> Sync for Shared<T> {}
@@ -290,7 +305,7 @@ static FORMATS_B: [ffi::AVPixelFormat; 2] = [
 
 /// A class for the test device contexts, as `hwdevice_ctx_class` is for
 /// C's.
-pub static DEVICE_CLASS: Shared<ffi::AVClass> = Shared(ffi::AVClass {
+pub(crate) static DEVICE_CLASS: Shared<ffi::AVClass> = Shared(ffi::AVClass {
     class_name: c"AVHWDeviceContext".as_ptr(),
     item_name: Some(ffi::av_default_item_name),
     // SAFETY: the rest of an `AVClass` (options, version, callbacks) may be
@@ -298,7 +313,7 @@ pub static DEVICE_CLASS: Shared<ffi::AVClass> = Shared(ffi::AVClass {
     ..unsafe { zeroed() }
 });
 
-pub static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
+pub(crate) static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
     type_: ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
     name: c"test-a".as_ptr(),
     pix_fmts: (&raw const FORMATS_A).cast(),
@@ -322,7 +337,7 @@ pub static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
     frames_derive_from: Some(frames_derive_from),
 });
 
-pub static BACKEND_B: Shared<HwContextType> = Shared(HwContextType {
+pub(crate) static BACKEND_B: Shared<HwContextType> = Shared(HwContextType {
     type_: ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
     name: c"test-b".as_ptr(),
     pix_fmts: (&raw const FORMATS_B).cast(),
@@ -374,15 +389,21 @@ unsafe fn frames_kind(ctx: *const FramesCtx) -> Kind {
 ///
 /// `ctx` must be a live frames context on a test device.
 unsafe fn frames_hwctx(ctx: *const FramesCtx) -> FramesHwctx {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let hwctx_2 = unsafe { (*ctx).hwctx };
     // SAFETY: C allocated the test backends' `frames_hwctx_size` for it.
-    unsafe { (*ctx).hwctx.cast::<FramesHwctx>().read() }
+    unsafe { hwctx_2.cast::<FramesHwctx>().read() }
 }
 
 unsafe extern "C" fn device_init(ctx: *mut DeviceCtx) -> c_int {
-    // SAFETY: C passes the live test device context it initialises.
-    unsafe {
-        record(Event::DeviceInit(device_kind(ctx)));
-        (*ctx).hwctx.cast::<DeviceHwctx>().read().init_ret
+    // For the unsafe operations below: C passes the live test device context it initialises.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { record(Event::DeviceInit(device_kind(ctx))) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hwctx_2 = unsafe { (*ctx).hwctx };
+        // SAFETY: as the comment above this block states.
+        unsafe { hwctx_2.cast::<DeviceHwctx>().read().init_ret }
     }
 }
 
@@ -392,18 +413,21 @@ unsafe extern "C" fn device_uninit(ctx: *mut DeviceCtx) {
 }
 
 unsafe extern "C" fn frames_init(ctx: *mut FramesCtx) -> c_int {
-    // SAFETY: C passes the live frames context it initialises, whose
-    // private part C allocated; the pool is the backend's to set, and C
-    // uninits it with the context.
-    unsafe {
-        record(Event::FramesInit(frames_kind(ctx)));
-        let ctxi = ctx.cast::<FramesInternal>();
-        if (*ctxi).pool_internal.is_null() && frames_hwctx(ctx).no_pool == 0 {
-            (*ctxi).pool_internal =
-                ffi::av_buffer_pool_init(SURFACE_SIZE, Some(ffi::av_buffer_allocz));
-        }
-        frames_hwctx(ctx).init_ret
+    // C passes the live frames context it initialises, whose private part C allocated; the pool
+    // is the backend's to set, and C uninits it with the context.
+    // SAFETY: as above.
+    record(Event::FramesInit(unsafe { frames_kind(ctx) }));
+    let ctxi = ctx.cast::<FramesInternal>();
+    // SAFETY: as above: the context's backend configuration.
+    let hwctx = unsafe { frames_hwctx(ctx) };
+    // SAFETY: as above: a read of the private pool.
+    if unsafe { (*ctxi).pool_internal }.is_null() && hwctx.no_pool == 0 {
+        // SAFETY: no precondition; NULL when C cannot allocate.
+        let pool = unsafe { ffi::av_buffer_pool_init(SURFACE_SIZE, Some(ffi::av_buffer_allocz)) };
+        // SAFETY: as above: the backend sets the private pool.
+        unsafe { (*ctxi).pool_internal = pool };
     }
+    hwctx.init_ret
 }
 
 unsafe extern "C" fn frames_uninit(ctx: *mut FramesCtx) {
@@ -412,25 +436,40 @@ unsafe extern "C" fn frames_uninit(ctx: *mut FramesCtx) {
 }
 
 unsafe extern "C" fn frames_get_buffer(ctx: *mut FramesCtx, frame: *mut ffi::AVFrame) -> c_int {
-    // SAFETY: C passes a live, initialised frames context with a pool and
-    // the frame it fills, which holds no buffer yet.
-    unsafe {
-        record(Event::GetBuffer(frames_kind(ctx)));
-        let ret = frames_hwctx(ctx).get_buffer_ret;
-        if ret < 0 {
-            return ret;
-        }
-        let buf = ffi::av_buffer_pool_get((*ctx).pool);
-        if buf.is_null() {
-            return averror(ffi::ENOMEM);
-        }
-        (*frame).buf[0] = buf;
-        (*frame).data[3] = (*buf).data;
-        (*frame).format = (*ctx).format.0;
-        (*frame).width = (*ctx).width;
-        (*frame).height = (*ctx).height;
-        0
+    // C passes a live, initialised frames context with a pool and the frame it fills, which holds
+    // no buffer yet.
+    // SAFETY: as above.
+    record(Event::GetBuffer(unsafe { frames_kind(ctx) }));
+    // SAFETY: as above: the context's backend configuration.
+    let ret = unsafe { frames_hwctx(ctx) }.get_buffer_ret;
+    if ret < 0 {
+        return ret;
     }
+    // SAFETY: as above: reads of the context's pool and geometry.
+    let (pool, format, width, height) = (
+        unsafe { (*ctx).pool },
+        unsafe { (*ctx).format.0 },
+        unsafe { (*ctx).width },
+        unsafe { (*ctx).height },
+    );
+    // SAFETY: as above: the context's live pool.
+    let buf = unsafe { ffi::av_buffer_pool_get(pool) };
+    if buf.is_null() {
+        return averror(ffi::ENOMEM);
+    }
+    // SAFETY: `buf` is the live reference C just handed out: a read of its data.
+    let data = unsafe { (*buf).data };
+    // SAFETY: as above: the frame takes the reference.
+    unsafe { (*frame).buf[0] = buf };
+    // SAFETY: as above: its surface.
+    unsafe { (*frame).data[3] = data };
+    // SAFETY: as above: its format.
+    unsafe { (*frame).format = format };
+    // SAFETY: as above: its width.
+    unsafe { (*frame).width = width };
+    // SAFETY: as above: its height.
+    unsafe { (*frame).height = height };
+    0
 }
 
 unsafe extern "C" fn unmap(ctx: *mut FramesCtx, _hwmap: *mut MapDescriptor) {
@@ -440,16 +479,27 @@ unsafe extern "C" fn unmap(ctx: *mut FramesCtx, _hwmap: *mut MapDescriptor) {
 
 /// `ff_hwframe_unmap`, the release of a mapping's buffer.
 unsafe extern "C" fn release_mapping(opaque: *mut c_void, data: *mut u8) {
-    // SAFETY: `data` is the descriptor `map_frame` allocated, and `opaque`
+    // For the unsafe operations below: `data` is the descriptor `map_frame` allocated, and `opaque`
     // the frames context it holds a reference to.
-    unsafe {
+    {
         let hwmap = data.cast::<MapDescriptor>();
-        if let Some(f) = (*hwmap).unmap {
-            f(opaque.cast(), hwmap);
+        // SAFETY: as the comment above this block states.
+        if let Some(f) = unsafe { (*hwmap).unmap } {
+            // SAFETY: as the comment above this statement states.
+            unsafe { f(opaque.cast(), hwmap) };
         }
-        ffi::av_frame_free(addr_of_mut!((*hwmap).source));
-        ffi::av_buffer_unref(addr_of_mut!((*hwmap).hw_frames_ctx));
-        ffi::av_free(hwmap.cast());
+        // SAFETY: `hwmap` is to a live object, as the block below relies on, so the
+        // place of its `source` field is in bounds; nothing is accessed here.
+        let source_ptr = unsafe { &raw mut (*hwmap).source };
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_frame_free(source_ptr) };
+        // SAFETY: `hwmap` is to a live object, as the block below relies on, so the
+        // place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { &raw mut (*hwmap).hw_frames_ctx };
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_buffer_unref(hw_frames_ctx_ptr) };
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_free(hwmap.cast()) };
     }
 }
 
@@ -465,44 +515,72 @@ unsafe fn map_frame(
     dst: *mut ffi::AVFrame,
     src: *const ffi::AVFrame,
 ) -> c_int {
-    // SAFETY: as `ff_hwframe_map_create`, step by step, by the caller's
-    // contract.
-    unsafe {
-        let ctx = (*hwframe_ref).data.cast::<FramesCtx>();
-        let hwmap = ffi::av_mallocz(size_of::<MapDescriptor>()).cast::<MapDescriptor>();
-        if hwmap.is_null() {
-            return averror(ffi::ENOMEM);
-        }
-        let mut ret = averror(ffi::ENOMEM);
-        (*hwmap).source = ffi::av_frame_alloc();
-        if !(*hwmap).source.is_null() {
-            ret = ffi::av_frame_ref((*hwmap).source, src);
-            if ret >= 0 {
-                (*hwmap).hw_frames_ctx = ffi::av_buffer_ref(hwframe_ref);
-                ret = averror(ffi::ENOMEM);
-                if !(*hwmap).hw_frames_ctx.is_null() {
-                    (*hwmap).unmap = Some(unmap);
-                    (*dst).buf[0] = ffi::av_buffer_create(
+    // As `ff_hwframe_map_create`, step by step, by the caller's contract.
+    // SAFETY: as above: a read of the live frames reference's data.
+    let ctx = unsafe { (*hwframe_ref).data }.cast::<FramesCtx>();
+    // SAFETY: no precondition; NULL when C cannot allocate.
+    let hwmap = unsafe { ffi::av_mallocz(size_of::<MapDescriptor>()) }.cast::<MapDescriptor>();
+    if hwmap.is_null() {
+        return averror(ffi::ENOMEM);
+    }
+    let mut ret = averror(ffi::ENOMEM);
+    // SAFETY: no precondition; NULL when C cannot allocate.
+    let source = unsafe { ffi::av_frame_alloc() };
+    // SAFETY: `hwmap` is the fresh descriptor: it takes the frame.
+    unsafe { (*hwmap).source = source };
+    if !source.is_null() {
+        // SAFETY: a fresh frame and the caller's live source.
+        ret = unsafe { ffi::av_frame_ref(source, src) };
+        if ret >= 0 {
+            // SAFETY: the caller's live frames reference, to which C adds one.
+            let frames = unsafe { ffi::av_buffer_ref(hwframe_ref) };
+            // SAFETY: as above: the descriptor takes it.
+            unsafe { (*hwmap).hw_frames_ctx = frames };
+            ret = averror(ffi::ENOMEM);
+            if !frames.is_null() {
+                // SAFETY: as above: the descriptor's unmap hook.
+                unsafe { (*hwmap).unmap = Some(unmap) };
+                // SAFETY: the descriptor, which the buffer owns from here, released by
+                // `release_mapping` with the context as its opaque.
+                let buf = unsafe {
+                    ffi::av_buffer_create(
                         hwmap.cast(),
                         size_of::<MapDescriptor>(),
                         Some(release_mapping),
                         ctx.cast(),
                         0,
-                    );
-                    if !(*dst).buf[0].is_null() {
-                        (*dst).data[3] = (*src).data[3];
-                        (*dst).width = (*src).width;
-                        (*dst).height = (*src).height;
-                        return 0;
-                    }
+                    )
+                };
+                // SAFETY: the caller's blank `dst` takes it.
+                unsafe { (*dst).buf[0] = buf };
+                if !buf.is_null() {
+                    // SAFETY: the caller's live source: reads of its surface and size.
+                    let (surface, width, height) =
+                        (unsafe { (*src).data[3] }, unsafe { (*src).width }, unsafe {
+                            (*src).height
+                        });
+                    // SAFETY: as above: `dst` points at the source's surface.
+                    unsafe { (*dst).data[3] = surface };
+                    // SAFETY: as above.
+                    unsafe { (*dst).width = width };
+                    // SAFETY: as above.
+                    unsafe { (*dst).height = height };
+                    return 0;
                 }
             }
         }
-        ffi::av_buffer_unref(addr_of_mut!((*hwmap).hw_frames_ctx));
-        ffi::av_frame_free(addr_of_mut!((*hwmap).source));
-        ffi::av_free(hwmap.cast());
-        ret
     }
+    // SAFETY: the descriptor, owned here: the place of its `hw_frames_ctx`.
+    let hw_frames_ctx_ptr = unsafe { &raw mut (*hwmap).hw_frames_ctx };
+    // SAFETY: NULL or the reference the descriptor took.
+    unsafe { ffi::av_buffer_unref(hw_frames_ctx_ptr) };
+    // SAFETY: the descriptor, owned here: the place of its `source`.
+    let source_ptr = unsafe { &raw mut (*hwmap).source };
+    // SAFETY: NULL or the frame the descriptor took.
+    unsafe { ffi::av_frame_free(source_ptr) };
+    // SAFETY: the descriptor's `av_mallocz` block, released once.
+    unsafe { ffi::av_free(hwmap.cast()) };
+    ret
 }
 
 /// Kind A's `map_from`: maps a surface to a software frame of the context's
@@ -514,32 +592,44 @@ unsafe extern "C" fn map_from(
     src: *const ffi::AVFrame,
     _flags: c_int,
 ) -> c_int {
-    // SAFETY: C passes the source's live frames context, a blank `dst` and a
-    // hardware frame of that context.
-    unsafe {
-        record(Event::MapFrom(frames_kind(ctx)));
-        let ret = frames_hwctx(ctx).map_ret;
-        if ret < 0 {
-            return ret;
-        }
-        if (*dst).hw_frames_ctx.is_null() {
-            let sw = (*ctx).sw_format.0;
-            if (*dst).format == ffi::AVPixelFormat::AV_PIX_FMT_NONE.0 {
-                (*dst).format = sw;
-            } else if (*dst).format != sw {
-                return averror(ffi::ENOSYS);
-            }
-            let ret = map_frame((*src).hw_frames_ctx, dst, src);
-            if ret >= 0 {
-                (*dst).data[0] = (*dst).data[3];
-                (*dst).data[3] = null_mut();
-                (*dst).linesize[0] = SURFACE_SIZE as c_int;
-            }
-            ret
-        } else {
-            map_frame((*dst).hw_frames_ctx, dst, src)
-        }
+    // C passes the source's live frames context, a blank `dst` and a hardware frame of that
+    // context.
+    // SAFETY: as above.
+    record(Event::MapFrom(unsafe { frames_kind(ctx) }));
+    // SAFETY: as above: the context's backend configuration.
+    let ret = unsafe { frames_hwctx(ctx) }.map_ret;
+    if ret < 0 {
+        return ret;
     }
+    // SAFETY: as above: a read of `dst`'s frames reference.
+    let dst_frames = unsafe { (*dst).hw_frames_ctx };
+    if !dst_frames.is_null() {
+        // SAFETY: as above, mapping into the context `dst` holds.
+        return unsafe { map_frame(dst_frames, dst, src) };
+    }
+    // SAFETY: as above: reads of the software format and `dst`'s format.
+    let (sw, format) = (unsafe { (*ctx).sw_format.0 }, unsafe { (*dst).format });
+    if format == ffi::AVPixelFormat::AV_PIX_FMT_NONE.0 {
+        // SAFETY: as above: `dst` takes the software format.
+        unsafe { (*dst).format = sw };
+    } else if format != sw {
+        return averror(ffi::ENOSYS);
+    }
+    // SAFETY: as above: a read of the source's frames reference.
+    let src_frames = unsafe { (*src).hw_frames_ctx };
+    // SAFETY: as above.
+    let ret = unsafe { map_frame(src_frames, dst, src) };
+    if ret >= 0 {
+        // SAFETY: the mapped `dst`: a read of the surface pointer.
+        let surface = unsafe { (*dst).data[3] };
+        // SAFETY: as above: the surface becomes plane 0 of a software frame.
+        unsafe { (*dst).data[0] = surface };
+        // SAFETY: as above.
+        unsafe { (*dst).data[3] = null_mut() };
+        // SAFETY: as above.
+        unsafe { (*dst).linesize[0] = SURFACE_SIZE as c_int };
+    }
+    ret
 }
 
 /// Kind B's `map_to`: maps a frame of another context into the frames
@@ -550,19 +640,23 @@ unsafe extern "C" fn map_to(
     src: *const ffi::AVFrame,
     _flags: c_int,
 ) -> c_int {
-    // SAFETY: C passes `dst`'s live frames context, `dst` holding it and a
-    // hardware frame of another context.
-    unsafe {
-        record(Event::MapTo(frames_kind(ctx)));
-        let ret = frames_hwctx(ctx).map_ret;
-        if ret < 0 {
-            return ret;
-        }
-        if (*src).hw_frames_ctx.is_null() {
-            return averror(ffi::ENOSYS);
-        }
-        map_frame((*dst).hw_frames_ctx, dst, src)
+    // C passes `dst`'s live frames context, `dst` holding it and a hardware frame of another
+    // context.
+    // SAFETY: as above.
+    record(Event::MapTo(unsafe { frames_kind(ctx) }));
+    // SAFETY: as above: the context's backend configuration.
+    let ret = unsafe { frames_hwctx(ctx) }.map_ret;
+    if ret < 0 {
+        return ret;
     }
+    // SAFETY: as above: a read of the source's frames reference.
+    if unsafe { (*src).hw_frames_ctx }.is_null() {
+        return averror(ffi::ENOSYS);
+    }
+    // SAFETY: as above: a read of `dst`'s frames reference.
+    let dst_frames = unsafe { (*dst).hw_frames_ctx };
+    // SAFETY: as above.
+    unsafe { map_frame(dst_frames, dst, src) }
 }
 
 /// Kind A's `transfer_get_formats`: the context's software format, for
@@ -572,17 +666,26 @@ unsafe extern "C" fn transfer_get_formats(
     _dir: ffi::AVHWFrameTransferDirection,
     formats: *mut *mut ffi::AVPixelFormat,
 ) -> c_int {
-    // SAFETY: C passes a live, initialised frames context and a writable
+    // For the unsafe operations below: C passes a live, initialised frames context and a writable
     // slot, to which a NONE-terminated `av_malloc` list is handed over.
-    unsafe {
-        let list =
-            ffi::av_malloc_array(2, size_of::<ffi::AVPixelFormat>()).cast::<ffi::AVPixelFormat>();
+    {
+        // SAFETY: as the comment above this block states.
+        let list = unsafe {
+            ffi::av_malloc_array(2, size_of::<ffi::AVPixelFormat>()).cast::<ffi::AVPixelFormat>()
+        };
         if list.is_null() {
             return averror(ffi::ENOMEM);
         }
-        list.write((*ctx).sw_format);
-        list.add(1).write(ffi::AVPixelFormat::AV_PIX_FMT_NONE);
-        formats.write(list);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let sw_format_2 = unsafe { (*ctx).sw_format };
+        // SAFETY: as the comment above this block states.
+        unsafe { list.write(sw_format_2) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let list_add = unsafe { list.add(1) };
+        // SAFETY: as the comment above this block states.
+        unsafe { list_add.write(ffi::AVPixelFormat::AV_PIX_FMT_NONE) };
+        // SAFETY: as the comment above this block states.
+        unsafe { formats.write(list) };
         0
     }
 }
@@ -599,55 +702,85 @@ unsafe extern "C" fn transfer(
     dst: *mut ffi::AVFrame,
     src: *const ffi::AVFrame,
 ) -> c_int {
-    // SAFETY: C passes the live frames context of the hardware side, whose
-    // frames' `data[3]` are surfaces, and the frames; the software side is
-    // trusted to hold the image, as the wrappers check.
-    unsafe {
-        record(Event::Transfer(frames_kind(ctx)));
-        let ret = frames_hwctx(ctx).transfer_ret;
-        if ret < 0 {
-            return ret;
-        }
-        let (dst_hw, src_hw) = (
-            !(*dst).hw_frames_ctx.is_null(),
-            !(*src).hw_frames_ctx.is_null(),
-        );
-        if dst_hw && src_hw {
-            ptr::copy((*src).data[3], (*dst).data[3], SURFACE_SIZE);
-            return 0;
-        }
-        let (sw, surface) = if src_hw {
-            (dst.cast_const(), (*src).data[3])
+    // C passes the live frames context of the hardware side, whose frames' `data[3]` are
+    // surfaces, and the frames; the software side is trusted to hold the image, as the wrappers
+    // check.
+    // SAFETY: as above.
+    record(Event::Transfer(unsafe { frames_kind(ctx) }));
+    // SAFETY: as above: the context's backend configuration.
+    let ret = unsafe { frames_hwctx(ctx) }.transfer_ret;
+    if ret < 0 {
+        return ret;
+    }
+    // SAFETY: as above: reads of the two frames' frames references.
+    let (dst_hw, src_hw) = (
+        !unsafe { (*dst).hw_frames_ctx }.is_null(),
+        !unsafe { (*src).hw_frames_ctx }.is_null(),
+    );
+    if dst_hw && src_hw {
+        // SAFETY: as above: reads of the two surfaces.
+        let (from, to) = (unsafe { (*src).data[3] }, unsafe { (*dst).data[3] });
+        // SAFETY: as above: two surfaces of `SURFACE_SIZE` bytes.
+        unsafe { ptr::copy(from, to, SURFACE_SIZE) };
+        return 0;
+    }
+    let (sw, surface) = if src_hw {
+        // SAFETY: as above: a read of the source's surface.
+        (dst.cast_const(), unsafe { (*src).data[3] })
+    } else {
+        // SAFETY: as above: a read of the destination's surface.
+        (src, unsafe { (*dst).data[3] })
+    };
+    // SAFETY: as above: reads of the context's software format and size.
+    let (format, width, height) = (
+        unsafe { (*ctx).sw_format },
+        unsafe { (*ctx).width },
+        unsafe { (*ctx).height },
+    );
+    // SAFETY: no precondition: NULL or a static descriptor.
+    let desc = unsafe { ffi::av_pix_fmt_desc_get(format) };
+    let mut k = 0;
+    // SAFETY: no precondition.
+    for i in 0..unsafe { ffi::av_pix_fmt_count_planes(format) } {
+        // SAFETY: no precondition.
+        let len = unsafe { ffi::av_image_get_linesize(format, width, i) } as usize;
+        let shift = if i == 1 || i == 2 {
+            // SAFETY: the software format's live, static descriptor.
+            unsafe { (*desc).log2_chroma_h }
         } else {
-            (src, (*dst).data[3])
+            0
         };
-        let format = (*ctx).sw_format;
-        let desc = ffi::av_pix_fmt_desc_get(format);
-        let mut k = 0;
-        for i in 0..ffi::av_pix_fmt_count_planes(format) {
-            let len = ffi::av_image_get_linesize(format, (*ctx).width, i) as usize;
-            let shift = if i == 1 || i == 2 {
-                (*desc).log2_chroma_h
-            } else {
-                0
-            };
-            let rows = -((-(*ctx).height) >> shift);
-            let line = (*sw).linesize[i as usize] as isize;
-            for row in 0..rows as isize {
-                let p = (*sw).data[i as usize].offset(row * line);
-                for x in 0..len {
-                    let s = surface.add(k % SURFACE_SIZE);
-                    if src_hw {
-                        p.add(x).write(s.read());
-                    } else {
-                        s.write(s.read().wrapping_add(p.add(x).read()));
-                    }
-                    k += 1;
+        let rows = -((-height) >> shift);
+        // SAFETY: as above: reads of the software frame's plane and line size.
+        let (plane, line) =
+            (
+                unsafe { (*sw).data[i as usize] },
+                unsafe { (*sw).linesize[i as usize] } as isize,
+            );
+        for row in 0..rows as isize {
+            // SAFETY: as above, trusted: row `row` of the plane.
+            let p = unsafe { plane.offset(row * line) };
+            for x in 0..len {
+                // SAFETY: as above: byte `k % SURFACE_SIZE` of the surface.
+                let s = unsafe { surface.add(k % SURFACE_SIZE) };
+                // SAFETY: as above, trusted: byte `x < len` of the row.
+                let at = unsafe { p.add(x) };
+                if src_hw {
+                    // SAFETY: as above: a read of the surface byte.
+                    let byte = unsafe { s.read() };
+                    // SAFETY: as above: a write of the row byte.
+                    unsafe { at.write(byte) };
+                } else {
+                    // SAFETY: as above: reads of the two bytes.
+                    let (old, add) = (unsafe { s.read() }, unsafe { at.read() });
+                    // SAFETY: as above: a write of the surface byte.
+                    unsafe { s.write(old.wrapping_add(add)) };
                 }
+                k += 1;
             }
         }
-        0
     }
+    0
 }
 
 unsafe extern "C" fn frames_derive_from(
@@ -656,10 +789,9 @@ unsafe extern "C" fn frames_derive_from(
     _flags: c_int,
 ) -> c_int {
     // SAFETY: C passes the live derived context and its live source.
-    unsafe {
-        record(Event::DeriveFrom(frames_kind(src)));
-        frames_hwctx(src).derive_ret
-    }
+    record(Event::DeriveFrom(unsafe { frames_kind(src) }));
+    // SAFETY: as above: the source's backend configuration.
+    unsafe { frames_hwctx(src) }.derive_ret
 }
 
 unsafe extern "C" fn frames_derive_to(
@@ -668,62 +800,82 @@ unsafe extern "C" fn frames_derive_to(
     _flags: c_int,
 ) -> c_int {
     // SAFETY: C passes the live derived context.
-    unsafe {
-        record(Event::DeriveTo(frames_kind(dst)));
-        frames_hwctx(dst).derive_ret
-    }
+    record(Event::DeriveTo(unsafe { frames_kind(dst) }));
+    // SAFETY: as above: its backend configuration.
+    unsafe { frames_hwctx(dst) }.derive_ret
 }
 
 /// `hwdevice_ctx_free`, the release of a test device context.
 unsafe extern "C" fn free_device(_opaque: *mut c_void, data: *mut u8) {
-    // SAFETY: `data` is the private context `alloc_device` allocated, at its
-    // last reference.
-    unsafe {
-        let ctxi = data.cast::<DeviceInternal>();
-        let ctx = addr_of_mut!((*ctxi).p);
-        let kind = Kind::of((*ctxi).hw_type);
-        if let Some(uninit) = (*(*ctxi).hw_type).device_uninit {
-            uninit(ctx);
-        }
-        if let Some(free) = (*ctx).free {
-            free(ctx);
-        }
-        ffi::av_buffer_unref(addr_of_mut!((*ctxi).source_device));
-        ffi::av_free((*ctx).hwctx);
-        ffi::av_free(ctxi.cast());
-        record(Event::DeviceFreed(kind));
+    // `data` is the private context `alloc_device` allocated, at its last reference.
+    let ctxi = data.cast::<DeviceInternal>();
+    // SAFETY: as above: the place of its public part.
+    let ctx = unsafe { &raw mut (*ctxi).p };
+    // SAFETY: as above: a read of its backend.
+    let backend = unsafe { (*ctxi).hw_type };
+    let kind = Kind::of(backend);
+    // SAFETY: as above: a read of its `device_uninit` hook.
+    if let Some(uninit) = unsafe { (*backend).device_uninit } {
+        // SAFETY: the hook takes the live context, as C calls it.
+        unsafe { uninit(ctx) };
     }
+    // SAFETY: as above: a read of the user's `free` hook.
+    if let Some(free) = unsafe { (*ctx).free } {
+        // SAFETY: the hook takes the live context, as C calls it.
+        unsafe { free(ctx) };
+    }
+    // SAFETY: as above: the place of its `source_device`.
+    let source_device_ptr = unsafe { &raw mut (*ctxi).source_device };
+    // SAFETY: NULL or the reference the context holds.
+    unsafe { ffi::av_buffer_unref(source_device_ptr) };
+    // SAFETY: as above: a read of its `hwctx`.
+    let hwctx = unsafe { (*ctx).hwctx };
+    // SAFETY: the `av_mallocz` block `alloc_device` gave it.
+    unsafe { ffi::av_free(hwctx) };
+    // SAFETY: the private context's own `av_mallocz` block, released once.
+    unsafe { ffi::av_free(ctxi.cast()) };
+    record(Event::DeviceFreed(kind));
 }
 
 /// A new, uninitialised device context of backend `kind`, as
 /// `av_hwdevice_ctx_alloc` builds one: the only reference to it, its `hwctx`
 /// a zeroed [`DeviceHwctx`]. Panics when out of memory.
-pub fn alloc_device(kind: Kind) -> *mut ffi::AVBufferRef {
-    // SAFETY: `av_hwdevice_ctx_alloc`'s steps over zeroed allocations.
-    unsafe {
-        let ctxi = ffi::av_mallocz(size_of::<DeviceInternal>()).cast::<DeviceInternal>();
-        assert!(!ctxi.is_null());
-        let ctx = addr_of_mut!((*ctxi).p);
-        (*ctx).hwctx = ffi::av_mallocz(size_of::<DeviceHwctx>());
-        assert!(!(*ctx).hwctx.is_null());
-        let buf = ffi::av_buffer_create(
+pub(crate) fn alloc_device(kind: Kind) -> *mut ffi::AVBufferRef {
+    // `av_hwdevice_ctx_alloc`'s steps over zeroed allocations.
+    // SAFETY: no precondition; NULL when C cannot allocate.
+    let ctxi = unsafe { ffi::av_mallocz(size_of::<DeviceInternal>()) }.cast::<DeviceInternal>();
+    assert!(!ctxi.is_null());
+    // SAFETY: the fresh private context: the place of its public part.
+    let ctx = unsafe { &raw mut (*ctxi).p };
+    // SAFETY: no precondition; NULL when C cannot allocate.
+    let hwctx = unsafe { ffi::av_mallocz(size_of::<DeviceHwctx>()) };
+    assert!(!hwctx.is_null());
+    // SAFETY: as above: the context takes its `hwctx`.
+    unsafe { (*ctx).hwctx = hwctx };
+    // SAFETY: the fresh private context, which the buffer owns from here, released by
+    // `free_device`.
+    let buf = unsafe {
+        ffi::av_buffer_create(
             ctxi.cast(),
             size_of::<DeviceCtx>(),
             Some(free_device),
             null_mut(),
             ffi::AV_BUFFER_FLAG_READONLY as c_int,
-        );
-        assert!(!buf.is_null());
-        (*ctx).type_ = kind.device_type();
-        (*ctx).av_class = &raw const DEVICE_CLASS.0;
-        (*ctxi).hw_type = kind.backend();
-        buf
-    }
+        )
+    };
+    assert!(!buf.is_null());
+    // SAFETY: as above: its type.
+    unsafe { (*ctx).type_ = kind.device_type() };
+    // SAFETY: as above: its class.
+    unsafe { (*ctx).av_class = &raw const DEVICE_CLASS.0 };
+    // SAFETY: as above: its backend.
+    unsafe { (*ctxi).hw_type = kind.backend() };
+    buf
 }
 
 /// [`alloc_device`] initialised through C (`av_hwdevice_ctx_init`), whose
 /// event it takes from the log.
-pub fn device(kind: Kind) -> *mut ffi::AVBufferRef {
+pub(crate) fn device(kind: Kind) -> *mut ffi::AVBufferRef {
     let buf = alloc_device(kind);
     // SAFETY: a fresh test device context.
     assert_eq!(unsafe { ffi::av_hwdevice_ctx_init(buf) }, 0);
@@ -737,9 +889,11 @@ pub fn device(kind: Kind) -> *mut ffi::AVBufferRef {
 /// # Safety
 ///
 /// `buf` must be a live reference to a test device context.
-pub unsafe fn device_hwctx(buf: *mut ffi::AVBufferRef) -> *mut DeviceHwctx {
+pub(crate) unsafe fn device_hwctx(buf: *mut ffi::AVBufferRef) -> *mut DeviceHwctx {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let data_2 = unsafe { (*buf).data };
     // SAFETY: by the caller's contract.
-    unsafe { (*(*buf).data.cast::<DeviceCtx>()).hwctx.cast() }
+    unsafe { (*data_2.cast::<DeviceCtx>()).hwctx.cast() }
 }
 
 /// Makes the test device context `buf` refers to derived from `source`, as
@@ -750,14 +904,16 @@ pub unsafe fn device_hwctx(buf: *mut ffi::AVBufferRef) -> *mut DeviceHwctx {
 ///
 /// `buf` and `source` must be live references to test device contexts, `buf`
 /// not derived yet.
-pub unsafe fn set_source_device(buf: *mut ffi::AVBufferRef, source: *mut ffi::AVBufferRef) {
-    // SAFETY: by the caller's contract.
-    unsafe {
-        let ctxi = (*buf).data.cast::<DeviceInternal>();
-        assert!((*ctxi).source_device.is_null());
-        (*ctxi).source_device = ffi::av_buffer_ref(source);
-        assert!(!(*ctxi).source_device.is_null());
-    }
+pub(crate) unsafe fn set_source_device(buf: *mut ffi::AVBufferRef, source: *mut ffi::AVBufferRef) {
+    // SAFETY: by the caller's contract: a read of the live reference's data.
+    let ctxi = unsafe { (*buf).data }.cast::<DeviceInternal>();
+    // SAFETY: as above: a read of its `source_device`.
+    assert!(unsafe { (*ctxi).source_device }.is_null());
+    // SAFETY: by the caller's contract: a live reference, to which C adds one.
+    let source = unsafe { ffi::av_buffer_ref(source) };
+    assert!(!source.is_null());
+    // SAFETY: as above: the context takes it.
+    unsafe { (*ctxi).source_device = source };
 }
 
 /// The frames context a frames reference `buf` refers to.
@@ -765,7 +921,7 @@ pub unsafe fn set_source_device(buf: *mut ffi::AVBufferRef, source: *mut ffi::AV
 /// # Safety
 ///
 /// `buf` must be a live frames context reference.
-pub unsafe fn frames_ctx(buf: *const ffi::AVBufferRef) -> *mut FramesCtx {
+pub(crate) unsafe fn frames_ctx(buf: *const ffi::AVBufferRef) -> *mut FramesCtx {
     // SAFETY: by the caller's contract.
     unsafe { (*buf).data.cast() }
 }
@@ -777,20 +933,25 @@ pub unsafe fn frames_ctx(buf: *const ffi::AVBufferRef) -> *mut FramesCtx {
 /// # Safety
 ///
 /// `ctx` must be a live, uninitialised frames context no one else reaches.
-pub unsafe fn fill_frames(
+pub(crate) unsafe fn fill_frames(
     ctx: *mut FramesCtx,
     kind: Kind,
     width: c_int,
     height: c_int,
     pool_size: c_int,
 ) {
-    // SAFETY: by the caller's contract.
-    unsafe {
-        (*ctx).format = kind.format();
-        (*ctx).sw_format = ffi::AVPixelFormat::AV_PIX_FMT_NV12;
-        (*ctx).width = width;
-        (*ctx).height = height;
-        (*ctx).initial_pool_size = pool_size;
+    // For the unsafe operations below: by the caller's contract.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { (*ctx).format = kind.format() };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*ctx).sw_format = ffi::AVPixelFormat::AV_PIX_FMT_NV12 };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*ctx).width = width };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*ctx).height = height };
+        // SAFETY: as the comment above this block states.
+        unsafe { (*ctx).initial_pool_size = pool_size };
     }
 }
 
@@ -800,10 +961,12 @@ pub unsafe fn fill_frames(
 ///
 /// `ctx` must be a live frames context on a test device, which no one reads
 /// meanwhile.
-pub unsafe fn set_frames_hwctx(ctx: *mut FramesCtx, hwctx: FramesHwctx) {
+pub(crate) unsafe fn set_frames_hwctx(ctx: *mut FramesCtx, hwctx: FramesHwctx) {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let hwctx_2 = unsafe { (*ctx).hwctx };
     // SAFETY: by the caller's contract; the backends' `frames_hwctx_size` is
     // that of `FramesHwctx`.
-    unsafe { (*ctx).hwctx.cast::<FramesHwctx>().write(hwctx) }
+    unsafe { hwctx_2.cast::<FramesHwctx>().write(hwctx) }
 }
 
 /// A frames context of `width` x `height` on `device` (a test device of
@@ -813,18 +976,23 @@ pub unsafe fn set_frames_hwctx(ctx: *mut FramesCtx, hwctx: FramesHwctx) {
 ///
 /// `device` must be a live reference to an initialised test device context
 /// of backend `kind`.
-pub unsafe fn frames(
+pub(crate) unsafe fn frames(
     device: *mut ffi::AVBufferRef,
     kind: Kind,
     width: c_int,
     height: c_int,
 ) -> *mut ffi::AVBufferRef {
-    // SAFETY: by the caller's contract; then a fresh frames context.
-    unsafe {
-        let buf = ffi::av_hwframe_ctx_alloc(device);
+    // For the unsafe operations below: by the caller's contract; then a fresh frames context.
+    {
+        // SAFETY: as the comment above this block states.
+        let buf = unsafe { ffi::av_hwframe_ctx_alloc(device) };
         assert!(!buf.is_null());
-        fill_frames(frames_ctx(buf), kind, width, height, 0);
-        assert_eq!(ffi::av_hwframe_ctx_init(buf), 0);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let frames_ctx_2 = unsafe { frames_ctx(buf) };
+        // SAFETY: as the comment above this block states.
+        unsafe { fill_frames(frames_ctx_2, kind, width, height, 0) };
+        // SAFETY: as the comment above this block states.
+        unsafe { assert_eq!(ffi::av_hwframe_ctx_init(buf), 0) };
         assert_eq!(take_events(), [Event::FramesInit(kind)]);
         buf
     }
@@ -835,7 +1003,7 @@ pub unsafe fn frames(
 /// # Safety
 ///
 /// `buf` must be a live reference.
-pub unsafe fn ref_count(buf: *const ffi::AVBufferRef) -> c_int {
+pub(crate) unsafe fn ref_count(buf: *const ffi::AVBufferRef) -> c_int {
     // SAFETY: by the caller's contract.
     unsafe { ffi::av_buffer_get_ref_count(buf) }
 }
@@ -845,24 +1013,24 @@ pub unsafe fn ref_count(buf: *const ffi::AVBufferRef) -> c_int {
 /// # Safety
 ///
 /// `buf` must be NULL or a live reference the caller owns.
-pub unsafe fn unref(mut buf: *mut ffi::AVBufferRef) {
+pub(crate) unsafe fn unref(mut buf: *mut ffi::AVBufferRef) {
     // SAFETY: by the caller's contract.
-    unsafe { ffi::av_buffer_unref(&mut buf) }
+    unsafe { ffi::av_buffer_unref(&raw mut buf) }
 }
 
 /// What a frame shows of itself: its format, size, which of `buf`/`data`
 /// are set, whether `data[3]` and `data[0]` point at its first buffer's
 /// surface, its frames context, and whether `extended_data` is `data`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FrameShape {
-    pub format: c_int,
-    pub width: c_int,
-    pub height: c_int,
-    pub bufs: [bool; 8],
-    pub data: [bool; 8],
-    pub linesize0: c_int,
-    pub has_frames: bool,
-    pub own_extended: bool,
+pub(crate) struct FrameShape {
+    pub(crate) format: c_int,
+    pub(crate) width: c_int,
+    pub(crate) height: c_int,
+    pub(crate) bufs: [bool; 8],
+    pub(crate) data: [bool; 8],
+    pub(crate) linesize0: c_int,
+    pub(crate) has_frames: bool,
+    pub(crate) own_extended: bool,
 }
 
 /// The shape of `frame`.
@@ -870,21 +1038,20 @@ pub struct FrameShape {
 /// # Safety
 ///
 /// `frame` must be a live frame.
-pub unsafe fn shape(frame: *const ffi::AVFrame) -> FrameShape {
-    // SAFETY: reads of a live frame's fields.
-    unsafe {
-        FrameShape {
-            format: (*frame).format,
-            width: (*frame).width,
-            height: (*frame).height,
-            bufs: (*frame).buf.map(|b| !b.is_null()),
-            data: (*frame).data.map(|d| !d.is_null()),
-            linesize0: (*frame).linesize[0],
-            has_frames: !(*frame).hw_frames_ctx.is_null(),
-            own_extended: ptr::eq(
-                (*frame).extended_data.cast_const(),
-                addr_of!((*frame).data).cast(),
-            ),
-        }
+pub(crate) unsafe fn shape(frame: *const ffi::AVFrame) -> FrameShape {
+    // SAFETY: `frame` is to a live object, as the block below relies on, so the
+    // place of its `data` field is in bounds; nothing is accessed here.
+    let data_ptr = unsafe { &raw const (*frame).data };
+    // SAFETY: by the caller's contract, a live frame: a copy of its fields.
+    let f = unsafe { frame.read() };
+    FrameShape {
+        format: f.format,
+        width: f.width,
+        height: f.height,
+        bufs: f.buf.map(|b| !b.is_null()),
+        data: f.data.map(|d| !d.is_null()),
+        linesize0: f.linesize[0],
+        has_frames: !f.hw_frames_ctx.is_null(),
+        own_extended: ptr::eq(f.extended_data.cast_const(), data_ptr.cast()),
     }
 }

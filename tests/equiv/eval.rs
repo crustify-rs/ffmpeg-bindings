@@ -1,5 +1,20 @@
 //! Equivalence of `libavutil/eval.h`'s `parse_number` with the raw
 //! `av_strtod`: the value (bit for bit, NaN included) and where C stopped.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::items_after_statements,
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::ffi::{CStr, c_char};
 use std::ffi::CString;
@@ -11,7 +26,7 @@ use ffmpeg_bindings::libavutil::libavutil::ffi;
 fn c_strtod(s: &CStr) -> (f64, usize) {
     let mut tail: *mut c_char = core::ptr::null_mut();
     // SAFETY: `s` is NUL-terminated and `tail` a writable local.
-    let d = unsafe { ffi::av_strtod(s.as_ptr(), &mut tail) };
+    let d = unsafe { ffi::av_strtod(s.as_ptr(), &raw mut tail) };
     (d, tail as usize - s.as_ptr() as usize)
 }
 
@@ -125,14 +140,14 @@ fn listed_numbers_agree() {
     }
 }
 
-/// Whether the suite runs under BorrowSanitizer.
+/// Whether the suite runs under `BorrowSanitizer`.
 ///
-/// BSan reports a false out-of-bounds access at `av_strtod`'s `next[0]`
+/// `BSan` reports a false out-of-bounds access at `av_strtod`'s `next[0]`
 /// (`eval.c:120`) after many calls in one thread: `next` is an
 /// uninitialised local that uninstrumented glibc `strtod` writes, so its
 /// shadow keeps the provenance a freed earlier frame left in the slot,
-/// while the byte C reads lies inside the live string (ASan agrees). The
-/// exhaustive sweeps skip under BSan; the listed inputs still run.
+/// while the byte C reads lies inside the live string (`ASan` agrees). The
+/// exhaustive sweeps skip under `BSan`; the listed inputs still run.
 fn under_bsan() -> bool {
     std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
 }
@@ -196,7 +211,7 @@ mod expr {
     const QUIET: c_int = 40;
 
     /// The opaque pointer every evaluation passes; never dereferenced.
-    const OPAQUE: usize = 0x5eed;
+    const OPAQUE: usize = 0x5EED;
 
     /// One call of a user function, as it reached the function.
     #[derive(Debug, PartialEq)]
@@ -287,7 +302,7 @@ mod expr {
         // call; no log context.
         let ret = unsafe {
             ffi::av_expr_parse(
-                &mut e,
+                &raw mut e,
                 s.as_ptr(),
                 c_ptrs.as_ptr(),
                 u_ptrs.as_ptr(),
@@ -329,14 +344,19 @@ mod expr {
         let mut vars = vec![0; CONSTS.len()];
         let mut unary = vec![0; UNARY.len()];
         let mut binary = vec![0; BINARY.len()];
-        // SAFETY: zeroed counters of the sizes passed, and a live tree.
-        unsafe {
-            assert_eq!(
-                ffi::av_expr_count_vars(e, vars.as_mut_ptr(), vars.len() as c_int),
-                0
-            );
-            assert_eq!(ffi::av_expr_count_func(e, unary.as_mut_ptr(), 2, 1), 0);
-            assert_eq!(ffi::av_expr_count_func(e, binary.as_mut_ptr(), 2, 2), 0);
+        // For the unsafe operations below: zeroed counters of the sizes passed, and a live tree.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    ffi::av_expr_count_vars(e, vars.as_mut_ptr(), vars.len() as c_int),
+                    0
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_expr_count_func(e, unary.as_mut_ptr(), 2, 1), 0) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_expr_count_func(e, binary.as_mut_ptr(), 2, 2), 0) };
         }
         let steps = (0..steps)
             .map(|_| {
@@ -370,7 +390,9 @@ mod expr {
                     let r = r.as_c_ptr();
                     // SAFETY: per each caller, `s` only names the corpus' names
                     // and evaluates without UB; both trees are live.
-                    let (a, b) = unsafe { (observe(c.0, values, 3), observe(r, values, 3)) };
+                    let (a, b) = (unsafe { observe(c.0, values, 3) }, unsafe {
+                        observe(r, values, 3)
+                    });
                     assert_eq!(a, b, "{s:?} with {values:?}");
                 }
                 Ok(())
@@ -503,24 +525,18 @@ mod expr {
             let r = Expr::parse(s, &consts, &unary, &binary, 0).unwrap();
             // SAFETY: both trees only name the lists above (counted within the
             // corpus' sizes) and evaluate without UB.
-            let (a, b) = unsafe {
-                (
-                    observe(c.0, &[1.0, 2.0, 3.0], 2),
-                    observe(r.as_c_ptr(), &[1.0, 2.0, 3.0], 2),
-                )
-            };
+            let (a, b) = (unsafe { observe(c.0, &[1.0, 2.0, 3.0], 2) }, unsafe {
+                observe(r.as_c_ptr(), &[1.0, 2.0, 3.0], 2)
+            });
             assert_eq!(a, b, "{s:?}");
         }
         // Empty lists name nothing, but the evaluator's own names remain.
         let c = c_parse(c"PI + sin(1)", &[], &[], &[], 0).unwrap();
         let r = Expr::parse(c"PI + sin(1)", &[], &[], &[], 0).unwrap();
         // SAFETY: as above, with no user names.
-        let (a, b) = unsafe {
-            (
-                observe(c.0, &[0.0; 3], 2),
-                observe(r.as_c_ptr(), &[0.0; 3], 2),
-            )
-        };
+        let (a, b) = (unsafe { observe(c.0, &[0.0; 3], 2) }, unsafe {
+            observe(r.as_c_ptr(), &[0.0; 3], 2)
+        });
         assert_eq!(a, b);
         for s in [c"X", c"f(1)", c"g(1, 2)"] {
             assert_eq!(c_parse(s, &[], &[], &[], QUIET).err(), Some(EINVAL));
@@ -556,7 +572,7 @@ mod expr {
         );
     }
 
-    /// Whether this run is under BSan, which misreports C's parser: every
+    /// Whether this run is under `BSan`, which misreports C's parser: every
     /// primary goes through `av_strtod`, whose end pointer glibc's uninstrumented
     /// `strtod` writes, so the local keeps the provenance an earlier frame left
     /// in its slot (often a freed parse buffer) and `next[0]` can read as a use
@@ -617,15 +633,15 @@ mod expr {
             0 | 1 => out.push_str(rng.pick(ATOMS)),
             2 => {
                 let name = rng.pick(UNARY_FNS);
-                call(rng, name, 1, out)
+                call(rng, name, 1, out);
             }
             3 => {
                 let name = rng.pick(BINARY_FNS);
-                call(rng, name, 2, out)
+                call(rng, name, 2, out);
             }
             4 => {
                 let name = rng.pick(TERNARY_FNS);
-                call(rng, name, 3, out)
+                call(rng, name, 3, out);
             }
             _ => {
                 generate(rng, depth + 1, out);
@@ -643,7 +659,7 @@ mod expr {
         if under_bsan() {
             return;
         }
-        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         let (mut parsed, mut failed) = (0, 0);
         for round in 0..1500 {
             let mut s = String::new();
@@ -718,8 +734,9 @@ mod expr {
     /// by step: the registers `st()` writes and the state `random()` advances
     /// carry from one evaluation to the next on both sides.
     mod expression {
-        use super::*;
         use ffmpeg_bindings::libavutil::libavutil::eval::{Arity, Expression};
+
+        use super::*;
 
         /// One evaluation of each side, with no opaque pointer or with
         /// `token`'s address on both; the value bits and the user calls.
@@ -759,14 +776,14 @@ mod expr {
             let mut sides = [Vec::new(), Vec::new()];
             for which in 0..3 {
                 let mut cv = vec![start; size];
-                // SAFETY: a live tree and `size` writable counters, with `arg`
-                // 0, 1 or 2.
-                let ret = unsafe {
-                    if which == 0 {
-                        ffi::av_expr_count_vars(c.0, cv.as_mut_ptr(), size as c_int)
-                    } else {
-                        ffi::av_expr_count_func(c.0, cv.as_mut_ptr(), size as c_int, which)
-                    }
+                // For the unsafe operations below: a live tree and `size` writable counters, with
+                // `arg` 0, 1 or 2.
+                let ret = if which == 0 {
+                    // SAFETY: as the comment above this statement states.
+                    unsafe { ffi::av_expr_count_vars(c.0, cv.as_mut_ptr(), size as c_int) }
+                } else {
+                    // SAFETY: as the comment at the head of this block states.
+                    unsafe { ffi::av_expr_count_func(c.0, cv.as_mut_ptr(), size as c_int, which) }
                 };
                 sides[0].push((ret, cv));
                 let mut rv = vec![start; size];
@@ -880,7 +897,7 @@ mod expr {
             if under_bsan() {
                 return;
             }
-            let mut rng = Rng(0x0123_4567_89ab_cdef);
+            let mut rng = Rng(0x0123_4567_89AB_CDEF);
             let mut agreed = 0;
             for _ in 0..600 {
                 let mut s = String::new();
@@ -945,7 +962,7 @@ mod expressions {
         // unchecked conversions.
         let ret = unsafe {
             ffi::av_expr_parse_and_eval(
-                &mut d,
+                &raw mut d,
                 e.as_ptr(),
                 names.as_ptr(),
                 values.as_ptr(),
@@ -1043,7 +1060,7 @@ mod expressions {
             "A", "B", "W", "1", "2.5", "0", "+", "-", "*", "/", "^", "(", ")", "square(", "half(",
             "hyp(", ",", "max(", "1e300", "PI",
         ];
-        let mut state = 0x1234_5678_9abc_def1u64;
+        let mut state = 0x1234_5678_9ABC_DEF1u64;
         let mut next = || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -1155,7 +1172,7 @@ mod parse_with_context {
         // context led by NULL or a valid class.
         let ret = unsafe {
             ffi::av_expr_parse(
-                &mut e,
+                &raw mut e,
                 s.as_ptr(),
                 ptr::null(),
                 ptr::null(),
@@ -1188,7 +1205,9 @@ mod parse_with_context {
                 | ffi::LIBAVUTIL_VERSION_MICRO) as c_int,
             ..Default::default()
         };
-        let mut parent = Ctx { class: &class };
+        let mut parent = Ctx {
+            class: &raw const class,
+        };
         let parent: *mut c_void = (&raw mut parent).cast();
         let mut classless = Ctx { class: ptr::null() };
         let classless: *mut c_void = (&raw mut classless).cast();

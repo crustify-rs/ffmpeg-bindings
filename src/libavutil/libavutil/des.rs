@@ -49,7 +49,7 @@ pub type DesBox = HeapBox<Des>;
 // SAFETY: zero initializes the integer flag and every fixed integer array.
 unsafe impl CZeroable for Des {}
 
-/// Wraps: av_des_alloc
+/// Wraps: `av_des_alloc`
 // av_des_alloc returns a fresh, zero-filled AVDES allocation or NULL.
 // SAFETY: zero is a valid Des; Heap frees its av_malloc-family storage.
 unsafe impl CNew<Des> for Heap {
@@ -64,6 +64,10 @@ impl Des {
     /// Initializes an inline context with an 8-byte DES or 24-byte triple-DES
     /// key. Returns `AVERROR(EINVAL)` (-22) for any other key length.
     /// `decrypt` is accepted as in C, but the current C implementation ignores it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AVERROR(EINVAL)` (-22) for any other key length.
     pub fn new(key: &[u8], decrypt: bool) -> Result<Self, i32> {
         let mut context = Self::zeroed();
         context.as_mut().init(key, decrypt)?;
@@ -72,6 +76,11 @@ impl Des {
 
     /// Allocates and initializes a context. Returns -22 for an invalid key
     /// length or `AVERROR(ENOMEM)` (-12) if C cannot allocate its storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns -22 for an invalid key length or `AVERROR(ENOMEM)` (-12) if C cannot allocate its
+    /// storage.
     pub fn new_boxed(key: &[u8], decrypt: bool) -> Result<DesBox, i32> {
         key_bits(key.len())?;
         let mut context = DesBox::new().ok_or(-12)?;
@@ -89,33 +98,41 @@ fn key_bits(len: usize) -> Result<i32, i32> {
 }
 
 impl DesRef<'_> {
-    /// Field: AVDES.triple_des
+    /// Field: `AVDES.triple_des`
     ///
     /// The raw mode flag. C treats any nonzero value as triple-DES.
+    #[must_use]
     pub fn triple_des(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `triple_des` field is in bounds; nothing is accessed here.
+        let triple_des_ptr = unsafe { addr_of!((*self.as_ptr()).triple_des) };
         // SAFETY: the shared handle addresses an initialized context; the
         // projection reads only its scalar flag and creates no reference.
-        unsafe { addr_of!((*self.as_ptr()).triple_des).read() }
+        unsafe { triple_des_ptr.read() }
     }
 
-    /// Field: AVDES.round_keys
+    /// Field: `AVDES.round_keys`
     ///
     /// A copy of all three 16-round schedules, including inactive schedules.
+    #[must_use]
     pub fn round_keys(&self) -> [[u64; 16]; 3] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `round_keys` field is in bounds; nothing is accessed here.
+        let round_keys_ptr = unsafe { addr_of!((*self.as_ptr()).round_keys) };
         // SAFETY: safe constructors initialize every schedule, and the
         // shared handle keeps the whole context alive and unwritten.
-        unsafe { addr_of!((*self.as_ptr()).round_keys).read() }
+        unsafe { round_keys_ptr.read() }
     }
 }
 
 impl DesRef<'_> {
-    /// Wraps: av_des_crypt
+    /// Wraps: `av_des_crypt`
     ///
     /// Encrypt or decrypt whole 8-byte blocks. `None` selects ECB; an IV
     /// selects CBC and is updated for the next call. Unequal lengths, partial
     /// blocks, or a block count exceeding C's `int` return an error without
     /// changing output or IV. Unaligned byte buffers are supported by
-    /// C's actual AV_RB64/AV_WB64 implementation despite the header wording.
+    /// C's actual `AV_RB64/AV_WB64` implementation despite the header wording.
     ///
     /// Partially overlapping input/output cannot be passed through safe Rust:
     /// ```compile_fail,E0502
@@ -124,6 +141,11 @@ impl DesRef<'_> {
     /// let mut bytes = [0; 24];
     /// context.as_ref().crypt(&mut bytes[8..], &bytes[..16], None, Direction::Encrypt).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -153,9 +175,14 @@ impl DesRef<'_> {
         Ok(())
     }
 
-    /// Wraps: av_des_crypt
+    /// Wraps: `av_des_crypt`
     ///
     /// The exact in-place variant of [`Self::crypt`], with the same validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -185,11 +212,16 @@ impl DesRef<'_> {
         Ok(())
     }
 
-    /// Wraps: av_des_crypt
+    /// Wraps: `av_des_crypt`
     ///
     /// Encrypt/decrypt zero blocks into `dst`. Uses real zero-filled input:
     /// C's advertised NULL input is defective for multiple blocks because
     /// it increments NULL and subsequently dereferences the resulting pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_zeros(
         &self,
         dst: &mut [u8],
@@ -201,10 +233,15 @@ impl DesRef<'_> {
         self.crypt_in_place(dst, iv, direction)
     }
 
-    /// Wraps: av_des_mac
+    /// Wraps: `av_des_mac`
     ///
     /// CBC-MAC of whole blocks. Empty input returns the initial all-zero MAC.
     /// The context is borrowed read-only; no input or result pointer is retained.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn mac(&self, src: &[u8]) -> Result<[u8; 8], CryptError> {
         let count = buffer_count(src.len(), src.len(), 8)?;
         let mut mac = [0; 8];
@@ -219,7 +256,7 @@ impl DesRef<'_> {
                     mac.as_mut_ptr(),
                     src.as_ptr(),
                     count,
-                )
+                );
             };
         }
         Ok(mac)
@@ -227,11 +264,15 @@ impl DesRef<'_> {
 }
 
 impl DesMut<'_> {
-    /// Wraps: av_des_init
+    /// Wraps: `av_des_init`
     ///
     /// Reinitializes with an 8- or 24-byte key. Invalid lengths return -22
     /// without changing any field. In single-DES mode C leaves the other
     /// two schedules unchanged. The input is read only during this call.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_des_init` returns when it fails.
     pub fn init(&mut self, key: &[u8], decrypt: bool) -> Result<(), i32> {
         let bits = key_bits(key.len())?;
         let mode = i32::from(decrypt);
@@ -263,16 +304,22 @@ impl DesMut<'_> {
     /// inner.set_triple_des(0);
     /// ```
     pub fn set_triple_des(&mut self, flag: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `triple_des` field is in bounds; nothing is accessed here.
+        let triple_des_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).triple_des) };
         // SAFETY: the handle exclusively borrows an initialized AVDES; the
         // scalar field accepts any i32 and the projection creates no reference.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).triple_des).write(flag) }
+        unsafe { triple_des_ptr.write(flag) }
     }
 
     /// Replaces all three schedules with fully initialized integer arrays.
     pub fn set_round_keys(&mut self, keys: [[u64; 16]; 3]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `round_keys` field is in bounds; nothing is accessed here.
+        let round_keys_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).round_keys) };
         // SAFETY: the handle grants exclusive access, the fixed array has
         // exactly the field's layout, and all u64 values are valid round keys.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).round_keys).write(keys) }
+        unsafe { round_keys_ptr.write(keys) }
     }
 }
 
@@ -328,14 +375,8 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn layout_matches_and_raw_adoption_roundtrips() {
-        assert_eq!(
-            core::mem::size_of::<Des>(),
-            core::mem::size_of::<ffi::AVDES>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Des>(),
-            core::mem::align_of::<ffi::AVDES>()
-        );
+        assert_eq!(size_of::<Des>(), size_of::<ffi::AVDES>());
+        assert_eq!(align_of::<Des>(), align_of::<ffi::AVDES>());
         let owner = Des::new_boxed(&[0; 24], true).unwrap();
         let keys = owner.as_ref().round_keys();
         let raw = owner.into_c();

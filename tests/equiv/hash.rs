@@ -1,15 +1,23 @@
 //! Safe hashing and lifecycle agree with independently owned C inputs.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::CStr;
 use core::ptr;
-use ffmpeg_bindings::libavutil::libavutil::{ffi, hash::HashContext};
+
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 
 struct Reference(*mut ffi::AVHashContext);
 impl Reference {
     fn new(name: &CStr) -> Self {
         let mut context = ptr::null_mut();
         // SAFETY: valid output slot and name; C transfers the allocation.
-        let result = unsafe { ffi::av_hash_alloc(&mut context, name.as_ptr()) };
+        let result = unsafe { ffi::av_hash_alloc(&raw mut context, name.as_ptr()) };
         assert_eq!(result, 0);
         assert!(!context.is_null());
         // SAFETY: the fresh allocation has valid algorithm storage; initialize
@@ -21,7 +29,7 @@ impl Reference {
 impl Drop for Reference {
     fn drop(&mut self) {
         // SAFETY: this fixture uniquely owns the context and its children.
-        unsafe { ffi::av_hash_freep(&mut self.0) };
+        unsafe { ffi::av_hash_freep(&raw mut self.0) };
         assert!(self.0.is_null());
     }
 }
@@ -48,21 +56,25 @@ fn allocation_initialization_metadata_and_reset_match() {
     ] {
         let mut safe = HashContext::new(name).unwrap();
         let reference = Reference::new(name);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hash_get_name_2 = unsafe { ffi::av_hash_get_name(reference.0) };
         // SAFETY: reference is live and C returns an immutable static string.
-        let expected_name = unsafe { CStr::from_ptr(ffi::av_hash_get_name(reference.0)) };
+        let expected_name = unsafe { CStr::from_ptr(hash_get_name_2) };
         // SAFETY: reference's algorithm is valid and the operation only reads.
         let size = unsafe { ffi::av_hash_get_size(reference.0) } as usize;
         assert_eq!(safe.as_ref().name(), expected_name);
         assert_eq!(safe.as_ref().size(), size);
         for bytes in [b"".as_slice(), b"abc", &[0; 257][..]] {
             let mut expected = vec![0; size];
-            // SAFETY: both contexts are independent, initialized sole-owned
-            // allocations with no outstanding handles. Input is read only for
-            // its length and not retained. Each output has the digest's size.
+            // For the unsafe operations below: both contexts are independent, initialized
+            // sole-owned allocations with no outstanding handles. Input is read only
+            // for its length and not retained. Each output has the digest's size.
             // Each context is finalized once and reset before its next use.
-            unsafe {
-                ffi::av_hash_update(reference.0, bytes.as_ptr(), bytes.len());
-                ffi::av_hash_final(reference.0, expected.as_mut_ptr());
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_hash_update(reference.0, bytes.as_ptr(), bytes.len()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_hash_final(reference.0, expected.as_mut_ptr()) };
             }
             safe.as_mut().update(bytes);
             assert_eq!(safe.as_mut().finalize(), expected, "{name:?}");
@@ -82,7 +94,7 @@ fn failed_allocations_match_and_clear_the_output() {
         let mut context = ptr::null_mut();
         // SAFETY: writable output slot, live NUL-terminated name; C clears
         // the slot and allocates nothing for these unsupported names.
-        let expected = unsafe { ffi::av_hash_alloc(&mut context, name.as_ptr()) };
+        let expected = unsafe { ffi::av_hash_alloc(&raw mut context, name.as_ptr()) };
         assert!(context.is_null());
         assert_eq!(HashContext::new(name).err(), Some(expected));
     }
@@ -101,7 +113,7 @@ fn batch10_registry_indices_match_c() {
             None
         } else {
             // SAFETY: non-null hashdesc names are immutable NUL-terminated statics.
-            Some(unsafe { std::ffi::CStr::from_ptr(ptr) })
+            Some(unsafe { CStr::from_ptr(ptr) })
         };
         assert_eq!(hash::name(i), raw);
     }
@@ -146,7 +158,7 @@ fn allocation_failures_match_c() {
             let mut context = ptr::null_mut();
             // SAFETY: valid output slot and NUL-terminated name; on success C
             // transfers an allocation this test frees below.
-            let expected = unsafe { ffi::av_hash_alloc(&mut context, name.as_ptr()) };
+            let expected = unsafe { ffi::av_hash_alloc(&raw mut context, name.as_ptr()) };
             let actual = HashContext::new(name);
             if expected < 0 {
                 assert!(context.is_null());
@@ -157,7 +169,7 @@ fn allocation_failures_match_c() {
                 assert_eq!(actual.unwrap().as_ref().name(), name_of(context));
                 parent_fits |= name == c"adler32";
                 // SAFETY: this test owns the fresh context and frees it once.
-                unsafe { ffi::av_hash_freep(&mut context) };
+                unsafe { ffi::av_hash_freep(&raw mut context) };
             }
         }
         if parent_fits {
@@ -172,9 +184,11 @@ fn allocation_failures_match_c() {
 }
 
 fn name_of(context: *const ffi::AVHashContext) -> &'static CStr {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let hash_get_name = unsafe { ffi::av_hash_get_name(context) };
     // SAFETY: context is a live allocated context with a valid algorithm; C
     // returns a NUL-terminated name in static storage.
-    unsafe { CStr::from_ptr(ffi::av_hash_get_name(context)) }
+    unsafe { CStr::from_ptr(hash_get_name) }
 }
 
 #[test]
@@ -214,13 +228,15 @@ fn all_algorithms_output_formats_and_capacities() {
                 // SAFETY: independently initialized context, output is digest-sized
                 // for final, int-sized for bin/hex/b64, and invalid text capacities
                 // are excluded. Empty binary output uses a live dummy byte.
-                unsafe {
-                    match format {
-                        0 => ffi::av_hash_final(raw.0, ptr),
-                        1 => ffi::av_hash_final_bin(raw.0, ptr, size as i32),
-                        2 => ffi::av_hash_final_hex(raw.0, ptr, size as i32),
-                        _ => ffi::av_hash_final_b64(raw.0, ptr, size as i32),
-                    }
+                match format {
+                    // SAFETY: as the comment above this statement states.
+                    0 => unsafe { ffi::av_hash_final(raw.0, ptr) },
+                    // SAFETY: as the comment above this statement states.
+                    1 => unsafe { ffi::av_hash_final_bin(raw.0, ptr, size as i32) },
+                    // SAFETY: as the comment above this statement states.
+                    2 => unsafe { ffi::av_hash_final_hex(raw.0, ptr, size as i32) },
+                    // SAFETY: as the comment above this statement states.
+                    _ => unsafe { ffi::av_hash_final_b64(raw.0, ptr, size as i32) },
                 }
                 match format {
                     0 => actual = safe.as_mut().finalize(),
@@ -238,13 +254,15 @@ fn all_algorithms_output_formats_and_capacities() {
 /// `INT_MAX` bytes (crypto wave-1 review,
 /// `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`).
 mod beyond_int_max {
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
+
     use super::Reference;
-    use ffmpeg_bindings::libavutil::libavutil::{ffi, hash::HashContext};
 
     const LEN: usize = i32::MAX as usize + 1;
     const HEAD: usize = 160;
 
-    /// BSan cost grows with a 2 GiB allocation's history (see the campaign's
+    /// `BSan` cost grows with a 2 GiB allocation's history (see the campaign's
     /// test recipes); the plain and other sanitized runs cover these.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -269,14 +287,25 @@ mod beyond_int_max {
             for format in 0..3 {
                 let raw = Reference::new(name);
                 let mut expected = buffer();
-                // SAFETY: initialized context, readable input and an output
-                // writable for `INT_MAX` bytes; C writes at most that many.
-                unsafe {
-                    ffi::av_hash_update(raw.0, b"crustify".as_ptr(), 8);
+                // For the unsafe operations below: initialized context, readable input and an
+                // output writable for `INT_MAX` bytes; C writes at most that many.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_hash_update(raw.0, b"crustify".as_ptr(), 8) };
+                    // SAFETY: as the comment above this block states.
                     match format {
-                        0 => ffi::av_hash_final_bin(raw.0, expected.as_mut_ptr(), i32::MAX),
-                        1 => ffi::av_hash_final_hex(raw.0, expected.as_mut_ptr(), i32::MAX),
-                        _ => ffi::av_hash_final_b64(raw.0, expected.as_mut_ptr(), i32::MAX),
+                        // SAFETY: as the comment above this statement states.
+                        0 => unsafe {
+                            ffi::av_hash_final_bin(raw.0, expected.as_mut_ptr(), i32::MAX);
+                        },
+                        // SAFETY: as the comment above this statement states.
+                        1 => unsafe {
+                            ffi::av_hash_final_hex(raw.0, expected.as_mut_ptr(), i32::MAX);
+                        },
+                        // SAFETY: as the comment above this statement states.
+                        _ => unsafe {
+                            ffi::av_hash_final_b64(raw.0, expected.as_mut_ptr(), i32::MAX);
+                        },
                     }
                 }
                 let (head, last) = (expected[..HEAD].to_vec(), expected[LEN - 1]);

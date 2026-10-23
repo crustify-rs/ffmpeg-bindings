@@ -1,15 +1,21 @@
-use ffmpeg_bindings::libavutil::libavutil::{
-    camellia::{self, Camellia, CamelliaBox},
-    ffi,
-};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::camellia::{self, Camellia, CamelliaBox};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn lifecycle_sequences_match_c() {
     let _serial = TEST_LOCK.lock().unwrap();
+    // SAFETY: as the comment below states, for this part of the operation.
+    let camellia_alloc = unsafe { ffi::av_camellia_alloc() };
     // SAFETY: C returns a fresh zero-filled full-sized context, or NULL.
     // CamelliaBox's CamelliaFree policy frees it once with av_free; no C pointer is kept.
-    let reference = unsafe { CamelliaBox::from_c(ffi::av_camellia_alloc()) }.unwrap();
+    let reference = unsafe { CamelliaBox::from_c(camellia_alloc) }.unwrap();
     let mut safe = Camellia::new(&[0; 16]).unwrap();
     for len in [16, 24, 32, 16, 32, 24] {
         let key: Vec<u8> = (0..len).map(|i| (i * 37) as u8).collect();
@@ -102,7 +108,7 @@ fn buffer_sequences_match_c() {
     let _serial = TEST_LOCK.lock().unwrap();
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let actual = Camellia::new(&key).unwrap();
             let reference = Camellia::new(&key).unwrap();
             let src: Vec<u8> = (0..16 * 8 + 3).map(|i| (i * 31) as u8).collect();
@@ -110,11 +116,11 @@ fn buffer_sequences_match_c() {
                 let (mut ia, mut ir) = ([0x73; 16], [0x73; 16]);
                 for blocks in [0, 1, 2, 4, 8, 1] {
                     let len = blocks * 16;
-                    let (mut a, mut r) = (vec![0xcc; len + 3], vec![0xcc; len + 3]);
+                    let (mut a, mut r) = (vec![0xCC; len + 3], vec![0xCC; len + 3]);
                     actual
                         .as_ref()
                         .crypt(
-                            &mut a[1..1 + len],
+                            &mut a[1..=len],
                             &src[2..2 + len],
                             cbc.then_some(&mut ia),
                             direction,
@@ -125,25 +131,33 @@ fn buffer_sequences_match_c() {
                     } else {
                         core::ptr::null_mut()
                     };
-                    // SAFETY: independent initialized context, len whole readable/
-                    // writable blocks in disjoint allocations; IV is a separate
-                    // full block or NULL. This synchronous call retains nothing.
-                    unsafe {
-                        ffi::av_camellia_crypt(
-                            reference.as_c_ptr(),
-                            r.as_mut_ptr().add(1),
-                            src.as_ptr().add(2),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: independent initialized context, len whole
+                    // readable/ writable blocks in disjoint allocations; IV is
+                    // a separate full block or NULL. This synchronous call
+                    // retains nothing.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_mut_ptr_add = unsafe { r.as_mut_ptr().add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_ptr_add = unsafe { src.as_ptr().add(2) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_camellia_crypt(
+                                reference.as_c_ptr(),
+                                as_mut_ptr_add,
+                                as_ptr_add,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);
                     // Compare subsequent in-place processing and IV transitions.
                     actual
                         .as_ref()
-                        .crypt_in_place(&mut a[1..1 + len], cbc.then_some(&mut ia), direction)
+                        .crypt_in_place(&mut a[1..=len], cbc.then_some(&mut ia), direction)
                         .unwrap();
                     // The assertions above reborrowed `r` and `ir`, retiring the
                     // pointers of the first call: take fresh ones, and a single
@@ -154,17 +168,25 @@ fn buffer_sequences_match_c() {
                         core::ptr::null_mut()
                     };
                     let place = r.as_mut_ptr();
-                    // SAFETY: same initialized reference, exact-alias buffers
-                    // explicitly supported by C, with len full blocks and separate IV.
-                    unsafe {
-                        ffi::av_camellia_crypt(
-                            reference.as_c_ptr(),
-                            place.add(1),
-                            place.add(1),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: same initialized reference, exact-alias
+                    // buffers explicitly supported by C, with len full blocks
+                    // and separate IV.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add = unsafe { place.add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add_2 = unsafe { place.add(1) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_camellia_crypt(
+                                reference.as_c_ptr(),
+                                place_add,
+                                place_add_2,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);

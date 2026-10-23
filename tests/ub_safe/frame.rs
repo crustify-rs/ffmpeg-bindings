@@ -1,5 +1,21 @@
 //! UB tests for `libavutil/frame.h`'s wrapped types, through the safe API
 //! only.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// [`SideDataType`] as a value and as the plain element of `av_malloc`-family
 /// arrays, the storage a C array of `enum AVFrameSideDataType` lives in
@@ -12,7 +28,9 @@ mod side_data_type {
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
 
     /// Named values at both ends, the first values past the table, and the
     /// `unsigned` extremes a negative `int` written into C storage reads as.
@@ -182,7 +200,7 @@ mod active_format_description {
 /// `SideDataDescriptor` and `SideDataProps`: inline values, `av_malloc`-family
 /// owners and arrays of descriptors, every handle form, names from literals
 /// and from exactly sized heap allocations (so a read past the NUL is an
-/// ASan report), names that outlive the descriptor they were read from,
+/// `ASan` report), names that outlive the descriptor they were read from,
 /// copies outliving their source, and the asserted `Send` / `Sync`. Tests
 /// without `heap` in their name make no C call and also run under Miri
 /// (buffer-frame wave 0, batch 4).
@@ -199,7 +217,7 @@ mod side_data_descriptor {
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
-    /// LeakSanitizer nor Miri reports it.
+    /// `LeakSanitizer` nor Miri reports it.
     fn leaked(bytes: &[u8]) -> &'static CStr {
         static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
         let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
@@ -208,7 +226,7 @@ mod side_data_descriptor {
     }
 
     /// Property bits at every edge: none, named, unnamed, the sign bit, all.
-    const PROPS: [c_uint; 5] = [0, 0x1f, 0x20, 0x8000_0000, c_uint::MAX];
+    const PROPS: [c_uint; 5] = [0, 0x1F, 0x20, 0x8000_0000, c_uint::MAX];
 
     /// Everything the getters read, the name by content.
     fn snapshot(d: SideDataDescriptorRef<'_>) -> (Option<Vec<u8>>, c_uint) {
@@ -312,7 +330,7 @@ mod side_data_descriptor {
         let mut b = SideDataDescriptor::new();
         b.as_mut().set(copy);
         assert_eq!(b, copy);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = Clone::clone(&b);
         assert_eq!(snapshot(c.as_ref()), snapshot(copy.as_ref()));
         assert_ne!(a, copy);
@@ -490,7 +508,9 @@ mod side_data_lookups {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataDescriptor, SideDataDescriptorRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        SideDataDescriptor, SideDataDescriptorRef, SideDataType,
+    };
 
     fn every_value() -> impl Iterator<Item = SideDataType> {
         (0..=256u32)
@@ -562,7 +582,9 @@ mod region_of_interest {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef,
+    };
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
@@ -705,7 +727,7 @@ mod region_of_interest {
 
 /// [`SideData`] entries and their [`SideDataArray`] (buffer-frame wave 2,
 /// batch 0): every getter over payloads from empty to page-sized, sized
-/// exactly so that a read past the end is an ASan report; writes through
+/// exactly so that a read past the end is an `ASan` report; writes through
 /// sole, shared and read-only buffers; buffer and metadata replacement with
 /// the old owners outliving the array; the array's handles and iterators;
 /// and entries read, written, cloned and dropped across threads.
@@ -718,11 +740,13 @@ mod side_data {
 
     use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
     use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, Flags};
-    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        SideDataArray, SideDataFlags, SideDataRef, SideDataType,
+    };
 
     use super::side_data_fixture::{SAMPLE, Spec, array, sample};
 
-    /// Whether every byte of `bytes` is `b`, compared as one slice: BSan
+    /// Whether every byte of `bytes` is `b`, compared as one slice: `BSan`
     /// retags once per element an iterator yields.
     fn is_all(bytes: &[u8], b: u8) -> bool {
         *bytes == *vec![b; bytes.len()]
@@ -749,8 +773,8 @@ mod side_data {
             assert_eq!(e.kind(), spec.kind);
             assert_eq!(e.len(), spec.payload.len());
             assert_eq!(e.is_empty(), spec.payload.is_empty());
-            assert!(e.data() == spec.payload);
-            assert!(e.buffer().data() == spec.payload);
+            assert_eq!(e.data(), spec.payload);
+            assert_eq!(e.buffer().data(), spec.payload);
             assert!(!format!("{e:?}").is_empty());
             let _ = pairs(e);
         }
@@ -874,7 +898,7 @@ mod side_data {
             .collect();
         drop(a);
         for (b, spec) in old.iter().zip(&SAMPLE) {
-            assert!(b.as_ref().data() == spec.payload);
+            assert_eq!(b.as_ref().data(), spec.payload);
         }
         for (i, b) in kept.iter().enumerate().skip(1) {
             assert!(is_all(b.as_ref().data(), i as u8));
@@ -915,7 +939,9 @@ mod side_data {
         let kinds = [
             SideDataType::AFD,
             SideDataType::SEI_UNREGISTERED,
-            SideDataType::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(77)),
+            SideDataType::from_raw(
+                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(77),
+            ),
         ];
         let mut a = sample();
         let mut kept = Vec::new();
@@ -964,7 +990,7 @@ mod side_data {
             let mut e = a
                 .add(SideDataType::SEI_UNREGISTERED, buf, SideDataFlags::NONE)
                 .unwrap();
-            e.data_mut().unwrap().fill(i ^ 0xff);
+            e.data_mut().unwrap().fill(i ^ 0xFF);
             e.set_metadata(Dict::from_entries([(c"i", c"x")]).unwrap());
         }
         let buf = BufferReference::alloc_zeroed(2).unwrap();
@@ -978,7 +1004,7 @@ mod side_data {
         assert_eq!(a.len(), 21);
         check_consistent(&a);
         for (i, e) in a.as_ref().iter().take(20).enumerate() {
-            assert!(is_all(e.data(), i as u8 ^ 0xff));
+            assert!(is_all(e.data(), i as u8 ^ 0xFF));
         }
     }
 
@@ -999,7 +1025,9 @@ mod side_data {
     fn kinds_take_any_value() {
         let mut a = sample();
         for raw in [0, 1, 37, 38, 1 << 31, u32::MAX] {
-            let kind = SideDataType::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(raw));
+            let kind = SideDataType::from_raw(
+                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(raw),
+            );
             for mut e in a.as_mut().iter_mut() {
                 e.set_kind(kind);
                 assert_eq!(e.as_ref().kind(), kind);
@@ -1010,7 +1038,7 @@ mod side_data {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn big_and_many_entries() {
-        let page = vec![0x5a; 1 << 16];
+        let page = vec![0x5A; 1 << 16];
         let specs: Vec<Spec<'_>> = (0..200)
             .map(|i| Spec::new(SideDataType::SEI_UNREGISTERED, &page[..i * 97]))
             .collect();
@@ -1038,8 +1066,8 @@ mod side_data {
             let old = e.replace_buffer(fresh);
             drop(copy);
             assert!(is_all(old.as_ref().data(), round));
-            e.data_mut().unwrap()[16] = 0xee;
-            assert_eq!(e.as_ref().data()[16], 0xee);
+            e.data_mut().unwrap()[16] = 0xEE;
+            assert_eq!(e.as_ref().data()[16], 0xEE);
         }
     }
 
@@ -1054,7 +1082,7 @@ mod side_data {
                     let mut copies = Vec::new();
                     for _ in 0..50 {
                         for (e, spec) in a.as_ref().as_ref().iter().zip(&SAMPLE) {
-                            assert!(e.data() == spec.payload);
+                            assert_eq!(e.data(), spec.payload);
                             copies.push(e.buffer().try_clone().unwrap());
                             let _ = pairs(e);
                         }
@@ -1114,7 +1142,7 @@ mod side_data_fixture;
 
 /// The side data array routines (buffer-frame wave 3, batch 1): payloads
 /// `alloc_zeroed` and `alloc_from_slice` allocate, from empty to page-sized,
-/// read and written in full so that a run past the end is an ASan report;
+/// read and written in full so that a run past the end is an `ASan` report;
 /// the replacement whose allocation fails, where C's own routine would
 /// dereference NULL; clones outliving their source and the entry they
 /// replaced; lookups and removals over every kind and property filter, with
@@ -1157,16 +1185,16 @@ mod side_data_array_routines {
             let mut e = entries
                 .alloc_from_slice(multi, &bytes, SideDataFlags::NONE)
                 .unwrap();
-            assert!(e.as_ref().data() == bytes);
-            e.data_mut().unwrap().fill(0xee);
+            assert_eq!(e.as_ref().data(), bytes);
+            e.data_mut().unwrap().fill(0xEE);
         }
         assert_eq!(a.len(), 2 * SIZES.len());
         for (i, &n) in SIZES.iter().enumerate() {
             let e = a.as_ref().get(2 * i).unwrap();
             assert_eq!(e.len(), n);
             assert!(is_all(e.data(), i as u8 + 1));
-            assert!(e.buffer().data() == e.data());
-            assert!(is_all(a.as_ref().get(2 * i + 1).unwrap().data(), 0xee));
+            assert_eq!(e.buffer().data(), e.data());
+            assert!(is_all(a.as_ref().get(2 * i + 1).unwrap().data(), 0xEE));
         }
         assert!(is_all(a.as_ref().find(multi).unwrap().data(), 1));
     }
@@ -1226,7 +1254,7 @@ mod side_data_array_routines {
             assert!(e.as_ref().metadata().is_none());
         }
         assert_eq!(kinds(&a), SAMPLE.map(|s| s.kind));
-        assert!(kept.as_ref().data() == SAMPLE[4].payload);
+        assert_eq!(kept.as_ref().data(), SAMPLE[4].payload);
         assert_eq!(kept.as_ref().ref_count(), 1);
     }
 
@@ -1247,14 +1275,14 @@ mod side_data_array_routines {
         drop(src);
         for (e, spec) in dst.as_ref().iter().zip(&SAMPLE) {
             assert_eq!(e.kind(), spec.kind);
-            assert!(e.data() == spec.payload);
+            assert_eq!(e.data(), spec.payload);
         }
         let mut sei = dst.find_mut(SideDataType::SEI_UNREGISTERED).unwrap();
         sei.data_mut().expect("the source is gone").fill(1);
         assert_eq!(dst.len(), SAMPLE.len());
         let page = dst.as_ref().get(3).unwrap();
         assert_eq!(page.metadata().unwrap().len(), 3);
-        assert!(page.data() == SAMPLE[3].payload);
+        assert_eq!(page.data(), SAMPLE[3].payload);
     }
 
     #[test]
@@ -1303,7 +1331,7 @@ mod side_data_array_routines {
         assert_eq!(a.len(), 3);
         for e in a.as_ref() {
             let spec = SAMPLE.iter().find(|s| s.kind == e.kind()).unwrap();
-            assert!(e.data() == spec.payload);
+            assert_eq!(e.data(), spec.payload);
         }
         for k in [SideDataType::AFD, SideDataType::A53_CC, SAMPLE[5].kind] {
             a.as_mut().remove(k);
@@ -1312,7 +1340,7 @@ mod side_data_array_routines {
         a.as_mut().remove(SideDataType::AFD);
         a.as_mut().remove_by_props(SideDataProps::all());
         for (b, spec) in held.iter().zip(&SAMPLE) {
-            assert!(b.as_ref().data() == spec.payload);
+            assert_eq!(b.as_ref().data(), spec.payload);
             assert_eq!(b.as_ref().ref_count(), 1);
         }
         assert!(
@@ -1375,9 +1403,9 @@ mod side_data_array_routines {
         thread::scope(|s| {
             for mut a in arrays {
                 s.spawn(move || {
-                    assert!(
-                        a.as_ref().find(SideDataType::ICC_PROFILE).unwrap().data()
-                            == SAMPLE[4].payload
+                    assert_eq!(
+                        a.as_ref().find(SideDataType::ICC_PROFILE).unwrap().data(),
+                        SAMPLE[4].payload
                     );
                     a.as_mut().remove_by_props(SideDataProps::COLOR_DEPENDENT);
                     a.as_mut().remove(SideDataType::AFD);
@@ -1389,7 +1417,7 @@ mod side_data_array_routines {
 
     /// Clones replacing an entry in place whose metadata copy fails part
     /// way, at every `av_max_alloc` limit up to one that copies it all:
-    /// C's own path leaks the entries it already copied (LeakSanitizer, at
+    /// C's own path leaks the entries it already copied (`LeakSanitizer`, at
     /// the isolated child's exit), the wrapper frees them and leaves the
     /// entry as it was (buffer-frame wave-3 symbol review,
     /// `ub_safe/side-data-clone-replace-leaks-partial-metadata`).
@@ -1421,17 +1449,14 @@ mod side_data_array_routines {
             set_max(i32::MAX as usize);
             let e = dst.as_ref().get(0).unwrap();
             assert_eq!(dst.len(), 1, "limit {limit}");
-            match ret {
-                Ok(()) => {
-                    assert_eq!(e.data(), b"src", "limit {limit}");
-                    assert_eq!(e.metadata().unwrap().len(), pairs.len(), "limit {limit}");
-                }
-                Err(_) => {
-                    failed += 1;
-                    assert_eq!(e.data(), b"old", "limit {limit}");
-                    assert_eq!(e.metadata().unwrap().len(), 1, "limit {limit}");
-                    assert_eq!(e.buffer().ref_count(), 1, "limit {limit}");
-                }
+            if let Ok(()) = ret {
+                assert_eq!(e.data(), b"src", "limit {limit}");
+                assert_eq!(e.metadata().unwrap().len(), pairs.len(), "limit {limit}");
+            } else {
+                failed += 1;
+                assert_eq!(e.data(), b"old", "limit {limit}");
+                assert_eq!(e.metadata().unwrap().len(), 1, "limit {limit}");
+                assert_eq!(e.buffer().ref_count(), 1, "limit {limit}");
             }
         }
         // Copies fail after one, two and three entries on the way.
@@ -1443,7 +1468,7 @@ mod side_data_array_routines {
     /// array and reading the bytes Rust wrote: C grows and shrinks the
     /// pointer block, moves entries within it, writes the entries it
     /// replaces and the counts of shared buffers, while handles and views
-    /// Rust took before are re-derived after each call (the BSan target of
+    /// Rust took before are re-derived after each call (the `BSan` target of
     /// this batch).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -1471,7 +1496,7 @@ mod side_data_array_routines {
             let mut replaced = a
                 .alloc_from_slice(SideDataType::AFD, &[round; 2], SideDataFlags::REPLACE)
                 .unwrap();
-            replaced.data_mut().unwrap()[1] = 0xff;
+            replaced.data_mut().unwrap()[1] = 0xFF;
             a.as_mut().remove(SideDataType::ICC_PROFILE);
             src.find_mut(SideDataType::AFD)
                 .unwrap()
@@ -1479,7 +1504,7 @@ mod side_data_array_routines {
             a.as_mut().remove_by_props(SideDataProps::MULTI);
             assert_eq!(
                 a.as_ref().find(SideDataType::AFD).unwrap().data(),
-                [round, 0xff]
+                [round, 0xFF]
             );
         }
         drop(src);
@@ -1489,7 +1514,7 @@ mod side_data_array_routines {
 
 /// [`Frame`] (buffer-frame wave 3, batch 0): every getter and setter of a
 /// new frame and of one built through the safe API; planes over exactly
-/// sized buffers, so that a read or write past a view is an ASan report;
+/// sized buffers, so that a read or write past a view is an `ASan` report;
 /// writes through sole, shared and read-only buffers; buffer, extra buffer,
 /// `extended_data`, side data, metadata, user data and channel layout
 /// changes with the old owners outliving the frame; clones outliving their
@@ -2267,7 +2292,7 @@ mod frame_routines {
             let mut dst = video(format, 9, 5, 1);
             let count = format.plane_count().unwrap();
             for i in 0..count {
-                src.as_mut().plane_mut(i).unwrap().fill(0x5a);
+                src.as_mut().plane_mut(i).unwrap().fill(0x5A);
             }
             if format == PixelFormat::PAL8 {
                 src.as_mut().plane_mut(1).unwrap()[..1024].fill(0x77);
@@ -2279,7 +2304,7 @@ mod frame_routines {
                 for y in 0..rows(format, i, 5) {
                     // The first byte of every row is copied.
                     let dp = &d.plane(i).unwrap()[y * dl..];
-                    assert_eq!(dp[0], 0x5a, "{format:?} plane {i} row {y}");
+                    assert_eq!(dp[0], 0x5A, "{format:?} plane {i} row {y}");
                 }
             }
             if format == PixelFormat::PAL8 {
@@ -2582,11 +2607,10 @@ mod frame_routines {
                     assert_eq!((r.width(), r.height()), (61, 30));
                     assert_eq!((r.crop_top(), r.crop_right()), (4, 0));
                     continue;
-                } else {
-                    assert_eq!(r.height(), 26);
-                    // Without `UNALIGNED`, C may round the left edge down.
-                    assert!((41..=61).contains(&r.width()), "{format:?}");
                 }
+                assert_eq!(r.height(), 26);
+                // Without `UNALIGNED`, C may round the left edge down.
+                assert!((41..=61).contains(&r.width()), "{format:?}");
                 assert_eq!((r.crop_top(), r.crop_left()), (0, 0));
                 for i in 0..format.plane_count().unwrap() {
                     assert!(r.plane(i).is_some(), "{format:?} {flags:?} plane {i}");
@@ -2737,7 +2761,7 @@ mod frame_routines {
         );
     }
 
-    /// Runs test `name` again alone in a child whose UBSan halts on its
+    /// Runs test `name` again alone in a child whose `UBSan` halts on its
     /// first report (the asan-ubsan build otherwise only prints C's
     /// reports); true inside that child.
     fn halting(name: &str) -> bool {

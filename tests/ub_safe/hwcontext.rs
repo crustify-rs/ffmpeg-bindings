@@ -1,5 +1,19 @@
 //! UB tests for `libavutil/hwcontext.h`'s wrapped types, through the safe API
 //! only.
+#![expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// [`DeviceType`] as a value and as the plain element of `av_malloc`-family
 /// arrays, the storage a C array of `enum AVHWDeviceType` lives in (hwcontext
@@ -12,7 +26,9 @@ mod device_type {
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceType;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
 
     /// Named values at both ends, the first values past the enumerators, and
     /// the `unsigned` extremes a negative `int` written into C storage reads
@@ -267,7 +283,7 @@ mod contexts {
     fn lookups_read_only_their_string() {
         let names = types().filter_map(|t| t.name()).collect::<Vec<_>>();
         for len in 0..16 {
-            for fill in [b'a', b'v', 0x7f, 0xff] {
+            for fill in [b'a', b'v', 0x7F, 0xFF] {
                 let s = CString::new(vec![fill; len]).unwrap();
                 assert_eq!(DeviceType::from_name(&s), None);
             }
@@ -342,8 +358,8 @@ mod contexts {
     #[test]
     fn map_flags_combine_any_bits() {
         let all = MapFlags::READ | MapFlags::WRITE | MapFlags::OVERWRITE | MapFlags::DIRECT;
-        assert_eq!(all.bits(), 0xf);
-        for bits in [0, 1, 0xf, 0x10, -1, i32::MIN, i32::MAX] {
+        assert_eq!(all.bits(), 0xF);
+        for bits in [0, 1, 0xF, 0x10, -1, i32::MIN, i32::MAX] {
             let f = MapFlags::from_bits_retain(bits);
             assert_eq!(f.bits(), bits);
             assert!(!format!("{f:?}").is_empty());
@@ -361,7 +377,9 @@ mod frames_constraints {
     use std::sync::Mutex;
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{FramesConstraints, FramesConstraintsBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+        FramesConstraints, FramesConstraintsBox,
+    };
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapVec;
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
@@ -369,7 +387,11 @@ mod frames_constraints {
     /// `NONE` first, long.
     fn lists() -> Vec<Vec<PixelFormat>> {
         let long: Vec<_> = (0..300)
-            .map(|i| PixelFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(i % 200)))
+            .map(|i| {
+                PixelFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(
+                    i % 200,
+                ))
+            })
             .collect();
         vec![
             vec![],
@@ -489,7 +511,7 @@ mod frames_constraints {
                     assert_eq!(
                         r.valid_hw_formats().unwrap().elem(0),
                         Some(PixelFormat::VAAPI)
-                    )
+                    );
                 });
             }
         });

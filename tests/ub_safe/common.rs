@@ -2,6 +2,10 @@
 //! `ceil_log2` and bit-counting helpers, through the safe API only: every
 //! input class the C branches test, every 16-bit value and bit boundary,
 //! no bit position reaching C's undefined shifts, and concurrent calls.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use std::thread;
 
@@ -194,7 +198,7 @@ fn helpers_run_concurrently() {
             thread::spawn(move || {
                 (0..10_000u32)
                     .map(|i| {
-                        let v = i.wrapping_mul(0x9e37_79b9) ^ t;
+                        let v = i.wrapping_mul(0x9E37_79B9) ^ t;
                         log2(v) + log2_16bit(v as u16) + u32::from(parity(v))
                     })
                     .sum::<u32>()

@@ -1,5 +1,9 @@
 //! Equivalence of `libavutil/file.h`'s `map` and `FileMap` with
 //! `av_file_map` and `av_file_unmap`, mapping the same files on each side.
+#![expect(
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_int};
 use std::ffi::CString;
@@ -34,8 +38,15 @@ fn c_map(name: &CStr) -> (Result<Vec<u8>, c_int>, usize) {
     // SAFETY: `name` is a live NUL-terminated string, `buf` and `size`
     // writable out-parameters; no parent log context. Nothing writes the file
     // while it is mapped.
-    let ret =
-        unsafe { ffi::av_file_map(name.as_ptr(), &mut buf, &mut size, 0, core::ptr::null_mut()) };
+    let ret = unsafe {
+        ffi::av_file_map(
+            name.as_ptr(),
+            &raw mut buf,
+            &raw mut size,
+            0,
+            core::ptr::null_mut(),
+        )
+    };
     if ret < 0 {
         assert!(buf.is_null());
         return (Err(ret), size);

@@ -1,4 +1,14 @@
-use ffmpeg_bindings::libavutil::libavutil::{crc::CrcId, ffi};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
+use ffmpeg_bindings::libavutil::libavutil::crc::CrcId;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -17,12 +27,9 @@ fn constants_and_lookup_selection_match_c() {
         // SAFETY: both arguments are valid value encodings; C bounds-checks
         // them, initializes tables with thread_once, and returns static
         // storage. No table representation or length is assumed here.
-        let (actual, reference) = unsafe {
-            (
-                ffi::av_crc_get_table(id.into_raw()),
-                ffi::av_crc_get_table(raw),
-            )
-        };
+        let (actual, reference) = (unsafe { ffi::av_crc_get_table(id.into_raw()) }, unsafe {
+            ffi::av_crc_get_table(raw)
+        });
         assert!(!actual.is_null());
         assert_eq!(actual, reference);
     }
@@ -66,10 +73,10 @@ fn batch10_table_outputs_and_stream_sequences_match_c() {
     for (le, bits, poly) in [
         (false, 8, 7),
         (false, 16, 0x8005),
-        (false, 24, 0x864cfb),
-        (false, 32, 0x04c11db7),
-        (true, 16, 0xa001),
-        (true, 32, 0xedb88320),
+        (false, 24, 0x864CFB),
+        (false, 32, 0x04C11DB7),
+        (true, 16, 0xA001),
+        (true, 32, 0xEDB88320),
         (false, 8, 0),
         (true, 31, 0x12345678),
     ] {
@@ -98,11 +105,11 @@ fn batch10_table_outputs_and_stream_sequences_match_c() {
                     }
                     let source = reference[3 + offset..3 + offset + len].to_vec();
                     left = safe.update(left, &source);
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let as_ptr_add_2 = unsafe { reference.as_ptr().add(3 + offset) };
                     // SAFETY: initialized private raw table and independent
                     // readable input; prefix keeps C's end - 3 in allocation.
-                    right = unsafe {
-                        ffi::av_crc(raw.as_ptr(), right, reference.as_ptr().add(3 + offset), len)
-                    };
+                    right = unsafe { ffi::av_crc(raw.as_ptr(), right, as_ptr_add_2, len) };
                     assert_eq!(left, right);
                 }
             }
@@ -158,9 +165,11 @@ fn standard_table_sequences_match_c() {
         let (mut a, mut r) = (0x12345678, 0x12345678);
         for len in [0, 1, 2, 3, 4, 7, 16, 255, 256] {
             a = actual.update(a, &input[3..3 + len]);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_ptr_add = unsafe { input.as_ptr().add(3) };
             // SAFETY: an initialized immutable C table; input has a 3-byte
             // prefix so generic C's end-3 pointer remains within the allocation.
-            r = unsafe { ffi::av_crc(reference, r, input.as_ptr().add(3), len) };
+            r = unsafe { ffi::av_crc(reference, r, as_ptr_add, len) };
             assert_eq!(a, r);
         }
     }

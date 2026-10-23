@@ -1,15 +1,21 @@
-use ffmpeg_bindings::libavutil::libavutil::{
-    cast5::{Cast5, Cast5Box, InitError},
-    ffi,
-};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::cast5::{Cast5, Cast5Box, InitError};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 // Raw C calls below are independent reference construction or observations
 // of the safe Rust lifecycle, not tests of an unsafe public Rust API.
 fn c_context(key: &[u8]) -> Cast5Box {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let cast5_alloc = unsafe { ffi::av_cast5_alloc() };
     // SAFETY: C returns a fresh av_mallocz allocation; Cast5Free releases it
     // once. The reference key's length is 5..=16 in every caller below.
-    let owner = unsafe { Cast5Box::from_c(ffi::av_cast5_alloc()) }.unwrap();
-    // SAFETY: the context has its full C allocation and key.len() readable
+    let owner = unsafe { Cast5Box::from_c(cast5_alloc) }.unwrap();
+    // For the unsafe operations below: the context has its full C allocation and key.len() readable
     // bytes; init copies them and retains no pointers.
     let bits = (key.len() * 8) as i32;
     // SAFETY: key has exactly bits/8 bytes and owner is a full C allocation.
@@ -30,7 +36,7 @@ fn observe(owner: &mut Cast5Box, input: &[u8; 16], decrypt: bool) -> [u8; 16] {
             input.as_ptr(),
             2,
             i32::from(decrypt),
-        )
+        );
     };
     output
 }
@@ -67,8 +73,8 @@ fn constructors_and_reinitialization_match_independent_c_contexts() {
             assert_eq!(observe(&mut c, &encrypted, true), input);
             let key = vec![(len * 7) as u8; len];
             rust.as_mut().init(&key).unwrap();
-            // SAFETY: c owns a full context, key has len initialized bytes;
-            // C only replaces round keys, retaining no pointer.
+            // For the unsafe operations below: c owns a full context, key has len initialized
+            // bytes; C only replaces round keys, retaining no pointer.
             let bits = (len * 8) as i32;
             // SAFETY: key has bits/8 bytes and c is exclusively owned.
             let result = unsafe { ffi::av_cast5_init(c.as_c_ptr(), key.as_ptr(), bits) };
@@ -84,7 +90,7 @@ fn constructors_and_reinitialization_match_independent_c_contexts() {
                 rust.as_mut().init(&invalid_key),
                 Err(InitError::InvalidKeyLength)
             );
-            // SAFETY: invalid bit lengths are rejected before C reads the
+            // For the unsafe operations below: invalid bit lengths are rejected before C reads the
             // key or writes the full, live context, even for an empty slice.
             let ptr = invalid_key.as_ptr();
             let bits = (len * 8) as i32;
@@ -119,7 +125,7 @@ use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 fn buffer_sequences_match_c() {
     for key_len in [5, 10, 11, 16] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let actual = Cast5::new(&key).unwrap();
             let reference = Cast5::new(&key).unwrap();
             let src: Vec<u8> = (0..8 * 8 + 3).map(|i| (i * 31) as u8).collect();
@@ -127,11 +133,11 @@ fn buffer_sequences_match_c() {
                 let (mut ia, mut ir) = ([0x73; 8], [0x73; 8]);
                 for blocks in [0, 1, 2, 4, 8, 1] {
                     let len = blocks * 8;
-                    let (mut a, mut r) = (vec![0xcc; len + 3], vec![0xcc; len + 3]);
+                    let (mut a, mut r) = (vec![0xCC; len + 3], vec![0xCC; len + 3]);
                     actual
                         .as_ref()
                         .crypt_cbc(
-                            &mut a[1..1 + len],
+                            &mut a[1..=len],
                             &src[2..2 + len],
                             cbc.then_some(&mut ia),
                             direction,
@@ -142,25 +148,33 @@ fn buffer_sequences_match_c() {
                     } else {
                         core::ptr::null_mut()
                     };
-                    // SAFETY: independent initialized context, len whole readable/
-                    // writable blocks in disjoint allocations; IV is a separate
-                    // full block or NULL. This synchronous call retains nothing.
-                    unsafe {
-                        ffi::av_cast5_crypt2(
-                            reference.as_c_ptr(),
-                            r.as_mut_ptr().add(1),
-                            src.as_ptr().add(2),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: independent initialized context, len whole
+                    // readable/ writable blocks in disjoint allocations; IV is
+                    // a separate full block or NULL. This synchronous call
+                    // retains nothing.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_mut_ptr_add = unsafe { r.as_mut_ptr().add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_ptr_add = unsafe { src.as_ptr().add(2) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_cast5_crypt2(
+                                reference.as_c_ptr(),
+                                as_mut_ptr_add,
+                                as_ptr_add,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);
                     // Compare subsequent in-place processing and IV transitions.
                     actual
                         .as_ref()
-                        .crypt_cbc_in_place(&mut a[1..1 + len], cbc.then_some(&mut ia), direction)
+                        .crypt_cbc_in_place(&mut a[1..=len], cbc.then_some(&mut ia), direction)
                         .unwrap();
                     // The assertions above reborrowed `r` and `ir`, retiring the
                     // pointers of the first call: take fresh ones, and a single
@@ -171,17 +185,25 @@ fn buffer_sequences_match_c() {
                         core::ptr::null_mut()
                     };
                     let place = r.as_mut_ptr();
-                    // SAFETY: same initialized reference, exact-alias buffers
-                    // explicitly supported by C, with len full blocks and separate IV.
-                    unsafe {
-                        ffi::av_cast5_crypt2(
-                            reference.as_c_ptr(),
-                            place.add(1),
-                            place.add(1),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: same initialized reference, exact-alias
+                    // buffers explicitly supported by C, with len full blocks
+                    // and separate IV.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add = unsafe { place.add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add_2 = unsafe { place.add(1) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_cast5_crypt2(
+                                reference.as_c_ptr(),
+                                place_add,
+                                place_add_2,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);
@@ -203,7 +225,7 @@ fn buffer_sequences_match_c() {
                         src.as_ptr(),
                         blocks as i32,
                         i32::from(direction == Direction::Decrypt),
-                    )
+                    );
                 };
                 assert_eq!(a, r);
                 actual.as_ref().crypt_in_place(&mut a, direction).unwrap();
@@ -216,7 +238,7 @@ fn buffer_sequences_match_c() {
                         r.as_mut_ptr(),
                         blocks as i32,
                         i32::from(direction == Direction::Decrypt),
-                    )
+                    );
                 };
                 assert_eq!(a, r);
             }

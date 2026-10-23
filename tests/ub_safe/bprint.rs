@@ -1,6 +1,14 @@
 //! UB tests of `libavutil/bprint.h`'s safe [`PaddedStruct`] constants: they
 //! evaluate at compile time, without overflow, and describe the C structure's
 //! storage.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::mem::{align_of, size_of};
 
@@ -30,7 +38,9 @@ mod fields {
     use std::sync::Barrier;
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrintFields, BPrintFieldsMut, PaddedStruct};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{
+        BPrintFields, BPrintFieldsMut, PaddedStruct,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     static GREETING: &CStr = c"Hello, AVBPrint";
@@ -103,11 +113,14 @@ mod fields {
         let mut a = BPrintFields::new();
         fill(a.as_mut(), Some(GREETING), 3);
         let mut b = a;
-        #[allow(clippy::clone_on_copy)] // the `Clone` impl itself
+        #[expect(clippy::clone_on_copy, reason = "the `Clone` impl itself")]
         let c = a.clone();
         b.as_mut().set_len(4);
         b.as_mut().set_str(Some(c"other"));
-        assert_eq!((a.as_ref().len(), b.as_ref().len(), c.as_ref().len()), (3, 4, 3));
+        assert_eq!(
+            (a.as_ref().len(), b.as_ref().len(), c.as_ref().len()),
+            (3, 4, 3)
+        );
         assert_eq!(a.as_ref().str(), Some(GREETING));
         assert_eq!(c.as_ref().str(), Some(GREETING));
         assert_eq!(b.as_ref().str(), Some(c"other"));
@@ -205,7 +218,9 @@ mod fields {
 mod owners {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintBox, BPrintOnBuffer, BPrintRef};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{
+        BPrint, BPrintBox, BPrintOnBuffer, BPrintRef,
+    };
 
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -254,8 +269,9 @@ mod owners {
                     size_max
                 };
                 let inline = max.min(BPrint::INLINE_CAPACITY);
-                let grows =
-                    size_init > inline && inline != max && size_init.min(max) <= i32::MAX as u32;
+                let grows = size_init > inline
+                    && inline != max
+                    && i32::try_from(size_init.min(max)).is_ok();
                 assert_eq!(buf.as_ref().is_inline(), !grows, "{size_init} {size_max}");
                 buf.as_mut().truncate(0);
                 buf.as_mut().as_mut().truncate(u32::MAX);
@@ -289,9 +305,9 @@ mod owners {
             set_max_alloc(limit);
             assert!(BPrint::new(0, BPrint::SIZE_AUTOMATIC).is_none());
             assert!(BPrint::for_buffer(&mut []).is_none());
-            let mut out = [0xa5; 8];
+            let mut out = [0xA5; 8];
             assert!(BPrint::for_buffer(&mut out).is_none());
-            assert_eq!(out, [0xa5; 8]);
+            assert_eq!(out, [0xA5; 8]);
         }
 
         // At exactly the descriptor size construction succeeds; failure to
@@ -301,9 +317,9 @@ mod owners {
         assert!(buf.as_ref().is_inline());
         check_empty(buf.as_ref());
         drop(buf);
-        let mut out = [0xa5; 8];
+        let mut out = [0xA5; 8];
         drop(BPrint::for_buffer(&mut out).unwrap());
-        assert_eq!(out, [0, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5]);
+        assert_eq!(out, [0, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5]);
     }
 
     #[test]
@@ -323,7 +339,7 @@ mod owners {
     #[cfg_attr(miri, ignore = "calls C")]
     fn caller_buffers_of_every_length_hold_an_empty_string() {
         for len in [0, 1, 2, 3, 1024, 70_000] {
-            let mut out = vec![0xa5_u8; len];
+            let mut out = vec![0xA5_u8; len];
             let mut buf = BPrint::for_buffer(&mut out).unwrap();
             check_empty(buf.as_ref());
             assert_eq!(buf.as_ref().size() as usize, len);
@@ -333,13 +349,13 @@ mod owners {
             if len > 0 {
                 assert_eq!(out[0], 0);
                 // One slice comparison: BSan retags per element visited.
-                assert_eq!(out[1..], vec![0xa5; len - 1][..]);
+                assert_eq!(out[1..], vec![0xA5; len - 1][..]);
             }
         }
     }
 
     /// A buffer past `u32::MAX` bytes is used up to that many. Zeroed pages
-    /// cost nothing until touched; skipped under BSan, whose shadow does not
+    /// cost nothing until touched; skipped under `BSan`, whose shadow does not
     /// scale to them.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -397,7 +413,7 @@ mod owners {
             assert_eq!(j.join().unwrap(), 0);
         }
 
-        let mut out = [0xa5_u8; 32];
+        let mut out = [0xA5_u8; 32];
         let on: BPrintOnBuffer<'_> = BPrint::for_buffer(&mut out).unwrap();
         thread::scope(|s| {
             s.spawn(move || {
@@ -479,10 +495,25 @@ mod appenders {
         m.append_bytes(b"bin\0ary\xff");
         m.append_repeated(b'r', 0);
         m.append_repeated(b'r', 700);
-        m.append_escaped(c" e'sc\\ape: ", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty());
-        m.append_escaped(c"<x a='1'/>", None, EscapeMode::Xml, EscapeFlags::XML_SINGLE_QUOTES);
+        m.append_escaped(
+            c" e'sc\\ape: ",
+            Some(c":"),
+            EscapeMode::Backslash,
+            EscapeFlags::empty(),
+        );
+        m.append_escaped(
+            c"<x a='1'/>",
+            None,
+            EscapeMode::Xml,
+            EscapeFlags::XML_SINGLE_QUOTES,
+        );
         m.append_escaped(c"'q'", None, EscapeMode::Quote, EscapeFlags::STRICT);
-        m.append_escaped(c"", Some(c""), EscapeMode::Auto, EscapeFlags::from_bits_retain(-1));
+        m.append_escaped(
+            c"",
+            Some(c""),
+            EscapeMode::Auto,
+            EscapeFlags::from_bits_retain(-1),
+        );
         m.append_fmt(format_args!("{}|{:>8}|{:e}", u64::MAX, "pad", f64::MIN));
         m.append_fmt(format_args!(""));
         m.append_c_str(c"c string");
@@ -525,7 +556,7 @@ mod appenders {
             }
         }
         for len in LENS {
-            let mut out = vec![0x5a_u8; len];
+            let mut out = vec![0x5A_u8; len];
             let mut buf = BPrint::for_buffer(&mut out).unwrap();
             for _ in 0..2 {
                 append_all(&mut buf.as_mut(), &tm);
@@ -626,7 +657,8 @@ mod appenders {
         // back or truncates.
         for size_max in [BPrint::SIZE_UNLIMITED, 30, 1500] {
             let mut buf = BPrint::new(0, size_max).unwrap();
-            buf.as_mut().append_strftime(c"%3000c", some_time().as_ref());
+            buf.as_mut()
+                .append_strftime(c"%3000c", some_time().as_ref());
             check(buf.as_ref());
             buf.as_mut().append_strftime(c"%c", some_time().as_ref());
             check(buf.as_ref());

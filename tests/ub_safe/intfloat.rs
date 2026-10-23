@@ -1,6 +1,10 @@
 //! UB tests for `libavutil/intfloat.h`'s `IntFloat64` and `IntFloat32`,
 //! through the safe API only: inline values, `av_malloc`-family owners and
 //! arrays of them, every handle form, and the asserted `Send` / `Sync`.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use std::thread;
 
@@ -17,14 +21,14 @@ const BITS: [u64; 12] = [
     0,
     1 << 63,
     1,
-    0x000f_ffff_ffff_ffff,
+    0x000F_FFFF_FFFF_FFFF,
     0x0010_0000_0000_0000,
-    0x7fef_ffff_ffff_ffff,
-    0x7ff0_0000_0000_0000,
-    0xfff0_0000_0000_0000,
-    0x7ff0_0000_0000_0001,
-    0x7ff8_0000_0000_0000,
-    0xfff8_dead_beef_0001,
+    0x7FEF_FFFF_FFFF_FFFF,
+    0x7FF0_0000_0000_0000,
+    0xFFF0_0000_0000_0000,
+    0x7FF0_0000_0000_0001,
+    0x7FF8_0000_0000_0000,
+    0xFFF8_DEAD_BEEF_0001,
     u64::MAX,
 ];
 
@@ -80,7 +84,7 @@ fn copies_are_independent_values() {
     b.as_mut().set_float(-1.0);
     assert_eq!(a.as_ref().bits(), 1);
     assert_eq!(b.as_ref().float(), -1.0);
-    #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+    #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
     let c = Clone::clone(&b);
     assert_eq!(c.as_ref().bits(), b.as_ref().bits());
 }
@@ -139,7 +143,7 @@ fn values_and_owners_move_across_threads() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn shared_handles_read_concurrently() {
-    let v = IntFloat64::from_bits(0x4009_21fb_5444_2d18);
+    let v = IntFloat64::from_bits(0x4009_21FB_5444_2D18);
     let boxed = HeapBox::<IntFloat64>::new_zeroed().unwrap();
     let (vr, br) = (v.as_ref(), boxed.as_ref());
     thread::scope(|s| {
@@ -186,7 +190,7 @@ fn cycle_intfloat32_members(mut m: IntFloat32Mut<'_>, bits: u32) {
 #[test]
 fn intfloat32_value_takes_every_member() {
     let mut a = IntFloat32::default();
-    cycle_intfloat32_members(a.as_mut(), 0x7f80_0001);
+    cycle_intfloat32_members(a.as_mut(), 0x7F80_0001);
     let mut m = a.as_mut();
     cycle_intfloat32_members(m.as_mut(), 0);
     cycle_intfloat32_members(m.as_mut(), u32::MAX);
@@ -198,7 +202,7 @@ fn intfloat32_value_takes_every_member() {
 fn intfloat32_heap_box_takes_every_member_and_clones() {
     let mut b = HeapBox::<IntFloat32>::new_zeroed().unwrap();
     assert_eq!(b.as_ref().float(), 0.0);
-    cycle_intfloat32_members(b.as_mut(), 0x3f80_0000);
+    cycle_intfloat32_members(b.as_mut(), 0x3F80_0000);
     let c = b.clone();
     b.as_mut().set_bits(1);
     drop(b);
@@ -231,7 +235,7 @@ fn intfloat32_handles_and_owners_cross_threads() {
     thread::scope(|s| {
         for _ in 0..4 {
             s.spawn(move || assert_eq!(ra.float(), 0.5));
-            s.spawn(|| assert_eq!(a.as_ref().bits(), 0x3f00_0000));
+            s.spawn(|| assert_eq!(a.as_ref().bits(), 0x3F00_0000));
         }
         let mb = b.as_mut();
         s.spawn(move || cycle_intfloat32_members(mb, 5));
@@ -249,12 +253,12 @@ fn conversions_take_every_class_edge() {
     for bits in [
         0,
         1,
-        0x007f_ffff,
+        0x007F_FFFF,
         0x0080_0000,
-        0x7f7f_ffff,
-        0x7f80_0000,
-        0x7f80_0001,
-        0x7fc0_0000,
+        0x7F7F_FFFF,
+        0x7F80_0000,
+        0x7F80_0001,
+        0x7FC0_0000,
         u32::MAX,
     ] {
         assert_eq!(float_to_bits(float_from_bits(bits)), bits);

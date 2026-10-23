@@ -10,10 +10,10 @@ mod bprint;
 mod bswap;
 mod buffer;
 mod cast5;
-mod crc;
 mod channel_layout;
 mod common;
 mod cpu;
+mod crc;
 mod csp;
 mod des;
 mod dict;
@@ -29,8 +29,8 @@ mod intreadwrite;
 mod log;
 mod mathematics;
 mod md5;
-mod murmur3;
 mod mem;
+mod murmur3;
 mod opt;
 mod parseutils;
 mod pixdesc;
@@ -50,9 +50,10 @@ mod xtea;
 #[test]
 fn compile_fail() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/ub_safe/compile_fail");
-    let any = std::fs::read_dir(&dir)
-        .map(|d| d.flatten().any(|e| e.path().extension().is_some_and(|x| x == "rs")))
-        .unwrap_or(false);
+    let any = std::fs::read_dir(&dir).is_ok_and(|d| {
+        d.flatten()
+            .any(|e| e.path().extension().is_some_and(|x| x == "rs"))
+    });
     if any {
         trybuild::TestCases::new().compile_fail(dir.join("*.rs"));
     }

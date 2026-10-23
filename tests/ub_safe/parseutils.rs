@@ -1,7 +1,16 @@
 //! UB tests for `libavutil/parseutils.h`'s safe parsers: inputs at the edges
-//! of each syntax, in exactly sized heap strings so that ASan sees any read
+//! of each syntax, in exactly sized heap strings so that `ASan` sees any read
 //! past the NUL, prefixes at every length, the C-UB inputs the wrappers
 //! refuse, and calls from many threads.
+#![expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::ffi::{CStr, CString};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -236,8 +245,8 @@ fn durations() {
 
 /// Serializes this suite's local-time parses. glibc's `mktime` and
 /// `localtime_r` refresh the cached time zone under glibc's internal
-/// `tzset_lock`, which TSan cannot see, so it reports concurrent calls as
-/// racing in `tzset_internal`; holding this lock shows TSan the order glibc's
+/// `tzset_lock`, which `TSan` cannot see, so it reports concurrent calls as
+/// racing in `tzset_internal`; holding this lock shows `TSan` the order glibc's
 /// lock already guarantees.
 static LOCAL_TIME: Mutex<()> = Mutex::new(());
 
@@ -296,7 +305,7 @@ fn many_threads() {
                     assert_eq!(parse_duration(c"1.5"), Ok(1_500_000));
                     let date = format!("1970-01-01T00:00:{:02}Z", (i + t) % 60);
                     let date = CString::new(date).unwrap();
-                    assert_eq!(parse_date(&date), Ok(((i + t) % 60) as i64 * 1_000_000));
+                    assert_eq!(parse_date(&date), Ok(i64::from((i + t) % 60) * 1_000_000));
                     let _t = local_time();
                     assert!(parse_date(c"12:00:00").is_ok());
                 }
@@ -316,7 +325,7 @@ mod info_tags_and_colors {
     use ffmpeg_bindings::libavutil::libavutil::parseutils::{find_info_tag, known_color_name};
 
     /// Looks `tag` up in `info` into exactly sized heap buffers of 0 to 8 bytes,
-    /// so that ASan sees a write past any of them.
+    /// so that `ASan` sees a write past any of them.
     fn every_size(tag: &str, info: &str) {
         let (tag, info) = (CString::new(tag).unwrap(), CString::new(info).unwrap());
         for len in 0..=8 {

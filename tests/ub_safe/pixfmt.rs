@@ -1,4 +1,8 @@
 //! UB tests for `libavutil/pixfmt.h`'s safe types, through the safe API only.
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// [`ColorSpace`] and [`ColorTransfer`] (formats wave 0, batch 3): as values,
 /// and as the plain elements of `av_malloc`-family arrays.
@@ -7,7 +11,9 @@ mod color_space_and_transfer {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorSpace, ColorTransfer};
 
     /// Named colour spaces, `AVCOL_SPC_NB` and values C may store unnamed.
@@ -129,12 +135,14 @@ mod alpha_mode {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::AlphaMode;
 
     /// Named modes, `AVALPHA_MODE_NB`, `AVERROR(EINVAL)` and the extremes.
     fn alpha_mode_sample() -> Vec<AlphaMode> {
-        [0, 1, 2, 3, 0xffff_ffea, 1 << 31, u32::MAX]
+        [0, 1, 2, 3, 0xFFFF_FFEA, 1 << 31, u32::MAX]
             .map(|raw| AlphaMode::from_raw(ffi::AVAlphaMode(raw)))
             .into()
     }
@@ -201,7 +209,9 @@ mod pixel_format {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     /// Named formats, `AV_PIX_FMT_NB` and its neighbours, and the `int` extremes.
@@ -306,7 +316,9 @@ mod color_primaries_and_range {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::{ColorPrimaries, ColorRange};
 
     /// Named primaries, the H.273 gap, both `NB` values and `u32::MAX`.
@@ -418,7 +430,9 @@ mod chroma_location {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
 
     /// Every value C names, the values just past them and the `unsigned`

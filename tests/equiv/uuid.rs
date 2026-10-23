@@ -61,14 +61,12 @@ fn batch10_parsers_match_c_including_skipped_separators() {
         );
         let mut range = vec![0; input.to_bytes().len() + 1];
         range[..input.to_bytes().len()].copy_from_slice(input.to_bytes());
+        // SAFETY: as the comment below states, for this part of the operation.
+        let range_2 = unsafe { range.as_ptr().add(input.to_bytes().len()) };
         // SAFETY: both endpoints belong to the same live allocation, end is
         // one-past the logical range and C never reads it; exclusive output.
         let ret = unsafe {
-            ffi::av_uuid_parse_range(
-                range.as_ptr().cast(),
-                range.as_ptr().add(input.to_bytes().len()).cast(),
-                raw.as_mut_ptr(),
-            )
+            ffi::av_uuid_parse_range(range.as_ptr().cast(), range_2.cast(), raw.as_mut_ptr())
         };
         assert_eq!(
             uuid::parse_range(input.to_bytes()),

@@ -4,6 +4,22 @@
 //! `av_image_copy_plane_uc_from`, on independently owned planes and over
 //! multi-call sequences, comparing results, every byte of the destination
 //! buffers after each step, and the lines C logs.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    trivial_numeric_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::cell::RefCell;
 use core::ffi::{c_int, c_void};
@@ -153,18 +169,25 @@ fn copy_plane_matches_c_step_by_step() {
             s.h,
         );
         assert_eq!(r, Ok(()), "step {i}");
-        // SAFETY: both planes lie inside their buffers (`span` from the
+        // For the unsafe operations below: both planes lie inside their buffers (`span` from the
         // row-0 offsets), the linesizes cover the width, and the buffers
         // are distinct.
-        unsafe {
-            ffi::av_image_copy_plane(
-                c.0.as_mut_ptr().add(s.doff + origin(s.dl, s.h)),
-                s.dl as c_int,
-                src.0.as_ptr().add(s.soff + origin(s.sl, s.h)),
-                s.sl as c_int,
-                s.w as c_int,
-                s.h as c_int,
-            )
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_3 = unsafe { c.0.as_mut_ptr().add(s.doff + origin(s.dl, s.h)) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let src_3 = unsafe { src.0.as_ptr().add(s.soff + origin(s.sl, s.h)) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ffi::av_image_copy_plane(
+                    c_3,
+                    s.dl as c_int,
+                    src_3,
+                    s.sl as c_int,
+                    s.w as c_int,
+                    s.h as c_int,
+                );
+            };
         };
         assert_eq!(rust, c, "after step {i}: {s:?}");
     }
@@ -200,18 +223,25 @@ fn uncacheable_copy_matches_c_step_by_step() {
                 !fast || (s.doff % 16 == 0 && s.soff % 16 == 0),
                 "step {i} would fault in C"
             );
-            // SAFETY: as in `copy_plane_matches_c_step_by_step`; on the SSE4
-            // path the rows are 16-byte aligned and cover the rounded-up
+            // For the unsafe operations below: as in `copy_plane_matches_c_step_by_step`; on the
+            // SSE4 path the rows are 16-byte aligned and cover the rounded-up
             // width inside the buffers.
-            unsafe {
-                ffi::av_image_copy_plane_uc_from(
-                    c.0.as_mut_ptr().add(s.doff + origin(s.dl, s.h)),
-                    s.dl,
-                    src.0.as_ptr().add(s.soff + origin(s.sl, s.h)),
-                    s.sl,
-                    s.w as isize,
-                    s.h as c_int,
-                )
+            {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let c_2 = unsafe { c.0.as_mut_ptr().add(s.doff + origin(s.dl, s.h)) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let src_2 = unsafe { src.0.as_ptr().add(s.soff + origin(s.sl, s.h)) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_image_copy_plane_uc_from(
+                        c_2,
+                        s.dl,
+                        src_2,
+                        s.sl,
+                        s.w as isize,
+                        s.h as c_int,
+                    );
+                };
             };
         }
         assert_eq!(rust, c, "after step {i}: {s:?}");
@@ -310,7 +340,7 @@ struct Ctx {
 /// logs through the callback it installs; true in that child.
 ///
 /// The process-wide callback is sound for other threads' messages (they are
-/// dropped), but BSan reports a false use-after-free in `av_strtod` on a
+/// dropped), but `BSan` reports a false use-after-free in `av_strtod` on a
 /// `cpu::parse_caps` thread logging through it concurrently: the pointer
 /// libc's `strtod` hands back carries stale provenance, while the byte it
 /// reads is inside a live block (formats wave-0 review, batch 1).
@@ -343,7 +373,9 @@ fn check_size_logs_as_c() {
             | ffi::LIBAVUTIL_VERSION_MICRO) as c_int,
         ..Default::default()
     };
-    let mut parent = Ctx { class: &class };
+    let mut parent = Ctx {
+        class: &raw const class,
+    };
     let parent: *mut c_void = (&raw mut parent).cast();
     for (w, h, offset, ctx) in [
         (0u32, 7u32, 0, ptr::null_mut()),
@@ -409,7 +441,7 @@ mod images {
         -2..NB
     }
 
-    /// Whether the tests run under BorrowSanitizer, whose cost per retag and
+    /// Whether the tests run under `BorrowSanitizer`, whose cost per retag and
     /// per allocation makes every-format sweeps at real sizes run for
     /// hours: the image sweeps below then keep a few formats of each layout
     /// class and fewer sizes.
@@ -418,7 +450,7 @@ mod images {
     }
 
     /// One format of each layout class the image routines distinguish, for
-    /// the sweeps under BSan: packed and planar YUV, subsampled chroma in
+    /// the sweeps under `BSan`: packed and planar YUV, subsampled chroma in
     /// both directions, semi-planar, RGB in both byte orders, a palette, a
     /// bitstream, float, 16-bit and alpha planes, Bayer, XYZ and a hardware
     /// format.
@@ -444,7 +476,7 @@ mod images {
     ];
 
     /// The formats a sweep runs over: all of them, or [`BSAN_FORMATS`] and
-    /// the out-of-range values under BSan.
+    /// the out-of-range values under `BSan`.
     fn sweep_formats() -> Vec<c_int> {
         if under_bsan() {
             [-2, -1, NB]
@@ -785,7 +817,9 @@ mod images {
                 | ffi::LIBAVUTIL_VERSION_MICRO) as c_int,
             ..Default::default()
         };
-        let mut parent = Ctx { class: &class };
+        let mut parent = Ctx {
+            class: &raw const class,
+        };
         let parent: *mut c_void = (&raw mut parent).cast();
         let yuv = PixelFormat::YUV420P;
         for (w, h, max, offset, ctx) in [
@@ -933,7 +967,7 @@ mod images {
     }
 
     /// Fills both images' planes with the same noise, each plane in one
-    /// slice write (a write per byte is a retag per byte under BSan).
+    /// slice write (a write per byte is a retag per byte under `BSan`).
     fn noise(c: &mut CImage, rust: &mut Image, seed: u32) {
         let mut x = seed | 1;
         let planes = rust.planes_mut();
@@ -1019,12 +1053,12 @@ mod images {
                     ffi::AVPixelFormat(raw),
                     cw,
                     ch,
-                )
+                );
             };
             copy(&mut dst.planes_mut(), src.planes(), format(raw), cw, ch).unwrap();
             assert_same(&c_dst, &dst, &format!("{what} copy {cw}x{ch}"));
         }
-        noise(&mut c_dst, &mut dst, seed ^ 0xaaaa);
+        noise(&mut c_dst, &mut dst, seed ^ 0xAAAA);
         // SAFETY: as above.
         unsafe {
             ffi::av_image_copy2(
@@ -1035,7 +1069,7 @@ mod images {
                 ffi::AVPixelFormat(raw),
                 w,
                 h,
-            )
+            );
         };
         copy_from_mut(&mut dst.planes_mut(), &src.planes_mut(), format(raw), w, h).unwrap();
         assert_same(&c_dst, &dst, &format!("{what} copy2"));
@@ -1056,7 +1090,7 @@ mod images {
                     ffi::AVPixelFormat(raw),
                     w,
                     h,
-                )
+                );
             };
             copy_from_uncacheable(&mut dst.planes_mut(), src.planes(), format(raw), w, h).unwrap();
             assert_same(&c_dst, &dst, &format!("{what} uc"));
@@ -1069,7 +1103,7 @@ mod images {
                 ffi::av_image_get_buffer_size(ffi::AVPixelFormat(raw), w, h, buf_align as c_int)
             };
             let len = size.max(0) as usize + 3;
-            let (mut c_buf, mut rust_buf) = (vec![0xa5u8; len], vec![0xa5u8; len]);
+            let (mut c_buf, mut rust_buf) = (vec![0xA5u8; len], vec![0xA5u8; len]);
             // SAFETY: `c_buf` holds `len` bytes, which C checks the size
             // against; the source is a live C image of this format.
             let c = unsafe {
@@ -1225,7 +1259,7 @@ mod images {
                 ffi::AVPixelFormat(raw),
                 w,
                 h,
-            )
+            );
         };
         let (p0, rest) = rust_dst.split_at_mut(100);
         let (p1, p2) = rest.split_at_mut(100);
@@ -1396,7 +1430,7 @@ mod images {
             PixelFormat::GRAY8,
         ];
         let under_bsan = under_bsan();
-        let mut x = 0x9e37_79b9u32;
+        let mut x = 0x9E37_79B9u32;
         for (k, fmt) in formats.iter().enumerate() {
             let raw = fmt.into_raw().0;
             for round in 0..if under_bsan { 3 } else { 24 } {
@@ -1428,7 +1462,7 @@ mod images {
                             ffi::AVPixelFormat(raw),
                             cw,
                             ch,
-                        )
+                        );
                     };
                     copy(
                         &mut dst.top_rows_mut(*fmt, ch),
@@ -1462,7 +1496,7 @@ mod images {
                             ffi::AVPixelFormat(raw),
                             w,
                             h,
-                        )
+                        );
                     };
                     copy_from_uncacheable(&mut dst.planes_mut(), src.planes(), *fmt, w, h)
                         .unwrap_or_else(|e| panic!("{what} uc: {e}"));
@@ -1508,7 +1542,7 @@ mod images {
                 // Packing the source into a buffer at a random alignment.
                 let align = 1usize << (xorshift(&mut x) % 7);
                 let size = buffer_size(*fmt, w, h, align).unwrap();
-                let (mut c_out, mut out) = (vec![0x3cu8; size + 2], vec![0x3cu8; size + 2]);
+                let (mut c_out, mut out) = (vec![0x3Cu8; size + 2], vec![0x3Cu8; size + 2]);
                 let (sp, sl, _) = c_src.c_ptrs();
                 // SAFETY: `c_out` holds `size + 2` bytes, which C checks the
                 // image's size against; the source holds the image.
@@ -1557,7 +1591,7 @@ mod images {
                         ffi::AVPixelFormat(raw),
                         w,
                         h,
-                    )
+                    );
                 };
                 copy(&mut dst.planes_mut(), planes, *fmt, w, h)
                     .unwrap_or_else(|e| panic!("{what} unpack copy: {e}"));
@@ -1595,11 +1629,17 @@ mod pixel_steps {
             let p = c_get(raw);
             let (mut steps, mut comps) = ([-9; 4], [-9; 4]);
             let mut steps_only = [-9; 4];
-            // SAFETY: two `int[4]` out-arrays, or one and NULL, and an entry
-            // of C's table, whose planes are 0 to 3.
-            unsafe {
-                ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), comps.as_mut_ptr(), p);
-                ffi::av_image_fill_max_pixsteps(steps_only.as_mut_ptr(), ptr::null_mut(), p);
+            // For the unsafe operations below: two `int[4]` out-arrays, or one and NULL, and an
+            // entry of C's table, whose planes are 0 to 3.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), comps.as_mut_ptr(), p);
+                };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_image_fill_max_pixsteps(steps_only.as_mut_ptr(), ptr::null_mut(), p);
+                };
             }
             let rust = max_pixel_steps(format(raw).descriptor().unwrap()).unwrap();
             assert_eq!(rust.steps, steps, "{raw}");
@@ -1611,7 +1651,9 @@ mod pixel_steps {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn max_pixel_steps_of_rust_built_descriptors_match_c() {
-        use ffmpeg_bindings::libavutil::libavutil::pixdesc::{ComponentDescriptor, PixelFormatDescriptor};
+        use ffmpeg_bindings::libavutil::libavutil::pixdesc::{
+            ComponentDescriptor, PixelFormatDescriptor,
+        };
         let steps = [c_int::MIN, -1, 0, 1, 2, 7, c_int::MAX];
         for planes in [[0, 0, 0, 0], [0, 1, 1, 0], [3, 2, 1, 0], [2, 2, 3, 3]] {
             for (i, &a) in steps.iter().enumerate() {
@@ -1634,8 +1676,8 @@ mod pixel_steps {
                         ffi::av_image_fill_max_pixsteps(
                             c_steps.as_mut_ptr(),
                             c_comps.as_mut_ptr(),
-                            &raw,
-                        )
+                            &raw const raw,
+                        );
                     };
                     let rust = max_pixel_steps(d.as_ref()).unwrap();
                     assert_eq!(rust.steps, c_steps, "{planes:?} {a} {b}");

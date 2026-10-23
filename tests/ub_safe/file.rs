@@ -1,6 +1,10 @@
 //! UB tests for `libavutil/file.h`'s safe surface: the `FileMap` owner and
 //! its `FileUnmap` policy, without a mapping (`map` is `unsafe`; see
 //! `tests/ub_unsafe/file.rs`).
+#![expect(
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use std::thread;
 

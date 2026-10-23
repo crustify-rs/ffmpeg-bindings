@@ -1,12 +1,23 @@
 //! UB tests for `libavutil/avutil.h`'s [`MediaType`] and [`PictureType`],
 //! through the safe API only: as values, and as the plain elements of
 //! `av_malloc`-family arrays.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::thread;
 
 use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+};
 
 /// Named constants, `AVMEDIA_TYPE_NB` and the `int` extremes.
 fn sample() -> Vec<MediaType> {
@@ -214,10 +225,10 @@ mod fourcc {
         let mut buf = [0u8; 32];
         // The longest: four bracketed three-digit bytes.
         assert_eq!(
-            fourcc_string(&mut buf, 0xffff_ffff),
+            fourcc_string(&mut buf, 0xFFFF_FFFF),
             c"[255][255][255][255]"
         );
-        for f in [0, 1, 0x8000_0000, 0x2e2d_205f, 0x0a0d_0900, u32::MAX - 1] {
+        for f in [0, 1, 0x8000_0000, 0x2E2D_205F, 0x0A0D_0900, u32::MAX - 1] {
             let s = fourcc_string(&mut buf, f);
             assert!(s.count_bytes() <= 20);
         }

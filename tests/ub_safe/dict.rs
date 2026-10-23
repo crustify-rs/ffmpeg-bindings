@@ -2,6 +2,15 @@
 //! the safe API only: empty and populated [`Dict`]s, [`DictionaryBox`]es,
 //! their copies, conversions and handles, dropped in every order and moved
 //! and shared across threads.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::CStr;
 use std::ffi::CString;
@@ -156,7 +165,7 @@ fn shared_dictionaries_copy_concurrently() {
 
 /// Options wave 1, batch 0: the readers and writers through the safe API:
 /// every write path and flag on empty, small and large dictionaries, owned
-/// strings handed over on every path (LeakSanitizer sees any C leak or double
+/// strings handed over on every path (`LeakSanitizer` sees any C leak or double
 /// free), entries and iterators read up to each write the borrow checker
 /// lets through, and readers sharing one dictionary across threads.
 mod readers_and_writers {
@@ -164,7 +173,9 @@ mod readers_and_writers {
     use std::ffi::CString;
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryEntryRef, Flags, Iter, Matches};
+    use ffmpeg_bindings::libavutil::libavutil::dict::{
+        Dict, DictionaryEntryRef, Flags, Iter, Matches,
+    };
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapString, string_from_c_str};
 
     const ALL: [Flags; 6] = [
@@ -285,8 +296,8 @@ mod readers_and_writers {
                 read_all(&d);
             }
         }
-        for kv in [0u8, b'\\', b'=', b';', b'\'', 0xff] {
-            for pairs in [0u8, b'\\', b'=', b';', b'\'', 0xff] {
+        for kv in [0u8, b'\\', b'=', b';', b'\'', 0xFF] {
+            for pairs in [0u8, b'\\', b'=', b';', b'\'', 0xFF] {
                 let d = Dict::from_entries([(c"a=;\\'", c" x "), (c"", c"")]).unwrap();
                 let _ = d.serialize(kv, pairs);
                 let _ = Dict::new().serialize(kv, pairs);
@@ -339,7 +350,7 @@ mod readers_and_writers {
                 s.spawn(move || {
                     for _ in 0..20 {
                         read_all(d);
-                        let k = CString::new(format!("K{}", t)).unwrap();
+                        let k = CString::new(format!("K{t}")).unwrap();
                         let n = d.get_all(&k, Flags::NONE).count();
                         assert!(n > 0);
                         assert!(d.get(&k, Flags::MATCH_CASE).is_none());

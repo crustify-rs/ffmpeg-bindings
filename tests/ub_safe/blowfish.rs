@@ -1,10 +1,14 @@
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 use ffmpeg_bindings::libavutil::libavutil::blowfish::{Blowfish, BlowfishBox};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn foreign_initialization_across_reborrows() {
     for len in [1, 2, 8, 24, 56, 72, 128] {
-        let key = vec![0x5a; len].into_boxed_slice();
+        let key = vec![0x5A; len].into_boxed_slice();
         let mut inline = Blowfish::new(&key).unwrap();
         let mut boxed = Blowfish::new_boxed(&key).unwrap();
         let mut zeroed = BlowfishBox::new_zeroed().unwrap();
@@ -77,13 +81,13 @@ use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [1, 8, 56] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let mut owner = Blowfish::new(&key).unwrap();
             drop(key);
-            let mut source = [0x5a; 8 * 8 + 3];
+            let mut source = [0x5A; 8 * 8 + 3];
             let mut destination = vec![0x99; source.len()];
             for cbc in [false, true] {
-                let mut iv = [0xf3; 8];
+                let mut iv = [0xF3; 8];
                 for blocks in [0, 1, 4, 2, 8] {
                     let len = blocks * 8;
                     let mut outer = owner.as_mut();
@@ -92,7 +96,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                         handle
                             .as_ref()
                             .crypt(
-                                &mut destination[1..1 + len],
+                                &mut destination[1..=len],
                                 &source[2..2 + len],
                                 cbc.then_some(&mut iv),
                                 direction,
@@ -101,7 +105,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                     }
                     outer
                         .as_ref()
-                        .crypt_in_place(&mut source[1..1 + len], cbc.then_some(&mut iv), direction)
+                        .crypt_in_place(&mut source[1..=len], cbc.then_some(&mut iv), direction)
                         .unwrap();
                 }
                 owner
@@ -109,7 +113,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                     .crypt_in_place(&mut [], cbc.then_some(&mut iv), direction)
                     .unwrap();
             }
-            let mut halves = [0x12345678, 0xabcdef01];
+            let mut halves = [0x12345678, 0xABCDEF01];
             owner.as_ref().crypt_ecb(&mut halves, direction);
             let boxed = Blowfish::new_boxed(&[0; 8]).unwrap();
             boxed.as_ref().crypt_ecb(&mut halves, direction);

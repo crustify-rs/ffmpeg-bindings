@@ -1,3 +1,7 @@
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, AesRef, Direction, InitError};
 
 fn shared_views(view: AesRef<'_>) {
@@ -19,7 +23,7 @@ fn lifecycle_reborrows() {
             shared_views(handle.as_ref());
             for len in [32, 16, 24] {
                 let mut reborrow = handle.as_mut();
-                reborrow.init(&vec![0xaa; len], direction).unwrap();
+                reborrow.init(&vec![0xAA; len], direction).unwrap();
                 shared_views(reborrow.as_ref());
             }
             handle.init(&[7; 16], Direction::Encrypt).unwrap();
@@ -61,7 +65,9 @@ fn parallel_constructors() {
                     .as_mut()
                     .init(&[seed; 32], Direction::Decrypt)
                     .unwrap();
-                let mut ctr = ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr::new(&[seed; 16]).unwrap();
+                let mut ctr =
+                    ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr::new(&[seed; 16])
+                        .unwrap();
                 ctr.as_mut().init(&[seed + 1; 16]).unwrap();
             })
         })
@@ -97,13 +103,13 @@ fn batch10_immutable_size_across_threads() {
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let mut owner = Aes::new(&key, direction).unwrap();
             drop(key);
-            let mut source = [0x5a; 16 * 8 + 3];
+            let mut source = [0x5A; 16 * 8 + 3];
             let mut destination = vec![0x99; source.len()];
             for cbc in [false, true] {
-                let mut iv = [0xf3; 16];
+                let mut iv = [0xF3; 16];
                 for blocks in [0, 1, 4, 2, 8] {
                     let len = blocks * 16;
                     let mut outer = owner.as_mut();
@@ -111,14 +117,14 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                         let mut handle = outer.as_mut();
                         handle
                             .crypt(
-                                &mut destination[1..1 + len],
+                                &mut destination[1..=len],
                                 &source[2..2 + len],
                                 cbc.then_some(&mut iv),
                             )
                             .unwrap();
                     }
                     outer
-                        .crypt_in_place(&mut source[1..1 + len], cbc.then_some(&mut iv))
+                        .crypt_in_place(&mut source[1..=len], cbc.then_some(&mut iv))
                         .unwrap();
                 }
                 owner

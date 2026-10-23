@@ -1,5 +1,9 @@
 //! Equivalence of `libavutil/bswap.h`'s safe byte swaps with the raw C
 //! functions, and with Rust's `swap_bytes`.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
@@ -8,8 +12,8 @@ use ffmpeg_bindings::libavutil::libavutil::ffi;
 /// complements, and a few mixed words.
 fn words() -> impl Iterator<Item = u64> {
     let bits = (0..64).map(|b| 1u64 << b);
-    let bytes = (0..8).flat_map(|i| [0x01u64, 0x7f, 0x80, 0xff].map(|v| v << (8 * i)));
-    let mixed = [0, u64::MAX, 0x0123_4567_89ab_cdef, 0xdead_beef_cafe_f00d];
+    let bytes = (0..8).flat_map(|i| [0x01u64, 0x7F, 0x80, 0xFF].map(|v| v << (8 * i)));
+    let mixed = [0, u64::MAX, 0x0123_4567_89AB_CDEF, 0xDEAD_BEEF_CAFE_F00D];
     bits.chain(bytes).chain(mixed).flat_map(|w| [w, !w])
 }
 

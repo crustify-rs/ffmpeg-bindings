@@ -1,4 +1,13 @@
 //! Safe lifecycle exercises: no raw or unsafe FFI fixtures.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::sha::{Algorithm, Sha, ShaBox};
 
 const ALGORITHMS: [Algorithm; 3] = [Algorithm::Sha1, Algorithm::Sha224, Algorithm::Sha256];

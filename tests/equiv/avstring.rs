@@ -1,6 +1,21 @@
 //! Equivalence of `libavutil/avstring.h`'s [`EscapeMode`] with the C enum, as
 //! `av_escape` observes it, and of the character classes and name matching
 //! with the C functions they wrap.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    trivial_numeric_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::ffi::{CStr, c_char, c_int, c_void};
 use core::num::NonZeroU8;
@@ -47,7 +62,7 @@ fn escape(
     // SAFETY: `dst` is a writable out-slot; `src` and `special` are NULL or
     // live NUL-terminated strings, which `av_escape` only reads; it takes the
     // mode and flags by value and accepts any.
-    let ret = unsafe { ffi::av_escape(&mut dst, src.as_ptr(), special, mode, flags) };
+    let ret = unsafe { ffi::av_escape(&raw mut dst, src.as_ptr(), special, mode, flags) };
     if ret < 0 {
         assert!(dst.is_null());
         return Err(ret);
@@ -146,7 +161,7 @@ mod helpers {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     /// Filler for bytes neither side should write.
-    const FILL: u8 = 0xa5;
+    const FILL: u8 = 0xA5;
 
     const STRINGS: [&CStr; 9] = [
         c"",
@@ -164,7 +179,7 @@ mod helpers {
     fn c_strstart(s: &CStr, prefix: &CStr) -> Option<usize> {
         let mut rest: *const c_char = ptr::null();
         // SAFETY: live strings and a writable slot.
-        let ret = unsafe { ffi::av_strstart(s.as_ptr(), prefix.as_ptr(), &mut rest) };
+        let ret = unsafe { ffi::av_strstart(s.as_ptr(), prefix.as_ptr(), &raw mut rest) };
         (ret != 0).then(|| rest as usize - s.as_ptr() as usize)
     }
 
@@ -367,7 +382,7 @@ mod helpers {
         loop {
             // SAFETY: `s` is `buf`'s NUL-terminated string on the first call,
             // NULL afterwards with `save` from the previous one.
-            let tok = unsafe { ffi::av_strtok(s, delim.as_ptr(), &mut save) };
+            let tok = unsafe { ffi::av_strtok(s, delim.as_ptr(), &raw mut save) };
             s = ptr::null_mut();
             if tok.is_null() {
                 assert!(save.is_null());
@@ -424,7 +439,7 @@ mod helpers {
         loop {
             // SAFETY: `s` is `theirs`' NUL-terminated string on the first
             // call, NULL afterwards with `save` from the previous one.
-            let tok = unsafe { ffi::av_strtok(s, c" ".as_ptr(), &mut save) };
+            let tok = unsafe { ffi::av_strtok(s, c" ".as_ptr(), &raw mut save) };
             s = ptr::null_mut();
             // SAFETY: a non-NULL token is a NUL-terminated run of `theirs`.
             let c = (!tok.is_null()).then(|| unsafe { CStr::from_ptr(tok) }.to_bytes());
@@ -444,7 +459,7 @@ mod helpers {
         let extremes = [c_int::MIN, c_int::MIN + 1, -1, c_int::MAX];
         for c in (-300..=300).chain(extremes) {
             // SAFETY: value-only functions.
-            let (lo, up) = unsafe { (ffi::av_tolower(c), ffi::av_toupper(c)) };
+            let (lo, up) = (unsafe { ffi::av_tolower(c) }, unsafe { ffi::av_toupper(c) });
             assert_eq!(to_ascii_lowercase(c), lo, "{c}");
             assert_eq!(to_ascii_uppercase(c), up, "{c}");
         }
@@ -460,7 +475,7 @@ mod helpers {
             let before = p;
             let mut code = -1;
             // SAFETY: `p` and `range.end` delimit the unread part of `buf`.
-            let ret = unsafe { ffi::av_utf8_decode(&mut code, &mut p, range.end, flags) };
+            let ret = unsafe { ffi::av_utf8_decode(&raw mut code, &raw mut p, range.end, flags) };
             out.push((ret, code, p as usize - before as usize));
         }
         out
@@ -562,7 +577,7 @@ mod helpers {
     fn utf8_decode_agrees_on_pseudo_random_bytes() {
         // A fixed linear congruential generator: reproducible bytes biased
         // towards lead and continuation bytes.
-        let mut state = 0x2545_f491_u32;
+        let mut state = 0x2545_F491_u32;
         let mut bytes = Vec::with_capacity(1024);
         for _ in 0..1024 {
             state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
@@ -583,7 +598,9 @@ mod paths_and_format {
     use core::ptr::null;
     use std::process::Command;
 
-    use ffmpeg_bindings::libavutil::libavutil::avstring::{append_path_component, basename, format};
+    use ffmpeg_bindings::libavutil::libavutil::avstring::{
+        append_path_component, basename, format,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
 
@@ -606,6 +623,10 @@ mod paths_and_format {
     }
 
     /// The bytes of a Rust-owned result, as `CString::bytes`.
+    #[expect(
+        clippy::ref_option,
+        reason = "the helper mirrors the C pointer argument it compares"
+    )]
     fn bytes(s: &Option<HeapString>) -> Option<&[u8]> {
         s.as_ref().map(HeapString::as_bytes)
     }
@@ -667,12 +688,10 @@ mod paths_and_format {
         for s in PATHS {
             // SAFETY: `s` is a live NUL-terminated string; NULL is accepted
             // on either side.
-            let (left, right) = unsafe {
-                (
-                    CString(ffi::av_append_path_component(null(), s.as_ptr())),
-                    CString(ffi::av_append_path_component(s.as_ptr(), null())),
-                )
-            };
+            let (left, right) = (
+                CString(unsafe { ffi::av_append_path_component(null(), s.as_ptr()) }),
+                CString(unsafe { ffi::av_append_path_component(s.as_ptr(), null()) }),
+            );
             assert_eq!(bytes(&append_path_component(c"", s)), left.bytes());
             assert_eq!(bytes(&append_path_component(s, c"")), right.bytes());
         }
@@ -697,8 +716,10 @@ mod paths_and_format {
             r = append_path_component(r.as_ref().map_or(c"", HeapString::as_c_str), step);
             assert_eq!(bytes(&r), c.bytes(), "step {i}");
             let base = basename(r.as_ref().unwrap().as_c_str());
+            // SAFETY: as the comment below states, for this part of the operation.
+            let basename = unsafe { ffi::av_basename(c.0) };
             // SAFETY: `c.0` is the live string of this step.
-            let c_base = unsafe { CStr::from_ptr(ffi::av_basename(c.0)) };
+            let c_base = unsafe { CStr::from_ptr(basename) };
             assert_eq!(base, c_base, "step {i}");
         }
         // Only the single slashes at a join are merged; a doubled one stays.
@@ -709,50 +730,45 @@ mod paths_and_format {
     #[cfg_attr(miri, ignore = "calls C")]
     fn format_matches_av_asprintf_with_the_same_conversions() {
         // SAFETY: each format's conversions match the arguments that follow.
-        let cases = unsafe {
-            [
-                (
-                    CString(ffi::av_asprintf(c"plain".as_ptr())),
-                    format(format_args!("plain")),
-                ),
-                (
-                    CString(ffi::av_asprintf(c"".as_ptr())),
-                    format(format_args!("")),
-                ),
-                (
-                    CString(ffi::av_asprintf(
+        let cases = [
+            (
+                CString(unsafe { ffi::av_asprintf(c"plain".as_ptr()) }),
+                format(format_args!("plain")),
+            ),
+            (
+                CString(unsafe { ffi::av_asprintf(c"".as_ptr()) }),
+                format(format_args!("")),
+            ),
+            (
+                CString(unsafe {
+                    ffi::av_asprintf(
                         c"%d-%s-%05.2f".as_ptr(),
                         -7 as c_int,
                         c"x".as_ptr(),
                         1.23456 as c_double,
-                    )),
-                    format(format_args!("{}-{}-{:05.2}", -7, "x", 1.23456)),
-                ),
-                (
-                    CString(ffi::av_asprintf(
-                        c"%x/%X %%".as_ptr(),
-                        255 as c_int,
-                        4096 as c_int,
-                    )),
-                    format(format_args!("{:x}/{:X} %", 255, 4096)),
-                ),
-                (
-                    CString(ffi::av_asprintf(
-                        c"%s".as_ptr(),
-                        c"\xc3\xbcnicode %s %n".as_ptr(),
-                    )),
-                    format(format_args!("ünicode %s %n")),
-                ),
-                (
-                    CString(ffi::av_asprintf(
-                        c"%.3s|%-4s|".as_ptr(),
-                        c"abcdef".as_ptr(),
-                        c"z".as_ptr(),
-                    )),
-                    format(format_args!("{:.3}|{:<4}|", "abcdef", "z")),
-                ),
-            ]
-        };
+                    )
+                }),
+                format(format_args!("{}-{}-{:05.2}", -7, "x", 1.23456)),
+            ),
+            (
+                CString(unsafe {
+                    ffi::av_asprintf(c"%x/%X %%".as_ptr(), 255 as c_int, 4096 as c_int)
+                }),
+                format(format_args!("{:x}/{:X} %", 255, 4096)),
+            ),
+            (
+                CString(unsafe {
+                    ffi::av_asprintf(c"%s".as_ptr(), c"\xc3\xbcnicode %s %n".as_ptr())
+                }),
+                format(format_args!("ünicode %s %n")),
+            ),
+            (
+                CString(unsafe {
+                    ffi::av_asprintf(c"%.3s|%-4s|".as_ptr(), c"abcdef".as_ptr(), c"z".as_ptr())
+                }),
+                format(format_args!("{:.3}|{:<4}|", "abcdef", "z")),
+            ),
+        ];
         for (i, (c, r)) in cases.iter().enumerate() {
             assert_eq!(bytes(r), c.bytes(), "case {i}");
         }
@@ -1043,7 +1059,6 @@ mod paths_and_tokens {
 
 mod search_and_scan {
     use core::ffi::{CStr, c_char, c_void};
-    use core::ptr::addr_of_mut;
 
     use ffmpeg_bindings::libavutil::libavutil::avstring::{
         ScanArg, cmp_ignore_ascii_case, find_ignore_ascii_case, replace_ignore_ascii_case, scan,
@@ -1089,7 +1104,7 @@ mod search_and_scan {
                 let mut rest: *const c_char = core::ptr::null();
                 // SAFETY: both are live NUL-terminated strings, only read,
                 // and `rest` a writable local.
-                let c = unsafe { ffi::av_stristart(s.as_ptr(), p.as_ptr(), &mut rest) };
+                let c = unsafe { ffi::av_stristart(s.as_ptr(), p.as_ptr(), &raw mut rest) };
                 let r = strip_prefix_ignore_ascii_case(s, p);
                 assert_eq!(r.is_some(), c != 0, "{s:?} by {p:?}");
                 // The suffix starts where C points, inside `s`.
@@ -1247,27 +1262,76 @@ mod search_and_scan {
 
         /// Each field's address, for C.
         fn c_ptr(this: *mut Dest, f: F) -> *mut c_void {
-            // SAFETY: `this` points at a live `Dest`; only addresses are taken.
-            unsafe {
-                match f {
-                    F::I0 => addr_of_mut!((*this).i0).cast(),
-                    F::I1 => addr_of_mut!((*this).i1).cast(),
-                    F::I2 => addr_of_mut!((*this).i2).cast(),
-                    F::U => addr_of_mut!((*this).u).cast(),
-                    F::Hh => addr_of_mut!((*this).hh).cast(),
-                    F::Uhh => addr_of_mut!((*this).uhh).cast(),
-                    F::H => addr_of_mut!((*this).h).cast(),
-                    F::Uh => addr_of_mut!((*this).uh).cast(),
-                    F::Ll => addr_of_mut!((*this).ll).cast(),
-                    F::Ull => addr_of_mut!((*this).ull).cast(),
-                    F::Z => addr_of_mut!((*this).z).cast(),
-                    F::Zs => addr_of_mut!((*this).zs).cast(),
-                    F::Fl => addr_of_mut!((*this).f).cast(),
-                    F::D => addr_of_mut!((*this).d).cast(),
-                    F::P => addr_of_mut!((*this).p).cast(),
-                    F::B0 => addr_of_mut!((*this).b0).cast(),
-                    F::B1 => addr_of_mut!((*this).b1).cast(),
-                }
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `b0` field is in bounds; nothing is accessed here.
+            let b0_ptr = unsafe { &raw mut (*this).b0 };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `b1` field is in bounds; nothing is accessed here.
+            let b1_ptr = unsafe { &raw mut (*this).b1 };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `d` field is in bounds; nothing is accessed here.
+            let d_ptr = unsafe { &raw mut (*this).d };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `f` field is in bounds; nothing is accessed here.
+            let f_ptr = unsafe { &raw mut (*this).f };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `h` field is in bounds; nothing is accessed here.
+            let h_ptr = unsafe { &raw mut (*this).h };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `hh` field is in bounds; nothing is accessed here.
+            let hh_ptr = unsafe { &raw mut (*this).hh };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `i0` field is in bounds; nothing is accessed here.
+            let i0_ptr = unsafe { &raw mut (*this).i0 };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `i1` field is in bounds; nothing is accessed here.
+            let i1_ptr = unsafe { &raw mut (*this).i1 };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `i2` field is in bounds; nothing is accessed here.
+            let i2_ptr = unsafe { &raw mut (*this).i2 };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `ll` field is in bounds; nothing is accessed here.
+            let ll_ptr = unsafe { &raw mut (*this).ll };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `p` field is in bounds; nothing is accessed here.
+            let p_ptr = unsafe { &raw mut (*this).p };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `u` field is in bounds; nothing is accessed here.
+            let u_ptr = unsafe { &raw mut (*this).u };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `uh` field is in bounds; nothing is accessed here.
+            let uh_ptr = unsafe { &raw mut (*this).uh };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `uhh` field is in bounds; nothing is accessed here.
+            let uhh_ptr = unsafe { &raw mut (*this).uhh };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `ull` field is in bounds; nothing is accessed here.
+            let ull_ptr = unsafe { &raw mut (*this).ull };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `z` field is in bounds; nothing is accessed here.
+            let z_ptr = unsafe { &raw mut (*this).z };
+            // SAFETY: `this` is to a live object, as the block below relies on, so the
+            // place of its `zs` field is in bounds; nothing is accessed here.
+            let zs_ptr = unsafe { &raw mut (*this).zs };
+            // `this` points at a live `Dest`; only addresses are taken.
+            match f {
+                F::I0 => i0_ptr.cast(),
+                F::I1 => i1_ptr.cast(),
+                F::I2 => i2_ptr.cast(),
+                F::U => u_ptr.cast(),
+                F::Hh => hh_ptr.cast(),
+                F::Uhh => uhh_ptr.cast(),
+                F::H => h_ptr.cast(),
+                F::Uh => uh_ptr.cast(),
+                F::Ll => ll_ptr.cast(),
+                F::Ull => ull_ptr.cast(),
+                F::Z => z_ptr.cast(),
+                F::Zs => zs_ptr.cast(),
+                F::Fl => f_ptr.cast(),
+                F::D => d_ptr.cast(),
+                F::P => p_ptr.cast(),
+                F::B0 => b0_ptr.cast(),
+                F::B1 => b1_ptr.cast(),
             }
         }
     }
@@ -1567,7 +1631,11 @@ fn character_classes_match_c_on_every_byte_and_the_extremes() {
     ];
     for c in (-1..=255).chain(extremes) {
         // SAFETY: the classifiers take their argument by value.
-        let (g, s, x) = unsafe { (ffi::av_isgraph(c), ffi::av_isspace(c), ffi::av_isxdigit(c)) };
+        let (g, s, x) = (
+            unsafe { ffi::av_isgraph(c) },
+            unsafe { ffi::av_isspace(c) },
+            unsafe { ffi::av_isxdigit(c) },
+        );
         assert_eq!(c_int::from(is_graph(c)), g, "isgraph({c})");
         assert_eq!(c_int::from(is_space(c)), s, "isspace({c})");
         assert_eq!(c_int::from(is_xdigit(c)), x, "isxdigit({c})");
@@ -1629,7 +1697,7 @@ const LISTS: [&CStr; 12] = [
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn match_list_matches_av_match_list_for_every_separator() {
-    for sep in [b',', b';', b' ', b'a', 0x01, 0x7f, 0x80, 0xff] {
+    for sep in [b',', b';', b' ', b'a', 0x01, 0x7F, 0x80, 0xFF] {
         let separator = NonZeroU8::new(sep).unwrap();
         for name in LISTS {
             for list in LISTS {

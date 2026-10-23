@@ -22,7 +22,6 @@ use super::mem::{Heap, HeapBox};
 /// The signature shared by `av_xtea_crypt` and `av_xtea_le_crypt`.
 type CryptFn = unsafe extern "C" fn(*mut ffi::AVXTEA, *mut u8, *const u8, i32, *mut u8, i32);
 
-
 define_ctype!(
     /// Wraps: AVXTEA
     ///
@@ -63,7 +62,7 @@ pub type XteaBox = HeapBox<Xtea>;
 // state. Every accessor and initializer accepts it; av_free reads no fields.
 unsafe impl CZeroable for Xtea {}
 
-/// Wraps: av_xtea_alloc
+/// Wraps: `av_xtea_alloc`
 // SAFETY: av_xtea_alloc returns a fresh aligned, zero-filled AVXTEA, or NULL.
 // Xtea is layout-compatible and all-zero valid; Heap frees it with av_free.
 unsafe impl CNew<Xtea> for Heap {
@@ -101,14 +100,23 @@ impl Xtea {
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl XteaRef<'_> {
-    /// Wraps: av_xtea_crypt
+    /// Wraps: `av_xtea_crypt`
     ///
     /// Process equal-length buffers using big-endian block words.
     /// `None` selects ECB; `Some(iv)` selects CBC and replaces the IV with
     /// the last ciphertext block. Empty buffers leave the IV unchanged.
     /// No padding is added. Use [`Self::crypt_in_place`] for exact overlap.
     /// Key-word byte order is selected independently by the initializer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -122,6 +130,11 @@ impl XteaRef<'_> {
     /// Process big-endian blocks in place, with the same CBC and length
     /// contracts as [`Self::crypt`]. CBC decryption saves each ciphertext
     /// block before overwriting it, so the IV advances correctly.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -131,11 +144,16 @@ impl XteaRef<'_> {
         self.process(data, None, iv, direction, false)
     }
 
-    /// Wraps: av_xtea_le_crypt
+    /// Wraps: `av_xtea_le_crypt`
     ///
     /// Process equal-length buffers using little-endian block words.
     /// The ECB/CBC, IV, padding and length contracts are those of [`Self::crypt`].
     /// Key-word byte order is selected independently by the initializer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_le(
         &self,
         dst: &mut [u8],
@@ -147,6 +165,11 @@ impl XteaRef<'_> {
     }
 
     /// Process little-endian blocks in place; see [`Self::crypt_le`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_le_in_place(
         &self,
         data: &mut [u8],
@@ -203,7 +226,7 @@ impl XteaRef<'_> {
                 count,
                 iv_ptr,
                 direction.as_int(),
-            )
+            );
         }
         Ok(())
     }
@@ -213,9 +236,12 @@ impl XteaRef<'_> {
     /// Copy all sixteen words, including the twelve unused by the cipher.
     #[must_use]
     pub fn key(&self) -> [u32; 16] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `key` field is in bounds; nothing is accessed here.
+        let key_ptr = unsafe { addr_of!((*self.as_ptr()).key) };
         // SAFETY: the shared handle keeps an initialized AVXTEA alive and
         // excludes writes. Projection forms no reference to foreign storage.
-        unsafe { addr_of!((*self.as_ptr()).key).read() }
+        unsafe { key_ptr.read() }
     }
 }
 
@@ -224,12 +250,15 @@ impl XteaMut<'_> {
     ///
     /// Replace all sixteen key words. No byte-order conversion is performed.
     pub fn set_key(&mut self, key: [u32; 16]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `key` field is in bounds; nothing is accessed here.
+        let key_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).key) };
         // SAFETY: the exclusive handle grants sole access to the live object;
         // writing the projected array initializes every word without aliasing.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).key).write(key) }
+        unsafe { key_ptr.write(key) }
     }
 
-    /// Wraps: av_xtea_init
+    /// Wraps: `av_xtea_init`
     ///
     /// Replace the first four words with the big-endian 16-byte key.
     /// The other twelve words are preserved. The key is not retained.
@@ -239,7 +268,7 @@ impl XteaMut<'_> {
         unsafe { ffi::av_xtea_init(self.as_mut_ptr(), key.as_ptr()) }
     }
 
-    /// Wraps: av_xtea_le_init
+    /// Wraps: `av_xtea_le_init`
     ///
     /// Replace the first four words with the little-endian 16-byte key.
     /// The other twelve words are preserved. The key is not retained.
@@ -251,6 +280,16 @@ impl XteaMut<'_> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use super::*;
 
@@ -265,8 +304,13 @@ mod unit_tests {
         _: i32,
     ) {
         for i in 0..count as usize * 8 {
-            // SAFETY: process_with passes count whole blocks behind both.
-            unsafe { *dst.add(i) = (*src.add(i)).wrapping_add(1) };
+            // SAFETY: process_with passes `count` whole blocks behind both, so byte `i` is in
+            // bounds of each.
+            let (to, from) = (unsafe { dst.add(i) }, unsafe { src.add(i) });
+            // SAFETY: as above; a read of an initialised byte.
+            let byte = unsafe { *from };
+            // SAFETY: as above; a write of a byte the caller lends.
+            unsafe { *to = byte.wrapping_add(1) };
         }
     }
 
@@ -333,14 +377,14 @@ mod unit_tests {
         for le in [false, true] {
             for direction in [Direction::Encrypt, Direction::Decrypt] {
                 for len in 0..=17 {
-                    let mut dst = vec![0xa5; len];
-                    let mut iv = [0x5a; 8];
+                    let mut dst = vec![0xA5; len];
+                    let mut iv = [0x5A; 8];
                     assert_eq!(
                         view.process(&mut dst, Some(&[0; 24]), Some(&mut iv), direction, le),
                         Err(CryptError::LengthMismatch)
                     );
-                    assert_eq!(dst, vec![0xa5; len]);
-                    assert_eq!(iv, [0x5a; 8]);
+                    assert_eq!(dst, vec![0xA5; len]);
+                    assert_eq!(iv, [0x5A; 8]);
                     if len % 8 != 0 {
                         assert_eq!(
                             view.process(&mut dst, None, Some(&mut iv), direction, le),
@@ -356,8 +400,8 @@ mod unit_tests {
                             ),
                             Err(CryptError::IncompleteBlock)
                         );
-                        assert_eq!(dst, vec![0xa5; len]);
-                        assert_eq!(iv, [0x5a; 8]);
+                        assert_eq!(dst, vec![0xA5; len]);
+                        assert_eq!(iv, [0x5A; 8]);
                     }
                 }
             }
@@ -371,7 +415,7 @@ mod unit_tests {
         assert_eq!(align_of::<Xtea>(), align_of::<ffi::AVXTEA>());
         assert_eq!(size_of::<Xtea>(), 16 * size_of::<u32>());
         let mut original = Xtea::from_key_words([u32::MAX; 16]);
-        #[allow(clippy::clone_on_copy)]
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let copy = original.clone();
         original.as_mut().set_key([0; 16]);
         assert_eq!(copy.as_ref().key(), [u32::MAX; 16]);

@@ -1,6 +1,16 @@
 //! UB tests for `libavutil/mem.h`'s `av_malloc`-family owners, its dynamic
 //! arrays and reusable buffers, the allocation limit and the back-reference
 //! copy, through the safe API only.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -141,7 +151,7 @@ fn panicking_initializer_leaves_nothing_behind() {
 fn owners_drop_on_other_threads() {
     let a = alloc_array_from_fn(1024, |i| i as u16).unwrap();
     let b = HeapVec::<u8>::from_slice(b"crustify").unwrap();
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         assert_eq!(a.as_slice()[1023], 1023);
         drop(b);
     })
@@ -153,7 +163,7 @@ fn owners_drop_on_other_threads() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn shared_array_is_read_and_cloned_concurrently() {
     let a = alloc_array_from_fn(4096, |i| i as u32).unwrap();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for t in 0..4 {
             let a = &a;
             s.spawn(move || {
@@ -169,7 +179,7 @@ fn shared_array_is_read_and_cloned_concurrently() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn exclusive_slices_are_written_from_scoped_threads() {
     let mut a = alloc_array_zeroed::<u64>(4000).unwrap();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for (k, chunk) in a.as_mut_slice().chunks_mut(1000).enumerate() {
             s.spawn(move || chunk.fill(k as u64));
         }
@@ -186,7 +196,7 @@ fn policy_is_a_plain_value() {
 }
 
 /// Every byte value but NUL, then a 4 KiB run: views over C strings stay at or
-/// under 4 KiB (BSan's runtime grows without bound freeing a C block after a
+/// under 4 KiB (`BSan`'s runtime grows without bound freeing a C block after a
 /// 32 KiB view).
 fn sample_bytes() -> Vec<Vec<u8>> {
     vec![
@@ -231,9 +241,9 @@ fn interior_nul_truncates_and_never_reads_past_the_slice() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn non_utf8_is_an_error_not_a_bad_str() {
-    let s = string_from_bytes_until_nul(&[b'a', 0xff, 0xfe]).unwrap();
+    let s = string_from_bytes_until_nul(&[b'a', 0xFF, 0xFE]).unwrap();
     assert!(s.to_str().is_err());
-    assert_eq!(s.as_bytes(), &[b'a', 0xff, 0xfe]);
+    assert_eq!(s.as_bytes(), &[b'a', 0xFF, 0xFE]);
     let s = string_from_bytes_until_nul("héllo".as_bytes()).unwrap();
     assert_eq!(s.to_str(), Ok("héllo"));
 }
@@ -259,7 +269,7 @@ fn string_copies_are_independent_through_clone_chains() {
 fn strings_drop_on_other_threads() {
     let s = string_from_c_str(c"travels").unwrap();
     let t = s.clone();
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         assert_eq!(t.as_bytes(), b"travels");
         drop(s);
     })
@@ -271,7 +281,7 @@ fn strings_drop_on_other_threads() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn shared_string_is_read_and_cloned_concurrently() {
     let s = string_from_bytes_until_nul(&[b'q'; 4000]).unwrap();
-    std::thread::scope(|scope| {
+    thread::scope(|scope| {
         for _ in 0..4 {
             let s = &s;
             scope.spawn(move || {
@@ -329,7 +339,7 @@ fn dynarray_takes_every_element_shape() {
     let mut ptrs = DynArray::<*const u64>::default();
     for i in 0..300 {
         assert!(odd.push_or_clear([i as u8; 3]));
-        assert!(wide.push_or_clear(i as f64 / 3.0));
+        assert!(wide.push_or_clear(f64::from(i) / 3.0));
         assert!(ptrs.push_or_clear(core::ptr::null()));
     }
     assert_eq!(odd.as_slice()[299], [43; 3]);
@@ -347,8 +357,8 @@ fn pointer_arrays_store_dangling_pointers_without_following_them() {
         let s = String::from("gone soon");
         let mut byte = 0u8;
         for _ in 0..100 {
-            assert!(a.push_ptr_or_clear(&s));
-            assert_eq!(b.try_push_ptr(&mut byte), Ok(()));
+            assert!(a.push_ptr_or_clear(&raw const s));
+            assert_eq!(b.try_push_ptr(&raw mut byte), Ok(()));
         }
     }
     // The pointees are gone; the array still owns only its block.
@@ -380,7 +390,7 @@ fn cell_elements_are_reached_through_handles() {
 fn dynarrays_cross_and_share_threads() {
     let mut a = DynArray::<u32>::new();
     assert!(a.push_or_clear(1));
-    let mut a = std::thread::spawn(move || {
+    let mut a = thread::spawn(move || {
         for i in 2..=1000 {
             assert!(a.push_or_clear(i));
         }
@@ -388,19 +398,19 @@ fn dynarrays_cross_and_share_threads() {
     })
     .join()
     .unwrap();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for _ in 0..4 {
             s.spawn(|| assert_eq!(a.as_slice().iter().sum::<u32>(), 500_500));
         }
     });
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         s.spawn(|| a.as_mut_slice().fill(3));
     });
-    std::thread::spawn(move || drop(a)).join().unwrap();
+    thread::spawn(move || drop(a)).join().unwrap();
 }
 
 /// Requested sizes around every branch, with failures above `UINT_MAX`;
-/// successes stay at or under 4 KiB, for BSan.
+/// successes stay at or under 4 KiB, for `BSan`.
 const FAST_SIZES: [usize; 11] = [
     0,
     1,
@@ -428,7 +438,7 @@ fn fast_buffers_are_writable_end_to_end_after_every_regrowth() {
         let ok = keep.reserve(min);
         assert!(keep.capacity() >= if ok { min } else { old });
         // One slice-wide write: BSan retags per reference.
-        keep.as_mut_slice().fill(MaybeUninit::new(0x5a));
+        keep.as_mut_slice().fill(MaybeUninit::new(0x5A));
 
         let ok = discard.reserve_discarding(min);
         assert_eq!(ok, discard.capacity() >= min);
@@ -458,24 +468,22 @@ fn fast_buffers_cross_and_share_threads() {
     assert!(keep.reserve(100));
     let mut zeroed = ZeroedFastBuffer::new();
     assert!(zeroed.reserve_discarding(3000));
-    let (keep, zeroed) = std::thread::spawn(move || {
+    let (keep, zeroed) = thread::spawn(move || {
         assert!(keep.capacity() >= 100);
         (keep, zeroed)
     })
     .join()
     .unwrap();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for _ in 0..4 {
             s.spawn(|| assert_eq!(zeroed.as_slice(), &vec![0; zeroed.capacity()][..]));
         }
     });
     let mut zeroed = zeroed;
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         s.spawn(|| assert!(zeroed.reserve_discarding(4000)));
     });
-    std::thread::spawn(move || drop((keep, zeroed)))
-        .join()
-        .unwrap();
+    thread::spawn(move || drop((keep, zeroed))).join().unwrap();
 }
 
 // ---- the av_realloc family ----
@@ -490,7 +498,7 @@ mod realloc {
         resize_array_with,
     };
 
-    /// Writes every element: ASan flags a length longer than the block.
+    /// Writes every element: `ASan` flags a length longer than the block.
     fn touch<T: Copy>(a: &mut HeapVec<MaybeUninit<T>>, v: T) {
         for slot in a.as_mut_slice() {
             slot.write(v);
@@ -599,7 +607,7 @@ mod realloc {
     }
 }
 
-/// Whether this run is under BSan, whose runtime makes exhaustive loops over
+/// Whether this run is under `BSan`, whose runtime makes exhaustive loops over
 /// FFI calls take minutes.
 fn under_bsan() -> bool {
     std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -709,13 +717,13 @@ fn oversized_back_references_are_rejected() {
 /// A run long enough for C's doubling block copy to double a block of 2^30
 /// bytes: the distance 2^30 and one byte more than it, in a buffer of
 /// 2 GiB + 1 whose first and last source bytes are marked. Only the written
-/// gibibyte is ever touched; the source stays on zero pages. Not under BSan
-/// or TSan, whose shadow of a 2 GiB buffer is impractical.
+/// gibibyte is ever touched; the source stays on zero pages. Not under `BSan`
+/// or `TSan`, whose shadow of a 2 GiB buffer is impractical.
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn back_references_past_the_doubling_bound_stay_inside() {
     let variant = std::env::var("CRUSTIFY_FFMPEG_VARIANT");
-    if matches!(variant.as_deref(), Ok("bsan") | Ok("tsan")) {
+    if matches!(variant.as_deref(), Ok("bsan" | "tsan")) {
         return;
     }
     let back = 1usize << 30;

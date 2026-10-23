@@ -2,6 +2,18 @@
 //! as C observes it: through `av_channel_name`, `av_channel_description` and
 //! `av_channel_from_string`, and through C-allocated storage holding the
 //! values.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    trivial_numeric_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
@@ -120,8 +132,8 @@ const CHANNEL_UNNAMED: [c_int; 11] = [
     45,
     60,
     63,
-    0x1ff,
-    0x3ff,
+    0x1FF,
+    0x3FF,
     0x800,
     c_int::MAX,
 ];
@@ -165,7 +177,7 @@ fn values() -> Vec<ffi::AVChannel> {
         .iter()
         .map(|&(_, c, _)| c)
         .chain(CHANNEL_UNNAMED.map(ffi::AVChannel))
-        .chain([ffi::AVChannel(0x401), ffi::AVChannel(0x5ab)])
+        .chain([ffi::AVChannel(0x401), ffi::AVChannel(0x5AB)])
         .collect()
 }
 
@@ -271,14 +283,18 @@ impl CChannels {
 
     fn get(&self, i: usize) -> ffi::AVChannel {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_4 = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live, initialised block.
-        unsafe { self.0.add(i).read() }
+        unsafe { v_0_add_4.read() }
     }
 
     fn set(&mut self, i: usize, ch: ffi::AVChannel) {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_3 = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live block, which we own.
-        unsafe { self.0.add(i).write(ch) }
+        unsafe { v_0_add_3.write(ch) }
     }
 }
 
@@ -343,7 +359,7 @@ fn channel_values_c_writes_are_read_back_unchanged() {
     // The path a field accessor over C-written storage takes: adopt the C
     // block and read it as `Channel`s.
     let (ptr, len) = (c.0, c.1);
-    core::mem::forget(c);
+    let _ = core::mem::ManuallyDrop::new(c);
     // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
     // `ffi::AVChannel`, whose ownership `forget` gave up; `Channel` is
     // layout-compatible with it, and `av_free` releases it.
@@ -386,10 +402,14 @@ mod matrix_encoding {
             )
         };
         assert!(!opt.is_null(), "{name:?} not found");
-        // SAFETY: `opt` points into libswresample's static option table;
-        // both the option and its named constants are integer-valued, so
-        // `default_val.i64` is the active union member.
-        unsafe { ((*opt).default_val.i64_, (*opt).min, (*opt).max) }
+        // SAFETY: `opt` points into libswresample's static option table: a copy of the
+        // option's default.
+        let default = unsafe { (*opt).default_val };
+        // SAFETY: both the option and its named constants are integer-valued, so `i64` is the
+        // active union member.
+        let value = unsafe { default.i64_ };
+        // SAFETY: as above: reads of the option's range.
+        (value, unsafe { (*opt).min }, unsafe { (*opt).max })
     }
 
     #[test]
@@ -537,8 +557,12 @@ mod channel_order {
             assert_eq!(ret, 0);
             // Give every channel a known id: `AV_CHAN_NONE` is rejected.
             for i in 0..2 {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let l_2 = unsafe { l.0.u.map };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let l_2_add = unsafe { l_2.add(i) };
                 // SAFETY: `custom_init` allocated a map of 2 entries.
-                unsafe { (*l.0.u.map.add(i)).id = ffi::AVChannel(i as c_int) };
+                unsafe { (*l_2_add).id = ffi::AVChannel(i as c_int) };
             }
             l
         } else if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC {
@@ -660,14 +684,18 @@ mod channel_order {
 
         fn get(&self, i: usize) -> ffi::AVChannelOrder {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_2 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised block.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_2.read() }
         }
 
         fn set(&mut self, i: usize, v: ffi::AVChannelOrder) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(v) }
+            unsafe { v_0_add.write(v) }
         }
     }
 
@@ -682,10 +710,13 @@ mod channel_order {
     fn rust_as_c(a: &HeapVec<ChannelOrder>) -> Vec<ffi::AVChannelOrder> {
         let ptr = a.as_ptr().cast::<ffi::AVChannelOrder>();
         (0..a.len())
-            // SAFETY: `ChannelOrder` is `#[repr(transparent)]` over
-            // `ffi::AVChannelOrder`, and `i` is in bounds of the live,
-            // initialised array `a` borrows.
-            .map(|i| unsafe { ptr.add(i).read() })
+            .map(|i| {
+                // SAFETY: `i` is in bounds of the live array `a` borrows.
+                let at = unsafe { ptr.add(i) };
+                // SAFETY: as above, initialised; `ChannelOrder` is `#[repr(transparent)]` over
+                // `ffi::AVChannelOrder`.
+                unsafe { at.read() }
+            })
             .collect()
     }
 
@@ -736,7 +767,7 @@ mod channel_order {
         // The path a field accessor over a C array of `enum AVChannelOrder`
         // takes: adopt the C block and read it as `ChannelOrder`s.
         let (ptr, len) = (c.0, c.1);
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
         // `ffi::AVChannelOrder`, whose ownership `forget` gave up;
         // `ChannelOrder` is layout-compatible with it, and `av_free` releases
@@ -766,7 +797,9 @@ mod channel_custom {
     use core::ptr::{self, NonNull};
 
     use ffibox::{CSlice, CSliceMut};
-    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom, ChannelCustomRef};
+    use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+        Channel, ChannelCustom, ChannelCustomRef,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
 
@@ -788,7 +821,11 @@ mod channel_custom {
         fn custom(n: c_int) -> Self {
             let mut l = Self::zeroed();
             // SAFETY: `l` is a zeroed layout C may overwrite.
-            assert_eq!(unsafe { ffi::av_channel_layout_custom_init(&mut l, n) }, 0);
+            assert_eq!(
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_channel_layout_custom_init(&raw mut l, n) },
+                0
+            );
             assert_eq!(l.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
             Self(l)
         }
@@ -798,7 +835,7 @@ mod channel_custom {
             let mut l = Self::zeroed();
             // SAFETY: `l` is a zeroed layout C may overwrite; `s` is a C
             // string.
-            let r = unsafe { ffi::av_channel_layout_from_string(&mut l, s.as_ptr()) };
+            let r = unsafe { ffi::av_channel_layout_from_string(&raw mut l, s.as_ptr()) };
             assert_eq!(r, 0, "{s:?}");
             Self(l)
         }
@@ -830,20 +867,29 @@ mod channel_custom {
             // SAFETY: a custom layout's `map` is a live array of
             // `nb_channels` initialised elements, freed only when `self`
             // drops; `ChannelCustom` is transparent over `AVChannelCustom`.
-            unsafe { CSlice::from_raw_parts(NonNull::new(self.custom_map()).unwrap().cast(), self.len()) }
+            unsafe {
+                CSlice::from_raw_parts(NonNull::new(self.custom_map()).unwrap().cast(), self.len())
+            }
         }
 
         fn handles_mut(&mut self) -> CSliceMut<'_, ChannelCustom> {
             // SAFETY: as for `handles`, borrowed exclusively through
             // `&mut self`.
-            unsafe { CSliceMut::from_raw_parts(NonNull::new(self.custom_map()).unwrap().cast(), self.len()) }
+            unsafe {
+                CSliceMut::from_raw_parts(
+                    NonNull::new(self.custom_map()).unwrap().cast(),
+                    self.len(),
+                )
+            }
         }
 
         /// Element `i` as C stores it, by value.
         fn raw(&self, i: usize) -> ffi::AVChannelCustom {
             assert!(i < self.len());
+            // SAFETY: as the comment below states, for this part of the operation.
+            let custom_map_add = unsafe { self.custom_map().add(i) };
             // SAFETY: `i` is in bounds of the live map.
-            unsafe { self.custom_map().add(i).read() }
+            unsafe { custom_map_add.read() }
         }
 
         /// A C-layout pointer to element `i`, for C-side writes.
@@ -856,16 +902,24 @@ mod channel_custom {
         fn describe(&self) -> String {
             let mut buf = [0 as c_char; 512];
             // SAFETY: `self.0` is a valid layout and `buf` holds 512 bytes.
-            let r = unsafe { ffi::av_channel_layout_describe(&self.0, buf.as_mut_ptr(), buf.len()) };
+            let r = unsafe {
+                ffi::av_channel_layout_describe(&raw const self.0, buf.as_mut_ptr(), buf.len())
+            };
             assert!(r > 0 && (r as usize) < buf.len(), "{r}");
             // SAFETY: C NUL-terminated `buf`.
-            unsafe { CStr::from_ptr(buf.as_ptr()) }.to_string_lossy().into_owned()
+            unsafe { CStr::from_ptr(buf.as_ptr()) }
+                .to_string_lossy()
+                .into_owned()
         }
 
         fn copy(&self) -> Self {
             let mut l = Self::zeroed();
             // SAFETY: `l` is zeroed, `self.0` valid.
-            assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut l, &self.0) }, 0);
+            assert_eq!(
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_channel_layout_copy(&raw mut l, &raw const self.0) },
+                0
+            );
             Self(l)
         }
     }
@@ -874,7 +928,7 @@ mod channel_custom {
         fn drop(&mut self) {
             // SAFETY: `self.0` is a valid layout whose map, if any, is an
             // `av_malloc`-family block C may free.
-            unsafe { ffi::av_channel_layout_uninit(&mut self.0) }
+            unsafe { ffi::av_channel_layout_uninit(&raw mut self.0) }
         }
     }
 
@@ -912,19 +966,21 @@ mod channel_custom {
         let index = PROBES
             .iter()
             // SAFETY: `l.0` is a valid layout and `p` a C string.
-            .map(|p| unsafe { ffi::av_channel_layout_index_from_string(&l.0, p.as_ptr()) })
+            .map(|p| unsafe {
+                ffi::av_channel_layout_index_from_string(&raw const l.0, p.as_ptr())
+            })
             .collect();
         let channel = PROBES
             .iter()
             // SAFETY: as above.
-            .map(|p| unsafe { ffi::av_channel_layout_channel_from_string(&l.0, p.as_ptr()) }.0)
+            .map(|p| unsafe { ffi::av_channel_layout_channel_from_string(&raw const l.0, p.as_ptr()) }.0)
             .collect();
         let at = (0..=l.len() as c_uint)
             // SAFETY: `l.0` is a valid layout; C bounds-checks the index.
-            .map(|i| unsafe { ffi::av_channel_layout_channel_from_index(&l.0, i) }.0)
+            .map(|i| unsafe { ffi::av_channel_layout_channel_from_index(&raw const l.0, i) }.0)
             .collect();
         // SAFETY: `l.0` is a valid layout.
-        let check = unsafe { ffi::av_channel_layout_check(&l.0) };
+        let check = unsafe { ffi::av_channel_layout_check(&raw const l.0) };
         Observed {
             describe: l.describe(),
             check,
@@ -943,7 +999,8 @@ mod channel_custom {
         for (i, h) in l.handles().iter().enumerate() {
             let raw = l.raw(i);
             // SAFETY: valid layout, index in range.
-            let c_id = unsafe { ffi::av_channel_layout_channel_from_index(&l.0, i as c_uint) };
+            let c_id =
+                unsafe { ffi::av_channel_layout_channel_from_index(&raw const l.0, i as c_uint) };
             assert_eq!(h.id(), Channel::from_raw(c_id), "{step} [{i}]");
             assert_eq!(h.id().into_raw(), raw.id, "{step} [{i}]");
             // C writes every name NUL-terminated within the field.
@@ -969,23 +1026,27 @@ mod channel_custom {
 
     fn c_write(l: &mut Layout, i: usize, op: Op<'_>) {
         let p = l.raw_mut(i);
-        // SAFETY: `p` addresses a live element of `l`'s map, which nothing
-        // else reaches meanwhile; `av_strlcpy` writes at most the field's 16
-        // bytes, and `name` is a C string.
-        unsafe {
-            match op {
-                Op::Id(ch) => (*p).id = ch.into_raw(),
-                Op::Name(name) => {
-                    if name.to_bytes().len() < 16 {
-                        ffi::av_strlcpy((*p).name.as_mut_ptr(), name.as_ptr(), 16);
-                    }
+        // `p` addresses a live element of `l`'s map, which nothing else reaches meanwhile;
+        // `av_strlcpy` writes at most the field's 16 bytes, and `name` is a C string.
+        // SAFETY: as above: the place of its `name`.
+        let name_ptr = unsafe { (&raw mut (*p).name).cast::<c_char>() };
+        match op {
+            // SAFETY: as above.
+            Op::Id(ch) => unsafe { (*p).id = ch.into_raw() },
+            Op::Name(name) => {
+                if name.to_bytes().len() < 16 {
+                    // SAFETY: as above.
+                    unsafe { ffi::av_strlcpy(name_ptr, name.as_ptr(), 16) };
                 }
-                Op::NameTruncated(name) => {
-                    ffi::av_strlcpy((*p).name.as_mut_ptr(), name.as_ptr(), 16);
-                }
-                Op::Opaque(o) => (*p).opaque = o,
-                Op::Whole(v) => *p = v.into_raw(),
             }
+            Op::NameTruncated(name) => {
+                // SAFETY: as above.
+                unsafe { ffi::av_strlcpy(name_ptr, name.as_ptr(), 16) };
+            }
+            // SAFETY: as above.
+            Op::Opaque(o) => unsafe { (*p).opaque = o },
+            // SAFETY: as above.
+            Op::Whole(v) => unsafe { *p = v.into_raw() },
         }
     }
 
@@ -1019,7 +1080,11 @@ mod channel_custom {
         ];
         for s in layouts {
             let l = Layout::parse(s);
-            assert_eq!(l.0.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM, "{s:?}");
+            assert_eq!(
+                l.0.order,
+                ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+                "{s:?}"
+            );
             assert_getters_read_c(&l, &format!("{s:?}"));
             for h in l.handles().iter() {
                 assert!(h.opaque().is_null());
@@ -1077,7 +1142,11 @@ mod channel_custom {
             rust_write(&mut rust_side, i, op);
             let step = format!("step {n}");
             for e in 0..4 {
-                assert_eq!(bytes(c_side.raw(e)), bytes(rust_side.raw(e)), "{step} [{e}]");
+                assert_eq!(
+                    bytes(c_side.raw(e)),
+                    bytes(rust_side.raw(e)),
+                    "{step} [{e}]"
+                );
             }
             assert_eq!(observe(&c_side), observe(&rust_side), "{step}");
             assert_getters_read_c(&c_side, &step);
@@ -1085,7 +1154,10 @@ mod channel_custom {
             if n == 19 {
                 // Not vacuous: C sees the names the setters wrote.
                 let seen = observe(&rust_side);
-                assert_eq!(seen.describe, "4 channels (FL@x+SL@whole+USR63@0123456789abcde+UNK)");
+                assert_eq!(
+                    seen.describe,
+                    "4 channels (FL@x+SL@whole+USR63@0123456789abcde+UNK)"
+                );
                 assert_eq!(seen.index[2], -22, "`@front` is gone");
                 assert_eq!(seen.index[9], 2);
                 assert_eq!(seen.index[1], -22, "`BAD@` is no channel");
@@ -1178,7 +1250,7 @@ mod channel_names {
             .chain(1000..1030)
             .chain(2040..2060)
             .chain([
-                0x7fff,
+                0x7FFF,
                 0x10000,
                 i32::MAX - 1,
                 i32::MAX,
@@ -1381,7 +1453,7 @@ mod channel_names {
 mod name_appenders {
     use core::ffi::{c_int, c_uint};
     use core::mem::MaybeUninit;
-    use core::ptr::{self, addr_of};
+    use core::ptr::{self};
 
     use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintRef};
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
@@ -1417,30 +1489,37 @@ mod name_appenders {
             // SAFETY: `b` is writable storage for one `AVBPrint`; a caller
             // buffer is writable for its length and outlives every use of
             // `b` in these tests.
-            unsafe {
-                match buffer {
-                    Some(data) => ffi::av_bprint_init_for_buffer(
+            match buffer {
+                // SAFETY: as the comment above this statement states.
+                Some(data) => unsafe {
+                    ffi::av_bprint_init_for_buffer(
                         b,
                         data.as_mut_ptr().cast(),
                         data.len() as c_uint,
-                    ),
-                    None => ffi::av_bprint_init(b, 0, c_uint::MAX),
-                }
-            };
+                    );
+                },
+                // SAFETY: as the comment above this statement states.
+                None => unsafe { ffi::av_bprint_init(b, 0, c_uint::MAX) },
+            }
             Self(b, owned)
         }
 
         /// `(len, stored bytes, complete)`.
         fn state(&self) -> (u32, Vec<u8>, bool) {
-            // SAFETY: an initialised buffer, whose string holds
+            // For the unsafe operations below: an initialised buffer, whose string holds
             // `min(len, size - 1)` bytes before its NUL.
-            unsafe {
-                let len = addr_of!((*self.0).len).read();
-                let size = addr_of!((*self.0).size).read();
+            {
+                // SAFETY: as the comment above this block states.
+                let len = unsafe { (*self.0).len };
+                // SAFETY: as the comment above this block states.
+                let size = unsafe { (*self.0).size };
                 let stored = len.min(size.saturating_sub(1)) as usize;
-                let s = addr_of!((*self.0).str_).read().cast::<u8>();
-                let bytes = core::slice::from_raw_parts(s, stored).to_vec();
-                (len, bytes, ffi::av_bprint_is_complete(self.0) != 0)
+                // SAFETY: as the comment above this block states.
+                let s = unsafe { (*self.0).str_.cast::<u8>() };
+                // SAFETY: as the comment above this block states.
+                let bytes = unsafe { core::slice::from_raw_parts(s, stored).to_vec() };
+                // SAFETY: as the comment above this block states.
+                unsafe { (len, bytes, ffi::av_bprint_is_complete(self.0) != 0) }
             }
         }
     }
@@ -1555,7 +1634,7 @@ mod layout {
         fn uninit_keeping_opaque(&mut self) -> *mut c_void {
             let opaque = self.0.opaque;
             // SAFETY: `self.0` is a valid layout C may uninitialise.
-            unsafe { ffi::av_channel_layout_uninit(&mut self.0) };
+            unsafe { ffi::av_channel_layout_uninit(&raw mut self.0) };
             opaque
         }
     }
@@ -1563,7 +1642,7 @@ mod layout {
     impl Drop for CLayout {
         fn drop(&mut self) {
             // SAFETY: `self.0` is a valid layout whose map, if any, C owns.
-            unsafe { ffi::av_channel_layout_uninit(&mut self.0) }
+            unsafe { ffi::av_channel_layout_uninit(&raw mut self.0) }
         }
     }
 
@@ -1609,9 +1688,12 @@ mod layout {
             // SAFETY: a custom layout's `u` holds the map.
             let map = unsafe { l.u.map };
             (0..l.nb_channels.max(0) as usize)
-                // SAFETY: a valid custom layout's map holds `nb_channels`
-                // elements.
-                .map(|i| c_elem(unsafe { &*map.add(i) }))
+                .map(|i| {
+                    // SAFETY: a valid custom layout's map holds `nb_channels` elements.
+                    let at = unsafe { map.add(i) };
+                    // SAFETY: as above; the element is live while the layout is.
+                    c_elem(unsafe { &*at })
+                })
                 .collect()
         });
         // SAFETY: outside custom order `u` holds the mask; in custom order
@@ -1667,35 +1749,51 @@ mod layout {
     }
 
     fn observe(p: *const ffi::AVChannelLayout) -> Observed {
-        // SAFETY: `p` addresses a live, valid layout every call below only
+        // For the unsafe operations below: `p` addresses a live, valid layout every call below only
         // reads; NULL with size 0 asks `describe` for the length only, and
         // `buf` holds the `need` bytes it asks for.
-        unsafe {
-            let need = ffi::av_channel_layout_describe(p, ptr::null_mut(), 0);
+        {
+            // SAFETY: as the comment above this block states.
+            let need = unsafe { ffi::av_channel_layout_describe(p, ptr::null_mut(), 0) };
+            // For the unsafe operations below: as the comment above this block states.
             let describe = if need < 0 {
                 Err(need)
             } else {
                 let mut buf = vec![0 as c_char; need as usize];
                 assert_eq!(
-                    ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len()),
+                    // SAFETY: as the comment at the head of this block states.
+                    unsafe { ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len()) },
                     need
                 );
-                Ok(CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+                // SAFETY: as the comment at the head of this block states.
+                Ok(unsafe { CStr::from_ptr(buf.as_ptr()) }
+                    .to_string_lossy()
+                    .into_owned())
             };
-            let n = (*p).nb_channels.clamp(0, 70) as c_uint;
-            let at = (0..=n)
-                .map(|i| ffi::av_channel_layout_channel_from_index(p, i).0)
-                .collect();
-            let index = [0, 1, 3, 40, 63, 64, 0x400, 0x401, -1]
-                .map(|ch| ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(ch)))
-                .into();
+            // SAFETY: as the comment above this block states.
+            let n = unsafe { (*p).nb_channels.clamp(0, 70) as c_uint };
+            // SAFETY: as the comment above this block states.
+            let at = unsafe {
+                (0..=n)
+                    .map(|i| ffi::av_channel_layout_channel_from_index(p, i).0)
+                    .collect()
+            };
+            // SAFETY: as the comment above this block states.
+            let index = unsafe {
+                [0, 1, 3, 40, 63, 64, 0x400, 0x401, -1]
+                    .map(|ch| ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(ch)))
+                    .into()
+            };
+            // SAFETY: as the comment above this block states.
             Observed {
                 fields: c_fields(p),
                 describe,
-                check: ffi::av_channel_layout_check(p),
+                // SAFETY: as the comment above this statement states.
+                check: unsafe { ffi::av_channel_layout_check(p) },
                 at,
                 index,
-                ambisonic_order: ffi::av_channel_layout_ambisonic_order(p),
+                // SAFETY: as the comment above this statement states.
+                ambisonic_order: unsafe { ffi::av_channel_layout_ambisonic_order(p) },
             }
         }
     }
@@ -1703,11 +1801,11 @@ mod layout {
     /// Both twins agree as C reads them, and the getters read the Rust one's
     /// fields.
     fn assert_twins(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
-        let (ro, co) = (observe(rust_ptr(r)), observe(&c.0));
+        let (ro, co) = (observe(rust_ptr(r)), observe(&raw const c.0));
         assert_eq!(ro, co, "{step}");
         assert_eq!(rust_fields(r.as_ref()), ro.fields, "{step}");
         // SAFETY: both are live, valid layouts C only reads.
-        let cmp = unsafe { ffi::av_channel_layout_compare(rust_ptr(r), &c.0) };
+        let cmp = unsafe { ffi::av_channel_layout_compare(rust_ptr(r), &raw const c.0) };
         if ro.check == 1 {
             assert_eq!(cmp, 0, "{step}");
         }
@@ -1767,7 +1865,7 @@ mod layout {
     fn c_parse(s: &CStr) -> (c_int, CLayout) {
         let mut c = CLayout::zeroed();
         // SAFETY: a zeroed layout C may initialise; `s` is a C string.
-        let ret = unsafe { ffi::av_channel_layout_from_string(&mut c.0, s.as_ptr()) };
+        let ret = unsafe { ffi::av_channel_layout_from_string(&raw mut c.0, s.as_ptr()) };
         if ret < 0 {
             // C leaves the layout uninitialised: start the twin afresh.
             drop(c);
@@ -1779,7 +1877,7 @@ mod layout {
     /// What `c_parse("ambisonic <order>[+<mask>]")` returns, written as C's
     /// parser writes it (`channel_layout.c:340-368`, the native-extra path)
     /// without calling it: the ambisonic forms are parsed through glibc end
-    /// pointers, which BSan cannot be given (`parser_inputs`), so under BSan
+    /// pointers, which `BSan` cannot be given (`parser_inputs`), so under `BSan`
     /// the C twin of an ambisonic step is built by hand; the parse itself is
     /// compared under the other instruments.
     fn c_ambisonic(order: u32, mask: u64) -> (c_int, CLayout) {
@@ -1802,11 +1900,11 @@ mod layout {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn initialisers_match_c_for_every_input() {
-        for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX] {
+        for mask in [0, 1, 0x3, 0x60F, 1 << 63, u64::MAX] {
             let r = ChannelLayout::from_mask(mask);
             let mut c = CLayout::zeroed();
             // SAFETY: a zeroed layout C may initialise.
-            let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, mask) };
+            let ret = unsafe { ffi::av_channel_layout_from_mask(&raw mut c.0, mask) };
             assert_eq!(result(&r), ret, "{mask:#x}");
             if let Ok(r) = r {
                 assert_twins(&r, &c, &format!("mask {mask:#x}"));
@@ -1816,7 +1914,7 @@ mod layout {
             let r = ChannelLayout::custom(n);
             let mut c = CLayout::zeroed();
             // SAFETY: a zeroed layout C may initialise.
-            let ret = unsafe { ffi::av_channel_layout_custom_init(&mut c.0, n) };
+            let ret = unsafe { ffi::av_channel_layout_custom_init(&raw mut c.0, n) };
             assert_eq!(result(&r), ret, "custom {n}");
             if let Ok(r) = r {
                 assert_twins(&r, &c, &format!("custom {n}"));
@@ -1826,7 +1924,7 @@ mod layout {
             let r = ChannelLayout::default_for(n);
             let mut c = CLayout::zeroed();
             // SAFETY: a zeroed layout C may initialise.
-            unsafe { ffi::av_channel_layout_default(&mut c.0, n) };
+            unsafe { ffi::av_channel_layout_default(&raw mut c.0, n) };
             assert_twins(&r, &c, &format!("default {n}"));
         }
         let mut parsed = 0;
@@ -1856,14 +1954,22 @@ mod layout {
             let rc = rs.as_ref().try_clone().unwrap();
             let mut cc = CLayout::zeroed();
             // SAFETY: both are valid layouts; the destination is zeroed.
-            assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut cc.0, &cs.0) }, 0);
+            assert_eq!(
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_channel_layout_copy(&raw mut cc.0, &raw const cs.0) },
+                0
+            );
             assert_twins(&rc, &cc, &format!("clone of {src:?}"));
             // Over a destination of every kind, which C uninitialises first.
             for dst in allowed(&[c"FL@a+FR@b+LFE", c"stereo", c"ambisonic 1", c"3C"]) {
                 let (mut rd, (_, mut cd)) = (ChannelLayout::parse(dst).unwrap(), c_parse(dst));
                 assert_eq!(rd.as_mut().copy_from(rs.as_ref()), Ok(()));
                 // SAFETY: both are valid, distinct layouts.
-                assert_eq!(unsafe { ffi::av_channel_layout_copy(&mut cd.0, &cs.0) }, 0);
+                assert_eq!(
+                    // SAFETY: as the comment above this statement states.
+                    unsafe { ffi::av_channel_layout_copy(&raw mut cd.0, &raw const cs.0) },
+                    0
+                );
                 assert_twins(&rd, &cd, &format!("{src:?} over {dst:?}"));
             }
         }
@@ -1899,7 +2005,7 @@ mod layout {
             Op::Native(mask) => {
                 let opaque = c.uninit_keeping_opaque();
                 // SAFETY: an uninitialised layout C may initialise.
-                let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, mask) };
+                let ret = unsafe { ffi::av_channel_layout_from_mask(&raw mut c.0, mask) };
                 assert_eq!(ret, 0);
                 c.0.opaque = opaque;
             }
@@ -1918,7 +2024,7 @@ mod layout {
                     let opaque = c.uninit_keeping_opaque();
                     // Move the parsed layout in.
                     c.0 = parsed.0;
-                    core::mem::forget(parsed);
+                    let _ = core::mem::ManuallyDrop::new(parsed);
                     c.0.opaque = opaque;
                 }
                 return Some(vec![(ret, vec![], 0)]);
@@ -1927,15 +2033,22 @@ mod layout {
                 let opaque = c.uninit_keeping_opaque();
                 let n = chans.len() as c_int;
                 // SAFETY: an uninitialised layout C may initialise.
-                let ret = unsafe { ffi::av_channel_layout_custom_init(&mut c.0, n) };
+                let ret = unsafe { ffi::av_channel_layout_custom_init(&raw mut c.0, n) };
                 assert_eq!(ret, 0);
                 for (i, &(id, name)) in chans.iter().enumerate() {
-                    // SAFETY: `i` is in bounds of the map C allocated;
+                    // For the unsafe operations below: `i` is in bounds of the map C allocated;
                     // `av_strlcpy` writes at most the field's 16 bytes.
-                    unsafe {
-                        let e = c.0.u.map.add(i);
-                        (*e).id = ffi::AVChannel(id);
-                        ffi::av_strlcpy((*e).name.as_mut_ptr(), name.as_ptr(), 16);
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let c_3 = unsafe { c.0.u.map };
+                        // SAFETY: as the comment above this block states.
+                        let e = unsafe { c_3.add(i) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*e).id = ffi::AVChannel(id) };
+                        // SAFETY: as the comment above this block states: the place of its name.
+                        let name_ptr = unsafe { (&raw mut (*e).name).cast::<c_char>() };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_strlcpy(name_ptr, name.as_ptr(), 16) };
                     }
                 }
                 c.0.opaque = opaque;
@@ -1944,12 +2057,12 @@ mod layout {
                 if c.0.order != ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
                     return Some(vec![]);
                 }
-                let taken = c_fields(&c.0).map;
+                let taken = c_fields(&raw const c.0).map;
                 // SAFETY: a valid layout; C keeps the count and the user
                 // pointer and frees the map, lossily when it named channels.
                 let ret = unsafe {
                     ffi::av_channel_layout_retype(
-                        &mut c.0,
+                        &raw mut c.0,
                         ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
                         0,
                     )
@@ -1960,11 +2073,18 @@ mod layout {
             Op::Edit(i, id, name) => {
                 if c.0.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
                     let i = i % c.0.nb_channels as usize;
-                    // SAFETY: `i` is in bounds of the custom map.
-                    unsafe {
-                        let e = c.0.u.map.add(i);
-                        (*e).id = ffi::AVChannel(id);
-                        ffi::av_strlcpy((*e).name.as_mut_ptr(), name.as_ptr(), 16);
+                    // For the unsafe operations below: `i` is in bounds of the custom map.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let c_2 = unsafe { c.0.u.map };
+                        // SAFETY: as the comment above this block states.
+                        let e = unsafe { c_2.add(i) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*e).id = ffi::AVChannel(id) };
+                        // SAFETY: as the comment above this block states: the place of its name.
+                        let name_ptr = unsafe { (&raw mut (*e).name).cast::<c_char>() };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_strlcpy(name_ptr, name.as_ptr(), 16) };
                     }
                 }
             }
@@ -1975,17 +2095,19 @@ mod layout {
             }
             Op::Take => {
                 let old = core::mem::replace(c, CLayout::zeroed());
-                return c_fields(&old.0)
-                    .map
-                    .or(Some(vec![(old.0.nb_channels, vec![], 0)]));
+                return c_fields(&raw const old.0).map.or(Some(vec![(
+                    old.0.nb_channels,
+                    vec![],
+                    0,
+                )]));
             }
             Op::Clear => {
                 // SAFETY: a valid layout.
-                unsafe { ffi::av_channel_layout_uninit(&mut c.0) }
+                unsafe { ffi::av_channel_layout_uninit(&raw mut c.0) }
             }
             Op::CopyFromOther => {
                 // SAFETY: valid, distinct layouts.
-                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, &other.0) };
+                let ret = unsafe { ffi::av_channel_layout_copy(&raw mut c.0, &raw const other.0) };
                 assert_eq!(ret, 0);
             }
         }
@@ -2121,7 +2243,7 @@ mod layout {
             c"FC@0123456789abcde",
         ] {
             let (_, reference) = c_parse(s);
-            let Some(elems) = c_fields(&reference.0).map else {
+            let Some(elems) = c_fields(&raw const reference.0).map else {
                 panic!("{s:?}")
             };
             let mut map = alloc_cell_array_zeroed::<ChannelCustom>(elems.len()).unwrap();
@@ -2140,7 +2262,7 @@ mod layout {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn native_and_ambisonic_setters_match_cs_initialisers() {
-        for mask in [1, 0x3, 0x60f, 1 << 63, u64::MAX] {
+        for mask in [1, 0x3, 0x60F, 1 << 63, u64::MAX] {
             let mut r = ChannelLayout::parse(c"FL@a+FR").unwrap();
             let mut c = c_parse(c"FL@a+FR").1;
             rust_apply(&mut r, &ChannelLayout::unspecified(0), Op::Native(mask));
@@ -2166,7 +2288,7 @@ mod layout {
             1 << 31,
             u32::MAX,
         ] {
-            for mask in [0, 0x3, 0x60f, u64::MAX] {
+            for mask in [0, 0x3, 0x60F, u64::MAX] {
                 let mut r = ChannelLayout::unspecified(0);
                 let mut c = CLayout::zeroed();
                 let step = format!("ambisonic {order}+{mask:#x}");
@@ -2223,12 +2345,10 @@ mod layout {
             let bit = ch.mask().unwrap();
             let l = ChannelLayout::from_mask(bit).unwrap();
             // SAFETY: a valid native layout C only reads.
-            let (at, index) = unsafe {
-                (
-                    ffi::av_channel_layout_channel_from_index(rust_ptr(&l), 0),
-                    ffi::av_channel_layout_index_from_channel(rust_ptr(&l), ch.into_raw()),
-                )
-            };
+            let (at, index) = (
+                unsafe { ffi::av_channel_layout_channel_from_index(rust_ptr(&l), 0) },
+                unsafe { ffi::av_channel_layout_index_from_channel(rust_ptr(&l), ch.into_raw()) },
+            );
             assert_eq!((at.0, index), (id, 0), "id {id}");
         }
     }
@@ -2247,7 +2367,7 @@ mod layout {
             let r = ChannelLayout::from_mask(mask).unwrap();
             let mut c = CLayout::zeroed();
             // SAFETY: a zeroed layout C may initialise.
-            let ret = unsafe { ffi::av_channel_layout_from_mask(&mut c.0, *c_mask) };
+            let ret = unsafe { ffi::av_channel_layout_from_mask(&raw mut c.0, *c_mask) };
             assert_eq!(ret, 0);
             assert_twins(&r, &c, name);
             assert_eq!(observe(rust_ptr(&r)).check, 1, "{name}");
@@ -2263,7 +2383,7 @@ mod layout {
         let table = c_table(|i, name| {
             let mut c = CLayout::zeroed();
             // SAFETY: `name` and `c.0` are valid slots for the shim's output.
-            let found = unsafe { ffi::crustify_AV_CHANNEL_LAYOUT(i, name, &mut c.0) };
+            let found = unsafe { ffi::crustify_AV_CHANNEL_LAYOUT(i, name, &raw mut c.0) };
             assert_eq!(found, c_int::from(!name.is_null()));
             c
         });
@@ -2286,7 +2406,8 @@ mod layout {
                 &format!("{name} as {described:?}"),
             );
             // SAFETY: valid layouts C only reads.
-            let same = unsafe { ffi::av_channel_layout_compare(rust_ptr(&r), &c_parsed.0) };
+            let same =
+                unsafe { ffi::av_channel_layout_compare(rust_ptr(&r), &raw const c_parsed.0) };
             assert_eq!(same, 0, "{name} as {described:?}");
         }
         // The C header's table is the Rust constants, name for name.
@@ -2302,17 +2423,17 @@ mod layout {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn native_matches_the_c_av_channel_layout_mask_macro() {
-        for mask in [0, 1, 0x3, 0x60f, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
+        for mask in [0, 1, 0x3, 0x60F, 1 << 63, u64::MAX, 0x8000_0000_0000_0001] {
             let r = ChannelLayoutVal::from(ChannelLayout::native(mask));
             let mut c = CLayout::zeroed();
             let nb = mask.count_ones() as c_int;
             // SAFETY: `c.0` is a valid slot for the macro's value.
-            unsafe { ffi::crustify_AV_CHANNEL_LAYOUT_MASK(nb, mask, &mut c.0) };
+            unsafe { ffi::crustify_AV_CHANNEL_LAYOUT_MASK(nb, mask, &raw mut c.0) };
             assert_twins(&r, &c, &format!("mask {mask:#x}"));
             if mask != 0 {
                 let mut init = CLayout::zeroed();
                 // SAFETY: a zeroed layout C may initialise.
-                let ret = unsafe { ffi::av_channel_layout_from_mask(&mut init.0, mask) };
+                let ret = unsafe { ffi::av_channel_layout_from_mask(&raw mut init.0, mask) };
                 assert_eq!(ret, 0);
                 assert_twins(&r, &init, &format!("from_mask {mask:#x}"));
             }
@@ -2324,7 +2445,9 @@ mod layout {
     /// `av_channel_layout_subset` and `av_channel_layout_standard` (formats
     /// wave-3 batch 2).
     mod order_changes {
-        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+            Conversion, masks, standard_layouts,
+        };
 
         use super::*;
 
@@ -2345,7 +2468,7 @@ mod layout {
             1 << 63,
             0x8000_0000_0000_0001,
             0x0000_0100_0000_0108,
-            0xdead_beef_0bad_f00d,
+            0xDEAD_BEEF_0BAD_F00D,
         ];
 
         const UNNAMED_NATIVE: &[(c_int, &CStr)] = &[(0, c""), (1, c""), (3, c""), (62, c"")];
@@ -2439,7 +2562,9 @@ mod layout {
 
         pub(super) fn c_retype(c: &mut CLayout, order: c_uint, flags: c_int) -> c_int {
             // SAFETY: a valid layout C may convert in place.
-            unsafe { ffi::av_channel_layout_retype(&mut c.0, ffi::AVChannelOrder(order), flags) }
+            unsafe {
+                ffi::av_channel_layout_retype(&raw mut c.0, ffi::AVChannelOrder(order), flags)
+            }
         }
 
         /// The safe call standing for `flags`, its result as C reports it.
@@ -2462,7 +2587,7 @@ mod layout {
         fn assert_subsets(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
             for mask in MASKS {
                 // SAFETY: a valid layout C only reads.
-                let want = unsafe { ffi::av_channel_layout_subset(&c.0, mask) };
+                let want = unsafe { ffi::av_channel_layout_subset(&raw const c.0, mask) };
                 assert_eq!(r.as_ref().subset(mask), want, "{step}: {mask:#x}");
             }
         }
@@ -2573,7 +2698,7 @@ mod layout {
                 let r = ChannelLayoutVal::from(layout);
                 let mut c = CLayout::zeroed();
                 // SAFETY: both are valid, distinct layouts.
-                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, rust_ptr(&r)) };
+                let ret = unsafe { ffi::av_channel_layout_copy(&raw mut c.0, rust_ptr(&r)) };
                 assert_eq!(ret, 0);
                 assert_subsets(&r, &c, name);
             }
@@ -2590,7 +2715,7 @@ mod layout {
             let (r, c) = twins(&[Op::CustomMap(&ALL_NATIVE), Op::Edit(5, 0x300, c"")]);
             for bit in 0..64 {
                 // SAFETY: a valid layout C only reads.
-                let want = unsafe { ffi::av_channel_layout_subset(&c.0, 1 << bit) };
+                let want = unsafe { ffi::av_channel_layout_subset(&raw const c.0, 1 << bit) };
                 assert_eq!(r.as_ref().subset(1 << bit), want, "bit {bit}");
             }
         }
@@ -2601,7 +2726,7 @@ mod layout {
             let mut out = vec![];
             loop {
                 // SAFETY: `state` is a writable slot C started from NULL.
-                let l = unsafe { ffi::av_channel_layout_standard(&mut state) };
+                let l = unsafe { ffi::av_channel_layout_standard(&raw mut state) };
                 if l.is_null() {
                     break;
                 }
@@ -2611,7 +2736,7 @@ mod layout {
             let end = state;
             for _ in 0..3 {
                 // SAFETY: as above.
-                assert!(unsafe { ffi::av_channel_layout_standard(&mut state) }.is_null());
+                assert!(unsafe { ffi::av_channel_layout_standard(&raw mut state) }.is_null());
                 assert_eq!(state, end);
             }
             out
@@ -2702,7 +2827,7 @@ mod layout {
             0x400,
             0x403,
             0x404,
-            0x7ff,
+            0x7FF,
             0x800,
             c_int::MAX,
             c_int::MIN,
@@ -2809,58 +2934,81 @@ mod layout {
         /// What C's readers report, mapped onto the Rust API's terms: a
         /// negative index or order is `None`, as is `AV_CHAN_NONE`.
         fn c_reads(p: *const ffi::AVChannelLayout) -> Reads {
-            // SAFETY: `p` addresses a live, valid layout every call below
+            // For the unsafe operations below: `p` addresses a live, valid layout every call below
             // only reads; each buffer is valid for the size passed (NULL
             // with size 0 asks for the length only); the print buffer is
             // initialised before use and finalised once.
-            unsafe {
-                let nb = (*p).nb_channels;
-                let need = ffi::av_channel_layout_describe(p, ptr::null_mut(), 0);
+            {
+                // SAFETY: as the comment above this block states.
+                let nb = unsafe { (*p).nb_channels };
+                // SAFETY: as the comment above this block states.
+                let need = unsafe { ffi::av_channel_layout_describe(p, ptr::null_mut(), 0) };
+                // For the unsafe operations below: as the comment above this block states.
                 let description = if need < 0 {
                     Err(need)
                 } else {
                     let mut buf = vec![0 as c_char; need as usize];
-                    let ret = ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len());
+                    // SAFETY: as the comment at the head of this block states.
+                    let ret =
+                        unsafe { ffi::av_channel_layout_describe(p, buf.as_mut_ptr(), buf.len()) };
                     assert_eq!(ret, need);
-                    Ok(CStr::from_ptr(buf.as_ptr()).to_bytes().to_vec())
+                    // SAFETY: as the comment at the head of this block states.
+                    Ok(unsafe { CStr::from_ptr(buf.as_ptr()) }.to_bytes().to_vec())
                 };
-                let sized = sizes(usize::try_from(need).unwrap_or(0))
-                    .into_iter()
-                    .map(|len| {
-                        let mut buf = vec![0xAAu8; len];
-                        let ptr = if len == 0 {
-                            ptr::null_mut()
-                        } else {
-                            buf.as_mut_ptr().cast()
-                        };
-                        let ret = ffi::av_channel_layout_describe(p, ptr, len);
-                        (usize::try_from(ret).map_err(|_| ret), buf)
-                    })
-                    .collect();
+                // SAFETY: as the comment above this block states.
+                let sized = unsafe {
+                    sizes(usize::try_from(need).unwrap_or(0))
+                        .into_iter()
+                        .map(|len| {
+                            let mut buf = vec![0xAAu8; len];
+                            let ptr = if len == 0 {
+                                ptr::null_mut()
+                            } else {
+                                buf.as_mut_ptr().cast()
+                            };
+                            let ret = ffi::av_channel_layout_describe(p, ptr, len);
+                            (usize::try_from(ret).map_err(|_| ret), buf)
+                        })
+                        .collect()
+                };
                 let mut bp = MaybeUninit::<ffi::AVBPrint>::uninit();
-                ffi::av_bprint_init(bp.as_mut_ptr(), 0, c_uint::MAX);
-                ffi::av_bprintf(bp.as_mut_ptr(), c"x:".as_ptr());
-                let ret = ffi::av_channel_layout_describe_bprint(p, bp.as_mut_ptr());
-                let appended = CStr::from_ptr((*bp.as_ptr()).str_).to_bytes().to_vec();
-                ffi::av_bprint_finalize(bp.as_mut_ptr(), ptr::null_mut());
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_bprint_init(bp.as_mut_ptr(), 0, c_uint::MAX) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_bprintf(bp.as_mut_ptr(), c"x:".as_ptr()) };
+                // SAFETY: as the comment above this block states.
+                let ret = unsafe { ffi::av_channel_layout_describe_bprint(p, bp.as_mut_ptr()) };
+                // SAFETY: as the comment above this block states: a read of the buffer's text.
+                let text = unsafe { (*bp.as_ptr()).str_ };
+                // SAFETY: as the comment above this block states: NUL-terminated text.
+                let appended = unsafe { CStr::from_ptr(text) }.to_bytes().to_vec();
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_bprint_finalize(bp.as_mut_ptr(), ptr::null_mut()) };
+                // SAFETY: as the comment above this block states.
                 Reads {
-                    valid: ffi::av_channel_layout_check(p) == 1,
-                    ambisonic_order: u32::try_from(ffi::av_channel_layout_ambisonic_order(p)).ok(),
+                    // SAFETY: as the comment above this statement states.
+                    valid: unsafe { ffi::av_channel_layout_check(p) } == 1,
+                    // SAFETY: as the comment above this statement states.
+                    ambisonic_order: u32::try_from(unsafe { ffi::av_channel_layout_ambisonic_order(p) }).ok(),
                     at: indices(nb)
                         .into_iter()
-                        .map(|i| none_to_option(ffi::av_channel_layout_channel_from_index(p, i)))
+                        // SAFETY: as the comment above this statement states.
+                        .map(|i| none_to_option(unsafe { ffi::av_channel_layout_channel_from_index(p, i) }))
                         .collect(),
                     index: IDS
                         .map(|id| {
                             let ret =
-                                ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(id));
+                                // SAFETY: as the comment above this statement states.
+                                unsafe { ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(id)) };
                             usize::try_from(ret).ok()
                         })
                         .into(),
                     by_name: NAMES
                         .map(|s| {
-                            let at = ffi::av_channel_layout_index_from_string(p, s.as_ptr());
-                            let ch = ffi::av_channel_layout_channel_from_string(p, s.as_ptr());
+                            // SAFETY: as the comment at the head of this block states.
+                            let at = unsafe { ffi::av_channel_layout_index_from_string(p, s.as_ptr()) };
+                            // SAFETY: as the comment at the head of this block states.
+                            let ch = unsafe { ffi::av_channel_layout_channel_from_string(p, s.as_ptr()) };
                             (usize::try_from(at).ok(), none_to_option(ch))
                         })
                         .into(),
@@ -2873,7 +3021,7 @@ mod layout {
 
         /// The twins read alike through the safe readers and C's.
         fn assert_reads(r: &ChannelLayoutVal, c: &CLayout, step: &str) {
-            let (rr, cr) = (rust_reads(r.as_ref()), c_reads(&c.0));
+            let (rr, cr) = (rust_reads(r.as_ref()), c_reads(&raw const c.0));
             assert_eq!(rr, cr, "{step}");
             // The Rust twin read through C, too, is the C twin.
             assert_eq!(c_reads(rust_ptr(r)), cr, "{step}");
@@ -2899,7 +3047,7 @@ mod layout {
                 let r = ChannelLayoutVal::from(layout);
                 let mut c = CLayout::zeroed();
                 // SAFETY: both are valid, distinct layouts.
-                let ret = unsafe { ffi::av_channel_layout_copy(&mut c.0, rust_ptr(&r)) };
+                let ret = unsafe { ffi::av_channel_layout_copy(&raw mut c.0, rust_ptr(&r)) };
                 assert_eq!(ret, 0);
                 assert_reads(&r, &c, name);
             }
@@ -2919,12 +3067,14 @@ mod layout {
             for (i, (ra, ca)) in all.iter().enumerate() {
                 for (j, (rb, cb)) in all.iter().enumerate() {
                     // SAFETY: two valid layouts C only reads.
-                    let want = unsafe { ffi::av_channel_layout_compare(&ca.0, &cb.0) };
+                    let want =
+                        unsafe { ffi::av_channel_layout_compare(&raw const ca.0, &raw const cb.0) };
                     assert!(want == 0 || want == 1, "{want}");
                     let eq = ra.as_ref() == rb.as_ref();
                     assert_eq!(eq, want == 0, "{i} {j}");
                     // SAFETY: as above, a Rust-held layout against a C one.
-                    let mixed = unsafe { ffi::av_channel_layout_compare(rust_ptr(ra), &cb.0) };
+                    let mixed =
+                        unsafe { ffi::av_channel_layout_compare(rust_ptr(ra), &raw const cb.0) };
                     assert_eq!(mixed, want, "{i} {j}");
                     equal += usize::from(eq && i != j);
                 }

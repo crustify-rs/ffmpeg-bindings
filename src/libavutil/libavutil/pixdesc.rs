@@ -175,16 +175,23 @@ impl fmt::Debug for ComponentDescriptorRef<'_> {
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl ComponentDescriptorRef<'_> {
     /// Field: AVComponentDescriptor.plane
     ///
     /// Which of the four planes holds the component.
     #[must_use]
     pub fn plane(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `plane` field is in bounds; nothing is accessed here.
+        let plane_ptr = unsafe { addr_of!((*self.as_ptr()).plane) };
         // SAFETY: a read of the `plane` field projected through the shared
         // handle's pointer to a live, initialised `AVComponentDescriptor`;
         // every bit pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).plane).read() }
+        unsafe { plane_ptr.read() }
     }
 
     /// Field: AVComponentDescriptor.step
@@ -193,10 +200,13 @@ impl ComponentDescriptorRef<'_> {
     /// bits for bitstream formats, bytes otherwise.
     #[must_use]
     pub fn step(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `step` field is in bounds; nothing is accessed here.
+        let step_ptr = unsafe { addr_of!((*self.as_ptr()).step) };
         // SAFETY: a read of the `step` field projected through the shared
         // handle's pointer to a live, initialised `AVComponentDescriptor`;
         // every bit pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).step).read() }
+        unsafe { step_ptr.read() }
     }
 
     /// Field: AVComponentDescriptor.offset
@@ -205,10 +215,13 @@ impl ComponentDescriptorRef<'_> {
     /// for bitstream formats, bytes otherwise. It may be negative.
     #[must_use]
     pub fn offset(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `offset` field is in bounds; nothing is accessed here.
+        let offset_ptr = unsafe { addr_of!((*self.as_ptr()).offset) };
         // SAFETY: a read of the `offset` field projected through the shared
         // handle's pointer to a live, initialised `AVComponentDescriptor`;
         // every bit pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).offset).read() }
+        unsafe { offset_ptr.read() }
     }
 
     /// Field: AVComponentDescriptor.shift
@@ -216,10 +229,13 @@ impl ComponentDescriptorRef<'_> {
     /// The number of least significant bits to shift away to get the value.
     #[must_use]
     pub fn shift(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `shift` field is in bounds; nothing is accessed here.
+        let shift_ptr = unsafe { addr_of!((*self.as_ptr()).shift) };
         // SAFETY: a read of the `shift` field projected through the shared
         // handle's pointer to a live, initialised `AVComponentDescriptor`;
         // every bit pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).shift).read() }
+        unsafe { shift_ptr.read() }
     }
 
     /// Field: AVComponentDescriptor.depth
@@ -228,10 +244,13 @@ impl ComponentDescriptorRef<'_> {
     /// does not have.
     #[must_use]
     pub fn depth(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `depth` field is in bounds; nothing is accessed here.
+        let depth_ptr = unsafe { addr_of!((*self.as_ptr()).depth) };
         // SAFETY: a read of the `depth` field projected through the shared
         // handle's pointer to a live, initialised `AVComponentDescriptor`;
         // every bit pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).depth).read() }
+        unsafe { depth_ptr.read() }
     }
 
     /// The five fields in declaration order, for comparison and hashing.
@@ -262,10 +281,13 @@ impl ComponentDescriptorMut<'_> {
     /// Sets the plane holding the component, leaving the other fields as
     /// they are.
     pub fn set_plane(&mut self, plane: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `plane` field is in bounds; nothing is accessed here.
+        let plane_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).plane) };
         // SAFETY: a write of the `plane` field projected through the
         // exclusive handle's pointer to a live `AVComponentDescriptor`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).plane).write(plane) }
+        unsafe { plane_ptr.write(plane) }
     }
 
     /// Field: AVComponentDescriptor.step
@@ -273,10 +295,13 @@ impl ComponentDescriptorMut<'_> {
     /// Sets the distance between consecutive pixels, leaving the other
     /// fields as they are.
     pub fn set_step(&mut self, step: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `step` field is in bounds; nothing is accessed here.
+        let step_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).step) };
         // SAFETY: a write of the `step` field projected through the exclusive
         // handle's pointer to a live `AVComponentDescriptor`; the old value
         // owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).step).write(step) }
+        unsafe { step_ptr.write(step) }
     }
 
     /// Field: AVComponentDescriptor.offset
@@ -284,10 +309,13 @@ impl ComponentDescriptorMut<'_> {
     /// Sets the offset of the first pixel's component, leaving the other
     /// fields as they are; a negative offset is stored as given.
     pub fn set_offset(&mut self, offset: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `offset` field is in bounds; nothing is accessed here.
+        let offset_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).offset) };
         // SAFETY: a write of the `offset` field projected through the
         // exclusive handle's pointer to a live `AVComponentDescriptor`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).offset).write(offset) }
+        unsafe { offset_ptr.write(offset) }
     }
 
     /// Field: AVComponentDescriptor.shift
@@ -295,10 +323,13 @@ impl ComponentDescriptorMut<'_> {
     /// Sets the number of low bits to shift away, leaving the other fields
     /// as they are.
     pub fn set_shift(&mut self, shift: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `shift` field is in bounds; nothing is accessed here.
+        let shift_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).shift) };
         // SAFETY: a write of the `shift` field projected through the
         // exclusive handle's pointer to a live `AVComponentDescriptor`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).shift).write(shift) }
+        unsafe { shift_ptr.write(shift) }
     }
 
     /// Field: AVComponentDescriptor.depth
@@ -306,10 +337,13 @@ impl ComponentDescriptorMut<'_> {
     /// Sets the component's width in bits, leaving the other fields as they
     /// are.
     pub fn set_depth(&mut self, depth: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `depth` field is in bounds; nothing is accessed here.
+        let depth_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).depth) };
         // SAFETY: a write of the `depth` field projected through the
         // exclusive handle's pointer to a live `AVComponentDescriptor`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).depth).write(depth) }
+        unsafe { depth_ptr.write(depth) }
     }
 
     /// Overwrites all five fields with `d`'s.
@@ -333,29 +367,20 @@ impl ComponentDescriptorMut<'_> {
 pub struct PixelFormatFlags(u64);
 
 impl PixelFormatFlags {
-    /// Multi-byte values are big-endian.
-    pub const BIG_ENDIAN: Self = Self(ffi::AV_PIX_FMT_FLAG_BE as u64);
-    /// Plane 1 holds a palette, and plane 0 holds indexes into it.
-    pub const PALETTE: Self = Self(ffi::AV_PIX_FMT_FLAG_PAL as u64);
-    /// A component's values are bit-wise packed end to end.
-    pub const BITSTREAM: Self = Self(ffi::AV_PIX_FMT_FLAG_BITSTREAM as u64);
-    /// A hardware-accelerated format, whose planes are not in memory.
-    pub const HWACCEL: Self = Self(ffi::AV_PIX_FMT_FLAG_HWACCEL as u64);
-    /// At least one component is not in plane 0.
-    pub const PLANAR: Self = Self(ffi::AV_PIX_FMT_FLAG_PLANAR as u64);
-    /// RGB-like data, rather than YUV or grayscale.
-    pub const RGB: Self = Self(ffi::AV_PIX_FMT_FLAG_RGB as u64);
     /// The format has a straight (not premultiplied) alpha channel in some
     /// form, palettized formats included.
     pub const ALPHA: Self = Self(ffi::AV_PIX_FMT_FLAG_ALPHA as u64);
     /// The values follow a Bayer pattern.
     pub const BAYER: Self = Self(ffi::AV_PIX_FMT_FLAG_BAYER as u64);
+    /// Multi-byte values are big-endian.
+    pub const BIG_ENDIAN: Self = Self(ffi::AV_PIX_FMT_FLAG_BE as u64);
+    /// A component's values are bit-wise packed end to end.
+    pub const BITSTREAM: Self = Self(ffi::AV_PIX_FMT_FLAG_BITSTREAM as u64);
     /// IEEE-754 floating-point values, whose precision follows the pixel
     /// size.
     pub const FLOAT: Self = Self(ffi::AV_PIX_FMT_FLAG_FLOAT as u64);
-    /// XYZ-like data, rather than YUV, RGB or grayscale.
-    pub const XYZ: Self = Self(ffi::AV_PIX_FMT_FLAG_XYZ as u64);
-
+    /// A hardware-accelerated format, whose planes are not in memory.
+    pub const HWACCEL: Self = Self(ffi::AV_PIX_FMT_FLAG_HWACCEL as u64);
     /// Every named flag with its constant's name, in bit order.
     const KNOWN: [(Self, &'static str); 10] = [
         (Self::BIG_ENDIAN, "BIG_ENDIAN"),
@@ -369,33 +394,46 @@ impl PixelFormatFlags {
         (Self::FLOAT, "FLOAT"),
         (Self::XYZ, "XYZ"),
     ];
+    /// Plane 1 holds a palette, and plane 0 holds indexes into it.
+    pub const PALETTE: Self = Self(ffi::AV_PIX_FMT_FLAG_PAL as u64);
+    /// At least one component is not in plane 0.
+    pub const PLANAR: Self = Self(ffi::AV_PIX_FMT_FLAG_PLANAR as u64);
+    /// RGB-like data, rather than YUV or grayscale.
+    pub const RGB: Self = Self(ffi::AV_PIX_FMT_FLAG_RGB as u64);
+    /// XYZ-like data, rather than YUV, RGB or grayscale.
+    pub const XYZ: Self = Self(ffi::AV_PIX_FMT_FLAG_XYZ as u64);
 
     /// The set with no flag.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self(0)
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: u64) -> Self {
         Self(bits)
     }
 
     /// The set's raw bits, as C stores them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> u64 {
         self.0
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -615,50 +653,62 @@ impl<'a> PixelFormatDescriptorRef<'a> {
     /// leaves out.
     #[must_use]
     pub fn name(&self) -> Option<&'static CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `name` field is in bounds; nothing is accessed here.
+        let name_ptr = unsafe { addr_of!((*self.as_ptr()).name) };
         // SAFETY: a read of the `name` pointer projected through the shared
         // handle's pointer to a live, initialised `AVPixFmtDescriptor`.
-        let p = unsafe { addr_of!((*self.as_ptr()).name).read() };
+        let p = unsafe { name_ptr.read() };
         // SAFETY: by the type's invariant, a non-null `name` addresses a
         // NUL-terminated string that is never freed or written for the rest
         // of the program.
         (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
     }
 
-    /// Field: AVPixFmtDescriptor.nb_components
+    /// Field: `AVPixFmtDescriptor.nb_components`
     ///
     /// The number of components each pixel has, 1 to 4 in C's table (0 for
     /// a format it leaves out); the first ones of
     /// [`components`](Self::components) describe them.
     #[must_use]
     pub fn component_count(&self) -> u8 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nb_components` field is in bounds; nothing is accessed here.
+        let nb_components_ptr = unsafe { addr_of!((*self.as_ptr()).nb_components) };
         // SAFETY: a read of the `nb_components` field projected through the
         // shared handle's pointer to a live, initialised
         // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
-        unsafe { addr_of!((*self.as_ptr()).nb_components).read() }
+        unsafe { nb_components_ptr.read() }
     }
 
-    /// Field: AVPixFmtDescriptor.log2_chroma_w
+    /// Field: `AVPixFmtDescriptor.log2_chroma_w`
     ///
     /// How far to shift the luma width right, rounding up, to get the chroma
     /// width: 1 for `yuv420p`.
     #[must_use]
     pub fn log2_chroma_w(&self) -> u8 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `log2_chroma_w` field is in bounds; nothing is accessed here.
+        let log2_chroma_w_ptr = unsafe { addr_of!((*self.as_ptr()).log2_chroma_w) };
         // SAFETY: a read of the `log2_chroma_w` field projected through the
         // shared handle's pointer to a live, initialised
         // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
-        unsafe { addr_of!((*self.as_ptr()).log2_chroma_w).read() }
+        unsafe { log2_chroma_w_ptr.read() }
     }
 
-    /// Field: AVPixFmtDescriptor.log2_chroma_h
+    /// Field: `AVPixFmtDescriptor.log2_chroma_h`
     ///
     /// How far to shift the luma height right, rounding up, to get the
     /// chroma height: 1 for `yuv420p`.
     #[must_use]
     pub fn log2_chroma_h(&self) -> u8 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `log2_chroma_h` field is in bounds; nothing is accessed here.
+        let log2_chroma_h_ptr = unsafe { addr_of!((*self.as_ptr()).log2_chroma_h) };
         // SAFETY: a read of the `log2_chroma_h` field projected through the
         // shared handle's pointer to a live, initialised
         // `AVPixFmtDescriptor`; every bit pattern is a valid `uint8_t`.
-        unsafe { addr_of!((*self.as_ptr()).log2_chroma_h).read() }
+        unsafe { log2_chroma_h_ptr.read() }
     }
 
     /// Field: AVPixFmtDescriptor.flags
@@ -666,10 +716,13 @@ impl<'a> PixelFormatDescriptorRef<'a> {
     /// The format's [`PixelFormatFlags`], unnamed bits included.
     #[must_use]
     pub fn flags(&self) -> PixelFormatFlags {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `flags` field is in bounds; nothing is accessed here.
+        let flags_ptr = unsafe { addr_of!((*self.as_ptr()).flags) };
         // SAFETY: a read of the `flags` field projected through the shared
         // handle's pointer to a live, initialised `AVPixFmtDescriptor`;
         // every bit pattern is a valid `uint64_t`.
-        PixelFormatFlags(unsafe { addr_of!((*self.as_ptr()).flags).read() })
+        PixelFormatFlags(unsafe { flags_ptr.read() })
     }
 
     /// Field: AVPixFmtDescriptor.comp
@@ -680,15 +733,21 @@ impl<'a> PixelFormatDescriptorRef<'a> {
     /// C's table.
     #[must_use]
     pub fn components(&self) -> CSlice<'a, ComponentDescriptor> {
-        // SAFETY: `comp` projected through the shared handle's pointer to a
-        // live descriptor is four contiguous, initialised
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `comp` field is in bounds; nothing is accessed here.
+        let comp_ptr = unsafe { &raw const (*self.as_ptr()).comp };
+        // For the unsafe operations below: `comp` projected through the shared handle's pointer to
+        // a live descriptor is four contiguous, initialised
         // `AVComponentDescriptor`s, which `ComponentDescriptor` is
         // `#[repr(transparent)]` over, living as long as the descriptor does,
         // i.e. for `'a`; the projection of a non-null handle pointer is
         // non-null, and a shared run only reads through it.
-        unsafe {
-            let p = addr_of!((*self.as_ptr()).comp).cast::<ComponentDescriptor>();
-            CSlice::from_raw_parts(NonNull::new_unchecked(p.cast_mut()), 4)
+        {
+            let p = comp_ptr.cast::<ComponentDescriptor>();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_unchecked_4 = unsafe { NonNull::new_unchecked(p.cast_mut()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { CSlice::from_raw_parts(new_unchecked_4, 4) }
         }
     }
 
@@ -698,9 +757,12 @@ impl<'a> PixelFormatDescriptorRef<'a> {
     /// for `gray`; `None` for most formats.
     #[must_use]
     pub fn alias(&self) -> Option<&'static CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `alias` field is in bounds; nothing is accessed here.
+        let alias_ptr = unsafe { addr_of!((*self.as_ptr()).alias) };
         // SAFETY: a read of the `alias` pointer projected through the shared
         // handle's pointer to a live, initialised `AVPixFmtDescriptor`.
-        let p = unsafe { addr_of!((*self.as_ptr()).alias).read() };
+        let p = unsafe { alias_ptr.read() };
         // SAFETY: by the type's invariant, a non-null `alias` addresses a
         // NUL-terminated string that is never freed or written for the rest
         // of the program.
@@ -710,10 +772,13 @@ impl<'a> PixelFormatDescriptorRef<'a> {
     /// The fields in declaration order, for comparison, hashing and
     /// formatting.
     fn fields(&self) -> DescriptorFields {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `comp` field is in bounds; nothing is accessed here.
+        let comp_ptr = unsafe { addr_of!((*self.as_ptr()).comp) };
         // SAFETY: a read of the `comp` array projected through the shared
         // handle's pointer to a live, initialised `AVPixFmtDescriptor`; it is
         // twenty `int`s, so the copy is a complete, independent value.
-        let comp = unsafe { addr_of!((*self.as_ptr()).comp).read() };
+        let comp = unsafe { comp_ptr.read() };
         (
             self.name(),
             self.component_count(),
@@ -745,42 +810,54 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// C's own names are.
     pub fn set_name(&mut self, name: Option<&'static CStr>) {
         let p = name.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `name` field is in bounds; nothing is accessed here.
+        let name_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).name) };
         // SAFETY: a write of the `name` pointer projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; `p` is
         // NULL or a `'static` string, never written, which keeps the type's
         // invariant, and the old value is borrowed, so nothing leaks.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).name).write(p) }
+        unsafe { name_ptr.write(p) }
     }
 
-    /// Field: AVPixFmtDescriptor.nb_components
+    /// Field: `AVPixFmtDescriptor.nb_components`
     ///
     /// Sets the number of components each pixel has, leaving the other
     /// fields as they are. Any value is stored; C's table only holds 0 to 4.
     pub fn set_component_count(&mut self, count: u8) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nb_components` field is in bounds; nothing is accessed here.
+        let nb_components_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_components) };
         // SAFETY: a write of the `nb_components` field projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
         // value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_components).write(count) }
+        unsafe { nb_components_ptr.write(count) }
     }
 
-    /// Field: AVPixFmtDescriptor.log2_chroma_w
+    /// Field: `AVPixFmtDescriptor.log2_chroma_w`
     ///
     /// Sets the chroma width shift, leaving the other fields as they are.
     pub fn set_log2_chroma_w(&mut self, shift: u8) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `log2_chroma_w` field is in bounds; nothing is accessed here.
+        let log2_chroma_w_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_w) };
         // SAFETY: a write of the `log2_chroma_w` field projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
         // value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_w).write(shift) }
+        unsafe { log2_chroma_w_ptr.write(shift) }
     }
 
-    /// Field: AVPixFmtDescriptor.log2_chroma_h
+    /// Field: `AVPixFmtDescriptor.log2_chroma_h`
     ///
     /// Sets the chroma height shift, leaving the other fields as they are.
     pub fn set_log2_chroma_h(&mut self, shift: u8) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `log2_chroma_h` field is in bounds; nothing is accessed here.
+        let log2_chroma_h_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_h) };
         // SAFETY: a write of the `log2_chroma_h` field projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
         // value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).log2_chroma_h).write(shift) }
+        unsafe { log2_chroma_h_ptr.write(shift) }
     }
 
     /// Field: AVPixFmtDescriptor.flags
@@ -788,10 +865,13 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// Sets the format's flags, unnamed bits included, leaving the other
     /// fields as they are.
     pub fn set_flags(&mut self, flags: PixelFormatFlags) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `flags` field is in bounds; nothing is accessed here.
+        let flags_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).flags) };
         // SAFETY: a write of the `flags` field projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; the old
         // value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).flags).write(flags.0) }
+        unsafe { flags_ptr.write(flags.0) }
     }
 
     /// Field: AVPixFmtDescriptor.comp
@@ -800,14 +880,20 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// for writing in place through their handles.
     #[must_use]
     pub fn components_mut(&mut self) -> CSliceMut<'_, ComponentDescriptor> {
-        // SAFETY: `comp` projected through the exclusive handle's pointer to a live
-        // descriptor is four contiguous, initialised `AVComponentDescriptor`s, which
-        // `ComponentDescriptor` is `#[repr(transparent)]` over; the projection of a
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `comp` field is in bounds; nothing is accessed here.
+        let comp_ptr = unsafe { &raw mut (*self.as_mut_ptr()).comp };
+        // For the unsafe operations below: `comp` projected through the exclusive handle's pointer
+        // to a live descriptor is four contiguous, initialised `AVComponentDescriptor`s,
+        // which `ComponentDescriptor` is `#[repr(transparent)]` over; the projection of a
         // non-null handle pointer is non-null; the run is bound by `&mut self`, so this
         // handle, the only access to the descriptor, is frozen while it lives.
-        unsafe {
-            let p = addr_of_mut!((*self.as_mut_ptr()).comp).cast::<ComponentDescriptor>();
-            CSliceMut::from_raw_parts(NonNull::new_unchecked(p), 4)
+        {
+            let p = comp_ptr.cast::<ComponentDescriptor>();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_unchecked_3 = unsafe { NonNull::new_unchecked(p) };
+            // SAFETY: as the comment above this block states.
+            unsafe { CSliceMut::from_raw_parts(new_unchecked_3, 4) }
         }
     }
 
@@ -819,11 +905,17 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// temporary handle (`d.as_mut().into_components_mut()`).
     #[must_use]
     pub fn into_components_mut(mut self) -> CSliceMut<'a, ComponentDescriptor> {
-        // SAFETY: as in `components_mut`; the handle is consumed, so the run
-        // is the only access left to the descriptor for `'a`.
-        unsafe {
-            let p = addr_of_mut!((*self.as_mut_ptr()).comp).cast::<ComponentDescriptor>();
-            CSliceMut::from_raw_parts(NonNull::new_unchecked(p), 4)
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `comp` field is in bounds; nothing is accessed here.
+        let comp_ptr = unsafe { &raw mut (*self.as_mut_ptr()).comp };
+        // For the unsafe operations below: as in `components_mut`; the handle is consumed, so the
+        // run is the only access left to the descriptor for `'a`.
+        {
+            let p = comp_ptr.cast::<ComponentDescriptor>();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_unchecked_2 = unsafe { NonNull::new_unchecked(p) };
+            // SAFETY: as the comment above this block states.
+            unsafe { CSliceMut::from_raw_parts(new_unchecked_2, 4) }
         }
     }
 
@@ -834,11 +926,14 @@ impl<'a> PixelFormatDescriptorMut<'a> {
     /// borrowed for the whole program, as C's own aliases are.
     pub fn set_alias(&mut self, alias: Option<&'static CStr>) {
         let p = alias.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `alias` field is in bounds; nothing is accessed here.
+        let alias_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).alias) };
         // SAFETY: a write of the `alias` pointer projected through the
         // exclusive handle's pointer to a live `AVPixFmtDescriptor`; `p` is
         // NULL or a `'static` string, never written, which keeps the type's
         // invariant, and the old value is borrowed, so nothing leaks.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).alias).write(p) }
+        unsafe { alias_ptr.write(p) }
     }
 
     /// Overwrites every field with `d`'s.
@@ -857,10 +952,11 @@ fn found(ret: c_int) -> Option<c_uint> {
 }
 
 impl ColorRange {
-    /// Wraps: av_color_range_from_name
+    /// Wraps: `av_color_range_from_name`
     ///
     /// The color range `name` names: `unknown`, `tv` or `pc`; `None` for any
     /// other name. Names are matched exactly, case included.
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
         // compares during the call.
@@ -870,12 +966,13 @@ impl ColorRange {
 }
 
 impl ColorPrimaries {
-    /// Wraps: av_color_primaries_from_name
+    /// Wraps: `av_color_primaries_from_name`
     ///
     /// The color primaries `name` names, such as `bt709` or `vgamut`; `None`
     /// for any other name. Names are matched exactly, case included; the
     /// `reserved` name shared by two values yields the first,
     /// [`RESERVED0`](Self::RESERVED0).
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) };
@@ -884,12 +981,13 @@ impl ColorPrimaries {
 }
 
 impl ColorTransfer {
-    /// Wraps: av_color_transfer_from_name
+    /// Wraps: `av_color_transfer_from_name`
     ///
     /// The transfer characteristic `name` names, such as `bt709`,
     /// `smpte2084` or `vlog`; `None` for any other name. Names are matched
     /// exactly, case included; the `reserved` name shared by two values
     /// yields the first, [`RESERVED0`](Self::RESERVED0).
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_transfer_from_name(name.as_ptr()) };
@@ -898,10 +996,11 @@ impl ColorTransfer {
 }
 
 impl ColorSpace {
-    /// Wraps: av_color_space_from_name
+    /// Wraps: `av_color_space_from_name`
     ///
     /// The color space `name` names, such as `gbr` or `bt709`; `None` for any
     /// other name. Names are matched exactly, case included.
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_space_from_name(name.as_ptr()) };
@@ -910,10 +1009,11 @@ impl ColorSpace {
 }
 
 impl ChromaLocation {
-    /// Wraps: av_chroma_location_from_name
+    /// Wraps: `av_chroma_location_from_name`
     ///
     /// The chroma location `name` names, such as `left` or `center`; `None`
     /// for any other name. Names are matched exactly, case included.
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) };
@@ -922,7 +1022,7 @@ impl ChromaLocation {
 }
 
 impl PixelFormat {
-    /// Wraps: av_pix_fmt_swap_endianness
+    /// Wraps: `av_pix_fmt_swap_endianness`
     ///
     /// The same format in the other byte order: [`RGB48LE`](Self::RGB48LE)
     /// for [`RGB48BE`](Self::RGB48BE) and back. `None` for a format with no
@@ -930,6 +1030,7 @@ impl PixelFormat {
     /// [`YUV420P`](Self::YUV420P)), for one whose other-endian twin C does
     /// not list, and for [`NONE`](Self::NONE) and every value C does not
     /// name.
+    #[must_use]
     pub fn swap_endianness(self) -> Option<Self> {
         // SAFETY: C bounds-checks the value against its descriptor table
         // (any `int` is accepted) and only reads the table and a local copy
@@ -955,7 +1056,7 @@ unsafe fn static_name(name: *const c_char) -> Option<&'static CStr> {
 }
 
 impl ColorRange {
-    /// Wraps: av_color_range_name
+    /// Wraps: `av_color_range_name`
     ///
     /// The name C gives this range, `unknown`, `tv` or `pc`, which
     /// [`from_name`](Self::from_name) maps back; `None` for any value C does
@@ -968,14 +1069,16 @@ impl ColorRange {
     /// ```
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let color_range_name = unsafe { ffi::av_color_range_name(self.into_raw()) };
         // SAFETY: `av_color_range_name` takes the enum by value, accepts any
         // value, and returns NULL or a string literal from its static table.
-        unsafe { static_name(ffi::av_color_range_name(self.into_raw())) }
+        unsafe { static_name(color_range_name) }
     }
 }
 
 impl ColorPrimaries {
-    /// Wraps: av_color_primaries_name
+    /// Wraps: `av_color_primaries_name`
     ///
     /// The name C gives these primaries, such as `bt709` or `vgamut`; `None`
     /// for the values C leaves unnamed (13 to 21, and any other it does not
@@ -984,13 +1087,15 @@ impl ColorPrimaries {
     /// the first.
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let color_primaries_name = unsafe { ffi::av_color_primaries_name(self.into_raw()) };
         // SAFETY: as in `ColorRange::name`.
-        unsafe { static_name(ffi::av_color_primaries_name(self.into_raw())) }
+        unsafe { static_name(color_primaries_name) }
     }
 }
 
 impl ColorTransfer {
-    /// Wraps: av_color_transfer_name
+    /// Wraps: `av_color_transfer_name`
     ///
     /// The name C gives this transfer characteristic, such as `bt709`,
     /// `smpte2084` or `vlog`; `None` for any value C does not name.
@@ -999,35 +1104,41 @@ impl ColorTransfer {
     /// first.
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let color_transfer_name = unsafe { ffi::av_color_transfer_name(self.into_raw()) };
         // SAFETY: as in `ColorRange::name`.
-        unsafe { static_name(ffi::av_color_transfer_name(self.into_raw())) }
+        unsafe { static_name(color_transfer_name) }
     }
 }
 
 impl ColorSpace {
-    /// Wraps: av_color_space_name
+    /// Wraps: `av_color_space_name`
     ///
     /// The name C gives this color space, such as `gbr` or `bt709`; `None`
     /// for any value C does not name.
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let color_space_name = unsafe { ffi::av_color_space_name(self.into_raw()) };
         // SAFETY: as in `ColorRange::name`.
-        unsafe { static_name(ffi::av_color_space_name(self.into_raw())) }
+        unsafe { static_name(color_space_name) }
     }
 }
 
 impl ChromaLocation {
-    /// Wraps: av_chroma_location_name
+    /// Wraps: `av_chroma_location_name`
     ///
     /// The name C gives this chroma location, such as `unspecified`, `left`
     /// or `topleft`; `None` for any value C does not name.
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let chroma_location_name = unsafe { ffi::av_chroma_location_name(self.into_raw()) };
         // SAFETY: as in `ColorRange::name`.
-        unsafe { static_name(ffi::av_chroma_location_name(self.into_raw())) }
+        unsafe { static_name(chroma_location_name) }
     }
 
-    /// Wraps: av_chroma_location_enum_to_pos
+    /// Wraps: `av_chroma_location_enum_to_pos`
     ///
     /// Where this location puts the first chroma sample, as the `(x, y)`
     /// position swscale takes: luma sample `(0, 0)` is the origin and luma
@@ -1038,7 +1149,10 @@ impl ChromaLocation {
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::ChromaLocation;
     /// assert_eq!(ChromaLocation::LEFT.position(), Some((0, 128)));
-    /// assert_eq!(ChromaLocation::from_position(0, 128), Some(ChromaLocation::LEFT));
+    /// assert_eq!(
+    ///     ChromaLocation::from_position(0, 128),
+    ///     Some(ChromaLocation::LEFT)
+    /// );
     /// assert_eq!(ChromaLocation::UNSPECIFIED.position(), None);
     /// ```
     #[must_use]
@@ -1046,11 +1160,12 @@ impl ChromaLocation {
         let (mut x, mut y) = (0, 0);
         // SAFETY: `x` and `y` are live, writable `int`s, which C writes only
         // when it returns 0 and does not keep.
-        let ret = unsafe { ffi::av_chroma_location_enum_to_pos(&mut x, &mut y, self.into_raw()) };
+        let ret =
+            unsafe { ffi::av_chroma_location_enum_to_pos(&raw mut x, &raw mut y, self.into_raw()) };
         (ret == 0).then_some((x, y))
     }
 
-    /// Wraps: av_chroma_location_pos_to_enum
+    /// Wraps: `av_chroma_location_pos_to_enum`
     ///
     /// The location whose [`position`](Self::position) is `(x, y)`, or
     /// `None` when no location puts the first chroma sample there, which C
@@ -1065,27 +1180,30 @@ impl ChromaLocation {
 }
 
 impl AlphaMode {
-    /// Wraps: av_alpha_mode_name
+    /// Wraps: `av_alpha_mode_name`
     ///
     /// The name C gives this alpha mode, `unspecified`, `premultiplied` or
     /// `straight`; `None` for any value C does not name.
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let alpha_mode_name = unsafe { ffi::av_alpha_mode_name(self.into_raw()) };
         // SAFETY: as in `ColorRange::name`.
-        unsafe { static_name(ffi::av_alpha_mode_name(self.into_raw())) }
+        unsafe { static_name(alpha_mode_name) }
     }
 
-    /// Wraps: av_alpha_mode_from_name
+    /// Wraps: `av_alpha_mode_from_name`
     ///
     /// The alpha mode `name` names: `unspecified`, `premultiplied` or
     /// `straight`; `None` for any other name. Names are matched exactly,
     /// case included.
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) };
         // C returns its `AVERROR(EINVAL)` through the unsigned enum: read
         // the bits back as the `int` they were.
-        found(ret.0 as c_int).map(|raw| Self::from_raw(ffi::AVAlphaMode(raw)))
+        found(ret.0.cast_signed()).map(|raw| Self::from_raw(ffi::AVAlphaMode(raw)))
     }
 }
 
@@ -1100,23 +1218,20 @@ impl AlphaMode {
 pub struct Loss(c_int);
 
 impl Loss {
-    /// Loss of chroma resolution: the destination subsamples more.
-    pub const RESOLUTION: Self = Self(ffi::FF_LOSS_RESOLUTION as c_int);
-    /// Loss of bits per component.
-    pub const DEPTH: Self = Self(ffi::FF_LOSS_DEPTH as c_int);
-    /// A conversion between color spaces (RGB, YUV, gray, ...).
-    pub const COLORSPACE: Self = Self(ffi::FF_LOSS_COLORSPACE as c_int);
     /// Loss of the alpha channel.
-    pub const ALPHA: Self = Self(ffi::FF_LOSS_ALPHA as c_int);
-    /// Quantization to a palette.
-    pub const COLORQUANT: Self = Self(ffi::FF_LOSS_COLORQUANT as c_int);
+    pub const ALPHA: Self = Self(ffi::FF_LOSS_ALPHA.cast_signed());
     /// Loss of chroma altogether, such as RGB to gray.
-    pub const CHROMA: Self = Self(ffi::FF_LOSS_CHROMA as c_int);
-    /// Chroma resolution the destination has to spare: it subsamples less.
-    pub const EXCESS_RESOLUTION: Self = Self(ffi::FF_LOSS_EXCESS_RESOLUTION as c_int);
+    pub const CHROMA: Self = Self(ffi::FF_LOSS_CHROMA.cast_signed());
+    /// Quantization to a palette.
+    pub const COLORQUANT: Self = Self(ffi::FF_LOSS_COLORQUANT.cast_signed());
+    /// A conversion between color spaces (RGB, YUV, gray, ...).
+    pub const COLORSPACE: Self = Self(ffi::FF_LOSS_COLORSPACE.cast_signed());
+    /// Loss of bits per component.
+    pub const DEPTH: Self = Self(ffi::FF_LOSS_DEPTH.cast_signed());
     /// Bits per component the destination has to spare.
-    pub const EXCESS_DEPTH: Self = Self(ffi::FF_LOSS_EXCESS_DEPTH as c_int);
-
+    pub const EXCESS_DEPTH: Self = Self(ffi::FF_LOSS_EXCESS_DEPTH.cast_signed());
+    /// Chroma resolution the destination has to spare: it subsamples less.
+    pub const EXCESS_RESOLUTION: Self = Self(ffi::FF_LOSS_EXCESS_RESOLUTION.cast_signed());
     /// Every named kind with its constant's name, in bit order.
     const KNOWN: [(Self, &'static str); 8] = [
         (Self::RESOLUTION, "RESOLUTION"),
@@ -1128,33 +1243,40 @@ impl Loss {
         (Self::EXCESS_RESOLUTION, "EXCESS_RESOLUTION"),
         (Self::EXCESS_DEPTH, "EXCESS_DEPTH"),
     ];
+    /// Loss of chroma resolution: the destination subsamples more.
+    pub const RESOLUTION: Self = Self(ffi::FF_LOSS_RESOLUTION.cast_signed());
 
     /// The set with no kind: a lossless conversion.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self(0)
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: c_int) -> Self {
         Self(bits)
     }
 
     /// The set's raw bits, as C stores them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> c_int {
         self.0
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -1217,7 +1339,7 @@ fn loss_or_error(ret: c_int) -> Result<Loss, i32> {
 }
 
 impl PixelFormat {
-    /// Wraps: av_get_pix_fmt_name
+    /// Wraps: `av_get_pix_fmt_name`
     ///
     /// The short name C gives this pixel format, such as `yuv420p` or
     /// `rgb48le`, which [`from_name`](Self::from_name) maps back; `None` for
@@ -1230,13 +1352,15 @@ impl PixelFormat {
     /// ```
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let get_pix_fmt_name = unsafe { ffi::av_get_pix_fmt_name(self.into_raw()) };
         // SAFETY: `av_get_pix_fmt_name` takes the enum by value, accepts any
         // value, and returns NULL or the `name` of a descriptor in C's static
         // table, a string literal.
-        unsafe { static_name(ffi::av_get_pix_fmt_name(self.into_raw())) }
+        unsafe { static_name(get_pix_fmt_name) }
     }
 
-    /// Wraps: av_get_pix_fmt
+    /// Wraps: `av_get_pix_fmt`
     ///
     /// The pixel format `name` names: a descriptor's name or one of its
     /// aliases, `rgb32` and `bgr32` for the native-endian packed 32-bit RGB
@@ -1247,10 +1371,14 @@ impl PixelFormat {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
-    /// assert_eq!(PixelFormat::from_name(c"yuv420p"), Some(PixelFormat::YUV420P));
+    /// assert_eq!(
+    ///     PixelFormat::from_name(c"yuv420p"),
+    ///     Some(PixelFormat::YUV420P)
+    /// );
     /// assert_eq!(PixelFormat::from_name(c"gray16"), Some(PixelFormat::GRAY16));
     /// assert_eq!(PixelFormat::from_name(c"no such format"), None);
     /// ```
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
         // compares, and copies into a bounded local with `snprintf`, during
@@ -1259,7 +1387,7 @@ impl PixelFormat {
         Some(Self::from_raw(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: av_get_pix_fmt_loss
+    /// Wraps: `av_get_pix_fmt_loss`
     ///
     /// The kinds of information converting from this pixel format to `dst`
     /// loses; with `has_alpha` false, losing the alpha channel does not
@@ -1275,9 +1403,14 @@ impl PixelFormat {
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::pixdesc::Loss;
     /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
-    /// let loss = PixelFormat::RGB24.conversion_loss(PixelFormat::GRAY8, false).unwrap();
+    /// let loss = PixelFormat::RGB24
+    ///     .conversion_loss(PixelFormat::GRAY8, false)
+    ///     .unwrap();
     /// assert!(loss.contains(Loss::CHROMA | Loss::COLORSPACE));
-    /// assert_eq!(PixelFormat::NONE.conversion_loss(PixelFormat::GRAY8, false), Err(-4));
+    /// assert_eq!(
+    ///     PixelFormat::NONE.conversion_loss(PixelFormat::GRAY8, false),
+    ///     Err(-4)
+    /// );
     /// ```
     pub fn conversion_loss(self, dst: PixelFormat, has_alpha: bool) -> Result<Loss, i32> {
         // SAFETY: `av_get_pix_fmt_loss` takes three integers by value,
@@ -1289,7 +1422,7 @@ impl PixelFormat {
         loss_or_error(ret)
     }
 
-    /// Wraps: av_find_best_pix_fmt_of_2
+    /// Wraps: `av_find_best_pix_fmt_of_2`
     ///
     /// Which of `dst1` and `dst2` this pixel format converts to with the
     /// least loss, counting the loss of alpha only when `has_alpha` is set.
@@ -1319,7 +1452,7 @@ impl PixelFormat {
         Self::from_raw(raw)
     }
 
-    /// Wraps: av_find_best_pix_fmt_of_2
+    /// Wraps: `av_find_best_pix_fmt_of_2`
     ///
     /// As [`best_of_two`](Self::best_of_two), scoring only the kinds of loss
     /// not in `ignore`, and returning the chosen format with the loss of
@@ -1343,7 +1476,7 @@ impl PixelFormat {
                 dst2.into_raw(),
                 self.into_raw(),
                 c_int::from(has_alpha),
-                &mut loss,
+                &raw mut loss,
             )
         };
         (Self::from_raw(raw), loss_or_error(loss))
@@ -1351,7 +1484,7 @@ impl PixelFormat {
 }
 
 impl PixelFormat {
-    /// Wraps: av_get_pix_fmt_string
+    /// Wraps: `av_get_pix_fmt_string`
     ///
     /// Writes a line describing this pixel format into `buf` and returns it,
     /// borrowed from `buf`: its name left-aligned in 11 columns, then its
@@ -1372,7 +1505,10 @@ impl PixelFormat {
     ///     PixelFormat::YUV420P.describe(&mut buf),
     ///     Some(c"yuv420p           3         12")
     /// );
-    /// assert_eq!(PixelFormat::NONE.describe(&mut buf), Some(c"name nb_components nb_bits"));
+    /// assert_eq!(
+    ///     PixelFormat::NONE.describe(&mut buf),
+    ///     Some(c"name nb_components nb_bits")
+    /// );
     /// ```
     pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
         if buf.is_empty() || self.into_raw().0 >= ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
@@ -1392,7 +1528,7 @@ impl PixelFormat {
         CStr::from_bytes_until_nul(buf).ok()
     }
 
-    /// Wraps: av_pix_fmt_count_planes
+    /// Wraps: `av_pix_fmt_count_planes`
     ///
     /// The number of planes this pixel format stores its components in: 1
     /// for packed formats, up to 4 for planar ones, 0 for hardware formats.
@@ -1408,7 +1544,7 @@ impl PixelFormat {
         usize::try_from(ret).ok()
     }
 
-    /// Wraps: av_pix_fmt_get_chroma_sub_sample
+    /// Wraps: `av_pix_fmt_get_chroma_sub_sample`
     ///
     /// The chroma subsampling of this pixel format, as base-2 logarithms:
     /// `(horizontal, vertical)`, the amounts to right-shift (rounding up) a
@@ -1417,12 +1553,21 @@ impl PixelFormat {
     /// chroma. `None` for [`NONE`](Self::NONE) and any value without a
     /// descriptor.
     #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the shifts are C's `log2_chroma_*` values, 0 to 3"
+    )]
     pub fn chroma_subsampling(self) -> Option<(u8, u8)> {
         let (mut h_shift, mut v_shift): (c_int, c_int) = (0, 0);
         // SAFETY: both out-parameters are live, writable `int`s C writes
         // only during the call; the enum is range-checked by C.
         let ret = unsafe {
-            ffi::av_pix_fmt_get_chroma_sub_sample(self.into_raw(), &mut h_shift, &mut v_shift)
+            ffi::av_pix_fmt_get_chroma_sub_sample(
+                self.into_raw(),
+                &raw mut h_shift,
+                &raw mut v_shift,
+            )
         };
         if ret < 0 {
             return None;
@@ -1433,7 +1578,7 @@ impl PixelFormat {
 }
 
 impl PixelFormat {
-    /// Wraps: av_pix_fmt_desc_get
+    /// Wraps: `av_pix_fmt_desc_get`
     ///
     /// This pixel format's descriptor in C's table, borrowed for the whole
     /// program: the table is static and never written. `None` for
@@ -1462,20 +1607,22 @@ impl PixelFormat {
     /// ```
     #[must_use]
     pub fn descriptor(self) -> Option<PixelFormatDescriptorRef<'static>> {
-        // SAFETY: `av_pix_fmt_desc_get` takes the enum by value, checks its
-        // range, and returns NULL or the address of an entry of C's static
+        // For the unsafe operations below: `av_pix_fmt_desc_get` takes the enum by value, checks
+        // its range, and returns NULL or the address of an entry of C's static
         // `const` table, which lives, unwritten, for the whole program and
         // whose `name` and `alias` are NULL or string literals, the type's
         // invariant; a shared `'static` handle only reads it.
-        unsafe {
-            let p = ffi::av_pix_fmt_desc_get(self.into_raw());
-            PixelFormatDescriptorRef::from_ptr(p.cast_mut())
+        {
+            // SAFETY: as the comment above this block states.
+            let p = unsafe { ffi::av_pix_fmt_desc_get(self.into_raw()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { PixelFormatDescriptorRef::from_ptr(p.cast_mut()) }
         }
     }
 }
 
 impl PixelFormatDescriptorRef<'_> {
-    /// Wraps: av_pix_fmt_desc_get_id
+    /// Wraps: `av_pix_fmt_desc_get_id`
     ///
     /// The pixel format whose entry in C's table this handle addresses;
     /// `None` for a descriptor anywhere else, such as a copy of an entry
@@ -1490,7 +1637,7 @@ impl PixelFormatDescriptorRef<'_> {
         Some(PixelFormat::from_raw(raw)).filter(|&f| f != PixelFormat::NONE)
     }
 
-    /// Wraps: av_pix_fmt_desc_next
+    /// Wraps: `av_pix_fmt_desc_next`
     ///
     /// The next named descriptor in C's table after the entry this handle
     /// addresses, skipping the entries the table leaves out; `None` past the
@@ -1516,16 +1663,18 @@ fn next_descriptor(
         }
         None => ptr::null(),
     };
+    // SAFETY: as the comment below states, for this part of the operation.
+    let pix_fmt_desc_next = unsafe { ffi::av_pix_fmt_desc_next(prev) };
     // SAFETY: `prev` is NULL, from which C starts at its first entry, or an
     // entry of C's static table (`pixel_format` found its address there),
     // from which C steps through the following entries. C returns NULL or
     // the address of one of them, which lives, unwritten, for the whole
     // program with `name` and `alias` NULL or literals, the type's
     // invariant; a shared `'static` handle only reads it.
-    unsafe { PixelFormatDescriptorRef::from_ptr(ffi::av_pix_fmt_desc_next(prev).cast_mut()) }
+    unsafe { PixelFormatDescriptorRef::from_ptr(pix_fmt_desc_next.cast_mut()) }
 }
 
-/// Wraps: av_pix_fmt_desc_next
+/// Wraps: `av_pix_fmt_desc_next`
 ///
 /// Every named pixel format descriptor in C's table, in the table's order:
 /// the order of [`PixelFormat`]'s values, skipping the ones the table leaves
@@ -1556,6 +1705,10 @@ pub struct Descriptors {
     done: bool,
 }
 
+#[expect(
+    clippy::copy_iterator,
+    reason = "a copied iterator restarts where the copy was taken, as a C cursor does"
+)]
 impl Iterator for Descriptors {
     type Item = PixelFormatDescriptorRef<'static>;
 
@@ -1596,6 +1749,10 @@ fn c_shl(value: c_int, shift: c_int) -> Option<c_int> {
     c_int::try_from(i64::from(value) << shift).ok()
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl PixelFormatDescriptorRef<'_> {
     /// The number of components C's bit counters read, and the sum of the
     /// chroma shifts they scale by, when C can index its four component
@@ -1637,7 +1794,7 @@ impl PixelFormatDescriptorRef<'_> {
         }
         let mut bits = steps
             .iter()
-            .try_fold(0 as c_int, |sum, &s| sum.checked_add(s))
+            .try_fold(0, |sum: c_int, &s| sum.checked_add(s))
             .ok_or(InvalidDescriptor)?;
         if !self.flags().contains(PixelFormatFlags::BITSTREAM) {
             bits = bits.checked_mul(8).ok_or(InvalidDescriptor)?;
@@ -1645,7 +1802,7 @@ impl PixelFormatDescriptorRef<'_> {
         Ok(bits >> log2_pixels)
     }
 
-    /// Wraps: av_get_bits_per_pixel
+    /// Wraps: `av_get_bits_per_pixel`
     ///
     /// The number of bits that represent a pixel, averaged over the chroma
     /// subsampling and excluding padding: 12 for
@@ -1671,10 +1828,10 @@ impl PixelFormatDescriptorRef<'_> {
         // component count, shifts and sums in range for it.
         let bits = unsafe { ffi::av_get_bits_per_pixel(self.as_ptr()) };
         // Non-negative: a sum of non-negative terms, shifted right.
-        Ok(bits as u32)
+        Ok(bits.cast_unsigned())
     }
 
-    /// Wraps: av_get_padded_bits_per_pixel
+    /// Wraps: `av_get_padded_bits_per_pixel`
     ///
     /// The number of bits a pixel occupies, padding and unused bits
     /// included, averaged over the chroma subsampling: 12 for
@@ -1704,7 +1861,7 @@ impl PixelFormatDescriptorRef<'_> {
         // and sums in range.
         let bits = unsafe { ffi::av_get_padded_bits_per_pixel(self.as_ptr()) };
         // Non-negative: a sum of non-negative terms, shifted right.
-        Ok(bits as u32)
+        Ok(bits.cast_unsigned())
     }
 }
 
@@ -1795,6 +1952,15 @@ struct LinePlan {
 /// `int` arithmetic and refusing where it is undefined; with the plane's
 /// linesize as C takes it, or `None` when C returns before touching the
 /// image.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a component depth is at most 32 bits; mirrors C's computation over a component of at most 8 bytes"
+)]
+#[expect(
+    clippy::many_single_char_names,
+    reason = "the names follow the C variables they mirror"
+)]
 fn line_plan(
     [plane, step, offset, shift, depth]: [c_int; 5],
     flags: u64,
@@ -1857,7 +2023,7 @@ fn line_plan(
             shift &= 7;
         }
         // A byte, shifted and masked.
-        (lo..hi, u64::from(mask.min(0xff)))
+        (lo..hi, u64::from(mask.min(0xFF)))
     } else {
         let base = row + i64::from(x.checked_mul(step).ok_or(OutOfRange)?) + i64::from(offset);
         let width = shift.checked_add(depth).ok_or(Invalid)?;
@@ -1915,6 +2081,10 @@ fn row0(len: usize, linesize: isize) -> usize {
 
 /// Whether `range`, in bytes from offset `at` of a slice of `len` bytes,
 /// lies inside it.
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "slice positions, below `isize::MAX`"
+)]
 fn inside(len: usize, at: usize, range: &Range<i64>) -> bool {
     let at = at as i64;
     at.checked_add(range.start).is_some_and(|s| s >= 0)
@@ -1937,6 +2107,15 @@ impl LineArgs {
     /// The arguments for moving `len` values of `component` of `desc` at
     /// pixel `x` of row `y` of planes of `lens` bytes, rows `linesizes`
     /// apart; `None` when C touches nothing.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "a component index, below 4"
+    )]
+    #[expect(
+        clippy::many_single_char_names,
+        reason = "the names follow the C variables they mirror"
+    )]
     fn new(
         desc: PixelFormatDescriptorRef<'_>,
         (lens, linesizes): ([usize; 4], &[isize; 4]),
@@ -2021,7 +2200,7 @@ fn read_line_with(
     Ok(())
 }
 
-/// Wraps: av_read_image_line2
+/// Wraps: `av_read_image_line2`
 ///
 /// Reads `dst.len()` values of component `component` (0 to 3, in the
 /// order of [`components`](PixelFormatDescriptorRef::components)) of the
@@ -2061,7 +2240,10 @@ fn read_line_with(
 /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let desc = PixelFormat::RGB24.descriptor().unwrap();
 /// let row = [1, 2, 3, 4, 5, 6];
-/// let planes = Planes { data: [&row[..], &[], &[], &[]], linesizes: [6, 0, 0, 0] };
+/// let planes = Planes {
+///     data: [&row[..], &[], &[], &[]],
+///     linesizes: [6, 0, 0, 0],
+/// };
 /// let mut green = [0u16; 2];
 /// read_image_line(&mut green, planes, desc, 0, 0, 1, false).unwrap();
 /// assert_eq!(green, [2, 5]);
@@ -2102,13 +2284,13 @@ pub fn read_image_line<T: LineElement>(
                     args.w,
                     c_int::from(palette),
                     T::SIZE,
-                )
+                );
             }
         },
     )
 }
 
-/// Wraps: av_read_image_line
+/// Wraps: `av_read_image_line`
 ///
 /// [`read_image_line`] into `u16`s, through C's original entry point.
 ///
@@ -2145,7 +2327,7 @@ pub fn read_image_line_u16(
                     args.c,
                     args.w,
                     c_int::from(palette),
-                )
+                );
             }
         },
     )
@@ -2181,7 +2363,7 @@ fn write_line_with(
     Ok(())
 }
 
-/// Wraps: av_write_image_line2
+/// Wraps: `av_write_image_line2`
 ///
 /// Writes the values of `src` to component `component` (0 to 3) of the
 /// pixels from `x` on of row `y` of an image in `planes`, laid out as
@@ -2204,9 +2386,12 @@ fn write_line_with(
 /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let desc = PixelFormat::RGB565LE.descriptor().unwrap();
 /// let mut row = [0u8; 4];
-/// let mut planes = PlanesMut { data: [&mut row[..], &mut [], &mut [], &mut []], linesizes: [4, 0, 0, 0] };
+/// let mut planes = PlanesMut {
+///     data: [&mut row[..], &mut [], &mut [], &mut []],
+///     linesizes: [4, 0, 0, 0],
+/// };
 /// write_image_line(&[31u32, 1], &mut planes, desc, 0, 0, 0).unwrap();
-/// assert_eq!(row, [0x00, 0xf8, 0x00, 0x08]);
+/// assert_eq!(row, [0x00, 0xF8, 0x00, 0x08]);
 /// ```
 pub fn write_image_line<T: LineElement>(
     src: &[T],
@@ -2234,12 +2419,12 @@ pub fn write_image_line<T: LineElement>(
                 args.c,
                 args.w,
                 T::SIZE,
-            )
+            );
         }
     })
 }
 
-/// Wraps: av_write_image_line
+/// Wraps: `av_write_image_line`
 ///
 /// [`write_image_line`] from `u16`s, through C's original entry point.
 ///
@@ -2267,12 +2452,25 @@ pub fn write_image_line_u16(
                 args.y,
                 args.c,
                 args.w,
-            )
+            );
         }
     })
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -2376,7 +2574,7 @@ mod unit_tests {
     fn from_name_reads_c_errors_as_not_found() {
         assert_eq!(found(0), Some(0));
         assert_eq!(found(256), Some(256));
-        assert_eq!(found(-(ffi::EINVAL as c_int)), None);
+        assert_eq!(found(-(ffi::EINVAL.cast_signed())), None);
         assert_eq!(found(c_int::MIN), None);
     }
 
@@ -2424,10 +2622,12 @@ mod unit_tests {
 
     #[test]
     fn static_name_reads_null_as_none() {
-        // SAFETY: NULL, and a string literal, which lives for the process.
-        unsafe {
-            assert_eq!(static_name(ptr::null()), None);
-            assert_eq!(static_name(c"tv".as_ptr()), Some(c"tv"));
+        // For the unsafe operations below: NULL, and a string literal, which lives for the process.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(static_name(ptr::null()), None) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(static_name(c"tv".as_ptr()), Some(c"tv")) };
         }
     }
 
@@ -2498,7 +2698,7 @@ mod unit_tests {
         let all = Loss::KNOWN
             .iter()
             .fold(Loss::empty(), |acc, &(k, _)| acc | k);
-        assert_eq!(all.bits(), 0xff);
+        assert_eq!(all.bits(), 0xFF);
         assert!(Loss::empty().is_empty() && Loss::default().is_empty());
         assert!(all.contains(Loss::ALPHA | Loss::DEPTH));
         assert!(!Loss::ALPHA.contains(Loss::ALPHA | Loss::DEPTH));

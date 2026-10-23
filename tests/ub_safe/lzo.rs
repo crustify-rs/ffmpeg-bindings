@@ -1,3 +1,16 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 use ffmpeg_bindings::libavutil::libavutil::lzo::decode;
 fn samples() -> Vec<Vec<u8>> {
     let mut long = vec![0, 0, 27];

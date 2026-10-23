@@ -3,6 +3,20 @@
 //! logging: records formatted into exact-size buffers, re-entrant and
 //! concurrent callbacks, and the default callback at every level, flag and
 //! colour mode.
+#![expect(
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    clippy::trivially_copy_pass_by_ref,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_int, c_uint};
 use std::cell::{Cell, RefCell};
@@ -67,14 +81,14 @@ fn any_state_flag_bits_are_valid() {
 fn values_cross_threads() {
     let c = ClassCategory::DEVICE_INPUT;
     let f = ClassStateFlags::INITIALIZED;
-    let (c2, f2) = std::thread::spawn(move || (c, f | ClassStateFlags::from_bits_retain(2)))
+    let (c2, f2) = thread::spawn(move || (c, f | ClassStateFlags::from_bits_retain(2)))
         .join()
         .unwrap();
     assert_eq!(c2, c);
     assert_eq!(f2.bits(), 3);
 }
 
-/// Whether this run is under BSan, whose runtime makes exhaustive loops over
+/// Whether this run is under `BSan`, whose runtime makes exhaustive loops over
 /// FFI calls take minutes.
 fn under_bsan() -> bool {
     std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -82,7 +96,13 @@ fn under_bsan() -> bool {
 
 /// Serializes the tests here that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
-pub(crate) struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
+pub(crate) struct LogState(
+    #[expect(
+        dead_code,
+        reason = "held only for its drop, which serialises the process-wide log callback"
+    )]
+    MutexGuard<'static, ()>,
+);
 
 impl LogState {
     pub(crate) fn lock() -> Self {
@@ -131,10 +151,10 @@ impl Callback for FormatAll {
         let sized = (0..=len + 2)
             .filter(|&n| n < if under_bsan() { 6 } else { 20 } || n + 3 > len)
             .map(|n| {
-                let mut buf = vec![0xa5_u8; n].into_boxed_slice();
+                let mut buf = vec![0xA5_u8; n].into_boxed_slice();
                 let mut p = true;
                 let ret = record.format_line(&mut buf, &mut p);
-                let mut out = vec![0xa5_u8; n].into_boxed_slice();
+                let mut out = vec![0xA5_u8; n].into_boxed_slice();
                 let mut p = true;
                 let written = record.write_line(&mut out, &mut p).to_bytes().to_vec();
                 (ret, buf, written)
@@ -145,7 +165,7 @@ impl Callback for FormatAll {
             f.borrow_mut()
                 .as_mut()
                 .unwrap()
-                .push(Formatted { whole, sized })
+                .push(Formatted { whole, sized });
         });
     }
 }
@@ -183,12 +203,12 @@ fn records_format_into_exact_size_buffers() {
         assert!(whole.len() <= 65_535 + 16);
         for (ret, buf, written) in &f.sized {
             assert_eq!(*ret, Some(whole.len()));
-            if !buf.is_empty() {
+            if buf.is_empty() {
+                assert!(written.is_empty());
+            } else {
                 let n = buf.len() - 1;
                 assert_eq!(&buf[..n.min(whole.len())], &whole[..n.min(whole.len())]);
                 assert_eq!(written.as_slice(), &whole[..n.min(whole.len())]);
-            } else {
-                assert!(written.is_empty());
             }
         }
     }
@@ -327,7 +347,7 @@ fn logging_races_with_callback_level_and_flag_changes() {
                     _ => log::set_callback::<CountA>(),
                 }
                 log::set_level(Level::from_raw(i as c_int % 70 - 8));
-                log::set_flags(Flags::from_bits_retain(i as c_int & 0xf));
+                log::set_flags(Flags::from_bits_retain(i as c_int & 0xF));
                 i = i.wrapping_add(1);
                 thread::yield_now();
             }
@@ -366,7 +386,7 @@ const ISOLATED: &str = "CRUSTIFY_UB_ISOLATED";
 /// logs through the callback it installs; true in that child.
 ///
 /// A callback is process-wide: other tests' messages go through it too,
-/// which is sound (they are counted or dropped) but makes BSan report a
+/// which is sound (they are counted or dropped) but makes `BSan` report a
 /// false use-after-free in `av_strtod` on a `cpu::parse_caps` thread
 /// logging through it concurrently (the pointer libc's `strtod` hands back
 /// carries stale provenance while the byte it reads is inside a live
@@ -503,7 +523,7 @@ mod vlog {
         DEBUG | 134 << 8,
         64,
         255,
-        0x7fff_ff40,
+        0x7FFF_FF40,
         c_int::MAX,
     ];
 
@@ -565,7 +585,9 @@ mod class {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::cpu;
-    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
+    use ffmpeg_bindings::libavutil::libavutil::log::{
+        self, Callback, Class, ClassCategory, ClassRef, Record,
+    };
 
     use super::LogState;
 
@@ -659,7 +681,7 @@ mod class {
                 s.borrow_mut()
                     .as_mut()
                     .unwrap()
-                    .push((name, options, children))
+                    .push((name, options, children));
             });
         }
     }
@@ -699,14 +721,14 @@ fn local_class_handles_can_be_reborrowed_on_scoped_threads() {
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
 
     let mut class = Class::new(c"local-class", ClassCategory::FILTER);
-    std::thread::scope(|scope| {
+    thread::scope(|scope| {
         let r = class.as_ref();
         let copy = r;
         scope.spawn(move || assert_eq!(r.name(), Some(c"local-class")));
         scope.spawn(move || assert_eq!(copy.category(), ClassCategory::FILTER));
     });
     let mut m = class.as_mut();
-    std::thread::scope(|scope| {
+    thread::scope(|scope| {
         let mut reborrow = m.as_mut();
         scope.spawn(move || {
             assert_eq!(reborrow.as_mut().as_ref().name(), Some(c"local-class"));
@@ -737,7 +759,7 @@ mod object_context {
 
     /// Levels at and around every boundary C and the default callback
     /// distinguish, the integer extremes included.
-    const LEVELS: [c_int; 11] = [c_int::MIN, -9, -8, 0, 8, 16, 32, 56, 57, 0x1ff, c_int::MAX];
+    const LEVELS: [c_int; 11] = [c_int::MIN, -9, -8, 0, 8, 16, 32, 56, 57, 0x1FF, c_int::MAX];
 
     thread_local! {
         /// The level and context of each record this thread logged.

@@ -10,6 +10,10 @@
 //! The `av_alias*` values have every view read after every write, on
 //! Rust-owned values, handles and reborrows, on C-allocated owners, and across
 //! threads.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use std::thread;
 
@@ -19,7 +23,9 @@ use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{
     Alias64Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut,
     Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,
 };
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapBox, HeapVec, alloc_array_zeroed, alloc_cell_array_zeroed,
+};
 
 /// The 8-byte window of `buf` at `off`, which may be at any alignment.
 fn window(buf: &[u8], off: usize) -> Unaligned64Ref<'_> {
@@ -103,13 +109,11 @@ fn shared_handles_are_copied_and_outlive_nothing() {
 #[test]
 fn values_and_handles_cross_threads() {
     let v = Unaligned64::new(5);
-    let r = std::thread::spawn(move || v.as_ref().value())
-        .join()
-        .unwrap();
+    let r = thread::spawn(move || v.as_ref().value()).join().unwrap();
     assert_eq!(r, 5);
 
     let buf: Vec<u8> = (0..64).collect();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for t in 0..4 {
             let shared = window(&buf, t * 3 + 1);
             let buf = &buf;
@@ -120,7 +124,7 @@ fn values_and_handles_cross_threads() {
     });
 
     let mut out = [[0u8; 9]; 4];
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for (k, chunk) in out.iter_mut().enumerate() {
             let mut m = window_mut(chunk, 1);
             s.spawn(move || m.set_value(k as u64 * 0x0101_0101_0101_0101));
@@ -134,12 +138,12 @@ fn values_and_handles_cross_threads() {
 
 #[test]
 fn shared_value_is_read_concurrently() {
-    let v = Unaligned64::new(0xdead_beef);
-    std::thread::scope(|s| {
+    let v = Unaligned64::new(0xDEAD_BEEF);
+    thread::scope(|s| {
         for _ in 0..4 {
             let r = v.as_ref();
-            s.spawn(move || assert_eq!(r.value(), 0xdead_beef));
-            s.spawn(|| assert_eq!(v.as_ref().value(), 0xdead_beef));
+            s.spawn(move || assert_eq!(r.value(), 0xDEAD_BEEF));
+            s.spawn(|| assert_eq!(v.as_ref().value(), 0xDEAD_BEEF));
         }
     });
 }
@@ -167,7 +171,7 @@ fn heap_boxed_values_are_built_cloned_and_freed() {
     a.as_mut().set_value(4);
     drop(a);
     assert_eq!(b.as_ref().value(), 3);
-    let c = std::thread::spawn(move || b.try_clone().unwrap())
+    let c = thread::spawn(move || b.try_clone().unwrap())
         .join()
         .unwrap();
     assert_eq!(c.as_ref().value(), 3);
@@ -188,13 +192,13 @@ fn heap_value_arrays_are_written_through_handles() {
 
 /// Every write of an `Alias16`, each followed by a read of every view.
 fn exercise16(mut m: Alias16Mut<'_>) {
-    m.set_u16(0xbeef);
+    m.set_u16(0xBEEF);
     let r = m.as_ref();
-    assert_eq!((r.u16(), r.u8x2()), (0xbeef, 0xbeefu16.to_ne_bytes()));
-    m.set_u8x2([0xff, 0x00]);
+    assert_eq!((r.u16(), r.u8x2()), (0xBEEF, 0xBEEFu16.to_ne_bytes()));
+    m.set_u8x2([0xFF, 0x00]);
     let r = m.as_ref();
-    assert_eq!(r.u16(), u16::from_ne_bytes([0xff, 0x00]));
-    assert_eq!(r.u8x2(), [0xff, 0x00]);
+    assert_eq!(r.u16(), u16::from_ne_bytes([0xFF, 0x00]));
+    assert_eq!(r.u8x2(), [0xFF, 0x00]);
 }
 
 /// Every write of an `Alias32`, each followed by a read of every view.
@@ -211,7 +215,7 @@ fn exercise32(mut m: Alias32Mut<'_>) {
     m.set_u8x4([9, 8, 7, 6]);
     assert_eq!(views(&m).0, u32::from_ne_bytes([9, 8, 7, 6]));
     // A signalling NaN, a subnormal and an infinity keep their bits.
-    for bits in [0x7f80_0001, 0x0000_0001, 0xff80_0000] {
+    for bits in [0x7F80_0001, 0x0000_0001, 0xFF80_0000] {
         m.set_f32(f32::from_bits(bits));
         assert_eq!(views(&m).0, bits);
         assert_eq!(views(&m).3, bits);
@@ -281,7 +285,7 @@ fn heap_boxes_read_and_write_c_storage() {
     assert_eq!(c.as_ref().u32(), 6);
     let d = a.clone();
     drop(a);
-    assert_eq!(d.as_ref().u8x2(), [0xff, 0x00]);
+    assert_eq!(d.as_ref().u8x2(), [0xFF, 0x00]);
 }
 
 #[test]
@@ -314,7 +318,7 @@ fn alias_values_cross_threads() {
     let mut a = Alias32::from_u32(1);
     let mut b = Alias16::zeroed();
     let shared = Alias32::from_f32(0.5);
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         let (ma, mb) = (a.as_mut(), b.as_mut());
         s.spawn(move || exercise32(ma));
         s.spawn(move || exercise16(mb));
@@ -324,9 +328,9 @@ fn alias_values_cross_threads() {
             s.spawn(|| assert_eq!(shared, Alias32::from_f32(0.5)));
         }
     });
-    let moved = std::thread::spawn(move || a).join().unwrap();
-    assert_eq!(moved.as_ref().f32().to_bits(), 0xff80_0000);
-    assert_eq!(b.as_ref().u8x2(), [0xff, 0x00]);
+    let moved = thread::spawn(move || a).join().unwrap();
+    assert_eq!(moved.as_ref().f32().to_bits(), 0xFF80_0000);
+    assert_eq!(b.as_ref().u8x2(), [0xFF, 0x00]);
 }
 
 #[test]
@@ -334,7 +338,7 @@ fn alias_values_cross_threads() {
 fn heap_owners_move_across_threads() {
     let a = Alias32::from_u32(7);
     let b = HeapBox::<Alias16>::new_zeroed().unwrap();
-    let (a, b) = std::thread::spawn(move || {
+    let (a, b) = thread::spawn(move || {
         let mut b = b;
         b.as_mut().set_u16(a.as_ref().u32() as u16);
         (a, b)
@@ -351,7 +355,7 @@ fn heap_shared_handles_read_concurrently() {
     boxed.as_mut().set_f32(2.5);
     let value = Alias16::from_u16(9);
     let r32 = boxed.as_ref();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for _ in 0..4 {
             s.spawn(|| {
                 for _ in 0..100 {
@@ -372,7 +376,7 @@ fn heap_exclusive_handles_write_on_another_thread() {
     {
         let ma = a.as_mut();
         let mb = b.as_mut();
-        std::thread::scope(|s| {
+        thread::scope(|s| {
             s.spawn(move || exercise32(ma));
             s.spawn(move || exercise16(mb));
         });
@@ -381,15 +385,15 @@ fn heap_exclusive_handles_write_on_another_thread() {
     {
         let mut handles = parts.as_handles_mut();
         let (lo, hi) = handles.split_at_mut(1).unwrap();
-        std::thread::scope(|s| {
+        thread::scope(|s| {
             s.spawn(move || lo.into_mut(0).unwrap().set_u32(1));
             s.spawn(move || hi.into_mut(0).unwrap().set_u32(2));
         });
     }
     let h = parts.as_handles();
     assert_eq!((h.get(0).unwrap().u32(), h.get(1).unwrap().u32()), (1, 2));
-    assert_eq!(a.as_ref().f32().to_bits(), 0xff80_0000);
-    assert_eq!(b.as_ref().u8x2(), [0xff, 0x00]);
+    assert_eq!(a.as_ref().f32().to_bits(), 0xFF80_0000);
+    assert_eq!(b.as_ref().u8x2(), [0xFF, 0x00]);
 }
 
 // `Unaligned16` and `Unaligned32`.
@@ -398,7 +402,7 @@ fn heap_exclusive_handles_write_on_another_thread() {
 /// one ending on its final byte.
 fn sweep(buf: &mut [u8]) {
     for off in 0..=buf.len() - 2 {
-        let v = 0xa000 | off as u16;
+        let v = 0xA000 | off as u16;
         Unaligned16Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
         assert_eq!(
             Unaligned16Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
@@ -406,7 +410,7 @@ fn sweep(buf: &mut [u8]) {
         );
     }
     for off in 0..=buf.len() - 4 {
-        let v = 0xb000_0000 | off as u32;
+        let v = 0xB000_0000 | off as u32;
         Unaligned32Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
         assert_eq!(
             Unaligned32Ref::from_bytes(buf[off..].first_chunk().unwrap()).value(),
@@ -476,10 +480,10 @@ fn inline_values_at_odd_offsets_read_and_write_unaligned() {
 fn heap_boxes_allocate_clone_and_free() {
     let mut a = HeapBox::<Unaligned16>::new_zeroed().unwrap();
     assert_eq!(a.as_ref().value(), 0);
-    a.as_mut().set_value(0xbeef);
+    a.as_mut().set_value(0xBEEF);
     let b = a.clone();
     a.as_mut().set_value(1);
-    assert_eq!(b.as_ref().value(), 0xbeef);
+    assert_eq!(b.as_ref().value(), 0xBEEF);
     assert_eq!(a.as_ref().value(), 1);
 
     let mut c = HeapBox::<Unaligned32>::new_zeroed().unwrap();
@@ -645,11 +649,11 @@ fn alias64_value_takes_every_member() {
 fn heap_alias64_box_takes_every_member_and_clones() {
     let mut b = HeapBox::<Alias64>::new_zeroed().unwrap();
     assert_eq!(b.as_ref().u8x8(), [0; 8]);
-    cycle_alias64_members(b.as_mut(), 0xdead_beef_cafe_f00d);
+    cycle_alias64_members(b.as_mut(), 0xDEAD_BEEF_CAFE_F00D);
     let c = b.clone();
     b.as_mut().set_u64(1);
     drop(b);
-    assert_eq!(c.as_ref().u64(), 0xdead_beef_cafe_f00d);
+    assert_eq!(c.as_ref().u64(), 0xDEAD_BEEF_CAFE_F00D);
 
     drop(HeapBox::<Alias64>::new_uninit().unwrap());
 }
@@ -736,7 +740,7 @@ fn sweep_alias_views(buf: &mut [u8]) {
         assert_eq!(r.map(|r| r.u16()), (off % 2 == 0).then_some(v));
     }
     for off in 0..=len - 4 {
-        let v = 0x0a0b_0c0du32.rotate_left(off as u32 * 8);
+        let v = 0x0A0B_0C0Du32.rotate_left(off as u32 * 8);
         match Alias32Mut::from_bytes((&mut buf[off..off + 4]).try_into().unwrap()) {
             Some(mut m) => {
                 assert_eq!(off % 4, 0);
@@ -757,15 +761,15 @@ fn alias_byte_views_stay_in_bounds_of_exact_rust_buffers() {
     sweep_alias_views(&mut Aligned([0u8; 7]).0);
     sweep_alias_views(&mut Aligned([0u8; 24]).0);
     // A view at the very end of the buffer touches only its own bytes.
-    let mut tail = Aligned([0xa5u8; 8]);
+    let mut tail = Aligned([0xA5u8; 8]);
     Alias16Mut::from_bytes(tail.0[6..].first_chunk_mut().unwrap())
         .unwrap()
         .set_u16(0);
-    assert_eq!(tail.0, [0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0, 0]);
+    assert_eq!(tail.0, [0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0, 0]);
     Alias32Mut::from_bytes(tail.0[..4].first_chunk_mut().unwrap())
         .unwrap()
         .set_u32(u32::MAX);
-    assert_eq!(tail.0, [0xff, 0xff, 0xff, 0xff, 0xa5, 0xa5, 0, 0]);
+    assert_eq!(tail.0, [0xFF, 0xFF, 0xFF, 0xFF, 0xA5, 0xA5, 0, 0]);
 }
 
 #[test]
@@ -782,14 +786,19 @@ fn heap_alias_byte_views_stay_in_bounds_of_exact_c_buffers() {
 #[test]
 fn alias_views_overlap_consistently() {
     let mut buf = Aligned([0u8; 4]);
-    Alias32Mut::from_bytes(&mut buf.0).unwrap().set_u16x2([0x1122, 0x3344]);
+    Alias32Mut::from_bytes(&mut buf.0)
+        .unwrap()
+        .set_u16x2([0x1122, 0x3344]);
     let lo = Alias16Ref::from_bytes(buf.0[..2].try_into().unwrap()).unwrap();
     let hi = Alias16Ref::from_bytes(buf.0[2..].try_into().unwrap()).unwrap();
     let whole = Alias32Ref::from_bytes(&buf.0).unwrap();
     assert_eq!([lo.u16(), hi.u16()], whole.u16x2());
     let copy = whole; // the shared view is `Copy`
     assert_eq!(copy.u8x4(), [lo.u8x2(), hi.u8x2()].concat()[..]);
-    assert_eq!(Alias32::from_u8x4(copy.u8x4()), Alias32::from_u16x2(whole.u16x2()));
+    assert_eq!(
+        Alias32::from_u8x4(copy.u8x4()),
+        Alias32::from_u16x2(whole.u16x2())
+    );
 }
 
 #[test]
@@ -824,13 +833,13 @@ fn alias_views_cross_threads() {
         for _ in 0..4 {
             s.spawn(move || {
                 for _ in 0..100 {
-                    assert_eq!(r32.f32().to_bits(), 0xff80_0000);
-                    assert_eq!(r16.u8x2(), [0xff, 0x00]);
+                    assert_eq!(r32.f32().to_bits(), 0xFF80_0000);
+                    assert_eq!(r16.u8x2(), [0xFF, 0x00]);
                 }
             });
-            s.spawn(|| assert_eq!(r32.u32(), 0xff80_0000));
+            s.spawn(|| assert_eq!(r32.u32(), 0xFF80_0000));
         }
     });
     let moved = thread::spawn(move || buf).join().unwrap();
-    assert_eq!(moved.0[..4], 0xff80_0000u32.to_ne_bytes());
+    assert_eq!(moved.0[..4], 0xFF80_0000u32.to_ne_bytes());
 }

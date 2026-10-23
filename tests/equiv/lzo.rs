@@ -1,3 +1,13 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 use ffmpeg_bindings::libavutil::libavutil::{ffi, lzo};
 fn samples() -> Vec<Vec<u8>> {
     let mut long = vec![0, 0, 27];

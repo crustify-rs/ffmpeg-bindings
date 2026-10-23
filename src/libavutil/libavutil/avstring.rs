@@ -14,19 +14,18 @@
 
 use core::cmp::Ordering;
 use core::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_short, c_uint, c_void};
-use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::num::NonZeroU8;
 use core::ops::{BitAnd, BitOr, BitOrAssign};
-use core::ptr;
+use core::{fmt, ptr};
 use std::borrow::Cow;
 use std::ffi::CString;
 
 use super::ffi;
 use super::mem::{HeapString, string_from_c_str};
 
-/// Wraps: AVEscapeMode
+/// Wraps: `AVEscapeMode`
 /// Handwritten
 ///
 /// How `av_escape` escapes special characters.
@@ -60,6 +59,7 @@ pub enum EscapeMode {
 impl EscapeMode {
     /// The C encoding of this mode.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVEscapeMode {
         match self {
             Self::Auto => ffi::AVEscapeMode::AV_ESCAPE_MODE_AUTO,
@@ -86,18 +86,6 @@ impl From<EscapeMode> for ffi::AVEscapeMode {
 pub struct EscapeFlags(c_int);
 
 impl EscapeFlags {
-    /// Backslash mode: also escape every whitespace character, wherever it
-    /// is.
-    pub const WHITESPACE: Self = Self(ffi::AV_ESCAPE_FLAG_WHITESPACE as c_int);
-    /// Backslash mode: escape only the caller's special characters, not
-    /// those `av_get_token` treats as special (the quote, the backslash and
-    /// leading or trailing whitespace).
-    pub const STRICT: Self = Self(ffi::AV_ESCAPE_FLAG_STRICT as c_int);
-    /// XML mode: also escape `'`, for single-quoted attributes.
-    pub const XML_SINGLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_SINGLE_QUOTES as c_int);
-    /// XML mode: also escape `"`, for double-quoted attributes.
-    pub const XML_DOUBLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_DOUBLE_QUOTES as c_int);
-
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 4] = [
         (Self::WHITESPACE, "WHITESPACE"),
@@ -105,33 +93,49 @@ impl EscapeFlags {
         (Self::XML_SINGLE_QUOTES, "XML_SINGLE_QUOTES"),
         (Self::XML_DOUBLE_QUOTES, "XML_DOUBLE_QUOTES"),
     ];
+    /// Backslash mode: escape only the caller's special characters, not
+    /// those `av_get_token` treats as special (the quote, the backslash and
+    /// leading or trailing whitespace).
+    pub const STRICT: Self = Self(ffi::AV_ESCAPE_FLAG_STRICT.cast_signed());
+    /// Backslash mode: also escape every whitespace character, wherever it
+    /// is.
+    pub const WHITESPACE: Self = Self(ffi::AV_ESCAPE_FLAG_WHITESPACE.cast_signed());
+    /// XML mode: also escape `"`, for double-quoted attributes.
+    pub const XML_DOUBLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_DOUBLE_QUOTES.cast_signed());
+    /// XML mode: also escape `'`, for single-quoted attributes.
+    pub const XML_SINGLE_QUOTES: Self = Self(ffi::AV_ESCAPE_FLAG_XML_SINGLE_QUOTES.cast_signed());
 
     /// The set with no flag.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self(0)
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: c_int) -> Self {
         Self(bits)
     }
 
     /// The set's raw bits, as C takes them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> c_int {
         self.0
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -187,28 +191,39 @@ impl BitAnd for EscapeFlags {
     }
 }
 
-/// Wraps: av_escape
+/// Wraps: `av_escape`
 ///
 /// `src` escaped by `mode`, as a new C string:
 ///
-/// - [`Backslash`](EscapeMode::Backslash) (and [`Auto`](EscapeMode::Auto))
-///   puts a backslash before each character of `special`, and, unless
-///   `flags` has [`STRICT`](EscapeFlags::STRICT), before single quotes,
-///   backslashes, leading and trailing whitespace, and with
+/// - [`Backslash`](EscapeMode::Backslash) (and [`Auto`](EscapeMode::Auto)) puts a backslash before
+///   each character of `special`, and, unless `flags` has [`STRICT`](EscapeFlags::STRICT), before
+///   single quotes, backslashes, leading and trailing whitespace, and with
 ///   [`WHITESPACE`](EscapeFlags::WHITESPACE) all whitespace;
-/// - [`Quote`](EscapeMode::Quote) encloses the text in single quotes,
-///   spelling each quote inside as `'\''`;
-/// - [`Xml`](EscapeMode::Xml) replaces `&`, `<` and `>` by entities, and
-///   quotes too under the `XML_*` flags.
+/// - [`Quote`](EscapeMode::Quote) encloses the text in single quotes, spelling each quote inside as
+///   `'\''`;
+/// - [`Xml`](EscapeMode::Xml) replaces `&`, `<` and `>` by entities, and quotes too under the
+///   `XML_*` flags.
 ///
 /// `special` is used by backslash mode only. `None` when the result cannot be
 /// allocated, which includes a result of `i32::MAX` bytes or more.
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode, escape};
-/// let s = escape(c"a b:c", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty()).unwrap();
+/// let s = escape(
+///     c"a b:c",
+///     Some(c":"),
+///     EscapeMode::Backslash,
+///     EscapeFlags::empty(),
+/// )
+/// .unwrap();
 /// assert_eq!(s.to_str(), Ok("a b\\:c"));
-/// let s = escape(c"<it's>", None, EscapeMode::Xml, EscapeFlags::XML_SINGLE_QUOTES).unwrap();
+/// let s = escape(
+///     c"<it's>",
+///     None,
+///     EscapeMode::Xml,
+///     EscapeFlags::XML_SINGLE_QUOTES,
+/// )
+/// .unwrap();
 /// assert_eq!(s.to_str(), Ok("&lt;it&apos;s&gt;"));
 /// ```
 pub fn escape(
@@ -222,7 +237,15 @@ pub fn escape(
     // SAFETY: `dst` is a live, writable out-slot; `src` is a NUL-terminated
     // string and `special` NULL or one, which `av_escape` only reads during
     // the call; the mode and flags go by value, and C accepts any.
-    let ret = unsafe { ffi::av_escape(&mut dst, src.as_ptr(), special, mode.into(), flags.bits()) };
+    let ret = unsafe {
+        ffi::av_escape(
+            &raw mut dst,
+            src.as_ptr(),
+            special,
+            mode.into(),
+            flags.bits(),
+        )
+    };
     if ret < 0 {
         // C leaves `dst` untouched or NULL on failure.
         return None;
@@ -233,7 +256,7 @@ pub fn escape(
     unsafe { HeapString::from_raw(dst) }
 }
 
-/// Wraps: av_strstart
+/// Wraps: `av_strstart`
 ///
 /// The rest of `s` after `prefix`, or `None` when `s` does not start with
 /// `prefix`. An empty prefix matches every string.
@@ -243,7 +266,7 @@ pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     // SAFETY: `s` and `prefix` are live NUL-terminated strings, which
     // `av_strstart` only reads, stopping at either NUL; `rest` is a writable
     // slot.
-    let matched = unsafe { ffi::av_strstart(s.as_ptr(), prefix.as_ptr(), &mut rest) };
+    let matched = unsafe { ffi::av_strstart(s.as_ptr(), prefix.as_ptr(), &raw mut rest) };
     if matched == 0 {
         return None;
     }
@@ -253,7 +276,7 @@ pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     Some(&s[offset..])
 }
 
-/// Wraps: av_strnstr
+/// Wraps: `av_strnstr`
 ///
 /// The offset of the first occurrence of `needle` in `haystack`, or `None`
 /// when it has none; an empty `needle` matches at 0. The whole slice is
@@ -268,7 +291,7 @@ pub fn find(haystack: &[u8], needle: &CStr) -> Option<usize> {
     (!found.is_null()).then(|| found as usize - base as usize)
 }
 
-/// Wraps: av_strlcpy
+/// Wraps: `av_strlcpy`
 ///
 /// Copies `src` into `dst`, truncated to `dst.len() - 1` bytes, and
 /// NUL-terminates it unless `dst` is empty; the bytes after the NUL are left
@@ -281,7 +304,7 @@ pub fn strlcpy(dst: &mut [u8], src: &CStr) -> usize {
     unsafe { ffi::av_strlcpy(dst.as_mut_ptr().cast(), src.as_ptr(), dst.len()) }
 }
 
-/// Wraps: av_strlcat
+/// Wraps: `av_strlcat`
 ///
 /// Appends `src` to the string `dst` holds before its first NUL, to a total
 /// of at most `dst.len() - 1` bytes, NUL-terminated. Returns the length of
@@ -299,7 +322,7 @@ pub fn strlcat(dst: &mut [u8], src: &CStr) -> Option<usize> {
     Some(unsafe { ffi::av_strlcat(dst.as_mut_ptr().cast(), src.as_ptr(), dst.len()) })
 }
 
-/// Wraps: av_strlcatf
+/// Wraps: `av_strlcatf`
 ///
 /// Appends the text `args` formats to the string `dst` holds before its
 /// first NUL, as [`strlcat`] appends a string, and never writes outside
@@ -342,7 +365,7 @@ pub(crate) fn text_until_nul(args: fmt::Arguments<'_>) -> CString {
     CString::from_vec_with_nul(bytes).unwrap_or_default()
 }
 
-/// Wraps: av_strnlen
+/// Wraps: `av_strnlen`
 ///
 /// The number of bytes of `s` before its first NUL, or `s.len()` when it has
 /// none.
@@ -353,7 +376,7 @@ pub fn strnlen(s: &[u8]) -> usize {
     unsafe { ffi::av_strnlen(s.as_ptr().cast(), s.len()) }
 }
 
-/// Wraps: av_strncasecmp
+/// Wraps: `av_strncasecmp`
 ///
 /// Compares at most the first `n` bytes of `a` and `b`, as
 /// [`cmp_ignore_ascii_case`] compares whole strings: ASCII letters
@@ -369,7 +392,7 @@ pub fn cmp_n_ignore_ascii_case(a: &CStr, b: &CStr, n: usize) -> Ordering {
     diff.cmp(&0)
 }
 
-/// Wraps: av_strtok
+/// Wraps: `av_strtok`
 ///
 /// An iterator over the tokens of a string, built by [`tokens`]: the
 /// non-empty runs of bytes not in its delimiter set.
@@ -426,7 +449,7 @@ impl<'a> Iterator for Tokens<'a> {
         // stop there), writing one NUL over the delimiter that ends a token,
         // after every token already yielded; `delim` is a live
         // NUL-terminated string and `save` a writable slot.
-        let token = unsafe { ffi::av_strtok(s, self.delim.as_ptr(), &mut self.save) };
+        let token = unsafe { ffi::av_strtok(s, self.delim.as_ptr(), &raw mut self.save) };
         if token.is_null() {
             return None;
         }
@@ -441,7 +464,7 @@ impl<'a> Iterator for Tokens<'a> {
 // later call returns NULL again.
 impl FusedIterator for Tokens<'_> {}
 
-/// Wraps: av_toupper
+/// Wraps: `av_toupper`
 ///
 /// `c` with an ASCII lowercase letter mapped to uppercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
@@ -451,7 +474,7 @@ pub fn to_ascii_uppercase(c: c_int) -> c_int {
     unsafe { ffi::av_toupper(c) }
 }
 
-/// Wraps: av_tolower
+/// Wraps: `av_tolower`
 ///
 /// `c` with an ASCII uppercase letter mapped to lowercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
@@ -470,6 +493,7 @@ pub struct Utf8Error {
 
 impl Utf8Error {
     /// The `AVERROR` code C returned, `AVERROR(EILSEQ)`.
+    #[must_use]
     pub fn code(self) -> c_int {
         self.averror
     }
@@ -477,6 +501,7 @@ impl Utf8Error {
     /// The value a well-formed sequence decoded to when the flags rejected
     /// it (above U+10FFFF, a surrogate, a non-character, or an XML-invalid
     /// control code), or `None` for a malformed sequence.
+    #[must_use]
     pub fn code_point(self) -> Option<u32> {
         self.code_point
     }
@@ -493,7 +518,7 @@ impl fmt::Display for Utf8Error {
 
 impl std::error::Error for Utf8Error {}
 
-/// Wraps: av_utf8_decode
+/// Wraps: `av_utf8_decode`
 ///
 /// Decodes the UTF-8 sequence at the start of `buf` under `flags`, a
 /// combination of the `ffi::AV_UTF8_FLAG_*` constants: the code point or why
@@ -520,7 +545,7 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
     // SAFETY: `p` and `range.end` delimit `buf`; `av_utf8_decode` reads bytes
     // from `p` only while below `range.end`, advances `p` within that range,
     // and writes `code` and `p`, both writable slots.
-    let ret = unsafe { ffi::av_utf8_decode(&mut code, &mut p, range.end, flags) };
+    let ret = unsafe { ffi::av_utf8_decode(&raw mut code, &raw mut p, range.end, flags) };
     let consumed = p as usize - range.start as usize;
     if consumed == 0 {
         // C consumes nothing only for an empty buffer, returning 0.
@@ -537,7 +562,7 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
     Some((result, consumed))
 }
 
-/// Wraps: av_asprintf
+/// Wraps: `av_asprintf`
 ///
 /// The text `args` formats, as a new C string; build `args` with
 /// [`format_args!`]. `None` when it cannot be allocated, which includes text
@@ -584,7 +609,7 @@ pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
     unsafe { HeapString::from_raw(ptr) }
 }
 
-/// Wraps: av_basename
+/// Wraps: `av_basename`
 ///
 /// The last component of `path`: the part after its last `'/'`, which is
 /// empty when `path` ends in one, or `path` itself when it has none; `"."`
@@ -595,6 +620,7 @@ pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
 /// assert_eq!(basename(c"/usr/lib/libavutil.so"), c"libavutil.so");
 /// assert_eq!(basename(c""), c".");
 /// ```
+#[must_use]
 pub fn basename(path: &CStr) -> &CStr {
     // SAFETY: `path` is a live NUL-terminated string, which `av_basename`
     // only reads.
@@ -605,7 +631,7 @@ pub fn basename(path: &CStr) -> &CStr {
     unsafe { CStr::from_ptr(base) }
 }
 
-/// Wraps: av_append_path_component
+/// Wraps: `av_append_path_component`
 ///
 /// `path` and `component` joined by a `'/'`: one is added when neither side
 /// has one at the join, and when both do, one of the two is dropped (so
@@ -624,6 +650,7 @@ pub fn basename(path: &CStr) -> &CStr {
 /// let p = append_path_component(c"/tmp/", c"/out.mkv").unwrap();
 /// assert_eq!(p.to_str(), Ok("/tmp/out.mkv"));
 /// ```
+#[must_use]
 pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString> {
     // SAFETY: both are live NUL-terminated strings, which
     // `av_append_path_component` only reads.
@@ -633,7 +660,7 @@ pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString
     unsafe { HeapString::from_raw(ptr) }
 }
 
-/// Wraps: av_dirname
+/// Wraps: `av_dirname`
 ///
 /// The parent directory of the path held by `path` up to its first NUL, found
 /// as C does: `path` is truncated in place at its last `/` and returned up to
@@ -661,7 +688,7 @@ pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
     }
 }
 
-/// Wraps: av_get_token
+/// Wraps: `av_get_token`
 ///
 /// The next token of `*buf`, unescaped, and `*buf` advanced past it to the
 /// first unescaped character of `term` or to its end.
@@ -671,13 +698,17 @@ pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
 /// copies its contents verbatim. `None` when the token cannot be allocated,
 /// which leaves `*buf` as it was; the allocation is `buf.count_bytes() + 1`
 /// bytes, so it fails above the `av_max_alloc` limit too.
+///
+/// # Panics
+///
+/// Only if C breaks the guarantee that the suffix keeps the NUL.
 pub fn get_token(buf: &mut &CStr, term: &CStr) -> Option<HeapString> {
     let start = buf.as_ptr();
     let mut cursor = start;
     // SAFETY: `cursor` points to `*buf`, a live NUL-terminated string, and
     // `term` is one too; `av_get_token` only reads both, and writes `cursor`
     // once, to a position within `*buf` no later than its NUL.
-    let token = unsafe { ffi::av_get_token(&mut cursor, term.as_ptr()) };
+    let token = unsafe { ffi::av_get_token(&raw mut cursor, term.as_ptr()) };
     let bytes = buf.to_bytes_with_nul();
     let advanced = (cursor as usize).wrapping_sub(start as usize);
     assert!(advanced < bytes.len(), "av_get_token left the string");
@@ -687,7 +718,7 @@ pub fn get_token(buf: &mut &CStr, term: &CStr) -> Option<HeapString> {
     unsafe { HeapString::from_raw(token) }
 }
 
-/// Wraps: av_isdigit
+/// Wraps: `av_isdigit`
 ///
 /// Whether `c` is an ASCII digit, `'0'..='9'`, whatever the locale; every
 /// other `int`, `EOF` and non-ASCII bytes included, is not.
@@ -698,7 +729,7 @@ pub fn is_ascii_digit(c: c_int) -> bool {
     unsafe { ffi::av_isdigit(c) != 0 }
 }
 
-/// Wraps: av_strcasecmp
+/// Wraps: `av_strcasecmp`
 ///
 /// Compares `a` and `b` byte by byte with ASCII letters folded to lower case,
 /// as [`u8::eq_ignore_ascii_case`] does; other bytes compare by value.
@@ -709,7 +740,7 @@ pub fn cmp_ignore_ascii_case(a: &CStr, b: &CStr) -> Ordering {
     unsafe { ffi::av_strcasecmp(a.as_ptr(), b.as_ptr()) }.cmp(&0)
 }
 
-/// Wraps: av_stristart
+/// Wraps: `av_stristart`
 ///
 /// The rest of `s` after `prefix`, when `s` starts with `prefix` ignoring
 /// ASCII case; `None` otherwise. An empty `prefix` matches, leaving all of
@@ -719,13 +750,13 @@ pub fn strip_prefix_ignore_ascii_case<'a>(s: &'a CStr, prefix: &CStr) -> Option<
     let mut rest: *const c_char = ptr::null();
     // SAFETY: both are live NUL-terminated strings, which C only reads, and
     // `rest` is a live, writable local, which C overwrites only on a match.
-    let matched = unsafe { ffi::av_stristart(s.as_ptr(), prefix.as_ptr(), &mut rest) };
+    let matched = unsafe { ffi::av_stristart(s.as_ptr(), prefix.as_ptr(), &raw mut rest) };
     // On a match C stores the address just past the prefix within `s`: an
     // offset no greater than its length.
     (matched != 0).then(|| &s[rest as usize - s.as_ptr() as usize..])
 }
 
-/// Wraps: av_stristr
+/// Wraps: `av_stristr`
 ///
 /// The offset of the first occurrence of `needle` in `haystack`, ignoring
 /// ASCII case, or `None` when it has none; an empty `needle` matches at 0.
@@ -739,7 +770,7 @@ pub fn find_ignore_ascii_case(haystack: &CStr, needle: &CStr) -> Option<usize> {
     (!found.is_null()).then(|| found as usize - haystack.as_ptr() as usize)
 }
 
-/// Wraps: av_strireplace
+/// Wraps: `av_strireplace`
 ///
 /// A copy of `s` with every occurrence of `from`, matched ignoring ASCII case
 /// left to right without overlap, replaced by `to`; `None` when it cannot be
@@ -842,18 +873,18 @@ impl ScanArg<'_> {
     /// The destination's address, which C writes through.
     fn as_mut_ptr(&mut self) -> *mut c_void {
         match self {
-            Self::I8(p) => core::ptr::from_mut(*p).cast(),
-            Self::U8(p) => core::ptr::from_mut(*p).cast(),
-            Self::I16(p) => core::ptr::from_mut(*p).cast(),
-            Self::U16(p) => core::ptr::from_mut(*p).cast(),
-            Self::I32(p) => core::ptr::from_mut(*p).cast(),
-            Self::U32(p) => core::ptr::from_mut(*p).cast(),
-            Self::I64(p) => core::ptr::from_mut(*p).cast(),
-            Self::U64(p) => core::ptr::from_mut(*p).cast(),
-            Self::Isize(p) => core::ptr::from_mut(*p).cast(),
-            Self::Usize(p) => core::ptr::from_mut(*p).cast(),
-            Self::F32(p) => core::ptr::from_mut(*p).cast(),
-            Self::F64(p) => core::ptr::from_mut(*p).cast(),
+            Self::I8(p) => ptr::from_mut(*p).cast(),
+            Self::U8(p) => ptr::from_mut(*p).cast(),
+            Self::I16(p) => ptr::from_mut(*p).cast(),
+            Self::U16(p) => ptr::from_mut(*p).cast(),
+            Self::I32(p) => ptr::from_mut(*p).cast(),
+            Self::U32(p) => ptr::from_mut(*p).cast(),
+            Self::I64(p) => ptr::from_mut(*p).cast(),
+            Self::U64(p) => ptr::from_mut(*p).cast(),
+            Self::Isize(p) => ptr::from_mut(*p).cast(),
+            Self::Usize(p) => ptr::from_mut(*p).cast(),
+            Self::F32(p) => ptr::from_mut(*p).cast(),
+            Self::F64(p) => ptr::from_mut(*p).cast(),
             Self::Bytes(b) => b.as_mut_ptr().cast(),
         }
     }
@@ -927,6 +958,18 @@ enum ScanSize {
 /// Checks `args` against the conversions of `format`, as `av_sscanf` parses
 /// them, and returns their addresses in conversion order, NULL-padded to
 /// [`SCAN_MAX_ARGS`].
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass over the format string, as C's scanner is"
+)]
+#[expect(
+    clippy::match_same_arms,
+    reason = "the arms follow C's cases one for one"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "the item is declared where the code it serves begins"
+)]
 fn bind_scan_args(
     format: &[u8],
     args: &mut [ScanArg<'_>],
@@ -934,7 +977,7 @@ fn bind_scan_args(
     if args.len() > SCAN_MAX_ARGS {
         return Err(ScanError::TooManyArgs);
     }
-    let mut ptrs = [core::ptr::null_mut(); SCAN_MAX_ARGS];
+    let mut ptrs = [ptr::null_mut(); SCAN_MAX_ARGS];
     let mut bound = 0;
     let at = |i: usize| format.get(i).copied();
     let mut i = 0;
@@ -1002,7 +1045,7 @@ fn bind_scan_args(
                 Store::Float(size_of::<f64>())
             }
             (b'p', ScanSize::Default) => Store::Int(size_of::<*mut c_void>()),
-            (b'c', ScanSize::Default) => Store::Bytes(width.max(1) as usize),
+            (b'c', ScanSize::Default) => Store::Bytes(width.max(1).unsigned_abs() as usize),
             (b's' | b'[', ScanSize::Default) => {
                 if conv == b'[' {
                     // C reads `^`, then a leading `]` or `-` as a member, then
@@ -1022,7 +1065,7 @@ fn bind_scan_args(
                 if width == 0 && !suppress {
                     return Err(ScanError::Unbounded(start));
                 }
-                Store::Bytes(width as usize + 1)
+                Store::Bytes(width.unsigned_abs() as usize + 1)
             }
             _ => return Err(ScanError::Unsupported(start)),
         };
@@ -1054,7 +1097,7 @@ fn bind_scan_args(
     Ok(ptrs)
 }
 
-/// Wraps: av_sscanf
+/// Wraps: `av_sscanf`
 ///
 /// Reads `input` by `format`, as C's `sscanf` in the C locale, storing each
 /// conversion into the next destination of `args`.
@@ -1073,14 +1116,19 @@ fn bind_scan_args(
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::avstring::scan;
 /// let (mut w, mut h, mut name) = (0i32, 0i32, [0u8; 8]);
-/// let n = scan(c"640x480 vga", c"%dx%d %7s", &mut [
-///     (&mut w).into(),
-///     (&mut h).into(),
-///     (&mut name).into(),
-/// ]);
+/// let n = scan(
+///     c"640x480 vga",
+///     c"%dx%d %7s",
+///     &mut [(&mut w).into(), (&mut h).into(), (&mut name).into()],
+/// );
 /// assert_eq!(n, Ok(Some(3)));
 /// assert_eq!((w, h, &name[..4]), (640, 480, &b"vga\0"[..]));
 /// ```
+///
+/// # Errors
+///
+/// Returns the number of destinations assigned, which stops at the first conversion that fails to
+/// match, or `None` when the input ends before any is assigned (C's `EOF`).
 pub fn scan(
     input: &CStr,
     format: &CStr,
@@ -1119,62 +1167,80 @@ pub fn scan(
     Ok(usize::try_from(ret).ok())
 }
 
-/// Wraps: av_isgraph
+/// Wraps: `av_isgraph`
 ///
 /// Whether `c` is a printable ASCII character other than space (33 to 126),
 /// whatever the locale. Any `int` is accepted, `EOF` included.
+#[must_use]
 pub fn is_graph(c: c_int) -> bool {
     // SAFETY: `av_isgraph` takes its argument by value and reads no memory.
     unsafe { ffi::av_isgraph(c) != 0 }
 }
 
-/// Wraps: av_isspace
+/// Wraps: `av_isspace`
 ///
 /// Whether `c` is ASCII white space (space, `\t`, `\n`, `\v`, `\f` or `\r`),
 /// whatever the locale. Unlike [`u8::is_ascii_whitespace`], the vertical tab
 /// counts. Any `int` is accepted.
+#[must_use]
 pub fn is_space(c: c_int) -> bool {
     // SAFETY: `av_isspace` takes its argument by value and reads no memory.
     unsafe { ffi::av_isspace(c) != 0 }
 }
 
-/// Wraps: av_isxdigit
+/// Wraps: `av_isxdigit`
 ///
 /// Whether `c` is an ASCII hexadecimal digit, either case, whatever the
 /// locale. Any `int` is accepted.
+#[must_use]
 pub fn is_xdigit(c: c_int) -> bool {
     // SAFETY: `av_isxdigit` takes its argument by value and reads no memory.
     unsafe { ffi::av_isxdigit(c) != 0 }
 }
 
-/// Wraps: av_match_name
+/// Wraps: `av_match_name`
 ///
 /// Whether `name` matches the comma-separated `names`: an entry equal to it
 /// ignoring ASCII case, or `ALL`, matches; an entry prefixed with `-` that
 /// matches makes the result `false`. The first matching entry decides.
+#[must_use]
 pub fn match_name(name: &CStr, names: &CStr) -> bool {
     // SAFETY: both are live NUL-terminated strings, which `av_match_name`
     // only reads, never past their terminators.
     unsafe { ffi::av_match_name(name.as_ptr(), names.as_ptr()) != 0 }
 }
 
-/// Wraps: av_match_list
+/// Wraps: `av_match_list`
 ///
 /// Whether `name` and `list`, both `separator`-separated lists, share an
 /// entry, compared as C compares them.
 ///
 /// The separator is non-zero: with a NUL separator, C steps past the
 /// terminator of `list` and reads out of bounds.
+#[must_use]
 pub fn match_list(name: &CStr, list: &CStr, separator: NonZeroU8) -> bool {
     // C compares `char`s, so a byte above 0x7f is its signed `char` value on
     // both sides.
-    let separator = separator.get() as c_char;
+    let separator = separator.get().cast_signed();
     // SAFETY: both are live NUL-terminated strings; with a non-NUL separator,
     // `av_match_list` reads each only up to its terminator.
     unsafe { ffi::av_match_list(name.as_ptr(), list.as_ptr(), separator) != 0 }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#[expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
     use super::*;
 
@@ -1318,7 +1384,7 @@ mod unit_tests {
         let e = r.unwrap_err();
         assert_eq!(n, 3);
         assert!(e.code() < 0);
-        assert_eq!(e.code_point(), Some(0xd800));
+        assert_eq!(e.code_point(), Some(0xD800));
         assert_eq!(
             e.to_string(),
             "UTF-8 code point 0xd800 rejected by the flags"
@@ -1664,7 +1730,7 @@ mod unit_tests {
                 ascii.is_some_and(|b| b.is_ascii_hexdigit()),
                 "{c}"
             );
-            let space = ascii.is_some_and(|b| b.is_ascii_whitespace() || b == 0x0b);
+            let space = ascii.is_some_and(|b| b.is_ascii_whitespace() || b == 0x0B);
             assert_eq!(is_space(c), space, "{c}");
         }
         for c in [c_int::MIN, -129, 0x161, c_int::MAX] {
@@ -1694,7 +1760,7 @@ mod unit_tests {
         assert!(!match_list(c"a,b", c"c,d", comma));
         assert!(!match_list(c"", c"", comma));
         assert!(!match_list(c"ab", c"a", comma));
-        let high = NonZeroU8::new(0xff).unwrap();
+        let high = NonZeroU8::new(0xFF).unwrap();
         assert!(match_list(c"x\xffy", c"y", high));
     }
 

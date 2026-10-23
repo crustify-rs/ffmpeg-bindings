@@ -1,15 +1,14 @@
 //! Safe wrappers over `libavutil/avutil.h`.
 
 use core::ffi::{CStr, c_void};
-use core::fmt;
-use core::ptr;
+use core::{fmt, ptr};
 
 use ffibox::CPlainElem;
 
 use super::ffi;
 use super::rational::Rational;
 
-/// Wraps: AVMediaType
+/// Wraps: `AVMediaType`
 /// Handwritten
 ///
 /// The kind of data a stream, codec or filter pad carries.
@@ -38,32 +37,33 @@ use super::rational::Rational;
 pub struct MediaType(ffi::AVMediaType);
 
 impl MediaType {
-    /// Unknown media, usually treated as [`DATA`](Self::DATA).
-    pub const UNKNOWN: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_UNKNOWN);
-    /// Video.
-    pub const VIDEO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_VIDEO);
-    /// Audio.
-    pub const AUDIO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_AUDIO);
-    /// Opaque data, usually continuous.
-    pub const DATA: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_DATA);
-    /// Subtitles.
-    pub const SUBTITLE: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_SUBTITLE);
     /// Opaque data, usually sparse.
     pub const ATTACHMENT: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_ATTACHMENT);
-
+    /// Audio.
+    pub const AUDIO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_AUDIO);
     /// The number of media types from [`VIDEO`](Self::VIDEO) to
     /// [`ATTACHMENT`](Self::ATTACHMENT) (`AVMEDIA_TYPE_NB`): the length of an
     /// array indexed by [`index`](Self::index).
     pub const COUNT: usize = ffi::AVMediaType::AVMEDIA_TYPE_NB.0 as usize;
+    /// Opaque data, usually continuous.
+    pub const DATA: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_DATA);
+    /// Subtitles.
+    pub const SUBTITLE: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_SUBTITLE);
+    /// Unknown media, usually treated as [`DATA`](Self::DATA).
+    pub const UNKNOWN: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_UNKNOWN);
+    /// Video.
+    pub const VIDEO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_VIDEO);
 
     /// The media type C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVMediaType) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this media type.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVMediaType {
         self.0
     }
@@ -71,10 +71,11 @@ impl MediaType {
     /// This media type's position in `0..COUNT`, or `None` for
     /// [`UNKNOWN`](Self::UNKNOWN) and any value C does not name.
     #[inline]
+    #[must_use]
     pub const fn index(self) -> Option<usize> {
         let raw = self.0.0;
-        if raw >= 0 && (raw as usize) < Self::COUNT {
-            Some(raw as usize)
+        if raw >= 0 && (raw.unsigned_abs() as usize) < Self::COUNT {
+            Some(raw.unsigned_abs() as usize)
         } else {
             None
         }
@@ -123,7 +124,7 @@ impl From<MediaType> for ffi::AVMediaType {
 // whole of it.
 unsafe impl CPlainElem for MediaType {}
 
-/// Wraps: AVPictureType
+/// Wraps: `AVPictureType`
 /// Handwritten
 ///
 /// The coding type of a video picture: intra, predicted, bidirectionally
@@ -151,31 +152,33 @@ unsafe impl CPlainElem for MediaType {}
 pub struct PictureType(ffi::AVPictureType);
 
 impl PictureType {
-    /// Undefined; the value of a zero-filled field.
-    pub const NONE: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_NONE);
-    /// Intra.
-    pub const I: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_I);
-    /// Predicted.
-    pub const P: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_P);
     /// Bidirectionally predicted.
     pub const B: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_B);
+    /// BI type.
+    pub const BI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_BI);
+    /// Intra.
+    pub const I: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_I);
+    /// Undefined; the value of a zero-filled field.
+    pub const NONE: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_NONE);
+    /// Predicted.
+    pub const P: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_P);
     /// S(GMC)-VOP, MPEG-4.
     pub const S: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_S);
     /// Switching intra.
     pub const SI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SI);
     /// Switching predicted.
     pub const SP: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SP);
-    /// BI type.
-    pub const BI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_BI);
 
     /// The picture type C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVPictureType) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this picture type.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVPictureType {
         self.0
     }
@@ -225,48 +228,59 @@ impl From<PictureType> for ffi::AVPictureType {
 // memory is the whole of it.
 unsafe impl CPlainElem for PictureType {}
 
-/// Wraps: avutil_version
+/// Wraps: `avutil_version`
 ///
 /// The `LIBAVUTIL_VERSION_INT` the library was built as:
 /// `major << 16 | minor << 8 | micro`.
+#[must_use]
 pub fn version() -> u32 {
     // SAFETY: `avutil_version` takes no arguments and returns a constant.
     unsafe { ffi::avutil_version() }
 }
 
-/// Wraps: av_version_info
+/// Wraps: `av_version_info`
 ///
 /// An informative version string, usually the release number or a git
 /// commit description. It has no fixed format and must not be parsed.
+#[must_use]
 pub fn version_info() -> &'static CStr {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let version_info = unsafe { ffi::av_version_info() };
     // SAFETY: `av_version_info` returns the address of a string literal,
     // NUL-terminated and immutable for the life of the process.
-    unsafe { CStr::from_ptr(ffi::av_version_info()) }
+    unsafe { CStr::from_ptr(version_info) }
 }
 
-/// Wraps: avutil_configuration
+/// Wraps: `avutil_configuration`
 ///
 /// The `configure` command line libavutil was built with.
+#[must_use]
 pub fn configuration() -> &'static CStr {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let avutil_configuration_2 = unsafe { ffi::avutil_configuration() };
     // SAFETY: `avutil_configuration` returns the address of a string literal,
     // NUL-terminated and immutable for the life of the process.
-    unsafe { CStr::from_ptr(ffi::avutil_configuration()) }
+    unsafe { CStr::from_ptr(avutil_configuration_2) }
 }
 
-/// Wraps: avutil_license
+/// Wraps: `avutil_license`
 ///
 /// The license libavutil was built under, such as `LGPL version 2.1 or
 /// later`.
+#[must_use]
 pub fn license() -> &'static CStr {
+    // SAFETY: as the comment below states, for this part of the operation.
+    let avutil_license_2 = unsafe { ffi::avutil_license() };
     // SAFETY: `avutil_license` returns an address inside a string literal,
     // past its prefix and before its NUL, immutable for the life of the
     // process.
-    unsafe { CStr::from_ptr(ffi::avutil_license()) }
+    unsafe { CStr::from_ptr(avutil_license_2) }
 }
 
-/// Wraps: av_x_if_null
+/// Wraps: `av_x_if_null`
 ///
 /// `p`, or `x` when `p` is `None`: C's `p ? p : x`, over shared borrows.
+#[must_use]
 pub fn x_if_null<'a, T>(p: Option<&'a T>, x: Option<&'a T>) -> Option<&'a T> {
     let p: *const c_void = p.map_or(ptr::null(), |r| ptr::from_ref(r).cast());
     let x: *const c_void = x.map_or(ptr::null(), |r| ptr::from_ref(r).cast());
@@ -278,10 +292,11 @@ pub fn x_if_null<'a, T>(p: Option<&'a T>, x: Option<&'a T>) -> Option<&'a T> {
     unsafe { chosen.cast_const().cast::<T>().as_ref() }
 }
 
-/// Wraps: av_x_if_null
+/// Wraps: `av_x_if_null`
 ///
 /// `p`, or `x` when `p` is `None`, as [`x_if_null`], over exclusive borrows:
 /// the one not returned is given up with the call.
+#[must_use]
 pub fn x_if_null_mut<'a, T>(p: Option<&'a mut T>, x: Option<&'a mut T>) -> Option<&'a mut T> {
     let p: *mut c_void = p.map_or(ptr::null_mut(), |r| ptr::from_mut(r).cast());
     let x: *mut c_void = x.map_or(ptr::null_mut(), |r| ptr::from_mut(r).cast());
@@ -296,7 +311,7 @@ pub fn x_if_null_mut<'a, T>(p: Option<&'a mut T>, x: Option<&'a mut T>) -> Optio
 /// `AV_FOURCC_MAX_STRING_SIZE`: the buffer [`fourcc_string`] fills.
 const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 
-/// Wraps: av_fourcc_make_string
+/// Wraps: `av_fourcc_make_string`
 ///
 /// `fourcc` spelled out in `buf`, least significant byte first: a digit,
 /// ASCII letter or one of `. -_` as itself, any other byte as its decimal
@@ -305,9 +320,16 @@ const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
 /// let mut buf = [0; 32];
-/// assert_eq!(fourcc_string(&mut buf, u32::from_le_bytes(*b"H264")), c"H264");
-/// assert_eq!(fourcc_string(&mut buf, 0x0100_2e41), c"A.[0][1]");
+/// assert_eq!(
+///     fourcc_string(&mut buf, u32::from_le_bytes(*b"H264")),
+///     c"H264"
+/// );
+/// assert_eq!(fourcc_string(&mut buf, 0x0100_2E41), c"A.[0][1]");
 /// ```
+///
+/// # Panics
+///
+/// Only if C breaks the guarantee that snprintf NUL-terminates the buffer.
 pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CStr {
     // SAFETY: `buf` is `AV_FOURCC_MAX_STRING_SIZE` writable bytes, the size
     // `av_fourcc_make_string` bounds its `snprintf` calls by (at most 20
@@ -317,11 +339,12 @@ pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CS
 }
 
 impl MediaType {
-    /// Wraps: av_get_media_type_string
+    /// Wraps: `av_get_media_type_string`
     ///
     /// The lowercase name C gives this media type (`"video"`, `"audio"`,
     /// `"data"`, `"subtitle"`, `"attachment"`), or `None` for
     /// [`UNKNOWN`](Self::UNKNOWN) and any value C does not name.
+    #[must_use]
     pub fn as_str(self) -> Option<&'static str> {
         // SAFETY: `av_get_media_type_string` takes the enum by value, accepts
         // any value, and returns NULL or the address of a string literal.
@@ -335,23 +358,25 @@ impl MediaType {
 }
 
 impl PictureType {
-    /// Wraps: av_get_picture_type_char
+    /// Wraps: `av_get_picture_type_char`
     ///
     /// The letter C prints for this picture type: `I`, `P`, `B` and `S` for
     /// those types, `i`, `p` and `b` for [`SI`](Self::SI),
     /// [`SP`](Self::SP) and [`BI`](Self::BI), and `?` for
     /// [`NONE`](Self::NONE) and any value C does not name.
+    #[must_use]
     pub fn to_char(self) -> char {
         // SAFETY: `av_get_picture_type_char` takes the enum by value and maps
         // any value to an ASCII character.
         let c = unsafe { ffi::av_get_picture_type_char(self.0) };
-        char::from(c as u8)
+        char::from(c.cast_unsigned())
     }
 }
 
-/// Wraps: av_get_time_base_q
+/// Wraps: `av_get_time_base_q`
 ///
 /// FFmpeg's internal time base, `1/AV_TIME_BASE`: microseconds.
+#[must_use]
 pub fn time_base() -> Rational {
     // SAFETY: `av_get_time_base_q` takes no arguments and returns a constant
     // struct by value.
@@ -359,10 +384,15 @@ pub fn time_base() -> Rational {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::c_int;
     use core::mem::{align_of, size_of};
+
+    use super::*;
 
     const NAMED: [(MediaType, &str); 6] = [
         (MediaType::UNKNOWN, "UNKNOWN"),
@@ -494,7 +524,7 @@ mod unit_tests {
         assert_eq!(x_if_null(None, Some(&b)), Some(&2));
         assert_eq!(x_if_null(Some(&a), None), Some(&1));
         assert_eq!(x_if_null::<u64>(None, None), None);
-        assert!(core::ptr::eq(x_if_null(None, Some(&b)).unwrap(), &b));
+        assert!(ptr::eq(x_if_null(None, Some(&b)).unwrap(), &raw const b));
     }
 
     #[test]
@@ -514,8 +544,8 @@ mod unit_tests {
     fn version_packs_the_built_parts() {
         let v = version();
         assert_eq!(v >> 16, ffi::LIBAVUTIL_VERSION_MAJOR);
-        assert_eq!(v >> 8 & 0xff, ffi::LIBAVUTIL_VERSION_MINOR);
-        assert_eq!(v & 0xff, ffi::LIBAVUTIL_VERSION_MICRO);
+        assert_eq!(v >> 8 & 0xFF, ffi::LIBAVUTIL_VERSION_MINOR);
+        assert_eq!(v & 0xFF, ffi::LIBAVUTIL_VERSION_MICRO);
     }
 
     #[test]

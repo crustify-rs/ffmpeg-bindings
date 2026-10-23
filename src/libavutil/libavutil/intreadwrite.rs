@@ -7,11 +7,10 @@
 //! and none has a lifecycle routine: each is a plain value, or a borrowed
 //! view over bytes the caller owns. Both reach the same handles:
 //!
-//! - a value: [`Unaligned16::new`], [`Unaligned32::new`],
-//!   [`Unaligned64::new`] (or `zeroed()`), then `as_ref()` / `as_mut()`;
-//! - `N / 8` bytes anywhere in a buffer: `from_bytes` on the shared or the
-//!   exclusive handle ([`Unaligned32Ref::from_bytes`],
-//!   [`Unaligned32Mut::from_bytes`]), as `AV_RN` and `AV_WN` do.
+//! - a value: [`Unaligned16::new`], [`Unaligned32::new`], [`Unaligned64::new`] (or `zeroed()`),
+//!   then `as_ref()` / `as_mut()`;
+//! - `N / 8` bytes anywhere in a buffer: `from_bytes` on the shared or the exclusive handle
+//!   ([`Unaligned32Ref::from_bytes`], [`Unaligned32Mut::from_bytes`]), as `AV_RN` and `AV_WN` do.
 //!
 //! The shared handles read `l` ([`Unaligned32Ref::value`]) and the exclusive
 //! ones store it ([`Unaligned32Mut::set_value`]), without assuming alignment.
@@ -25,10 +24,9 @@
 //! a valid value of every view, so each is a plain `Copy` value:
 //!
 //! - [`Alias16`] (`av_alias16`): a `u16`, or two bytes;
-//! - [`Alias32`] (`av_alias32`): a `u32`, two `u16` lanes, four bytes, or an
-//!   `f32`;
-//! - [`Alias64`] (`av_alias64`): a `u64`, two `u32` lanes, four `u16` lanes,
-//!   eight bytes, an `f64`, or two `f32` lanes.
+//! - [`Alias32`] (`av_alias32`): a `u32`, two `u16` lanes, four bytes, or an `f32`;
+//! - [`Alias64`] (`av_alias64`): a `u64`, two `u32` lanes, four `u16` lanes, eight bytes, an `f64`,
+//!   or two `f32` lanes.
 //!
 //! Build one with `zeroed()` / `default()` or a `from_*` constructor, read the
 //! views on its shared handle and write them on its exclusive one. Lanes and
@@ -48,7 +46,10 @@
 //! let at = buf[3..].first_chunk_mut::<4>().unwrap(); // misaligned for `u32`
 //! Unaligned32Mut::from_bytes(at).set_value(0x0102_0304);
 //! assert_eq!(buf[3..], 0x0102_0304u32.to_ne_bytes());
-//! assert_eq!(Unaligned32Ref::from_bytes(buf[3..].first_chunk().unwrap()).value(), 0x0102_0304);
+//! assert_eq!(
+//!     Unaligned32Ref::from_bytes(buf[3..].first_chunk().unwrap()).value(),
+//!     0x0102_0304
+//! );
 //! ```
 
 use core::fmt;
@@ -170,6 +171,10 @@ impl<'a> Unaligned16Ref<'a> {
     /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned16Ref;
     /// let _ = Unaligned16Ref::from_bytes(&[0u8; 4]);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is non-null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a [u8; 2]) -> Self {
@@ -181,21 +186,28 @@ impl<'a> Unaligned16Ref<'a> {
             .expect("a reference is non-null")
     }
 
-    /// Field: unaligned_16.l
+    /// Field: `unaligned_16.l`
     ///
     /// The `u16` the union holds, in native byte order.
     #[inline]
     #[must_use]
     pub fn value(&self) -> u16 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of!((*self.as_ptr()).l) };
         // SAFETY: a read of the projected field through the shared handle's
         // live pointer; the union is packed, so the read is unaligned.
-        unsafe { addr_of!((*self.as_ptr()).l).read_unaligned() }
+        unsafe { l_ptr.read_unaligned() }
     }
 }
 
 impl<'a> Unaligned16Mut<'a> {
     /// Views two bytes at any address as the union, the cast `AV_WN(16, p, v)`
     /// stores through.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is non-null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a mut [u8; 2]) -> Self {
@@ -205,15 +217,18 @@ impl<'a> Unaligned16Mut<'a> {
         unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
     }
 
-    /// Field: unaligned_16.l
+    /// Field: `unaligned_16.l`
     ///
     /// Stores `value` in native byte order.
     #[inline]
     pub fn set_value(&mut self, value: u16) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).l) };
         // SAFETY: a write of the projected field through the exclusive
         // handle's live pointer; the union is packed, so the write is
         // unaligned.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).l).write_unaligned(value) }
+        unsafe { l_ptr.write_unaligned(value) }
     }
 }
 
@@ -263,6 +278,10 @@ impl_value_traits!(Unaligned32, Unaligned32Ref, u32);
 impl<'a> Unaligned32Ref<'a> {
     /// Views four bytes at any address as the union, the cast `AV_RN(32, p)`
     /// reads through.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is non-null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a [u8; 4]) -> Self {
@@ -274,15 +293,18 @@ impl<'a> Unaligned32Ref<'a> {
             .expect("a reference is non-null")
     }
 
-    /// Field: unaligned_32.l
+    /// Field: `unaligned_32.l`
     ///
     /// The `u32` the union holds, in native byte order.
     #[inline]
     #[must_use]
     pub fn value(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of!((*self.as_ptr()).l) };
         // SAFETY: a read of the projected field through the shared handle's
         // live pointer; the union is packed, so the read is unaligned.
-        unsafe { addr_of!((*self.as_ptr()).l).read_unaligned() }
+        unsafe { l_ptr.read_unaligned() }
     }
 }
 
@@ -296,6 +318,10 @@ impl<'a> Unaligned32Mut<'a> {
     /// let mut b = [0u8; 2];
     /// Unaligned32Mut::from_bytes(&mut b).set_value(1);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is non-null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a mut [u8; 4]) -> Self {
@@ -305,15 +331,18 @@ impl<'a> Unaligned32Mut<'a> {
         unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
     }
 
-    /// Field: unaligned_32.l
+    /// Field: `unaligned_32.l`
     ///
     /// Stores `value` in native byte order.
     #[inline]
     pub fn set_value(&mut self, value: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).l) };
         // SAFETY: a write of the projected field through the exclusive
         // handle's live pointer; the union is packed, so the write is
         // unaligned.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).l).write_unaligned(value) }
+        unsafe { l_ptr.write_unaligned(value) }
     }
 }
 
@@ -371,6 +400,10 @@ impl<'a> Unaligned64Ref<'a> {
     /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64Ref;
     /// let _ = Unaligned64Ref::from_bytes(&[0u8; 4]);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is never null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a [u8; 8]) -> Self {
@@ -385,7 +418,7 @@ impl<'a> Unaligned64Ref<'a> {
 }
 
 impl Unaligned64Ref<'_> {
-    /// Field: unaligned_64.l
+    /// Field: `unaligned_64.l`
     ///
     /// The stored value, read without assuming alignment (`AV_RN64`). The
     /// shared handle has no setter:
@@ -397,15 +430,22 @@ impl Unaligned64Ref<'_> {
     #[inline]
     #[must_use]
     pub fn value(&self) -> u64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of!((*self.as_ptr()).l) };
         // SAFETY: the handle addresses a live `unaligned_64`; the projected
         // field of the packed union may be unaligned, hence `read_unaligned`.
-        unsafe { addr_of!((*self.as_ptr()).l).read_unaligned() }
+        unsafe { l_ptr.read_unaligned() }
     }
 }
 
 impl<'a> Unaligned64Mut<'a> {
     /// An exclusive view of `bytes` as an `Unaligned64`, at whatever alignment
     /// they have: the cast `AV_WN64(p, v)` writes through.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a reference is never null.
     #[inline]
     #[must_use]
     pub fn from_bytes(bytes: &'a mut [u8; 8]) -> Self {
@@ -418,15 +458,18 @@ impl<'a> Unaligned64Mut<'a> {
         handle.expect("a reference is never null")
     }
 
-    /// Field: unaligned_64.l
+    /// Field: `unaligned_64.l`
     ///
     /// Stores `value`, without assuming alignment (`AV_WN64`).
     #[inline]
     pub fn set_value(&mut self, value: u64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `l` field is in bounds; nothing is accessed here.
+        let l_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).l) };
         // SAFETY: the exclusive handle addresses a live, writable
         // `unaligned_64`; the projected field of the packed union may be
         // unaligned, hence `write_unaligned`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).l).write_unaligned(value) }
+        unsafe { l_ptr.write_unaligned(value) }
     }
 }
 
@@ -502,7 +545,7 @@ impl Eq for Alias16 {}
 /// Hashes the `u16` view, consistent with the bitwise equality.
 impl Hash for Alias16 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().u16().hash(state)
+        self.as_ref().u16().hash(state);
     }
 }
 
@@ -527,6 +570,10 @@ impl<'a> Alias16Ref<'a> {
     /// unaligned view is [`Unaligned16Ref::from_bytes`].
     #[inline]
     #[must_use]
+    #[expect(
+        clippy::cast_ptr_alignment,
+        reason = "the alignment is checked right after the cast"
+    )]
     pub fn from_bytes(bytes: &'a [u8; 2]) -> Option<Self> {
         let ptr = ptr::from_ref(bytes).cast_mut().cast::<ffi::av_alias16>();
         if !ptr.is_aligned() {
@@ -541,23 +588,29 @@ impl<'a> Alias16Ref<'a> {
 }
 
 impl Alias16Ref<'_> {
-    /// Field: av_alias16.u16
+    /// Field: `av_alias16.u16`
     ///
     /// Both bytes as a native-endian `u16`.
     #[must_use]
     pub fn u16(&self) -> u16 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of!((*self.as_ptr()).u16_) };
         // SAFETY: the handle addresses a live, initialised `av_alias16`, and
         // `u16` covers all of its bytes, any pattern of which is a `u16`.
-        unsafe { addr_of!((*self.as_ptr()).u16_).read() }
+        unsafe { u16_ptr.read() }
     }
 
-    /// Field: av_alias16.u8
+    /// Field: `av_alias16.u8`
     ///
     /// Both bytes, in memory order.
     #[must_use]
     pub fn u8x2(&self) -> [u8; 2] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of!((*self.as_ptr()).u8_) };
         // SAFETY: as `u16`, through the byte view.
-        unsafe { addr_of!((*self.as_ptr()).u8_).read() }
+        unsafe { u8_ptr.read() }
     }
 }
 
@@ -567,6 +620,10 @@ impl<'a> Alias16Mut<'a> {
     /// aligned; the unaligned view is [`Unaligned16Mut::from_bytes`].
     #[inline]
     #[must_use]
+    #[expect(
+        clippy::cast_ptr_alignment,
+        reason = "the alignment is checked right after the cast"
+    )]
     pub fn from_bytes(bytes: &'a mut [u8; 2]) -> Option<Self> {
         let ptr = ptr::from_mut(bytes).cast::<ffi::av_alias16>();
         if !ptr.is_aligned() {
@@ -581,21 +638,27 @@ impl<'a> Alias16Mut<'a> {
 }
 
 impl Alias16Mut<'_> {
-    /// Field: av_alias16.u16
+    /// Field: `av_alias16.u16`
     ///
     /// Stores `v` over both bytes, in native byte order.
     pub fn set_u16(&mut self, v: u16) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_) };
         // SAFETY: a write of the whole object through the exclusive handle's
         // pointer to a live `av_alias16`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_).write(v) }
+        unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: av_alias16.u8
+    /// Field: `av_alias16.u8`
     ///
     /// Stores both bytes, in memory order.
     pub fn set_u8x2(&mut self, v: [u8; 2]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_) };
         // SAFETY: as `set_u16`, through the byte view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_).write(v) }
+        unsafe { u8_ptr.write(v) }
     }
 }
 
@@ -687,7 +750,7 @@ impl Eq for Alias32 {}
 /// Hashes the `u32` view, consistent with the bitwise equality.
 impl Hash for Alias32 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().u32().hash(state)
+        self.as_ref().u32().hash(state);
     }
 }
 
@@ -712,6 +775,10 @@ impl<'a> Alias32Ref<'a> {
     /// unaligned view is [`Unaligned32Ref::from_bytes`].
     #[inline]
     #[must_use]
+    #[expect(
+        clippy::cast_ptr_alignment,
+        reason = "the alignment is checked right after the cast"
+    )]
     pub fn from_bytes(bytes: &'a [u8; 4]) -> Option<Self> {
         let ptr = ptr::from_ref(bytes).cast_mut().cast::<ffi::av_alias32>();
         if !ptr.is_aligned() {
@@ -726,42 +793,54 @@ impl<'a> Alias32Ref<'a> {
 }
 
 impl Alias32Ref<'_> {
-    /// Field: av_alias32.u32
+    /// Field: `av_alias32.u32`
     ///
     /// All four bytes as a native-endian `u32`.
     #[must_use]
     pub fn u32(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u32_` field is in bounds; nothing is accessed here.
+        let u32_ptr = unsafe { addr_of!((*self.as_ptr()).u32_) };
         // SAFETY: the handle addresses a live, initialised `av_alias32`, and
         // `u32` covers all of its bytes, any pattern of which is a `u32`.
-        unsafe { addr_of!((*self.as_ptr()).u32_).read() }
+        unsafe { u32_ptr.read() }
     }
 
-    /// Field: av_alias32.u16
+    /// Field: `av_alias32.u16`
     ///
     /// The two native-endian `u16` lanes, in memory order.
     #[must_use]
     pub fn u16x2(&self) -> [u16; 2] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of!((*self.as_ptr()).u16_) };
         // SAFETY: as `u32`, through the lane view.
-        unsafe { addr_of!((*self.as_ptr()).u16_).read() }
+        unsafe { u16_ptr.read() }
     }
 
-    /// Field: av_alias32.u8
+    /// Field: `av_alias32.u8`
     ///
     /// All four bytes, in memory order.
     #[must_use]
     pub fn u8x4(&self) -> [u8; 4] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of!((*self.as_ptr()).u8_) };
         // SAFETY: as `u32`, through the byte view.
-        unsafe { addr_of!((*self.as_ptr()).u8_).read() }
+        unsafe { u8_ptr.read() }
     }
 
-    /// Field: av_alias32.f32
+    /// Field: `av_alias32.f32`
     ///
     /// All four bytes as an `f32`, bit for bit (`f32::from_bits(self.u32())`).
     #[must_use]
     pub fn f32(&self) -> f32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f32_` field is in bounds; nothing is accessed here.
+        let f32_ptr = unsafe { addr_of!((*self.as_ptr()).f32_) };
         // SAFETY: as `u32`, through the float view; every bit pattern is an
         // `f32`.
-        unsafe { addr_of!((*self.as_ptr()).f32_).read() }
+        unsafe { f32_ptr.read() }
     }
 }
 
@@ -771,6 +850,10 @@ impl<'a> Alias32Mut<'a> {
     /// aligned; the unaligned view is [`Unaligned32Mut::from_bytes`].
     #[inline]
     #[must_use]
+    #[expect(
+        clippy::cast_ptr_alignment,
+        reason = "the alignment is checked right after the cast"
+    )]
     pub fn from_bytes(bytes: &'a mut [u8; 4]) -> Option<Self> {
         let ptr = ptr::from_mut(bytes).cast::<ffi::av_alias32>();
         if !ptr.is_aligned() {
@@ -785,37 +868,49 @@ impl<'a> Alias32Mut<'a> {
 }
 
 impl Alias32Mut<'_> {
-    /// Field: av_alias32.u32
+    /// Field: `av_alias32.u32`
     ///
     /// Stores `v` over all four bytes, in native byte order.
     pub fn set_u32(&mut self, v: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u32_` field is in bounds; nothing is accessed here.
+        let u32_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u32_) };
         // SAFETY: a write of the whole object through the exclusive handle's
         // pointer to a live `av_alias32`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u32_).write(v) }
+        unsafe { u32_ptr.write(v) }
     }
 
-    /// Field: av_alias32.u16
+    /// Field: `av_alias32.u16`
     ///
     /// Stores both `u16` lanes, in memory order.
     pub fn set_u16x2(&mut self, v: [u16; 2]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_) };
         // SAFETY: as `set_u32`, through the lane view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_).write(v) }
+        unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: av_alias32.u8
+    /// Field: `av_alias32.u8`
     ///
     /// Stores all four bytes, in memory order.
     pub fn set_u8x4(&mut self, v: [u8; 4]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_) };
         // SAFETY: as `set_u32`, through the byte view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_).write(v) }
+        unsafe { u8_ptr.write(v) }
     }
 
-    /// Field: av_alias32.f32
+    /// Field: `av_alias32.f32`
     ///
     /// Stores `v`'s bits over all four bytes; a NaN keeps its payload.
     pub fn set_f32(&mut self, v: f32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f32_` field is in bounds; nothing is accessed here.
+        let f32_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).f32_) };
         // SAFETY: as `set_u32`, through the float view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).f32_).write(v) }
+        unsafe { f32_ptr.write(v) }
     }
 }
 
@@ -924,7 +1019,7 @@ impl Eq for Alias64 {}
 /// Hashes the `u64` view, consistent with the bitwise [`PartialEq`].
 impl Hash for Alias64 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().u64().hash(state)
+        self.as_ref().u64().hash(state);
     }
 }
 
@@ -943,121 +1038,166 @@ impl fmt::Debug for Alias64Ref<'_> {
 }
 
 impl Alias64Ref<'_> {
-    /// Field: av_alias64.u64
+    /// Field: `av_alias64.u64`
     ///
     /// All eight bytes as a native-endian `u64`.
     #[must_use]
     pub fn u64(&self) -> u64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u64_` field is in bounds; nothing is accessed here.
+        let u64_ptr = unsafe { addr_of!((*self.as_ptr()).u64_) };
         // SAFETY: the handle addresses a live, initialised `av_alias64`, and
         // `u64` covers all of its bytes, any pattern of which is a `u64`.
-        unsafe { addr_of!((*self.as_ptr()).u64_).read() }
+        unsafe { u64_ptr.read() }
     }
 
-    /// Field: av_alias64.u32
+    /// Field: `av_alias64.u32`
     ///
     /// The two native-endian `u32` lanes, in memory order.
     #[must_use]
     pub fn u32x2(&self) -> [u32; 2] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u32_` field is in bounds; nothing is accessed here.
+        let u32_ptr = unsafe { addr_of!((*self.as_ptr()).u32_) };
         // SAFETY: as `u64`, through the `u32` lane view.
-        unsafe { addr_of!((*self.as_ptr()).u32_).read() }
+        unsafe { u32_ptr.read() }
     }
 
-    /// Field: av_alias64.u16
+    /// Field: `av_alias64.u16`
     ///
     /// The four native-endian `u16` lanes, in memory order.
     #[must_use]
     pub fn u16x4(&self) -> [u16; 4] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of!((*self.as_ptr()).u16_) };
         // SAFETY: as `u64`, through the `u16` lane view.
-        unsafe { addr_of!((*self.as_ptr()).u16_).read() }
+        unsafe { u16_ptr.read() }
     }
 
-    /// Field: av_alias64.u8
+    /// Field: `av_alias64.u8`
     ///
     /// All eight bytes, in memory order.
     #[must_use]
     pub fn u8x8(&self) -> [u8; 8] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of!((*self.as_ptr()).u8_) };
         // SAFETY: as `u64`, through the byte view.
-        unsafe { addr_of!((*self.as_ptr()).u8_).read() }
+        unsafe { u8_ptr.read() }
     }
 
-    /// Field: av_alias64.f64
+    /// Field: `av_alias64.f64`
     ///
     /// All eight bytes as an `f64`, bit for bit (`f64::from_bits(self.u64())`).
     #[must_use]
     pub fn f64(&self) -> f64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f64_` field is in bounds; nothing is accessed here.
+        let f64_ptr = unsafe { addr_of!((*self.as_ptr()).f64_) };
         // SAFETY: as `u64`, through the float view; every bit pattern is an
         // `f64`.
-        unsafe { addr_of!((*self.as_ptr()).f64_).read() }
+        unsafe { f64_ptr.read() }
     }
 
-    /// Field: av_alias64.f32
+    /// Field: `av_alias64.f32`
     ///
     /// The two `f32` lanes, in memory order, bit for bit.
     #[must_use]
     pub fn f32x2(&self) -> [f32; 2] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f32_` field is in bounds; nothing is accessed here.
+        let f32_ptr = unsafe { addr_of!((*self.as_ptr()).f32_) };
         // SAFETY: as `u64`, through the `f32` lane view; every bit pattern is
         // a pair of `f32`.
-        unsafe { addr_of!((*self.as_ptr()).f32_).read() }
+        unsafe { f32_ptr.read() }
     }
 }
 
 impl Alias64Mut<'_> {
-    /// Field: av_alias64.u64
+    /// Field: `av_alias64.u64`
     ///
     /// Stores `v` over all eight bytes, in native byte order.
     pub fn set_u64(&mut self, v: u64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u64_` field is in bounds; nothing is accessed here.
+        let u64_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u64_) };
         // SAFETY: a write of the whole object through the exclusive handle's
         // pointer to a live `av_alias64`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u64_).write(v) }
+        unsafe { u64_ptr.write(v) }
     }
 
-    /// Field: av_alias64.u32
+    /// Field: `av_alias64.u32`
     ///
     /// Stores both `u32` lanes, in memory order.
     pub fn set_u32x2(&mut self, v: [u32; 2]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u32_` field is in bounds; nothing is accessed here.
+        let u32_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u32_) };
         // SAFETY: as `set_u64`, through the `u32` lane view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u32_).write(v) }
+        unsafe { u32_ptr.write(v) }
     }
 
-    /// Field: av_alias64.u16
+    /// Field: `av_alias64.u16`
     ///
     /// Stores all four `u16` lanes, in memory order.
     pub fn set_u16x4(&mut self, v: [u16; 4]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u16_` field is in bounds; nothing is accessed here.
+        let u16_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_) };
         // SAFETY: as `set_u64`, through the `u16` lane view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u16_).write(v) }
+        unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: av_alias64.u8
+    /// Field: `av_alias64.u8`
     ///
     /// Stores all eight bytes, in memory order.
     pub fn set_u8x8(&mut self, v: [u8; 8]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u8_` field is in bounds; nothing is accessed here.
+        let u8_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_) };
         // SAFETY: as `set_u64`, through the byte view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).u8_).write(v) }
+        unsafe { u8_ptr.write(v) }
     }
 
-    /// Field: av_alias64.f64
+    /// Field: `av_alias64.f64`
     ///
     /// Stores `v`'s bits over all eight bytes; a NaN keeps its payload.
     pub fn set_f64(&mut self, v: f64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f64_` field is in bounds; nothing is accessed here.
+        let f64_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).f64_) };
         // SAFETY: as `set_u64`, through the float view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).f64_).write(v) }
+        unsafe { f64_ptr.write(v) }
     }
 
-    /// Field: av_alias64.f32
+    /// Field: `av_alias64.f32`
     ///
     /// Stores both `f32` lanes' bits, in memory order; a NaN keeps its
     /// payload.
     pub fn set_f32x2(&mut self, v: [f32; 2]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f32_` field is in bounds; nothing is accessed here.
+        let f32_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).f32_) };
         // SAFETY: as `set_u64`, through the `f32` lane view.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).f32_).write(v) }
+        unsafe { f32_ptr.write(v) }
     }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
-    use super::*;
     use core::mem::{align_of, size_of};
     use std::collections::hash_map::DefaultHasher;
+
+    use super::*;
 
     #[test]
     fn layout_matches_the_c_union() {
@@ -1106,11 +1246,11 @@ mod unit_tests {
 
     #[test]
     fn unaligned64_value_traits_follow_the_integer() {
-        let a = Unaligned64::new(0x0123_4567_89ab_cdef);
-        assert_eq!(a, Unaligned64::from(0x0123_4567_89ab_cdef));
+        let a = Unaligned64::new(0x0123_4567_89AB_CDEF);
+        assert_eq!(a, Unaligned64::from(0x0123_4567_89AB_CDEF));
         assert_ne!(a, Unaligned64::new(0));
-        assert_eq!(u64::from(a), 0x0123_4567_89ab_cdef);
-        assert_eq!(hash_of(&a), hash_of(&0x0123_4567_89ab_cdef_u64));
+        assert_eq!(u64::from(a), 0x0123_4567_89AB_CDEF);
+        assert_eq!(hash_of(&a), hash_of(&0x0123_4567_89AB_CDEF_u64));
         assert_eq!(Unaligned64::default(), Unaligned64::zeroed());
         assert_eq!(Unaligned64::default().as_ref().value(), 0);
         assert_eq!(format!("{:?}", Unaligned64::new(5)), "Unaligned64(5)");
@@ -1123,8 +1263,8 @@ mod unit_tests {
     fn alias16_constructors_set_the_named_view() {
         assert_eq!(Alias16::from_u16(0x1234).as_ref().u16(), 0x1234);
         assert_eq!(
-            Alias16::from_u8x2([0xab, 0xcd]).as_ref().u8x2(),
-            [0xab, 0xcd]
+            Alias16::from_u8x2([0xAB, 0xCD]).as_ref().u8x2(),
+            [0xAB, 0xCD]
         );
         assert_eq!(
             Alias16::from_u16(0x1234).as_ref().u8x2(),
@@ -1135,7 +1275,7 @@ mod unit_tests {
 
     #[test]
     fn alias32_constructors_set_the_named_view() {
-        assert_eq!(Alias32::from_u32(0xdead_beef).as_ref().u32(), 0xdead_beef);
+        assert_eq!(Alias32::from_u32(0xDEAD_BEEF).as_ref().u32(), 0xDEAD_BEEF);
         assert_eq!(Alias32::from_u16x2([1, 2]).as_ref().u16x2(), [1, 2]);
         assert_eq!(
             Alias32::from_u8x4([1, 2, 3, 4]).as_ref().u8x4(),
@@ -1162,7 +1302,7 @@ mod unit_tests {
 
     #[test]
     fn nan_payload_survives_the_float_view() {
-        let bits = 0x7fc0_1234;
+        let bits = 0x7FC0_1234;
         let a = Alias32::from_f32(f32::from_bits(bits));
         assert_eq!(a.as_ref().u32(), bits);
         assert_eq!(a.as_ref().f32().to_bits(), bits);
@@ -1192,17 +1332,17 @@ mod unit_tests {
 
     #[test]
     fn handles_over_a_c_pointer_read_and_write_it() {
-        let mut raw = ffi::av_alias32 { u32_: 0x0a0b_0c0d };
+        let mut raw = ffi::av_alias32 { u32_: 0x0A0B_0C0D };
         // SAFETY: `raw` is a live, initialised `av_alias32` that outlives the
         // handle, and nothing else touches it while the handle lives.
         let mut m = unsafe { Alias32Mut::from_ptr(&raw mut raw) }.unwrap();
-        assert_eq!(m.as_ref().u32(), 0x0a0b_0c0d);
+        assert_eq!(m.as_ref().u32(), 0x0A0B_0C0D);
         m.set_u16x2([5, 6]);
         // SAFETY: the handle is gone; every field of `raw` covers its bytes.
         let lanes = unsafe { raw.u16_ };
         assert_eq!(lanes, [5, 6]);
         // SAFETY: a null pointer is accepted and yields no handle.
-        assert!(unsafe { Alias16Ref::from_ptr(core::ptr::null_mut()) }.is_none());
+        assert!(unsafe { Alias16Ref::from_ptr(ptr::null_mut()) }.is_none());
     }
 
     fn hash_of<T: Hash>(v: &T) -> u64 {
@@ -1224,14 +1364,14 @@ mod unit_tests {
 
     #[test]
     fn new_and_conversions_round_trip() {
-        const C16: Unaligned16 = Unaligned16::new(0xbeef);
-        const C32: Unaligned32 = Unaligned32::new(0xdead_beef);
-        assert_eq!(C16.as_ref().value(), 0xbeef);
-        assert_eq!(C32.as_ref().value(), 0xdead_beef);
-        for v in [0, 1, 0x00ff, 0xff00, u16::MAX] {
+        const C16: Unaligned16 = Unaligned16::new(0xBEEF);
+        const C32: Unaligned32 = Unaligned32::new(0xDEAD_BEEF);
+        assert_eq!(C16.as_ref().value(), 0xBEEF);
+        assert_eq!(C32.as_ref().value(), 0xDEAD_BEEF);
+        for v in [0, 1, 0x00FF, 0xFF00, u16::MAX] {
             assert_eq!(u16::from(Unaligned16::from(v)), v);
         }
-        for v in [0, 1, 0x0000_ffff, 0xffff_0000, u32::MAX] {
+        for v in [0, 1, 0x0000_FFFF, 0xFFFF_0000, u32::MAX] {
             assert_eq!(u32::from(Unaligned32::from(v)), v);
         }
     }
@@ -1248,7 +1388,7 @@ mod unit_tests {
     fn value_traits_follow_the_integer() {
         let a = Unaligned32::new(7);
         let b = a; // `Copy`
-        #[allow(clippy::clone_on_copy)]
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = a.clone();
         assert_eq!(a, b);
         assert_eq!(a, c);
@@ -1272,14 +1412,14 @@ mod unit_tests {
             tag: Unaligned16Ref<'a>,
             len: Unaligned32Ref<'a>,
         }
-        let bytes = [0x34u8, 0x12, 0xef, 0xbe, 0xad, 0xde];
+        let bytes = [0x34u8, 0x12, 0xEF, 0xBE, 0xAD, 0xDE];
         let h = Header {
             tag: Unaligned16Ref::from_bytes(bytes.first_chunk().unwrap()),
             len: Unaligned32Ref::from_bytes(bytes[2..].first_chunk().unwrap()),
         };
         let (tag, len) = (
             u16::from_ne_bytes([0x34, 0x12]),
-            u32::from_ne_bytes([0xef, 0xbe, 0xad, 0xde]),
+            u32::from_ne_bytes([0xEF, 0xBE, 0xAD, 0xDE]),
         );
         assert_eq!(format!("{:?}", h.tag), format!("Unaligned16({tag})"));
         assert_eq!(
@@ -1315,7 +1455,7 @@ mod unit_tests {
     fn byte_views_are_native_endian_at_every_offset() {
         let mut buf = [0u8; 11];
         for off in 0..=buf.len() - 4 {
-            let v = 0x0a0b_0c0d_u32.rotate_left(off as u32 * 8);
+            let v = 0x0A0B_0C0D_u32.rotate_left(off as u32 * 8);
             Unaligned32Mut::from_bytes(buf[off..].first_chunk_mut().unwrap()).set_value(v);
             assert_eq!(buf[off..off + 4], v.to_ne_bytes());
             assert_eq!(
@@ -1336,14 +1476,14 @@ mod unit_tests {
 
     #[test]
     fn a_byte_view_writes_only_its_own_bytes() {
-        let mut buf = [0xa5u8; 8];
+        let mut buf = [0xA5u8; 8];
         Unaligned16Mut::from_bytes(buf[3..].first_chunk_mut().unwrap()).set_value(0);
-        assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0, 0xa5, 0xa5, 0xa5]);
+        assert_eq!(buf, [0xA5, 0xA5, 0xA5, 0, 0, 0xA5, 0xA5, 0xA5]);
         Unaligned32Mut::from_bytes(buf[4..].first_chunk_mut().unwrap()).set_value(u32::MAX);
-        assert_eq!(buf, [0xa5, 0xa5, 0xa5, 0, 0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(buf, [0xA5, 0xA5, 0xA5, 0, 0xFF, 0xFF, 0xFF, 0xFF]);
     }
 
-    const ALIAS64_BITS: u64 = 0x0123_4567_89ab_cdef;
+    const ALIAS64_BITS: u64 = 0x0123_4567_89AB_CDEF;
 
     #[test]
     fn alias64_layout_matches_the_c_union() {
@@ -1429,8 +1569,8 @@ mod unit_tests {
     #[test]
     fn alias64_nan_payloads_survive_both_ways() {
         // A signalling NaN with a payload, in each lane and in the whole.
-        let snan64 = 0x7ff0_0000_0000_0001_u64;
-        let snan32 = 0x7f80_0001_u32;
+        let snan64 = 0x7FF0_0000_0000_0001_u64;
+        let snan32 = 0x7F80_0001_u32;
         let mut a = Alias64::default();
         a.as_mut().set_f64(f64::from_bits(snan64));
         assert_eq!(a.as_ref().u64(), snan64);
@@ -1472,10 +1612,7 @@ mod unit_tests {
             hash_of(&Alias16::from_u16(7))
         );
         assert_eq!(hash_of(&Alias32::from_u32(9)), hash_of(&9u32));
-        assert_eq!(
-            hash_of(&Alias32::from_f32(1.5)),
-            hash_of(&1.5f32.to_bits())
-        );
+        assert_eq!(hash_of(&Alias32::from_f32(1.5)), hash_of(&1.5f32.to_bits()));
         let mut set = std::collections::HashSet::new();
         assert!(set.insert(Alias32::from_f32(0.0)));
         assert!(set.insert(Alias32::from_f32(-0.0)));
@@ -1513,12 +1650,12 @@ mod unit_tests {
         assert!(Alias32Mut::from_bytes(buf[2..].first_chunk_mut().unwrap()).is_none());
         Alias16Mut::from_bytes(buf[6..].first_chunk_mut().unwrap())
             .unwrap()
-            .set_u16(0xbeef);
+            .set_u16(0xBEEF);
         Alias32Mut::from_bytes(buf[0..].first_chunk_mut().unwrap())
             .unwrap()
             .set_f32(1.0);
         let mut want = 0x0807_0605_0403_0201u64.to_ne_bytes();
-        want[6..].copy_from_slice(&0xbeefu16.to_ne_bytes());
+        want[6..].copy_from_slice(&0xBEEFu16.to_ne_bytes());
         want[..4].copy_from_slice(&1.0f32.to_bits().to_ne_bytes());
         assert_eq!(*buf, want);
         // The same address is accepted by both handles and by `from_ptr`.
@@ -1541,7 +1678,7 @@ mod unit_tests {
         let lanes = unsafe { raw.u16_ };
         assert_eq!(lanes, [5, 6, 7, 8]);
         // SAFETY: a null pointer is accepted and yields no handle.
-        assert!(unsafe { Alias64Ref::from_ptr(core::ptr::null_mut()) }.is_none());
+        assert!(unsafe { Alias64Ref::from_ptr(ptr::null_mut()) }.is_none());
     }
 
     #[test]

@@ -1,5 +1,16 @@
-use core::ptr::{addr_of, addr_of_mut};
-use ffmpeg_bindings::libavutil::libavutil::{aes::Direction, des::Des, ffi};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
+use ffmpeg_bindings::libavutil::libavutil::des::Des;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// The safe direction for C's `decrypt` flag.
 fn direction(decrypt: bool) -> Direction {
@@ -19,15 +30,13 @@ impl Reference {
         assert!(!ptr.is_null());
         Self(ptr)
     }
+
     fn fields(&self) -> (i32, [[u64; 16]; 3]) {
         // SAFETY: this fixture owns a live, fully initialized context; it is
         // not mutated during these raw field projections, which form no references.
-        unsafe {
-            (
-                addr_of!((*self.0).triple_des).read(),
-                addr_of!((*self.0).round_keys).read(),
-            )
-        }
+        (unsafe { (*self.0).triple_des }, unsafe {
+            (*self.0).round_keys
+        })
     }
 }
 impl Drop for Reference {
@@ -105,11 +114,14 @@ fn lifecycle_fields_and_multicall_state_agree() {
         let keys = [[flag as u64; 16]; 3];
         safe.as_mut().set_triple_des(flag);
         safe.as_mut().set_round_keys(keys);
-        // SAFETY: the fixture owns the entire initialized context exclusively;
-        // integers accept these values and the projections create no references.
-        unsafe {
-            addr_of_mut!((*raw.0).triple_des).write(flag);
-            addr_of_mut!((*raw.0).round_keys).write(keys);
+        // For the unsafe operations below: the fixture owns the entire initialized context
+        // exclusively; integers accept these values and the projections create no
+        // references.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { (*raw.0).triple_des = flag };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*raw.0).round_keys = keys };
         }
         assert_eq!(safe.as_ref().triple_des(), raw.fields().0);
         assert_eq!(safe.as_ref().round_keys(), raw.fields().1);
@@ -163,7 +175,7 @@ fn copies_and_clones_track_c_struct_copies() {
                 2,
                 core::ptr::null_mut(),
                 decrypt,
-            )
+            );
         };
         output.0
     };
@@ -205,7 +217,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                 let mut iv_a = [0x35; 8];
                 let mut iv_b = iv_a;
                 for blocks in [0, 1, 2, 7, 3] {
-                    let src = &input[1..1 + blocks * 8];
+                    let src = &input[1..=(blocks * 8)];
                     let mut expected = vec![0x99; blocks * 8];
                     let mut actual = expected.clone();
                     // SAFETY: live read-only context, disjoint initialized buffers
@@ -222,7 +234,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                                 core::ptr::null_mut()
                             },
                             i32::from(decrypt),
-                        )
+                        );
                     };
                     safe.as_ref()
                         .crypt(
@@ -253,7 +265,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                                 core::ptr::null_mut()
                             },
                             i32::from(decrypt),
-                        )
+                        );
                     };
                     safe.as_ref()
                         .crypt_in_place(
@@ -283,7 +295,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                         blocks as i32,
                         iv_a.as_mut_ptr(),
                         i32::from(decrypt),
-                    )
+                    );
                 };
                 safe.as_ref()
                     .crypt_zeros(&mut zeros, Some(&mut iv_b), direction(decrypt))
@@ -291,7 +303,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                 assert_eq!(zeros, expected);
                 assert_eq!(iv_a, iv_b);
             }
-            let src = &input[1..1 + blocks * 8];
+            let src = &input[1..=(blocks * 8)];
             let mut expected_mac = [0; 8];
             // SAFETY: live context; count input blocks, eight-byte writable result.
             // MAC leaves output unchanged for empty input, initialized above.
@@ -301,7 +313,7 @@ fn crypt_cbc_in_place_zero_input_and_mac_sequences() {
                     expected_mac.as_mut_ptr(),
                     src.as_ptr(),
                     blocks as i32,
-                )
+                );
             };
             assert_eq!(safe.as_ref().mac(src).unwrap(), expected_mac);
         }

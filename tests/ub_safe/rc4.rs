@@ -1,3 +1,7 @@
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::rc4::{Rc4, Rc4Box};
 
@@ -146,7 +150,7 @@ pub(super) fn batch2_foreign_writes_across_reborrows() {
     let mut heap = Rc4::new(b"key").unwrap();
     for mut parent in [inline.as_mut(), heap.as_mut()] {
         for len in [0, 1, 255, 256, 513] {
-            let mut data = vec![0x6a; len + 1];
+            let mut data = vec![0x6A; len + 1];
             let input = data.clone();
             parent.as_mut().init(b"key").unwrap();
             parent.as_mut().crypt_in_place(&mut data[1..]).unwrap();

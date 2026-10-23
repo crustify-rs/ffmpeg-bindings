@@ -1,9 +1,19 @@
 //! UB tests for `libavutil/frame.h`'s unsafe API, each call within its
 //! `# Safety` contract.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// `SideDataDescriptor::from_raw`: adopting C's own table entries, string
 /// literals, NULL, and exactly sized leaked heap strings (so a read past the
-/// NUL is an ASan report), with the property bits at their edges; adopted
+/// NUL is an `ASan` report), with the property bits at their edges; adopted
 /// values outliving the raw struct they were copied from, in `const`
 /// context, and read on several threads. Tests without `c_table` in their
 /// name make no C call and also run under Miri.
@@ -19,7 +29,7 @@ mod side_data_descriptor_from_raw {
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
-    /// LeakSanitizer nor Miri reports it.
+    /// `LeakSanitizer` nor Miri reports it.
     fn leaked(bytes: &[u8]) -> *const c_char {
         static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
         let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
@@ -49,7 +59,7 @@ mod side_data_descriptor_from_raw {
             leaked(b"\x80\xff"),
             leaked(&vec![b'z'; 8192]),
         ];
-        let props = [0, 1, 0x1f, 0x20, 0x8000_0000, c_uint::MAX];
+        let props = [0, 1, 0x1F, 0x20, 0x8000_0000, c_uint::MAX];
         for &name in &names {
             for &p in &props {
                 let r = ffi::AVSideDataDescriptor { name, props: p };
@@ -94,12 +104,9 @@ mod side_data_descriptor_from_raw {
             props: 2,
         };
         // SAFETY: a literal.
-        let (mut a, b) = unsafe {
-            (
-                SideDataDescriptor::from_raw(r),
-                SideDataDescriptor::from_raw(r),
-            )
-        };
+        let (mut a, b) = (unsafe { SideDataDescriptor::from_raw(r) }, unsafe {
+            SideDataDescriptor::from_raw(r)
+        });
         a.as_mut().set_props(SideDataProps::empty());
         assert_eq!(b.as_ref().props(), SideDataProps::MULTI);
         assert_ne!(a, b);
@@ -189,11 +196,13 @@ mod side_data_array_from_raw_parts {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        SideDataArray, SideDataFlags, SideDataProps, SideDataType,
+    };
 
     type Parts = (*mut *mut ffi::AVFrameSideData, c_int);
 
-    /// Whether every byte of `bytes` is `b`, compared as one slice: BSan
+    /// Whether every byte of `bytes` is `b`, compared as one slice: `BSan`
     /// retags once per element an iterator yields.
     fn is_all(bytes: &[u8], b: u8) -> bool {
         *bytes == *vec![b; bytes.len()]
@@ -211,17 +220,24 @@ mod side_data_array_from_raw_parts {
         // SAFETY: the array C built so far, or NULL and 0; the specs never
         // repeat a non-MULTI kind.
         let e = unsafe {
-            ffi::av_frame_side_data_new(&mut parts.0, &mut parts.1, kind.into_raw(), len, 0)
+            ffi::av_frame_side_data_new(&raw mut parts.0, &raw mut parts.1, kind.into_raw(), len, 0)
         };
         assert!(!e.is_null());
-        // SAFETY: the fresh entry's sole payload of `len` bytes, written in
-        // full, and its metadata slot.
-        unsafe {
-            ptr::write_bytes((*e).data, byte, len);
-            if let Some(key) = key {
-                assert!(
-                    ffi::av_dict_set(&raw mut (*e).metadata, key.as_ptr(), c"v".as_ptr(), 0) >= 0
-                );
+        // For the unsafe operations below: the fresh entry's sole payload of `len` bytes, written
+        // in full, and its metadata slot.
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_3 = unsafe { (*e).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::write_bytes(data_3, byte, len) };
+            // SAFETY: `e` is to a live object, as the block below relies on, so the
+            // place of its `metadata` field is in bounds; nothing is accessed here.
+            let metadata_ptr = unsafe { &raw mut (*e).metadata };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                if let Some(key) = key {
+                    assert!(ffi::av_dict_set(metadata_ptr, key.as_ptr(), c"v".as_ptr(), 0) >= 0);
+                }
             }
         }
     }
@@ -298,10 +314,10 @@ mod side_data_array_from_raw_parts {
             // even ones) the first time round, and none after.
             unsafe {
                 ffi::av_frame_side_data_remove_by_props(
-                    &mut sd,
-                    &mut nb,
+                    &raw mut sd,
+                    &raw mut nb,
                     SideDataProps::MULTI.bits() as c_int,
-                )
+                );
             };
         }
         // SAFETY: as above.
@@ -321,21 +337,22 @@ mod side_data_array_from_raw_parts {
             let (sd, nb) = built(&lens);
             let mut copy: Parts = (ptr::null_mut(), 0);
             for i in 0..nb as usize {
-                // SAFETY: entry `i` of the C array, whose buffer C shares
-                // with the new entry and whose metadata it copies.
+                // SAFETY: as the comment below states, for this part of the operation.
+                let sd_add = unsafe { sd.add(i) };
+                // SAFETY: entry `i` of the C array, initialised.
+                let entry = unsafe { *sd_add };
+                // SAFETY: a live entry, whose buffer C shares with the new entry and whose
+                // metadata it copies.
                 let r = unsafe {
-                    ffi::av_frame_side_data_clone(&mut copy.0, &mut copy.1, *sd.add(i), 0)
+                    ffi::av_frame_side_data_clone(&raw mut copy.0, &raw mut copy.1, entry, 0)
                 };
                 assert_eq!(r, 0);
             }
             // SAFETY: two arrays C built, each held by one owner; their
             // entries are distinct and share only buffers, by count.
-            let (mut a, mut b) = unsafe {
-                (
-                    SideDataArray::from_raw_parts(sd, nb),
-                    SideDataArray::from_raw_parts(copy.0, copy.1),
-                )
-            };
+            let (mut a, mut b) = (unsafe { SideDataArray::from_raw_parts(sd, nb) }, unsafe {
+                SideDataArray::from_raw_parts(copy.0, copy.1)
+            });
             check(&a, &lens);
             check(&b, &lens);
             assert!(a.as_mut().iter_mut().all(|mut e| e.data_mut().is_none()));
@@ -354,10 +371,14 @@ mod side_data_array_from_raw_parts {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn references_c_keeps_for_the_caller_make_payloads_read_only() {
-        // SAFETY: a fresh C buffer of 6 bytes, filled.
-        let mut buf = unsafe {
-            let b = ffi::av_buffer_alloc(6);
-            ptr::write_bytes((*b).data, 0x42, 6);
+        // For the unsafe operations below: a fresh C buffer of 6 bytes, filled.
+        let mut buf = {
+            // SAFETY: as the comment above this block states.
+            let b = unsafe { ffi::av_buffer_alloc(6) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_2 = unsafe { (*b).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::write_bytes(data_2, 0x42, 6) };
             b
         };
         let mut parts: Parts = (ptr::null_mut(), 0);
@@ -366,10 +387,10 @@ mod side_data_array_from_raw_parts {
         // one for the entry and which it leaves the caller.
         let e = unsafe {
             ffi::av_frame_side_data_add(
-                &mut parts.0,
-                &mut parts.1,
+                &raw mut parts.0,
+                &raw mut parts.1,
                 SideDataType::AFD.into_raw(),
-                &mut buf,
+                &raw mut buf,
                 flags,
             )
         };
@@ -381,10 +402,11 @@ mod side_data_array_from_raw_parts {
         assert!(entry.data_mut().is_none());
         assert_eq!(entry.as_ref().data(), [0x42; 6]);
         // SAFETY: the caller's reference, released once.
-        unsafe { ffi::av_buffer_unref(&mut buf) };
+        unsafe { ffi::av_buffer_unref(&raw mut buf) };
         entry.data_mut().unwrap()[0] = 1;
         assert_eq!(a.as_ref().get(0).unwrap().data()[..2], [1, 0x42]);
-        let fresh = ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference::alloc_zeroed(1).unwrap();
+        let fresh = ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference::alloc_zeroed(1)
+            .unwrap();
         assert!(
             a.as_mut()
                 .add(SideDataType::AFD, fresh, SideDataFlags::NONE)
@@ -421,7 +443,7 @@ mod side_data_array_from_raw_parts {
 /// `FrameMut::set_data_ptr` and `set_extended_data_ptr` (buffer-frame
 /// wave 3, batch 0): planes of frames that are not reference counted over
 /// exactly sized Rust memory that outlives them (so that a read past a
-/// plane is an ASan report), read by C through `try_clone`'s copy; pointers
+/// plane is an `ASan` report), read by C through `try_clone`'s copy; pointers
 /// into a frame's own buffers; NULL; the planes a later buffer at index 0
 /// clears. (`replace_hw_frames_context`, an unsafe seam until hwcontext
 /// wave 2 wrapped `AVHWFramesContext`, is safe now: `ub_safe/frame.rs`.)
@@ -478,7 +500,7 @@ mod frame_type {
             drop(f);
             drop(mem);
             // The copy holds its own buffers.
-            assert!(copy.as_ref().buffer(0).unwrap().ref_count() == 1);
+            assert_eq!(copy.as_ref().buffer(0).unwrap().ref_count(), 1);
         }
     }
 
@@ -616,7 +638,7 @@ mod frame_type {
     #[cfg_attr(miri, ignore = "calls C")]
     fn clones_refuse_channels_past_data() {
         const SAMPLES: usize = 64;
-        let mut mems: Vec<Vec<u8>> = (0..NUM_DATA_POINTERS + 1)
+        let mut mems: Vec<Vec<u8>> = (0..=NUM_DATA_POINTERS)
             .map(|c| pattern(SAMPLES + c)[c..].to_vec())
             .collect();
         let mut f = Frame::new().unwrap();
@@ -672,12 +694,14 @@ mod frame_type {
         m.set_sample_count(SAMPLES as i32);
         m.set_linesize(0, SAMPLES as i32);
         m.set_channel_layout(ChannelLayout::unspecified(2)).unwrap();
-        // SAFETY: the frame holds no buffer; each block holds a channel's
+        // For the unsafe operations below: the frame holds no buffer; each block holds a channel's
         // SAMPLES U8 samples, `left` until its plane is replaced below, the
         // others for the frame's life.
-        unsafe {
-            m.set_data_ptr(0, left.as_mut_ptr());
-            m.set_data_ptr(1, right.as_mut_ptr());
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { m.set_data_ptr(0, left.as_mut_ptr()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { m.set_data_ptr(1, right.as_mut_ptr()) };
         }
         m.alloc_extended_data().unwrap();
         // SAFETY: as above.
@@ -685,10 +709,12 @@ mod frame_type {
         drop(left);
         // The array's entries are NULL: C refuses to copy.
         assert!(f.as_ref().try_clone().is_none());
-        // SAFETY: as above, lent to the array itself.
-        unsafe {
-            lend_channel(&mut f, 0, &mut new_left);
-            lend_channel(&mut f, 1, &mut right);
+        // For the unsafe operations below: as above, lent to the array itself.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { lend_channel(&mut f, 0, &mut new_left) };
+            // SAFETY: as the comment above this block states.
+            unsafe { lend_channel(&mut f, 1, &mut right) };
         }
         let copy = f.as_ref().try_clone().expect("C copies both channels");
         drop(f);

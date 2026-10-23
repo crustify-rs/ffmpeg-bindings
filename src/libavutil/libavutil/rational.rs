@@ -76,7 +76,7 @@ unsafe impl Sync for RationalRef<'_> {}
 unsafe impl Sync for RationalMut<'_> {}
 
 impl Rational {
-    /// Wraps: av_make_q
+    /// Wraps: `av_make_q`
     ///
     /// The rational `num / den`, as given: not reduced, and a zero or
     /// negative denominator is kept.
@@ -137,10 +137,13 @@ impl RationalRef<'_> {
     /// The numerator.
     #[must_use]
     pub fn num(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `num` field is in bounds; nothing is accessed here.
+        let num_ptr = unsafe { addr_of!((*self.as_ptr()).num) };
         // SAFETY: a read of the `num` field projected through the shared
         // handle's pointer to a live, initialised `AVRational`; every bit
         // pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).num).read() }
+        unsafe { num_ptr.read() }
     }
 
     /// Field: AVRational.den
@@ -148,10 +151,13 @@ impl RationalRef<'_> {
     /// The denominator, possibly zero or negative.
     #[must_use]
     pub fn den(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `den` field is in bounds; nothing is accessed here.
+        let den_ptr = unsafe { addr_of!((*self.as_ptr()).den) };
         // SAFETY: a read of the `den` field projected through the shared
         // handle's pointer to a live, initialised `AVRational`; every bit
         // pattern is a valid `int`.
-        unsafe { addr_of!((*self.as_ptr()).den).read() }
+        unsafe { den_ptr.read() }
     }
 
     /// A copy of the whole rational, independent of the place it was read
@@ -170,10 +176,13 @@ impl RationalMut<'_> {
     ///
     /// Sets the numerator, leaving the denominator as it is.
     pub fn set_num(&mut self, num: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `num` field is in bounds; nothing is accessed here.
+        let num_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).num) };
         // SAFETY: a write of the `num` field projected through the exclusive
         // handle's pointer to a live `AVRational`; the old value owns nothing
         // to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).num).write(num) }
+        unsafe { num_ptr.write(num) }
     }
 
     /// Field: AVRational.den
@@ -181,10 +190,13 @@ impl RationalMut<'_> {
     /// Sets the denominator, leaving the numerator as it is; zero and
     /// negative values are stored as given.
     pub fn set_den(&mut self, den: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `den` field is in bounds; nothing is accessed here.
+        let den_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).den) };
         // SAFETY: a write of the `den` field projected through the exclusive
         // handle's pointer to a live `AVRational`; the old value owns nothing
         // to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).den).write(den) }
+        unsafe { den_ptr.write(den) }
     }
 
     /// Overwrites both parts with `q`'s.
@@ -206,7 +218,7 @@ pub struct Reduced {
     pub exact: bool,
 }
 
-/// Wraps: av_reduce
+/// Wraps: `av_reduce`
 ///
 /// `num / den` in lowest terms, both terms at most `max` in magnitude: the
 /// exact fraction when it fits, and otherwise its closest approximation within
@@ -216,10 +228,10 @@ pub struct Reduced {
 /// `None` for arguments C cannot reduce without undefined behaviour, which
 /// the call never reaches:
 ///
-/// - a negative `max`: C's result terms are `int`, and a negative bound gives
-///   meaningless terms or overflows when negating them;
-/// - `num` or `den` equal to `i64::MIN`, whose absolute value C takes with a
-///   signed negation that overflows.
+/// - a negative `max`: C's result terms are `int`, and a negative bound gives meaningless terms or
+///   overflows when negating them;
+/// - `num` or `den` equal to `i64::MIN`, whose absolute value C takes with a signed negation that
+///   overflows.
 ///
 /// The bound is an `i32` because each term of the result is one: C narrows
 /// the terms of a wider bound to `int` and overflows negating the result.
@@ -232,7 +244,7 @@ pub fn reduce(num: i64, den: i64, max: i32) -> Option<Reduced> {
     // SAFETY: both out-parameters are live, writable locals C only stores to.
     // `num` and `den` are not `INT64_MIN` and `max` lies in `0..=INT_MAX`, so
     // every term stays within `int` and none of C's arithmetic overflows.
-    let exact = unsafe { ffi::av_reduce(&mut dst_num, &mut dst_den, num, den, max.into()) };
+    let exact = unsafe { ffi::av_reduce(&raw mut dst_num, &raw mut dst_den, num, den, max.into()) };
     Some(Reduced {
         value: Rational::from_raw(ffi::AVRational {
             num: dst_num,
@@ -243,7 +255,7 @@ pub fn reduce(num: i64, den: i64, max: i32) -> Option<Reduced> {
 }
 
 impl Rational {
-    /// Wraps: av_inv_q
+    /// Wraps: `av_inv_q`
     ///
     /// The reciprocal `den / num`: the two parts swapped, so `0/d` becomes
     /// `d/0` and the sign stays where it was.
@@ -254,7 +266,7 @@ impl Rational {
         Self::from_raw(unsafe { ffi::av_inv_q(self.into_raw()) })
     }
 
-    /// Wraps: av_q2d
+    /// Wraps: `av_q2d`
     ///
     /// The value as an `f64`: `num as f64 / den as f64`, so `x/0` is an
     /// infinity of `x`'s sign and `0/0` is NaN.
@@ -265,7 +277,7 @@ impl Rational {
         unsafe { ffi::av_q2d(self.into_raw()) }
     }
 
-    /// Wraps: av_d2q
+    /// Wraps: `av_d2q`
     ///
     /// The closest rational to `d` whose terms are at most `max` in
     /// magnitude: `0/0` for NaN, `1/0` or `-1/0` beyond `±(i32::MAX + 3)`
@@ -286,7 +298,7 @@ impl Rational {
         Some(Self::from_raw(unsafe { ffi::av_d2q(d, max) }))
     }
 
-    /// Wraps: av_nearer_q
+    /// Wraps: `av_nearer_q`
     ///
     /// Compares how near `a` and `b` are to `self`: [`Less`](Ordering::Less)
     /// when `a` is nearer, [`Greater`](Ordering::Greater) when `b` is, and
@@ -321,7 +333,7 @@ impl Rational {
         }
     }
 
-    /// Wraps: av_find_nearest_q_idx
+    /// Wraps: `av_find_nearest_q_idx`
     ///
     /// The index of the candidate nearest `self`, the first one on a tie, as
     /// [`cmp_distance`](Self::cmp_distance) orders them.
@@ -371,7 +383,7 @@ impl Rational {
         usize::try_from(i).ok()
     }
 
-    /// Wraps: av_q2intfloat
+    /// Wraps: `av_q2intfloat`
     ///
     /// The bits of the IEEE 754 single-precision float nearest the value,
     /// ties away from zero: C computes them in integer arithmetic, so they do
@@ -402,7 +414,7 @@ impl Rational {
         Some(bits | sign)
     }
 
-    /// Wraps: av_gcd_q
+    /// Wraps: `av_gcd_q`
     ///
     /// The largest rational of which both `self` and `other` are integer
     /// multiples, the greatest common divisor of the numerators over the
@@ -441,7 +453,7 @@ impl PartialEq for Rational {
 }
 
 impl PartialOrd for Rational {
-    /// Wraps: av_cmp_q
+    /// Wraps: `av_cmp_q`
     ///
     /// Orders the values, with `x/0` as the infinity of `x`'s sign. `None`
     /// where C reports `INT_MIN`: when either is `0/0`, or one is `0/d` and
@@ -462,7 +474,7 @@ impl PartialOrd for Rational {
 impl Add for Rational {
     type Output = Self;
 
-    /// Wraps: av_add_q
+    /// Wraps: `av_add_q`
     ///
     /// The sum, in lowest terms when it fits, and otherwise its closest
     /// approximation with terms within `i32::MAX` (see [`reduce`]).
@@ -487,7 +499,7 @@ impl Add for Rational {
 impl Sub for Rational {
     type Output = Self;
 
-    /// Wraps: av_sub_q
+    /// Wraps: `av_sub_q`
     ///
     /// The difference, in lowest terms when it fits, and otherwise its
     /// closest approximation with terms within `i32::MAX` (see [`reduce`]).
@@ -504,7 +516,7 @@ impl Sub for Rational {
 impl Mul for Rational {
     type Output = Self;
 
-    /// Wraps: av_mul_q
+    /// Wraps: `av_mul_q`
     ///
     /// The product, in lowest terms when it fits, and otherwise its closest
     /// approximation with terms within `i32::MAX` (see [`reduce`]).
@@ -519,7 +531,7 @@ impl Mul for Rational {
 impl Div for Rational {
     type Output = Self;
 
-    /// Wraps: av_div_q
+    /// Wraps: `av_div_q`
     ///
     /// The quotient, `self` times `rhs`'s reciprocal, in lowest terms when it
     /// fits, and otherwise its closest approximation with terms within
@@ -533,10 +545,18 @@ impl Div for Rational {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
-    use super::*;
     use core::mem::{align_of, offset_of, size_of};
 
+    use super::*;
     use crate::libavutil::libavutil::mem::HeapBox;
 
     #[test]
@@ -659,20 +679,18 @@ mod unit_tests {
         // read it back afterwards.
         let mut q = Rational::zeroed();
         let mut m = q.as_mut();
+        // SAFETY: `m.as_mut_ptr()` is to a live object, as the block below relies on, so the
+        // place of its `den` field is in bounds; nothing is accessed here.
+        let den_ptr = unsafe { &raw mut (*m.as_mut_ptr()).den };
+        // SAFETY: `m.as_mut_ptr()` is to a live object, as the block below relies on, so the
+        // place of its `num` field is in bounds; nothing is accessed here.
+        let num_ptr = unsafe { &raw mut (*m.as_mut_ptr()).num };
         // SAFETY: both fields are projected from the exclusive handle's
         // pointer to a live `AVRational` nothing else accesses during the
         // call; `av_reduce` stores one `int` through each, and the terms
         // are within `int` with a positive bound, so none of its arithmetic
         // overflows.
-        let exact = unsafe {
-            ffi::av_reduce(
-                addr_of_mut!((*m.as_mut_ptr()).num),
-                addr_of_mut!((*m.as_mut_ptr()).den),
-                60000,
-                2002,
-                i32::MAX.into(),
-            )
-        };
+        let exact = unsafe { ffi::av_reduce(num_ptr, den_ptr, 60000, 2002, i32::MAX.into()) };
         assert_eq!(exact, 1);
         assert_eq!((m.as_ref().num(), m.as_ref().den()), (30000, 1001));
         let num = m.as_ref().num();
@@ -889,7 +907,7 @@ mod unit_tests {
             let want = (num as f32 / den as f32).to_bits();
             assert_eq!(q(num, den).to_f32_bits(), Some(want), "{num}/{den}");
         }
-        assert_eq!(q(0, 0).to_f32_bits(), Some(0xffc0_0000));
+        assert_eq!(q(0, 0).to_f32_bits(), Some(0xFFC0_0000));
         assert_eq!(q(0, 5).to_f32_bits(), Some(0));
         assert_eq!(q(0, -5).to_f32_bits(), Some(0));
         assert_eq!(q(3, 0).to_f32_bits(), Some(f32::INFINITY.to_bits()));

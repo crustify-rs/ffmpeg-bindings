@@ -6,7 +6,7 @@ use ffibox::CPlainElem;
 
 use super::ffi;
 
-/// Wraps: AVColorSpace
+/// Wraps: `AVColorSpace`
 /// Handwritten
 ///
 /// The YUV colour space (matrix coefficients) of a picture, as numbered by
@@ -38,56 +38,58 @@ use super::ffi;
 pub struct ColorSpace(ffi::AVColorSpace);
 
 impl ColorSpace {
-    /// GBR order of the RGB coefficients; also IEC 61966-2-1 (sRGB), YZX and
-    /// ST 428-1.
-    pub const RGB: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RGB);
-    /// ITU-R BT.709; also BT.1361, IEC 61966-2-4 xvYCC709 and SMPTE RP 177
-    /// Annex B.
-    pub const BT709: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT709);
-    /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_UNSPECIFIED);
-    /// Reserved for future use by ITU-T and ISO/IEC.
-    pub const RESERVED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RESERVED);
-    /// FCC Title 47 Code of Federal Regulations 73.682 (a)(20).
-    pub const FCC: Self = Self(ffi::AVColorSpace::AVCOL_SPC_FCC);
+    /// ITU-R BT.2020 constant luminance.
+    pub const BT2020_CL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_CL);
+    /// ITU-R BT.2020 non-constant luminance.
+    pub const BT2020_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_NCL);
     /// ITU-R BT.470 BG; also BT.601-6 625, BT.1358 625, BT.1700 625 PAL and
     /// SECAM, and IEC 61966-2-4 xvYCC601.
     pub const BT470BG: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT470BG);
-    /// SMPTE 170 M; also ITU-R BT.601-6 525, BT.1358 525 and BT.1700 NTSC.
-    pub const SMPTE170M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE170M);
-    /// SMPTE 240 M.
-    pub const SMPTE240M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE240M);
-    /// YCgCo, used by Dirac / VC-2 and H.264 FRext.
-    pub const YCGCO: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO);
-    /// Another name for [`YCGCO`](Self::YCGCO).
-    pub const YCOCG: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCOCG);
-    /// ITU-R BT.2020 non-constant luminance.
-    pub const BT2020_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_NCL);
-    /// ITU-R BT.2020 constant luminance.
-    pub const BT2020_CL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_CL);
-    /// SMPTE 2085, Y'D'zD'x.
-    pub const SMPTE2085: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE2085);
-    /// Chromaticity-derived non-constant luminance.
-    pub const CHROMA_DERIVED_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_CHROMA_DERIVED_NCL);
+    /// ITU-R BT.709; also BT.1361, IEC 61966-2-4 xvYCC709 and SMPTE RP 177
+    /// Annex B.
+    pub const BT709: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT709);
     /// Chromaticity-derived constant luminance.
     pub const CHROMA_DERIVED_CL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_CHROMA_DERIVED_CL);
-    /// ITU-R BT.2100-0 ICtCp.
+    /// Chromaticity-derived non-constant luminance.
+    pub const CHROMA_DERIVED_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_CHROMA_DERIVED_NCL);
+    /// FCC Title 47 Code of Federal Regulations 73.682 (a)(20).
+    pub const FCC: Self = Self(ffi::AVColorSpace::AVCOL_SPC_FCC);
+    /// ITU-R BT.2100-0 `ICtCp`.
     pub const ICTCP: Self = Self(ffi::AVColorSpace::AVCOL_SPC_ICTCP);
     /// SMPTE ST 2128 IPT-C2.
     pub const IPT_C2: Self = Self(ffi::AVColorSpace::AVCOL_SPC_IPT_C2);
+    /// Reserved for future use by ITU-T and ISO/IEC.
+    pub const RESERVED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RESERVED);
+    /// GBR order of the RGB coefficients; also IEC 61966-2-1 (sRGB), YZX and
+    /// ST 428-1.
+    pub const RGB: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RGB);
+    /// SMPTE 170 M; also ITU-R BT.601-6 525, BT.1358 525 and BT.1700 NTSC.
+    pub const SMPTE170M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE170M);
+    /// SMPTE 2085, Y'D'zD'x.
+    pub const SMPTE2085: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE2085);
+    /// SMPTE 240 M.
+    pub const SMPTE240M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE240M);
+    /// Unspecified.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_UNSPECIFIED);
+    /// `YCgCo`, used by Dirac / VC-2 and H.264 `FRext`.
+    pub const YCGCO: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO);
     /// YCgCo-R, even addition of bits.
     pub const YCGCO_RE: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO_RE);
     /// YCgCo-R, odd addition of bits.
     pub const YCGCO_RO: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO_RO);
+    /// Another name for [`YCGCO`](Self::YCGCO).
+    pub const YCOCG: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCOCG);
 
     /// The colour space C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVColorSpace) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this colour space.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVColorSpace {
         self.0
     }
@@ -155,7 +157,7 @@ impl From<ColorSpace> for ffi::AVColorSpace {
 // memory is the whole of it.
 unsafe impl CPlainElem for ColorSpace {}
 
-/// Wraps: AVColorTransferCharacteristic
+/// Wraps: `AVColorTransferCharacteristic`
 /// Handwritten
 ///
 /// The colour transfer characteristic (opto-electronic transfer function) of
@@ -190,63 +192,65 @@ unsafe impl CPlainElem for ColorSpace {}
 pub struct ColorTransfer(ffi::AVColorTransferCharacteristic);
 
 impl ColorTransfer {
-    /// Reserved.
-    pub const RESERVED0: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED0);
+    /// ARIB STD-B67, known as hybrid log-gamma (HLG).
+    pub const ARIB_STD_B67: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_ARIB_STD_B67);
+    /// ITU-R BT.1361 extended colour gamut.
+    pub const BT1361_ECG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT1361_ECG);
+    /// ITU-R BT.2020 for 10-bit systems.
+    pub const BT2020_10: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_10);
+    /// ITU-R BT.2020 for 12-bit systems.
+    pub const BT2020_12: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_12);
     /// ITU-R BT.709; also BT.1361.
     pub const BT709: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT709);
-    /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_UNSPECIFIED);
-    /// Reserved.
-    pub const RESERVED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED);
+    /// The first of FFmpeg's extensions beyond ISO/IEC 23091-2; the value of
+    /// [`V_LOG`](Self::V_LOG).
+    pub const EXT_BASE: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_BASE);
     /// Gamma 2.2: ITU-R BT.470 M; also BT.1700 625 PAL and SECAM.
     pub const GAMMA22: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_GAMMA22);
     /// Gamma 2.8: ITU-R BT.470 BG.
     pub const GAMMA28: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_GAMMA28);
-    /// SMPTE 170 M; also ITU-R BT.601-6 525 or 625, BT.1358 525 or 625 and
-    /// BT.1700 NTSC.
-    pub const SMPTE170M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE170M);
-    /// SMPTE 240 M.
-    pub const SMPTE240M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE240M);
+    /// IEC 61966-2-1 (sRGB or sYCC).
+    pub const IEC61966_2_1: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_1);
+    /// IEC 61966-2-4.
+    pub const IEC61966_2_4: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_4);
     /// Linear transfer characteristics.
     pub const LINEAR: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LINEAR);
     /// Logarithmic transfer characteristic (100:1 range).
     pub const LOG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LOG);
     /// Logarithmic transfer characteristic (100 * sqrt(10) : 1 range).
     pub const LOG_SQRT: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LOG_SQRT);
-    /// IEC 61966-2-4.
-    pub const IEC61966_2_4: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_4);
-    /// ITU-R BT.1361 extended colour gamut.
-    pub const BT1361_ECG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT1361_ECG);
-    /// IEC 61966-2-1 (sRGB or sYCC).
-    pub const IEC61966_2_1: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_1);
-    /// ITU-R BT.2020 for 10-bit systems.
-    pub const BT2020_10: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_10);
-    /// ITU-R BT.2020 for 12-bit systems.
-    pub const BT2020_12: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_12);
+    /// Reserved.
+    pub const RESERVED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED);
+    /// Reserved.
+    pub const RESERVED0: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED0);
+    /// SMPTE 170 M; also ITU-R BT.601-6 525 or 625, BT.1358 525 or 625 and
+    /// BT.1700 NTSC.
+    pub const SMPTE170M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE170M);
     /// SMPTE ST 2084 (PQ) for 10-, 12-, 14- and 16-bit systems.
     pub const SMPTE2084: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE2084);
-    /// Another name for [`SMPTE2084`](Self::SMPTE2084).
-    pub const SMPTEST2084: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTEST2084);
+    /// SMPTE 240 M.
+    pub const SMPTE240M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE240M);
     /// SMPTE ST 428-1.
     pub const SMPTE428: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE428);
+    /// Another name for [`SMPTE2084`](Self::SMPTE2084).
+    pub const SMPTEST2084: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTEST2084);
     /// Another name for [`SMPTE428`](Self::SMPTE428).
     pub const SMPTEST428_1: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTEST428_1);
-    /// ARIB STD-B67, known as hybrid log-gamma (HLG).
-    pub const ARIB_STD_B67: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_ARIB_STD_B67);
-    /// The first of FFmpeg's extensions beyond ISO/IEC 23091-2; the value of
-    /// [`V_LOG`](Self::V_LOG).
-    pub const EXT_BASE: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_BASE);
+    /// Unspecified.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_UNSPECIFIED);
     /// Panasonic V-Log, an FFmpeg extension.
     pub const V_LOG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_V_LOG);
 
     /// The transfer characteristic C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVColorTransferCharacteristic) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this transfer characteristic.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVColorTransferCharacteristic {
         self.0
     }
@@ -317,7 +321,7 @@ impl From<ColorTransfer> for ffi::AVColorTransferCharacteristic {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ColorTransfer {}
 
-/// Wraps: AVAlphaMode
+/// Wraps: `AVAlphaMode`
 /// Handwritten
 ///
 /// How a picture's alpha channel relates to its colour values.
@@ -349,21 +353,23 @@ unsafe impl CPlainElem for ColorTransfer {}
 pub struct AlphaMode(ffi::AVAlphaMode);
 
 impl AlphaMode {
-    /// Unknown alpha handling, or no alpha channel.
-    pub const UNSPECIFIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED);
     /// The alpha channel is multiplied into the colour values.
     pub const PREMULTIPLIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_PREMULTIPLIED);
     /// The alpha channel is independent of the colour values.
     pub const STRAIGHT: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_STRAIGHT);
+    /// Unknown alpha handling, or no alpha channel.
+    pub const UNSPECIFIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED);
 
     /// The alpha mode C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVAlphaMode) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this alpha mode.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVAlphaMode {
         self.0
     }
@@ -415,7 +421,7 @@ impl From<AlphaMode> for ffi::AVAlphaMode {
 // memory is the whole of it.
 unsafe impl CPlainElem for AlphaMode {}
 
-/// Wraps: AVPixelFormat
+/// Wraps: `AVPixelFormat`
 /// Handwritten
 ///
 /// The layout of a picture's pixels in memory: its planes, the order and
@@ -472,12 +478,14 @@ pub struct PixelFormat(ffi::AVPixelFormat);
 impl PixelFormat {
     /// The pixel format C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVPixelFormat) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this pixel format.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVPixelFormat {
         self.0
     }
@@ -615,7 +623,7 @@ pixel_formats! {
     BGR555BE = AV_PIX_FMT_BGR555BE;
     /// Packed BGR 5:5:5, 16bpp, (msb)1X 5B 5G 5R(lsb), little-endian, X=unused/undefined.
     BGR555LE = AV_PIX_FMT_BGR555LE;
-    /// Hardware acceleration through VA-API, `data[3]` contains a VASurfaceID.
+    /// Hardware acceleration through VA-API, `data[3]` contains a `VASurfaceID`.
     VAAPI = AV_PIX_FMT_VAAPI;
     /// Planar YUV 4:2:0, 24bpp, (1 Cr & Cb sample per 2x2 Y samples), little-endian.
     YUV420P16LE = AV_PIX_FMT_YUV420P16LE;
@@ -730,7 +738,7 @@ pixel_formats! {
     YUVA444P16BE = AV_PIX_FMT_YUVA444P16BE;
     /// Planar YUV 4:4:4 64bpp, (1 Cr & Cb sample per 1x1 Y & A samples, little-endian).
     YUVA444P16LE = AV_PIX_FMT_YUVA444P16LE;
-    /// HW acceleration through VDPAU, `Picture.data[3]` contains a VdpVideoSurface.
+    /// HW acceleration through VDPAU, `Picture.data[3]` contains a `VdpVideoSurface`.
     VDPAU = AV_PIX_FMT_VDPAU;
     /// Packed XYZ 4:4:4, 36 bpp, (msb) 12X, 12Y, 12Z (lsb), the 2-byte value for each X/Y/Z is
     /// stored as little-endian, the 4 lower bits are set to 0.
@@ -775,30 +783,30 @@ pixel_formats! {
     /// Before FFmpeg 5.0: `mfxFrameSurface1.Data.MemId` contains a pointer when importing the
     /// following frames as QSV frames:
     ///
-    /// VAAPI: `mfxFrameSurface1.Data.MemId` contains a pointer to VASurfaceID.
+    /// VAAPI: `mfxFrameSurface1.Data.MemId` contains a pointer to `VASurfaceID`.
     ///
-    /// DXVA2: `mfxFrameSurface1.Data.MemId` contains a pointer to IDirect3DSurface9.
+    /// DXVA2: `mfxFrameSurface1.Data.MemId` contains a pointer to `IDirect3DSurface9`.
     ///
     /// FFmpeg 5.0 and above: `mfxFrameSurface1.Data.MemId` contains a pointer to the mfxHDLPair
     /// structure when importing the following frames as QSV frames:
     ///
-    /// VAAPI: mfxHDLPair.first contains a VASurfaceID pointer. mfxHDLPair.second is always
+    /// VAAPI: mfxHDLPair.first contains a `VASurfaceID` pointer. mfxHDLPair.second is always
     /// `MFX_INFINITE`.
     ///
-    /// DXVA2: mfxHDLPair.first contains IDirect3DSurface9 pointer. mfxHDLPair.second is always
+    /// DXVA2: mfxHDLPair.first contains `IDirect3DSurface9` pointer. mfxHDLPair.second is always
     /// `MFX_INFINITE`.
     ///
-    /// D3D11: mfxHDLPair.first contains a ID3D11Texture2D pointer. mfxHDLPair.second contains
-    /// the texture array index of the frame if the ID3D11Texture2D is an array texture, or
+    /// D3D11: mfxHDLPair.first contains a `ID3D11Texture2D` pointer. mfxHDLPair.second contains
+    /// the texture array index of the frame if the `ID3D11Texture2D` is an array texture, or
     /// always `MFX_INFINITE` if it is a normal texture.
     QSV = AV_PIX_FMT_QSV;
     /// HW acceleration though MMAL, `data[3]` contains a pointer to the `MMAL_BUFFER_HEADER_T`
     /// structure.
     MMAL = AV_PIX_FMT_MMAL;
     /// HW decoding through Direct3D11 via old API, `Picture.data[3]` contains a
-    /// ID3D11VideoDecoderOutputView pointer.
+    /// `ID3D11VideoDecoderOutputView` pointer.
     D3D11VA_VLD = AV_PIX_FMT_D3D11VA_VLD;
-    /// HW acceleration through CUDA. `data[i]` contain CUdeviceptr pointers exactly as for
+    /// HW acceleration through CUDA. `data[i]` contain `CUdeviceptr` pointers exactly as for
     /// system memory frames.
     CUDA = AV_PIX_FMT_CUDA;
     /// Packed RGB 8:8:8, 32bpp, XRGBXRGB... X=unused/undefined.
@@ -915,8 +923,8 @@ pixel_formats! {
     /// This is preferred over the legacy [`D3D11VA_VLD`](Self::D3D11VA_VLD). The new D3D11
     /// hwaccel API and filtering support [`D3D11`](Self::D3D11) only.
     ///
-    /// `data[0]` contains a ID3D11Texture2D pointer, and `data[1]` contains the texture array
-    /// index of the frame as `intptr_t` if the ID3D11Texture2D is an array texture (or always 0
+    /// `data[0]` contains a `ID3D11Texture2D` pointer, and `data[1]` contains the texture array
+    /// index of the frame as `intptr_t` if the `ID3D11Texture2D` is an array texture (or always 0
     /// if it's a normal texture).
     D3D11 = AV_PIX_FMT_D3D11;
     /// Y, 9bpp, big-endian.
@@ -933,7 +941,7 @@ pixel_formats! {
     GBRAPF32LE = AV_PIX_FMT_GBRAPF32LE;
     /// DRM-managed buffers exposed through PRIME buffer sharing.
     ///
-    /// `data[0]` points to an AVDRMFrameDescriptor.
+    /// `data[0]` points to an `AVDRMFrameDescriptor`.
     DRM_PRIME = AV_PIX_FMT_DRM_PRIME;
     /// Hardware surfaces for OpenCL.
     ///
@@ -963,7 +971,7 @@ pixel_formats! {
     NV42 = AV_PIX_FMT_NV42;
     /// Vulkan hardware images.
     ///
-    /// `data[0]` points to an AVVkFrame.
+    /// `data[0]` points to an `AVVkFrame`.
     VULKAN = AV_PIX_FMT_VULKAN;
     /// Packed YUV 4:2:2 like YUYV422, 20bpp, data in the high bits, big-endian.
     Y210BE = AV_PIX_FMT_Y210BE;
@@ -1047,7 +1055,7 @@ pixel_formats! {
     GBRAP14LE = AV_PIX_FMT_GBRAP14LE;
     /// Hardware surfaces for Direct3D 12.
     ///
-    /// `data[0]` points to an AVD3D12VAFrame.
+    /// `data[0]` points to an `AVD3D12VAFrame`.
     D3D12 = AV_PIX_FMT_D3D12;
     /// Packed AYUV 4:4:4:4, 32bpp (1 Cr & Cb sample per 1x1 Y & A samples), AYUVAYUV...
     AYUV = AV_PIX_FMT_AYUV;
@@ -1093,7 +1101,7 @@ pixel_formats! {
     GRAYF16BE = AV_PIX_FMT_GRAYF16BE;
     /// IEEE-754 half precision Y, 16bpp, little-endian.
     GRAYF16LE = AV_PIX_FMT_GRAYF16LE;
-    /// HW acceleration through AMF. `data[0]` contain AMFSurface pointer.
+    /// HW acceleration through AMF. `data[0]` contain `AMFSurface` pointer.
     AMF_SURFACE = AV_PIX_FMT_AMF_SURFACE;
     /// Y, 32bpp, big-endian.
     GRAY32BE = AV_PIX_FMT_GRAY32BE;
@@ -1133,179 +1141,54 @@ pixel_formats! {
     GBRP12MSBLE = AV_PIX_FMT_GBRP12MSBLE;
     /// Hardware decoding through OpenHarmony.
     OHCODEC = AV_PIX_FMT_OHCODEC;
-    /// CUDA block-linear (opaque). `data[0]` is a CUarray in block-linear layout, e.g. from
+    /// CUDA block-linear (opaque). `data[0]` is a `CUarray` in block-linear layout, e.g. from
     /// NVDEC opaque decode. Use for zero-copy to NVENC (CUDA array input).
     CUARRAY = AV_PIX_FMT_CUARRAY;
 }
 
 impl PixelFormat {
-    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_Y400A`).
-    pub const Y400A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_Y400A);
-    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_GRAY8A`).
-    pub const GRAY8A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A);
-    /// Another name for [`GBRP`](Self::GBRP) (`AV_PIX_FMT_GBR24P`).
-    pub const GBR24P: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GBR24P);
-
-    /// [`ARGB`](Self::ARGB) on big-endian targets and [`BGRA`](Self::BGRA) on little-endian
-    /// ones: `AV_PIX_FMT_RGB32`, in native byte order.
-    pub const RGB32: Self = native_endian(Self::ARGB, Self::BGRA);
-    /// [`RGBA`](Self::RGBA) on big-endian targets and [`ABGR`](Self::ABGR) on little-endian
-    /// ones: `AV_PIX_FMT_RGB32_1`, in native byte order.
-    pub const RGB32_1: Self = native_endian(Self::RGBA, Self::ABGR);
+    /// [`AYUV64BE`](Self::AYUV64BE) on big-endian targets and [`AYUV64LE`](Self::AYUV64LE) on
+    /// little-endian ones: `AV_PIX_FMT_AYUV64`, in native byte order.
+    pub const AYUV64: Self = native_endian(Self::AYUV64BE, Self::AYUV64LE);
+    /// [`BAYER_BGGR16BE`](Self::BAYER_BGGR16BE) on big-endian targets and
+    /// [`BAYER_BGGR16LE`](Self::BAYER_BGGR16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_BGGR16`, in native byte order.
+    pub const BAYER_BGGR16: Self = native_endian(Self::BAYER_BGGR16BE, Self::BAYER_BGGR16LE);
+    /// [`BAYER_GBRG16BE`](Self::BAYER_GBRG16BE) on big-endian targets and
+    /// [`BAYER_GBRG16LE`](Self::BAYER_GBRG16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_GBRG16`, in native byte order.
+    pub const BAYER_GBRG16: Self = native_endian(Self::BAYER_GBRG16BE, Self::BAYER_GBRG16LE);
+    /// [`BAYER_GRBG16BE`](Self::BAYER_GRBG16BE) on big-endian targets and
+    /// [`BAYER_GRBG16LE`](Self::BAYER_GRBG16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_GRBG16`, in native byte order.
+    pub const BAYER_GRBG16: Self = native_endian(Self::BAYER_GRBG16BE, Self::BAYER_GRBG16LE);
+    /// [`BAYER_RGGB16BE`](Self::BAYER_RGGB16BE) on big-endian targets and
+    /// [`BAYER_RGGB16LE`](Self::BAYER_RGGB16LE) on little-endian ones:
+    /// `AV_PIX_FMT_BAYER_RGGB16`, in native byte order.
+    pub const BAYER_RGGB16: Self = native_endian(Self::BAYER_RGGB16BE, Self::BAYER_RGGB16LE);
     /// [`ABGR`](Self::ABGR) on big-endian targets and [`RGBA`](Self::RGBA) on little-endian
     /// ones: `AV_PIX_FMT_BGR32`, in native byte order.
     pub const BGR32: Self = native_endian(Self::ABGR, Self::RGBA);
     /// [`BGRA`](Self::BGRA) on big-endian targets and [`ARGB`](Self::ARGB) on little-endian
     /// ones: `AV_PIX_FMT_BGR32_1`, in native byte order.
     pub const BGR32_1: Self = native_endian(Self::BGRA, Self::ARGB);
-    /// [`XRGB`](Self::XRGB) on big-endian targets and [`BGR0`](Self::BGR0) on little-endian
-    /// ones: `AV_PIX_FMT_0RGB32`, in native byte order.
-    pub const XRGB32: Self = native_endian(Self::XRGB, Self::BGR0);
-    /// [`XBGR`](Self::XBGR) on big-endian targets and [`RGB0`](Self::RGB0) on little-endian
-    /// ones: `AV_PIX_FMT_0BGR32`, in native byte order.
-    pub const XBGR32: Self = native_endian(Self::XBGR, Self::RGB0);
-    /// [`GRAY9BE`](Self::GRAY9BE) on big-endian targets and [`GRAY9LE`](Self::GRAY9LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY9`, in native byte order.
-    pub const GRAY9: Self = native_endian(Self::GRAY9BE, Self::GRAY9LE);
-    /// [`GRAY10BE`](Self::GRAY10BE) on big-endian targets and [`GRAY10LE`](Self::GRAY10LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY10`, in native byte order.
-    pub const GRAY10: Self = native_endian(Self::GRAY10BE, Self::GRAY10LE);
-    /// [`GRAY12BE`](Self::GRAY12BE) on big-endian targets and [`GRAY12LE`](Self::GRAY12LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY12`, in native byte order.
-    pub const GRAY12: Self = native_endian(Self::GRAY12BE, Self::GRAY12LE);
-    /// [`GRAY14BE`](Self::GRAY14BE) on big-endian targets and [`GRAY14LE`](Self::GRAY14LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY14`, in native byte order.
-    pub const GRAY14: Self = native_endian(Self::GRAY14BE, Self::GRAY14LE);
-    /// [`GRAY16BE`](Self::GRAY16BE) on big-endian targets and [`GRAY16LE`](Self::GRAY16LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY16`, in native byte order.
-    pub const GRAY16: Self = native_endian(Self::GRAY16BE, Self::GRAY16LE);
-    /// [`GRAY32BE`](Self::GRAY32BE) on big-endian targets and [`GRAY32LE`](Self::GRAY32LE) on
-    /// little-endian ones: `AV_PIX_FMT_GRAY32`, in native byte order.
-    pub const GRAY32: Self = native_endian(Self::GRAY32BE, Self::GRAY32LE);
-    /// [`YA16BE`](Self::YA16BE) on big-endian targets and [`YA16LE`](Self::YA16LE) on
-    /// little-endian ones: `AV_PIX_FMT_YA16`, in native byte order.
-    pub const YA16: Self = native_endian(Self::YA16BE, Self::YA16LE);
-    /// [`RGB48BE`](Self::RGB48BE) on big-endian targets and [`RGB48LE`](Self::RGB48LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGB48`, in native byte order.
-    pub const RGB48: Self = native_endian(Self::RGB48BE, Self::RGB48LE);
-    /// [`RGB565BE`](Self::RGB565BE) on big-endian targets and [`RGB565LE`](Self::RGB565LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGB565`, in native byte order.
-    pub const RGB565: Self = native_endian(Self::RGB565BE, Self::RGB565LE);
-    /// [`RGB555BE`](Self::RGB555BE) on big-endian targets and [`RGB555LE`](Self::RGB555LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGB555`, in native byte order.
-    pub const RGB555: Self = native_endian(Self::RGB555BE, Self::RGB555LE);
-    /// [`RGB444BE`](Self::RGB444BE) on big-endian targets and [`RGB444LE`](Self::RGB444LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGB444`, in native byte order.
-    pub const RGB444: Self = native_endian(Self::RGB444BE, Self::RGB444LE);
-    /// [`RGBA64BE`](Self::RGBA64BE) on big-endian targets and [`RGBA64LE`](Self::RGBA64LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGBA64`, in native byte order.
-    pub const RGBA64: Self = native_endian(Self::RGBA64BE, Self::RGBA64LE);
-    /// [`BGR48BE`](Self::BGR48BE) on big-endian targets and [`BGR48LE`](Self::BGR48LE) on
-    /// little-endian ones: `AV_PIX_FMT_BGR48`, in native byte order.
-    pub const BGR48: Self = native_endian(Self::BGR48BE, Self::BGR48LE);
-    /// [`BGR565BE`](Self::BGR565BE) on big-endian targets and [`BGR565LE`](Self::BGR565LE) on
-    /// little-endian ones: `AV_PIX_FMT_BGR565`, in native byte order.
-    pub const BGR565: Self = native_endian(Self::BGR565BE, Self::BGR565LE);
-    /// [`BGR555BE`](Self::BGR555BE) on big-endian targets and [`BGR555LE`](Self::BGR555LE) on
-    /// little-endian ones: `AV_PIX_FMT_BGR555`, in native byte order.
-    pub const BGR555: Self = native_endian(Self::BGR555BE, Self::BGR555LE);
     /// [`BGR444BE`](Self::BGR444BE) on big-endian targets and [`BGR444LE`](Self::BGR444LE) on
     /// little-endian ones: `AV_PIX_FMT_BGR444`, in native byte order.
     pub const BGR444: Self = native_endian(Self::BGR444BE, Self::BGR444LE);
+    /// [`BGR48BE`](Self::BGR48BE) on big-endian targets and [`BGR48LE`](Self::BGR48LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR48`, in native byte order.
+    pub const BGR48: Self = native_endian(Self::BGR48BE, Self::BGR48LE);
+    /// [`BGR555BE`](Self::BGR555BE) on big-endian targets and [`BGR555LE`](Self::BGR555LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR555`, in native byte order.
+    pub const BGR555: Self = native_endian(Self::BGR555BE, Self::BGR555LE);
+    /// [`BGR565BE`](Self::BGR565BE) on big-endian targets and [`BGR565LE`](Self::BGR565LE) on
+    /// little-endian ones: `AV_PIX_FMT_BGR565`, in native byte order.
+    pub const BGR565: Self = native_endian(Self::BGR565BE, Self::BGR565LE);
     /// [`BGRA64BE`](Self::BGRA64BE) on big-endian targets and [`BGRA64LE`](Self::BGRA64LE) on
     /// little-endian ones: `AV_PIX_FMT_BGRA64`, in native byte order.
     pub const BGRA64: Self = native_endian(Self::BGRA64BE, Self::BGRA64LE);
-    /// [`YUV420P9BE`](Self::YUV420P9BE) on big-endian targets and
-    /// [`YUV420P9LE`](Self::YUV420P9LE) on little-endian ones: `AV_PIX_FMT_YUV420P9`, in native
-    /// byte order.
-    pub const YUV420P9: Self = native_endian(Self::YUV420P9BE, Self::YUV420P9LE);
-    /// [`YUV422P9BE`](Self::YUV422P9BE) on big-endian targets and
-    /// [`YUV422P9LE`](Self::YUV422P9LE) on little-endian ones: `AV_PIX_FMT_YUV422P9`, in native
-    /// byte order.
-    pub const YUV422P9: Self = native_endian(Self::YUV422P9BE, Self::YUV422P9LE);
-    /// [`YUV444P9BE`](Self::YUV444P9BE) on big-endian targets and
-    /// [`YUV444P9LE`](Self::YUV444P9LE) on little-endian ones: `AV_PIX_FMT_YUV444P9`, in native
-    /// byte order.
-    pub const YUV444P9: Self = native_endian(Self::YUV444P9BE, Self::YUV444P9LE);
-    /// [`YUV420P10BE`](Self::YUV420P10BE) on big-endian targets and
-    /// [`YUV420P10LE`](Self::YUV420P10LE) on little-endian ones: `AV_PIX_FMT_YUV420P10`, in
-    /// native byte order.
-    pub const YUV420P10: Self = native_endian(Self::YUV420P10BE, Self::YUV420P10LE);
-    /// [`YUV422P10BE`](Self::YUV422P10BE) on big-endian targets and
-    /// [`YUV422P10LE`](Self::YUV422P10LE) on little-endian ones: `AV_PIX_FMT_YUV422P10`, in
-    /// native byte order.
-    pub const YUV422P10: Self = native_endian(Self::YUV422P10BE, Self::YUV422P10LE);
-    /// [`YUV440P10BE`](Self::YUV440P10BE) on big-endian targets and
-    /// [`YUV440P10LE`](Self::YUV440P10LE) on little-endian ones: `AV_PIX_FMT_YUV440P10`, in
-    /// native byte order.
-    pub const YUV440P10: Self = native_endian(Self::YUV440P10BE, Self::YUV440P10LE);
-    /// [`YUV444P10BE`](Self::YUV444P10BE) on big-endian targets and
-    /// [`YUV444P10LE`](Self::YUV444P10LE) on little-endian ones: `AV_PIX_FMT_YUV444P10`, in
-    /// native byte order.
-    pub const YUV444P10: Self = native_endian(Self::YUV444P10BE, Self::YUV444P10LE);
-    /// [`YUV420P12BE`](Self::YUV420P12BE) on big-endian targets and
-    /// [`YUV420P12LE`](Self::YUV420P12LE) on little-endian ones: `AV_PIX_FMT_YUV420P12`, in
-    /// native byte order.
-    pub const YUV420P12: Self = native_endian(Self::YUV420P12BE, Self::YUV420P12LE);
-    /// [`YUV422P12BE`](Self::YUV422P12BE) on big-endian targets and
-    /// [`YUV422P12LE`](Self::YUV422P12LE) on little-endian ones: `AV_PIX_FMT_YUV422P12`, in
-    /// native byte order.
-    pub const YUV422P12: Self = native_endian(Self::YUV422P12BE, Self::YUV422P12LE);
-    /// [`YUV440P12BE`](Self::YUV440P12BE) on big-endian targets and
-    /// [`YUV440P12LE`](Self::YUV440P12LE) on little-endian ones: `AV_PIX_FMT_YUV440P12`, in
-    /// native byte order.
-    pub const YUV440P12: Self = native_endian(Self::YUV440P12BE, Self::YUV440P12LE);
-    /// [`YUV444P12BE`](Self::YUV444P12BE) on big-endian targets and
-    /// [`YUV444P12LE`](Self::YUV444P12LE) on little-endian ones: `AV_PIX_FMT_YUV444P12`, in
-    /// native byte order.
-    pub const YUV444P12: Self = native_endian(Self::YUV444P12BE, Self::YUV444P12LE);
-    /// [`YUV420P14BE`](Self::YUV420P14BE) on big-endian targets and
-    /// [`YUV420P14LE`](Self::YUV420P14LE) on little-endian ones: `AV_PIX_FMT_YUV420P14`, in
-    /// native byte order.
-    pub const YUV420P14: Self = native_endian(Self::YUV420P14BE, Self::YUV420P14LE);
-    /// [`YUV422P14BE`](Self::YUV422P14BE) on big-endian targets and
-    /// [`YUV422P14LE`](Self::YUV422P14LE) on little-endian ones: `AV_PIX_FMT_YUV422P14`, in
-    /// native byte order.
-    pub const YUV422P14: Self = native_endian(Self::YUV422P14BE, Self::YUV422P14LE);
-    /// [`YUV444P14BE`](Self::YUV444P14BE) on big-endian targets and
-    /// [`YUV444P14LE`](Self::YUV444P14LE) on little-endian ones: `AV_PIX_FMT_YUV444P14`, in
-    /// native byte order.
-    pub const YUV444P14: Self = native_endian(Self::YUV444P14BE, Self::YUV444P14LE);
-    /// [`YUV420P16BE`](Self::YUV420P16BE) on big-endian targets and
-    /// [`YUV420P16LE`](Self::YUV420P16LE) on little-endian ones: `AV_PIX_FMT_YUV420P16`, in
-    /// native byte order.
-    pub const YUV420P16: Self = native_endian(Self::YUV420P16BE, Self::YUV420P16LE);
-    /// [`YUV422P16BE`](Self::YUV422P16BE) on big-endian targets and
-    /// [`YUV422P16LE`](Self::YUV422P16LE) on little-endian ones: `AV_PIX_FMT_YUV422P16`, in
-    /// native byte order.
-    pub const YUV422P16: Self = native_endian(Self::YUV422P16BE, Self::YUV422P16LE);
-    /// [`YUV444P16BE`](Self::YUV444P16BE) on big-endian targets and
-    /// [`YUV444P16LE`](Self::YUV444P16LE) on little-endian ones: `AV_PIX_FMT_YUV444P16`, in
-    /// native byte order.
-    pub const YUV444P16: Self = native_endian(Self::YUV444P16BE, Self::YUV444P16LE);
-    /// [`YUV444P10MSBBE`](Self::YUV444P10MSBBE) on big-endian targets and
-    /// [`YUV444P10MSBLE`](Self::YUV444P10MSBLE) on little-endian ones:
-    /// `AV_PIX_FMT_YUV444P10MSB`, in native byte order.
-    pub const YUV444P10MSB: Self = native_endian(Self::YUV444P10MSBBE, Self::YUV444P10MSBLE);
-    /// [`YUV444P12MSBBE`](Self::YUV444P12MSBBE) on big-endian targets and
-    /// [`YUV444P12MSBLE`](Self::YUV444P12MSBLE) on little-endian ones:
-    /// `AV_PIX_FMT_YUV444P12MSB`, in native byte order.
-    pub const YUV444P12MSB: Self = native_endian(Self::YUV444P12MSBBE, Self::YUV444P12MSBLE);
-    /// [`GBRP9BE`](Self::GBRP9BE) on big-endian targets and [`GBRP9LE`](Self::GBRP9LE) on
-    /// little-endian ones: `AV_PIX_FMT_GBRP9`, in native byte order.
-    pub const GBRP9: Self = native_endian(Self::GBRP9BE, Self::GBRP9LE);
-    /// [`GBRP10BE`](Self::GBRP10BE) on big-endian targets and [`GBRP10LE`](Self::GBRP10LE) on
-    /// little-endian ones: `AV_PIX_FMT_GBRP10`, in native byte order.
-    pub const GBRP10: Self = native_endian(Self::GBRP10BE, Self::GBRP10LE);
-    /// [`GBRP12BE`](Self::GBRP12BE) on big-endian targets and [`GBRP12LE`](Self::GBRP12LE) on
-    /// little-endian ones: `AV_PIX_FMT_GBRP12`, in native byte order.
-    pub const GBRP12: Self = native_endian(Self::GBRP12BE, Self::GBRP12LE);
-    /// [`GBRP14BE`](Self::GBRP14BE) on big-endian targets and [`GBRP14LE`](Self::GBRP14LE) on
-    /// little-endian ones: `AV_PIX_FMT_GBRP14`, in native byte order.
-    pub const GBRP14: Self = native_endian(Self::GBRP14BE, Self::GBRP14LE);
-    /// [`GBRP16BE`](Self::GBRP16BE) on big-endian targets and [`GBRP16LE`](Self::GBRP16LE) on
-    /// little-endian ones: `AV_PIX_FMT_GBRP16`, in native byte order.
-    pub const GBRP16: Self = native_endian(Self::GBRP16BE, Self::GBRP16LE);
+    /// Another name for [`GBRP`](Self::GBRP) (`AV_PIX_FMT_GBR24P`).
+    pub const GBR24P: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GBR24P);
     /// [`GBRAP10BE`](Self::GBRAP10BE) on big-endian targets and [`GBRAP10LE`](Self::GBRAP10LE)
     /// on little-endian ones: `AV_PIX_FMT_GBRAP10`, in native byte order.
     pub const GBRAP10: Self = native_endian(Self::GBRAP10BE, Self::GBRAP10LE);
@@ -1321,109 +1204,72 @@ impl PixelFormat {
     /// [`GBRAP32BE`](Self::GBRAP32BE) on big-endian targets and [`GBRAP32LE`](Self::GBRAP32LE)
     /// on little-endian ones: `AV_PIX_FMT_GBRAP32`, in native byte order.
     pub const GBRAP32: Self = native_endian(Self::GBRAP32BE, Self::GBRAP32LE);
-    /// [`GBRP10MSBBE`](Self::GBRP10MSBBE) on big-endian targets and
-    /// [`GBRP10MSBLE`](Self::GBRP10MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP10MSB`, in
-    /// native byte order.
-    pub const GBRP10MSB: Self = native_endian(Self::GBRP10MSBBE, Self::GBRP10MSBLE);
-    /// [`GBRP12MSBBE`](Self::GBRP12MSBBE) on big-endian targets and
-    /// [`GBRP12MSBLE`](Self::GBRP12MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP12MSB`, in
-    /// native byte order.
-    pub const GBRP12MSB: Self = native_endian(Self::GBRP12MSBBE, Self::GBRP12MSBLE);
-    /// [`BAYER_BGGR16BE`](Self::BAYER_BGGR16BE) on big-endian targets and
-    /// [`BAYER_BGGR16LE`](Self::BAYER_BGGR16LE) on little-endian ones:
-    /// `AV_PIX_FMT_BAYER_BGGR16`, in native byte order.
-    pub const BAYER_BGGR16: Self = native_endian(Self::BAYER_BGGR16BE, Self::BAYER_BGGR16LE);
-    /// [`BAYER_RGGB16BE`](Self::BAYER_RGGB16BE) on big-endian targets and
-    /// [`BAYER_RGGB16LE`](Self::BAYER_RGGB16LE) on little-endian ones:
-    /// `AV_PIX_FMT_BAYER_RGGB16`, in native byte order.
-    pub const BAYER_RGGB16: Self = native_endian(Self::BAYER_RGGB16BE, Self::BAYER_RGGB16LE);
-    /// [`BAYER_GBRG16BE`](Self::BAYER_GBRG16BE) on big-endian targets and
-    /// [`BAYER_GBRG16LE`](Self::BAYER_GBRG16LE) on little-endian ones:
-    /// `AV_PIX_FMT_BAYER_GBRG16`, in native byte order.
-    pub const BAYER_GBRG16: Self = native_endian(Self::BAYER_GBRG16BE, Self::BAYER_GBRG16LE);
-    /// [`BAYER_GRBG16BE`](Self::BAYER_GRBG16BE) on big-endian targets and
-    /// [`BAYER_GRBG16LE`](Self::BAYER_GRBG16LE) on little-endian ones:
-    /// `AV_PIX_FMT_BAYER_GRBG16`, in native byte order.
-    pub const BAYER_GRBG16: Self = native_endian(Self::BAYER_GRBG16BE, Self::BAYER_GRBG16LE);
-    /// [`GBRPF16BE`](Self::GBRPF16BE) on big-endian targets and [`GBRPF16LE`](Self::GBRPF16LE)
-    /// on little-endian ones: `AV_PIX_FMT_GBRPF16`, in native byte order.
-    pub const GBRPF16: Self = native_endian(Self::GBRPF16BE, Self::GBRPF16LE);
     /// [`GBRAPF16BE`](Self::GBRAPF16BE) on big-endian targets and
     /// [`GBRAPF16LE`](Self::GBRAPF16LE) on little-endian ones: `AV_PIX_FMT_GBRAPF16`, in native
     /// byte order.
     pub const GBRAPF16: Self = native_endian(Self::GBRAPF16BE, Self::GBRAPF16LE);
-    /// [`GBRPF32BE`](Self::GBRPF32BE) on big-endian targets and [`GBRPF32LE`](Self::GBRPF32LE)
-    /// on little-endian ones: `AV_PIX_FMT_GBRPF32`, in native byte order.
-    pub const GBRPF32: Self = native_endian(Self::GBRPF32BE, Self::GBRPF32LE);
     /// [`GBRAPF32BE`](Self::GBRAPF32BE) on big-endian targets and
     /// [`GBRAPF32LE`](Self::GBRAPF32LE) on little-endian ones: `AV_PIX_FMT_GBRAPF32`, in native
     /// byte order.
     pub const GBRAPF32: Self = native_endian(Self::GBRAPF32BE, Self::GBRAPF32LE);
+    /// [`GBRP10BE`](Self::GBRP10BE) on big-endian targets and [`GBRP10LE`](Self::GBRP10LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP10`, in native byte order.
+    pub const GBRP10: Self = native_endian(Self::GBRP10BE, Self::GBRP10LE);
+    /// [`GBRP10MSBBE`](Self::GBRP10MSBBE) on big-endian targets and
+    /// [`GBRP10MSBLE`](Self::GBRP10MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP10MSB`, in
+    /// native byte order.
+    pub const GBRP10MSB: Self = native_endian(Self::GBRP10MSBBE, Self::GBRP10MSBLE);
+    /// [`GBRP12BE`](Self::GBRP12BE) on big-endian targets and [`GBRP12LE`](Self::GBRP12LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP12`, in native byte order.
+    pub const GBRP12: Self = native_endian(Self::GBRP12BE, Self::GBRP12LE);
+    /// [`GBRP12MSBBE`](Self::GBRP12MSBBE) on big-endian targets and
+    /// [`GBRP12MSBLE`](Self::GBRP12MSBLE) on little-endian ones: `AV_PIX_FMT_GBRP12MSB`, in
+    /// native byte order.
+    pub const GBRP12MSB: Self = native_endian(Self::GBRP12MSBBE, Self::GBRP12MSBLE);
+    /// [`GBRP14BE`](Self::GBRP14BE) on big-endian targets and [`GBRP14LE`](Self::GBRP14LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP14`, in native byte order.
+    pub const GBRP14: Self = native_endian(Self::GBRP14BE, Self::GBRP14LE);
+    /// [`GBRP16BE`](Self::GBRP16BE) on big-endian targets and [`GBRP16LE`](Self::GBRP16LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP16`, in native byte order.
+    pub const GBRP16: Self = native_endian(Self::GBRP16BE, Self::GBRP16LE);
+    /// [`GBRP9BE`](Self::GBRP9BE) on big-endian targets and [`GBRP9LE`](Self::GBRP9LE) on
+    /// little-endian ones: `AV_PIX_FMT_GBRP9`, in native byte order.
+    pub const GBRP9: Self = native_endian(Self::GBRP9BE, Self::GBRP9LE);
+    /// [`GBRPF16BE`](Self::GBRPF16BE) on big-endian targets and [`GBRPF16LE`](Self::GBRPF16LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRPF16`, in native byte order.
+    pub const GBRPF16: Self = native_endian(Self::GBRPF16BE, Self::GBRPF16LE);
+    /// [`GBRPF32BE`](Self::GBRPF32BE) on big-endian targets and [`GBRPF32LE`](Self::GBRPF32LE)
+    /// on little-endian ones: `AV_PIX_FMT_GBRPF32`, in native byte order.
+    pub const GBRPF32: Self = native_endian(Self::GBRPF32BE, Self::GBRPF32LE);
+    /// [`GRAY10BE`](Self::GRAY10BE) on big-endian targets and [`GRAY10LE`](Self::GRAY10LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY10`, in native byte order.
+    pub const GRAY10: Self = native_endian(Self::GRAY10BE, Self::GRAY10LE);
+    /// [`GRAY12BE`](Self::GRAY12BE) on big-endian targets and [`GRAY12LE`](Self::GRAY12LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY12`, in native byte order.
+    pub const GRAY12: Self = native_endian(Self::GRAY12BE, Self::GRAY12LE);
+    /// [`GRAY14BE`](Self::GRAY14BE) on big-endian targets and [`GRAY14LE`](Self::GRAY14LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY14`, in native byte order.
+    pub const GRAY14: Self = native_endian(Self::GRAY14BE, Self::GRAY14LE);
+    /// [`GRAY16BE`](Self::GRAY16BE) on big-endian targets and [`GRAY16LE`](Self::GRAY16LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY16`, in native byte order.
+    pub const GRAY16: Self = native_endian(Self::GRAY16BE, Self::GRAY16LE);
+    /// [`GRAY32BE`](Self::GRAY32BE) on big-endian targets and [`GRAY32LE`](Self::GRAY32LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY32`, in native byte order.
+    pub const GRAY32: Self = native_endian(Self::GRAY32BE, Self::GRAY32LE);
+    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_GRAY8A`).
+    pub const GRAY8A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A);
+    /// [`GRAY9BE`](Self::GRAY9BE) on big-endian targets and [`GRAY9LE`](Self::GRAY9LE) on
+    /// little-endian ones: `AV_PIX_FMT_GRAY9`, in native byte order.
+    pub const GRAY9: Self = native_endian(Self::GRAY9BE, Self::GRAY9LE);
     /// [`GRAYF16BE`](Self::GRAYF16BE) on big-endian targets and [`GRAYF16LE`](Self::GRAYF16LE)
     /// on little-endian ones: `AV_PIX_FMT_GRAYF16`, in native byte order.
     pub const GRAYF16: Self = native_endian(Self::GRAYF16BE, Self::GRAYF16LE);
     /// [`GRAYF32BE`](Self::GRAYF32BE) on big-endian targets and [`GRAYF32LE`](Self::GRAYF32LE)
     /// on little-endian ones: `AV_PIX_FMT_GRAYF32`, in native byte order.
     pub const GRAYF32: Self = native_endian(Self::GRAYF32BE, Self::GRAYF32LE);
-    /// [`YAF16BE`](Self::YAF16BE) on big-endian targets and [`YAF16LE`](Self::YAF16LE) on
-    /// little-endian ones: `AV_PIX_FMT_YAF16`, in native byte order.
-    pub const YAF16: Self = native_endian(Self::YAF16BE, Self::YAF16LE);
-    /// [`YAF32BE`](Self::YAF32BE) on big-endian targets and [`YAF32LE`](Self::YAF32LE) on
-    /// little-endian ones: `AV_PIX_FMT_YAF32`, in native byte order.
-    pub const YAF32: Self = native_endian(Self::YAF32BE, Self::YAF32LE);
-    /// [`YUVA420P9BE`](Self::YUVA420P9BE) on big-endian targets and
-    /// [`YUVA420P9LE`](Self::YUVA420P9LE) on little-endian ones: `AV_PIX_FMT_YUVA420P9`, in
-    /// native byte order.
-    pub const YUVA420P9: Self = native_endian(Self::YUVA420P9BE, Self::YUVA420P9LE);
-    /// [`YUVA422P9BE`](Self::YUVA422P9BE) on big-endian targets and
-    /// [`YUVA422P9LE`](Self::YUVA422P9LE) on little-endian ones: `AV_PIX_FMT_YUVA422P9`, in
-    /// native byte order.
-    pub const YUVA422P9: Self = native_endian(Self::YUVA422P9BE, Self::YUVA422P9LE);
-    /// [`YUVA444P9BE`](Self::YUVA444P9BE) on big-endian targets and
-    /// [`YUVA444P9LE`](Self::YUVA444P9LE) on little-endian ones: `AV_PIX_FMT_YUVA444P9`, in
-    /// native byte order.
-    pub const YUVA444P9: Self = native_endian(Self::YUVA444P9BE, Self::YUVA444P9LE);
-    /// [`YUVA420P10BE`](Self::YUVA420P10BE) on big-endian targets and
-    /// [`YUVA420P10LE`](Self::YUVA420P10LE) on little-endian ones: `AV_PIX_FMT_YUVA420P10`, in
-    /// native byte order.
-    pub const YUVA420P10: Self = native_endian(Self::YUVA420P10BE, Self::YUVA420P10LE);
-    /// [`YUVA422P10BE`](Self::YUVA422P10BE) on big-endian targets and
-    /// [`YUVA422P10LE`](Self::YUVA422P10LE) on little-endian ones: `AV_PIX_FMT_YUVA422P10`, in
-    /// native byte order.
-    pub const YUVA422P10: Self = native_endian(Self::YUVA422P10BE, Self::YUVA422P10LE);
-    /// [`YUVA444P10BE`](Self::YUVA444P10BE) on big-endian targets and
-    /// [`YUVA444P10LE`](Self::YUVA444P10LE) on little-endian ones: `AV_PIX_FMT_YUVA444P10`, in
-    /// native byte order.
-    pub const YUVA444P10: Self = native_endian(Self::YUVA444P10BE, Self::YUVA444P10LE);
-    /// [`YUVA422P12BE`](Self::YUVA422P12BE) on big-endian targets and
-    /// [`YUVA422P12LE`](Self::YUVA422P12LE) on little-endian ones: `AV_PIX_FMT_YUVA422P12`, in
-    /// native byte order.
-    pub const YUVA422P12: Self = native_endian(Self::YUVA422P12BE, Self::YUVA422P12LE);
-    /// [`YUVA444P12BE`](Self::YUVA444P12BE) on big-endian targets and
-    /// [`YUVA444P12LE`](Self::YUVA444P12LE) on little-endian ones: `AV_PIX_FMT_YUVA444P12`, in
-    /// native byte order.
-    pub const YUVA444P12: Self = native_endian(Self::YUVA444P12BE, Self::YUVA444P12LE);
-    /// [`YUVA420P16BE`](Self::YUVA420P16BE) on big-endian targets and
-    /// [`YUVA420P16LE`](Self::YUVA420P16LE) on little-endian ones: `AV_PIX_FMT_YUVA420P16`, in
-    /// native byte order.
-    pub const YUVA420P16: Self = native_endian(Self::YUVA420P16BE, Self::YUVA420P16LE);
-    /// [`YUVA422P16BE`](Self::YUVA422P16BE) on big-endian targets and
-    /// [`YUVA422P16LE`](Self::YUVA422P16LE) on little-endian ones: `AV_PIX_FMT_YUVA422P16`, in
-    /// native byte order.
-    pub const YUVA422P16: Self = native_endian(Self::YUVA422P16BE, Self::YUVA422P16LE);
-    /// [`YUVA444P16BE`](Self::YUVA444P16BE) on big-endian targets and
-    /// [`YUVA444P16LE`](Self::YUVA444P16LE) on little-endian ones: `AV_PIX_FMT_YUVA444P16`, in
-    /// native byte order.
-    pub const YUVA444P16: Self = native_endian(Self::YUVA444P16BE, Self::YUVA444P16LE);
-    /// [`XYZ12BE`](Self::XYZ12BE) on big-endian targets and [`XYZ12LE`](Self::XYZ12LE) on
-    /// little-endian ones: `AV_PIX_FMT_XYZ12`, in native byte order.
-    pub const XYZ12: Self = native_endian(Self::XYZ12BE, Self::XYZ12LE);
     /// [`NV20BE`](Self::NV20BE) on big-endian targets and [`NV20LE`](Self::NV20LE) on
     /// little-endian ones: `AV_PIX_FMT_NV20`, in native byte order.
     pub const NV20: Self = native_endian(Self::NV20BE, Self::NV20LE);
-    /// [`AYUV64BE`](Self::AYUV64BE) on big-endian targets and [`AYUV64LE`](Self::AYUV64LE) on
-    /// little-endian ones: `AV_PIX_FMT_AYUV64`, in native byte order.
-    pub const AYUV64: Self = native_endian(Self::AYUV64BE, Self::AYUV64LE);
     /// [`P010BE`](Self::P010BE) on big-endian targets and [`P010LE`](Self::P010LE) on
     /// little-endian ones: `AV_PIX_FMT_P010`, in native byte order.
     pub const P010: Self = native_endian(Self::P010BE, Self::P010LE);
@@ -1433,15 +1279,78 @@ impl PixelFormat {
     /// [`P016BE`](Self::P016BE) on big-endian targets and [`P016LE`](Self::P016LE) on
     /// little-endian ones: `AV_PIX_FMT_P016`, in native byte order.
     pub const P016: Self = native_endian(Self::P016BE, Self::P016LE);
-    /// [`Y210BE`](Self::Y210BE) on big-endian targets and [`Y210LE`](Self::Y210LE) on
-    /// little-endian ones: `AV_PIX_FMT_Y210`, in native byte order.
-    pub const Y210: Self = native_endian(Self::Y210BE, Self::Y210LE);
-    /// [`Y212BE`](Self::Y212BE) on big-endian targets and [`Y212LE`](Self::Y212LE) on
-    /// little-endian ones: `AV_PIX_FMT_Y212`, in native byte order.
-    pub const Y212: Self = native_endian(Self::Y212BE, Self::Y212LE);
-    /// [`Y216BE`](Self::Y216BE) on big-endian targets and [`Y216LE`](Self::Y216LE) on
-    /// little-endian ones: `AV_PIX_FMT_Y216`, in native byte order.
-    pub const Y216: Self = native_endian(Self::Y216BE, Self::Y216LE);
+    /// [`P210BE`](Self::P210BE) on big-endian targets and [`P210LE`](Self::P210LE) on
+    /// little-endian ones: `AV_PIX_FMT_P210`, in native byte order.
+    pub const P210: Self = native_endian(Self::P210BE, Self::P210LE);
+    /// [`P212BE`](Self::P212BE) on big-endian targets and [`P212LE`](Self::P212LE) on
+    /// little-endian ones: `AV_PIX_FMT_P212`, in native byte order.
+    pub const P212: Self = native_endian(Self::P212BE, Self::P212LE);
+    /// [`P216BE`](Self::P216BE) on big-endian targets and [`P216LE`](Self::P216LE) on
+    /// little-endian ones: `AV_PIX_FMT_P216`, in native byte order.
+    pub const P216: Self = native_endian(Self::P216BE, Self::P216LE);
+    /// [`P410BE`](Self::P410BE) on big-endian targets and [`P410LE`](Self::P410LE) on
+    /// little-endian ones: `AV_PIX_FMT_P410`, in native byte order.
+    pub const P410: Self = native_endian(Self::P410BE, Self::P410LE);
+    /// [`P412BE`](Self::P412BE) on big-endian targets and [`P412LE`](Self::P412LE) on
+    /// little-endian ones: `AV_PIX_FMT_P412`, in native byte order.
+    pub const P412: Self = native_endian(Self::P412BE, Self::P412LE);
+    /// [`P416BE`](Self::P416BE) on big-endian targets and [`P416LE`](Self::P416LE) on
+    /// little-endian ones: `AV_PIX_FMT_P416`, in native byte order.
+    pub const P416: Self = native_endian(Self::P416BE, Self::P416LE);
+    /// [`ARGB`](Self::ARGB) on big-endian targets and [`BGRA`](Self::BGRA) on little-endian
+    /// ones: `AV_PIX_FMT_RGB32`, in native byte order.
+    pub const RGB32: Self = native_endian(Self::ARGB, Self::BGRA);
+    /// [`RGBA`](Self::RGBA) on big-endian targets and [`ABGR`](Self::ABGR) on little-endian
+    /// ones: `AV_PIX_FMT_RGB32_1`, in native byte order.
+    pub const RGB32_1: Self = native_endian(Self::RGBA, Self::ABGR);
+    /// [`RGB444BE`](Self::RGB444BE) on big-endian targets and [`RGB444LE`](Self::RGB444LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB444`, in native byte order.
+    pub const RGB444: Self = native_endian(Self::RGB444BE, Self::RGB444LE);
+    /// [`RGB48BE`](Self::RGB48BE) on big-endian targets and [`RGB48LE`](Self::RGB48LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB48`, in native byte order.
+    pub const RGB48: Self = native_endian(Self::RGB48BE, Self::RGB48LE);
+    /// [`RGB555BE`](Self::RGB555BE) on big-endian targets and [`RGB555LE`](Self::RGB555LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB555`, in native byte order.
+    pub const RGB555: Self = native_endian(Self::RGB555BE, Self::RGB555LE);
+    /// [`RGB565BE`](Self::RGB565BE) on big-endian targets and [`RGB565LE`](Self::RGB565LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB565`, in native byte order.
+    pub const RGB565: Self = native_endian(Self::RGB565BE, Self::RGB565LE);
+    /// [`RGB96BE`](Self::RGB96BE) on big-endian targets and [`RGB96LE`](Self::RGB96LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGB96`, in native byte order.
+    pub const RGB96: Self = native_endian(Self::RGB96BE, Self::RGB96LE);
+    /// [`RGBA128BE`](Self::RGBA128BE) on big-endian targets and [`RGBA128LE`](Self::RGBA128LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBA128`, in native byte order.
+    pub const RGBA128: Self = native_endian(Self::RGBA128BE, Self::RGBA128LE);
+    /// [`RGBA64BE`](Self::RGBA64BE) on big-endian targets and [`RGBA64LE`](Self::RGBA64LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBA64`, in native byte order.
+    pub const RGBA64: Self = native_endian(Self::RGBA64BE, Self::RGBA64LE);
+    /// [`RGBAF16BE`](Self::RGBAF16BE) on big-endian targets and [`RGBAF16LE`](Self::RGBAF16LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBAF16`, in native byte order.
+    pub const RGBAF16: Self = native_endian(Self::RGBAF16BE, Self::RGBAF16LE);
+    /// [`RGBAF32BE`](Self::RGBAF32BE) on big-endian targets and [`RGBAF32LE`](Self::RGBAF32LE)
+    /// on little-endian ones: `AV_PIX_FMT_RGBAF32`, in native byte order.
+    pub const RGBAF32: Self = native_endian(Self::RGBAF32BE, Self::RGBAF32LE);
+    /// [`RGBF16BE`](Self::RGBF16BE) on big-endian targets and [`RGBF16LE`](Self::RGBF16LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBF16`, in native byte order.
+    pub const RGBF16: Self = native_endian(Self::RGBF16BE, Self::RGBF16LE);
+    /// [`RGBF32BE`](Self::RGBF32BE) on big-endian targets and [`RGBF32LE`](Self::RGBF32LE) on
+    /// little-endian ones: `AV_PIX_FMT_RGBF32`, in native byte order.
+    pub const RGBF32: Self = native_endian(Self::RGBF32BE, Self::RGBF32LE);
+    /// [`V30XBE`](Self::V30XBE) on big-endian targets and [`V30XLE`](Self::V30XLE) on
+    /// little-endian ones: `AV_PIX_FMT_V30X`, in native byte order.
+    pub const V30X: Self = native_endian(Self::V30XBE, Self::V30XLE);
+    /// [`X2BGR10BE`](Self::X2BGR10BE) on big-endian targets and [`X2BGR10LE`](Self::X2BGR10LE)
+    /// on little-endian ones: `AV_PIX_FMT_X2BGR10`, in native byte order.
+    pub const X2BGR10: Self = native_endian(Self::X2BGR10BE, Self::X2BGR10LE);
+    /// [`X2RGB10BE`](Self::X2RGB10BE) on big-endian targets and [`X2RGB10LE`](Self::X2RGB10LE)
+    /// on little-endian ones: `AV_PIX_FMT_X2RGB10`, in native byte order.
+    pub const X2RGB10: Self = native_endian(Self::X2RGB10BE, Self::X2RGB10LE);
+    /// [`XBGR`](Self::XBGR) on big-endian targets and [`RGB0`](Self::RGB0) on little-endian
+    /// ones: `AV_PIX_FMT_0BGR32`, in native byte order.
+    pub const XBGR32: Self = native_endian(Self::XBGR, Self::RGB0);
+    /// [`XRGB`](Self::XRGB) on big-endian targets and [`BGR0`](Self::BGR0) on little-endian
+    /// ones: `AV_PIX_FMT_0RGB32`, in native byte order.
+    pub const XRGB32: Self = native_endian(Self::XRGB, Self::BGR0);
     /// [`XV30BE`](Self::XV30BE) on big-endian targets and [`XV30LE`](Self::XV30LE) on
     /// little-endian ones: `AV_PIX_FMT_XV30`, in native byte order.
     pub const XV30: Self = native_endian(Self::XV30BE, Self::XV30LE);
@@ -1451,51 +1360,149 @@ impl PixelFormat {
     /// [`XV48BE`](Self::XV48BE) on big-endian targets and [`XV48LE`](Self::XV48LE) on
     /// little-endian ones: `AV_PIX_FMT_XV48`, in native byte order.
     pub const XV48: Self = native_endian(Self::XV48BE, Self::XV48LE);
-    /// [`V30XBE`](Self::V30XBE) on big-endian targets and [`V30XLE`](Self::V30XLE) on
-    /// little-endian ones: `AV_PIX_FMT_V30X`, in native byte order.
-    pub const V30X: Self = native_endian(Self::V30XBE, Self::V30XLE);
-    /// [`X2RGB10BE`](Self::X2RGB10BE) on big-endian targets and [`X2RGB10LE`](Self::X2RGB10LE)
-    /// on little-endian ones: `AV_PIX_FMT_X2RGB10`, in native byte order.
-    pub const X2RGB10: Self = native_endian(Self::X2RGB10BE, Self::X2RGB10LE);
-    /// [`X2BGR10BE`](Self::X2BGR10BE) on big-endian targets and [`X2BGR10LE`](Self::X2BGR10LE)
-    /// on little-endian ones: `AV_PIX_FMT_X2BGR10`, in native byte order.
-    pub const X2BGR10: Self = native_endian(Self::X2BGR10BE, Self::X2BGR10LE);
-    /// [`P210BE`](Self::P210BE) on big-endian targets and [`P210LE`](Self::P210LE) on
-    /// little-endian ones: `AV_PIX_FMT_P210`, in native byte order.
-    pub const P210: Self = native_endian(Self::P210BE, Self::P210LE);
-    /// [`P410BE`](Self::P410BE) on big-endian targets and [`P410LE`](Self::P410LE) on
-    /// little-endian ones: `AV_PIX_FMT_P410`, in native byte order.
-    pub const P410: Self = native_endian(Self::P410BE, Self::P410LE);
-    /// [`P212BE`](Self::P212BE) on big-endian targets and [`P212LE`](Self::P212LE) on
-    /// little-endian ones: `AV_PIX_FMT_P212`, in native byte order.
-    pub const P212: Self = native_endian(Self::P212BE, Self::P212LE);
-    /// [`P412BE`](Self::P412BE) on big-endian targets and [`P412LE`](Self::P412LE) on
-    /// little-endian ones: `AV_PIX_FMT_P412`, in native byte order.
-    pub const P412: Self = native_endian(Self::P412BE, Self::P412LE);
-    /// [`P216BE`](Self::P216BE) on big-endian targets and [`P216LE`](Self::P216LE) on
-    /// little-endian ones: `AV_PIX_FMT_P216`, in native byte order.
-    pub const P216: Self = native_endian(Self::P216BE, Self::P216LE);
-    /// [`P416BE`](Self::P416BE) on big-endian targets and [`P416LE`](Self::P416LE) on
-    /// little-endian ones: `AV_PIX_FMT_P416`, in native byte order.
-    pub const P416: Self = native_endian(Self::P416BE, Self::P416LE);
-    /// [`RGBF16BE`](Self::RGBF16BE) on big-endian targets and [`RGBF16LE`](Self::RGBF16LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGBF16`, in native byte order.
-    pub const RGBF16: Self = native_endian(Self::RGBF16BE, Self::RGBF16LE);
-    /// [`RGBAF16BE`](Self::RGBAF16BE) on big-endian targets and [`RGBAF16LE`](Self::RGBAF16LE)
-    /// on little-endian ones: `AV_PIX_FMT_RGBAF16`, in native byte order.
-    pub const RGBAF16: Self = native_endian(Self::RGBAF16BE, Self::RGBAF16LE);
-    /// [`RGBF32BE`](Self::RGBF32BE) on big-endian targets and [`RGBF32LE`](Self::RGBF32LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGBF32`, in native byte order.
-    pub const RGBF32: Self = native_endian(Self::RGBF32BE, Self::RGBF32LE);
-    /// [`RGBAF32BE`](Self::RGBAF32BE) on big-endian targets and [`RGBAF32LE`](Self::RGBAF32LE)
-    /// on little-endian ones: `AV_PIX_FMT_RGBAF32`, in native byte order.
-    pub const RGBAF32: Self = native_endian(Self::RGBAF32BE, Self::RGBAF32LE);
-    /// [`RGB96BE`](Self::RGB96BE) on big-endian targets and [`RGB96LE`](Self::RGB96LE) on
-    /// little-endian ones: `AV_PIX_FMT_RGB96`, in native byte order.
-    pub const RGB96: Self = native_endian(Self::RGB96BE, Self::RGB96LE);
-    /// [`RGBA128BE`](Self::RGBA128BE) on big-endian targets and [`RGBA128LE`](Self::RGBA128LE)
-    /// on little-endian ones: `AV_PIX_FMT_RGBA128`, in native byte order.
-    pub const RGBA128: Self = native_endian(Self::RGBA128BE, Self::RGBA128LE);
+    /// [`XYZ12BE`](Self::XYZ12BE) on big-endian targets and [`XYZ12LE`](Self::XYZ12LE) on
+    /// little-endian ones: `AV_PIX_FMT_XYZ12`, in native byte order.
+    pub const XYZ12: Self = native_endian(Self::XYZ12BE, Self::XYZ12LE);
+    /// [`Y210BE`](Self::Y210BE) on big-endian targets and [`Y210LE`](Self::Y210LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y210`, in native byte order.
+    pub const Y210: Self = native_endian(Self::Y210BE, Self::Y210LE);
+    /// [`Y212BE`](Self::Y212BE) on big-endian targets and [`Y212LE`](Self::Y212LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y212`, in native byte order.
+    pub const Y212: Self = native_endian(Self::Y212BE, Self::Y212LE);
+    /// [`Y216BE`](Self::Y216BE) on big-endian targets and [`Y216LE`](Self::Y216LE) on
+    /// little-endian ones: `AV_PIX_FMT_Y216`, in native byte order.
+    pub const Y216: Self = native_endian(Self::Y216BE, Self::Y216LE);
+    /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_Y400A`).
+    pub const Y400A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_Y400A);
+    /// [`YA16BE`](Self::YA16BE) on big-endian targets and [`YA16LE`](Self::YA16LE) on
+    /// little-endian ones: `AV_PIX_FMT_YA16`, in native byte order.
+    pub const YA16: Self = native_endian(Self::YA16BE, Self::YA16LE);
+    /// [`YAF16BE`](Self::YAF16BE) on big-endian targets and [`YAF16LE`](Self::YAF16LE) on
+    /// little-endian ones: `AV_PIX_FMT_YAF16`, in native byte order.
+    pub const YAF16: Self = native_endian(Self::YAF16BE, Self::YAF16LE);
+    /// [`YAF32BE`](Self::YAF32BE) on big-endian targets and [`YAF32LE`](Self::YAF32LE) on
+    /// little-endian ones: `AV_PIX_FMT_YAF32`, in native byte order.
+    pub const YAF32: Self = native_endian(Self::YAF32BE, Self::YAF32LE);
+    /// [`YUV420P10BE`](Self::YUV420P10BE) on big-endian targets and
+    /// [`YUV420P10LE`](Self::YUV420P10LE) on little-endian ones: `AV_PIX_FMT_YUV420P10`, in
+    /// native byte order.
+    pub const YUV420P10: Self = native_endian(Self::YUV420P10BE, Self::YUV420P10LE);
+    /// [`YUV420P12BE`](Self::YUV420P12BE) on big-endian targets and
+    /// [`YUV420P12LE`](Self::YUV420P12LE) on little-endian ones: `AV_PIX_FMT_YUV420P12`, in
+    /// native byte order.
+    pub const YUV420P12: Self = native_endian(Self::YUV420P12BE, Self::YUV420P12LE);
+    /// [`YUV420P14BE`](Self::YUV420P14BE) on big-endian targets and
+    /// [`YUV420P14LE`](Self::YUV420P14LE) on little-endian ones: `AV_PIX_FMT_YUV420P14`, in
+    /// native byte order.
+    pub const YUV420P14: Self = native_endian(Self::YUV420P14BE, Self::YUV420P14LE);
+    /// [`YUV420P16BE`](Self::YUV420P16BE) on big-endian targets and
+    /// [`YUV420P16LE`](Self::YUV420P16LE) on little-endian ones: `AV_PIX_FMT_YUV420P16`, in
+    /// native byte order.
+    pub const YUV420P16: Self = native_endian(Self::YUV420P16BE, Self::YUV420P16LE);
+    /// [`YUV420P9BE`](Self::YUV420P9BE) on big-endian targets and
+    /// [`YUV420P9LE`](Self::YUV420P9LE) on little-endian ones: `AV_PIX_FMT_YUV420P9`, in native
+    /// byte order.
+    pub const YUV420P9: Self = native_endian(Self::YUV420P9BE, Self::YUV420P9LE);
+    /// [`YUV422P10BE`](Self::YUV422P10BE) on big-endian targets and
+    /// [`YUV422P10LE`](Self::YUV422P10LE) on little-endian ones: `AV_PIX_FMT_YUV422P10`, in
+    /// native byte order.
+    pub const YUV422P10: Self = native_endian(Self::YUV422P10BE, Self::YUV422P10LE);
+    /// [`YUV422P12BE`](Self::YUV422P12BE) on big-endian targets and
+    /// [`YUV422P12LE`](Self::YUV422P12LE) on little-endian ones: `AV_PIX_FMT_YUV422P12`, in
+    /// native byte order.
+    pub const YUV422P12: Self = native_endian(Self::YUV422P12BE, Self::YUV422P12LE);
+    /// [`YUV422P14BE`](Self::YUV422P14BE) on big-endian targets and
+    /// [`YUV422P14LE`](Self::YUV422P14LE) on little-endian ones: `AV_PIX_FMT_YUV422P14`, in
+    /// native byte order.
+    pub const YUV422P14: Self = native_endian(Self::YUV422P14BE, Self::YUV422P14LE);
+    /// [`YUV422P16BE`](Self::YUV422P16BE) on big-endian targets and
+    /// [`YUV422P16LE`](Self::YUV422P16LE) on little-endian ones: `AV_PIX_FMT_YUV422P16`, in
+    /// native byte order.
+    pub const YUV422P16: Self = native_endian(Self::YUV422P16BE, Self::YUV422P16LE);
+    /// [`YUV422P9BE`](Self::YUV422P9BE) on big-endian targets and
+    /// [`YUV422P9LE`](Self::YUV422P9LE) on little-endian ones: `AV_PIX_FMT_YUV422P9`, in native
+    /// byte order.
+    pub const YUV422P9: Self = native_endian(Self::YUV422P9BE, Self::YUV422P9LE);
+    /// [`YUV440P10BE`](Self::YUV440P10BE) on big-endian targets and
+    /// [`YUV440P10LE`](Self::YUV440P10LE) on little-endian ones: `AV_PIX_FMT_YUV440P10`, in
+    /// native byte order.
+    pub const YUV440P10: Self = native_endian(Self::YUV440P10BE, Self::YUV440P10LE);
+    /// [`YUV440P12BE`](Self::YUV440P12BE) on big-endian targets and
+    /// [`YUV440P12LE`](Self::YUV440P12LE) on little-endian ones: `AV_PIX_FMT_YUV440P12`, in
+    /// native byte order.
+    pub const YUV440P12: Self = native_endian(Self::YUV440P12BE, Self::YUV440P12LE);
+    /// [`YUV444P10BE`](Self::YUV444P10BE) on big-endian targets and
+    /// [`YUV444P10LE`](Self::YUV444P10LE) on little-endian ones: `AV_PIX_FMT_YUV444P10`, in
+    /// native byte order.
+    pub const YUV444P10: Self = native_endian(Self::YUV444P10BE, Self::YUV444P10LE);
+    /// [`YUV444P10MSBBE`](Self::YUV444P10MSBBE) on big-endian targets and
+    /// [`YUV444P10MSBLE`](Self::YUV444P10MSBLE) on little-endian ones:
+    /// `AV_PIX_FMT_YUV444P10MSB`, in native byte order.
+    pub const YUV444P10MSB: Self = native_endian(Self::YUV444P10MSBBE, Self::YUV444P10MSBLE);
+    /// [`YUV444P12BE`](Self::YUV444P12BE) on big-endian targets and
+    /// [`YUV444P12LE`](Self::YUV444P12LE) on little-endian ones: `AV_PIX_FMT_YUV444P12`, in
+    /// native byte order.
+    pub const YUV444P12: Self = native_endian(Self::YUV444P12BE, Self::YUV444P12LE);
+    /// [`YUV444P12MSBBE`](Self::YUV444P12MSBBE) on big-endian targets and
+    /// [`YUV444P12MSBLE`](Self::YUV444P12MSBLE) on little-endian ones:
+    /// `AV_PIX_FMT_YUV444P12MSB`, in native byte order.
+    pub const YUV444P12MSB: Self = native_endian(Self::YUV444P12MSBBE, Self::YUV444P12MSBLE);
+    /// [`YUV444P14BE`](Self::YUV444P14BE) on big-endian targets and
+    /// [`YUV444P14LE`](Self::YUV444P14LE) on little-endian ones: `AV_PIX_FMT_YUV444P14`, in
+    /// native byte order.
+    pub const YUV444P14: Self = native_endian(Self::YUV444P14BE, Self::YUV444P14LE);
+    /// [`YUV444P16BE`](Self::YUV444P16BE) on big-endian targets and
+    /// [`YUV444P16LE`](Self::YUV444P16LE) on little-endian ones: `AV_PIX_FMT_YUV444P16`, in
+    /// native byte order.
+    pub const YUV444P16: Self = native_endian(Self::YUV444P16BE, Self::YUV444P16LE);
+    /// [`YUV444P9BE`](Self::YUV444P9BE) on big-endian targets and
+    /// [`YUV444P9LE`](Self::YUV444P9LE) on little-endian ones: `AV_PIX_FMT_YUV444P9`, in native
+    /// byte order.
+    pub const YUV444P9: Self = native_endian(Self::YUV444P9BE, Self::YUV444P9LE);
+    /// [`YUVA420P10BE`](Self::YUVA420P10BE) on big-endian targets and
+    /// [`YUVA420P10LE`](Self::YUVA420P10LE) on little-endian ones: `AV_PIX_FMT_YUVA420P10`, in
+    /// native byte order.
+    pub const YUVA420P10: Self = native_endian(Self::YUVA420P10BE, Self::YUVA420P10LE);
+    /// [`YUVA420P16BE`](Self::YUVA420P16BE) on big-endian targets and
+    /// [`YUVA420P16LE`](Self::YUVA420P16LE) on little-endian ones: `AV_PIX_FMT_YUVA420P16`, in
+    /// native byte order.
+    pub const YUVA420P16: Self = native_endian(Self::YUVA420P16BE, Self::YUVA420P16LE);
+    /// [`YUVA420P9BE`](Self::YUVA420P9BE) on big-endian targets and
+    /// [`YUVA420P9LE`](Self::YUVA420P9LE) on little-endian ones: `AV_PIX_FMT_YUVA420P9`, in
+    /// native byte order.
+    pub const YUVA420P9: Self = native_endian(Self::YUVA420P9BE, Self::YUVA420P9LE);
+    /// [`YUVA422P10BE`](Self::YUVA422P10BE) on big-endian targets and
+    /// [`YUVA422P10LE`](Self::YUVA422P10LE) on little-endian ones: `AV_PIX_FMT_YUVA422P10`, in
+    /// native byte order.
+    pub const YUVA422P10: Self = native_endian(Self::YUVA422P10BE, Self::YUVA422P10LE);
+    /// [`YUVA422P12BE`](Self::YUVA422P12BE) on big-endian targets and
+    /// [`YUVA422P12LE`](Self::YUVA422P12LE) on little-endian ones: `AV_PIX_FMT_YUVA422P12`, in
+    /// native byte order.
+    pub const YUVA422P12: Self = native_endian(Self::YUVA422P12BE, Self::YUVA422P12LE);
+    /// [`YUVA422P16BE`](Self::YUVA422P16BE) on big-endian targets and
+    /// [`YUVA422P16LE`](Self::YUVA422P16LE) on little-endian ones: `AV_PIX_FMT_YUVA422P16`, in
+    /// native byte order.
+    pub const YUVA422P16: Self = native_endian(Self::YUVA422P16BE, Self::YUVA422P16LE);
+    /// [`YUVA422P9BE`](Self::YUVA422P9BE) on big-endian targets and
+    /// [`YUVA422P9LE`](Self::YUVA422P9LE) on little-endian ones: `AV_PIX_FMT_YUVA422P9`, in
+    /// native byte order.
+    pub const YUVA422P9: Self = native_endian(Self::YUVA422P9BE, Self::YUVA422P9LE);
+    /// [`YUVA444P10BE`](Self::YUVA444P10BE) on big-endian targets and
+    /// [`YUVA444P10LE`](Self::YUVA444P10LE) on little-endian ones: `AV_PIX_FMT_YUVA444P10`, in
+    /// native byte order.
+    pub const YUVA444P10: Self = native_endian(Self::YUVA444P10BE, Self::YUVA444P10LE);
+    /// [`YUVA444P12BE`](Self::YUVA444P12BE) on big-endian targets and
+    /// [`YUVA444P12LE`](Self::YUVA444P12LE) on little-endian ones: `AV_PIX_FMT_YUVA444P12`, in
+    /// native byte order.
+    pub const YUVA444P12: Self = native_endian(Self::YUVA444P12BE, Self::YUVA444P12LE);
+    /// [`YUVA444P16BE`](Self::YUVA444P16BE) on big-endian targets and
+    /// [`YUVA444P16LE`](Self::YUVA444P16LE) on little-endian ones: `AV_PIX_FMT_YUVA444P16`, in
+    /// native byte order.
+    pub const YUVA444P16: Self = native_endian(Self::YUVA444P16BE, Self::YUVA444P16LE);
+    /// [`YUVA444P9BE`](Self::YUVA444P9BE) on big-endian targets and
+    /// [`YUVA444P9LE`](Self::YUVA444P9LE) on little-endian ones: `AV_PIX_FMT_YUVA444P9`, in
+    /// native byte order.
+    pub const YUVA444P9: Self = native_endian(Self::YUVA444P9BE, Self::YUVA444P9LE);
 }
 
 impl Default for PixelFormat {
@@ -1534,7 +1541,7 @@ impl From<PixelFormat> for ffi::AVPixelFormat {
 // memory is the whole of it.
 unsafe impl CPlainElem for PixelFormat {}
 
-/// Wraps: AVColorPrimaries
+/// Wraps: `AVColorPrimaries`
 /// Handwritten
 ///
 /// The chromaticity coordinates of a picture's source primaries, as
@@ -1568,54 +1575,56 @@ unsafe impl CPlainElem for PixelFormat {}
 pub struct ColorPrimaries(ffi::AVColorPrimaries);
 
 impl ColorPrimaries {
-    /// Reserved code point 0; the value of a zero-filled field.
-    pub const RESERVED0: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0);
-    /// ITU-R BT.709, also ITU-R BT.1361 / IEC 61966-2-4 / SMPTE RP 177 Annex B.
-    pub const BT709: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT709);
-    /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED);
-    /// Reserved code point 3.
-    pub const RESERVED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED);
-    /// ITU-R BT.470 System M, also FCC Title 47 CFR 73.682 (a)(20).
-    pub const BT470M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470M);
+    /// ITU-R BT.2020.
+    pub const BT2020: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
     /// ITU-R BT.470 System B, G, also ITU-R BT.601-6 625 / BT.1358 625 /
     /// BT.1700 625 PAL & SECAM.
     pub const BT470BG: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470BG);
+    /// ITU-R BT.470 System M, also FCC Title 47 CFR 73.682 (a)(20).
+    pub const BT470M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470M);
+    /// ITU-R BT.709, also ITU-R BT.1361 / IEC 61966-2-4 / SMPTE RP 177 Annex B.
+    pub const BT709: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT709);
+    /// EBU Tech. 3213-E, one of the JEDEC P22 group phosphors.
+    pub const EBU3213: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EBU3213);
+    /// The first of FFmpeg's extensions, which are not part of H.273; the
+    /// same value as [`V_GAMUT`](Self::V_GAMUT).
+    pub const EXT_BASE: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE);
+    /// Generic film: colour filters using Illuminant C.
+    pub const FILM: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_FILM);
+    /// The same value as [`EBU3213`](Self::EBU3213).
+    pub const JEDEC_P22: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22);
+    /// Reserved code point 3.
+    pub const RESERVED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED);
+    /// Reserved code point 0; the value of a zero-filled field.
+    pub const RESERVED0: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0);
     /// SMPTE 170M, also ITU-R BT.601-6 525 / BT.1358 525 / BT.1700 NTSC.
     pub const SMPTE170M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE170M);
     /// SMPTE 240M, identical to [`SMPTE170M`](Self::SMPTE170M); also called
     /// "SMPTE C" even though it uses D65.
     pub const SMPTE240M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE240M);
-    /// Generic film: colour filters using Illuminant C.
-    pub const FILM: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_FILM);
-    /// ITU-R BT.2020.
-    pub const BT2020: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
     /// SMPTE ST 428-1 (CIE 1931 XYZ).
     pub const SMPTE428: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE428);
-    /// The same value as [`SMPTE428`](Self::SMPTE428).
-    pub const SMPTEST428_1: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1);
     /// SMPTE ST 431-2 (2011) / DCI P3.
     pub const SMPTE431: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE431);
     /// SMPTE ST 432-1 (2010) / P3 D65 / Display P3.
     pub const SMPTE432: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE432);
-    /// EBU Tech. 3213-E, one of the JEDEC P22 group phosphors.
-    pub const EBU3213: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EBU3213);
-    /// The same value as [`EBU3213`](Self::EBU3213).
-    pub const JEDEC_P22: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22);
-    /// The first of FFmpeg's extensions, which are not part of H.273; the
-    /// same value as [`V_GAMUT`](Self::V_GAMUT).
-    pub const EXT_BASE: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE);
+    /// The same value as [`SMPTE428`](Self::SMPTE428).
+    pub const SMPTEST428_1: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1);
+    /// Unspecified.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED);
     /// Panasonic V-Gamut.
     pub const V_GAMUT: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT);
 
     /// The primaries C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVColorPrimaries) -> Self {
         Self(raw)
     }
 
     /// The C encoding of these primaries.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVColorPrimaries {
         self.0
     }
@@ -1680,7 +1689,7 @@ impl From<ColorPrimaries> for ffi::AVColorPrimaries {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ColorPrimaries {}
 
-/// Wraps: AVColorRange
+/// Wraps: `AVColorRange`
 /// Handwritten
 ///
 /// The range of values a picture's samples take: limited ("MPEG", "TV")
@@ -1717,24 +1726,26 @@ unsafe impl CPlainElem for ColorPrimaries {}
 pub struct ColorRange(ffi::AVColorRange);
 
 impl ColorRange {
-    /// Unspecified; the value of a zero-filled field.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED);
+    /// Full range: `(2^n - 1) * E` for RGB and luma, e.g. 0-255 at 8 bits,
+    /// and `(2^n - 1) * E + 2^(n - 1)` for chroma, e.g. 1-255 at 8 bits.
+    pub const JPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_JPEG);
     /// Narrow or limited range: `(219 * E + 16) * 2^(n-8)` for luma, e.g.
     /// 16-235 at 8 bits, and `(224 * E + 128) * 2^(n-8)` for chroma, e.g.
     /// 16-240 at 8 bits.
     pub const MPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_MPEG);
-    /// Full range: `(2^n - 1) * E` for RGB and luma, e.g. 0-255 at 8 bits,
-    /// and `(2^n - 1) * E + 2^(n - 1)` for chroma, e.g. 1-255 at 8 bits.
-    pub const JPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_JPEG);
+    /// Unspecified; the value of a zero-filled field.
+    pub const UNSPECIFIED: Self = Self(ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED);
 
     /// The range C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVColorRange) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this range.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVColorRange {
         self.0
     }
@@ -1786,7 +1797,7 @@ impl From<ColorRange> for ffi::AVColorRange {
 // C memory is the whole of it.
 unsafe impl CPlainElem for ColorRange {}
 
-/// Wraps: AVChromaLocation
+/// Wraps: `AVChromaLocation`
 /// Handwritten
 ///
 /// Where the first (top left) chroma sample of a subsampled picture sits
@@ -1829,29 +1840,31 @@ unsafe impl CPlainElem for ColorRange {}
 pub struct ChromaLocation(ffi::AVChromaLocation);
 
 impl ChromaLocation {
-    /// Unknown or undefined (position 0).
-    pub const UNSPECIFIED: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED);
-    /// Position 1: MPEG-2/4 4:2:0, the H.264 default for 4:2:0.
-    pub const LEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_LEFT);
-    /// Position 2: MPEG-1 4:2:0, JPEG 4:2:0, H.263 4:2:0.
-    pub const CENTER: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_CENTER);
-    /// Position 3: ITU-R 601, SMPTE 274M 296M S314M (DV 4:1:1), MPEG-2 4:2:2.
-    pub const TOPLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT);
-    /// Position 4.
-    pub const TOP: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOP);
-    /// Position 5.
-    pub const BOTTOMLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT);
     /// Position 6.
     pub const BOTTOM: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOM);
+    /// Position 5.
+    pub const BOTTOMLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT);
+    /// Position 2: MPEG-1 4:2:0, JPEG 4:2:0, H.263 4:2:0.
+    pub const CENTER: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_CENTER);
+    /// Position 1: MPEG-2/4 4:2:0, the H.264 default for 4:2:0.
+    pub const LEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_LEFT);
+    /// Position 4.
+    pub const TOP: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOP);
+    /// Position 3: ITU-R 601, SMPTE 274M 296M S314M (DV 4:1:1), MPEG-2 4:2:2.
+    pub const TOPLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT);
+    /// Unknown or undefined (position 0).
+    pub const UNSPECIFIED: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED);
 
     /// The chroma location C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVChromaLocation) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this chroma location.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVChromaLocation {
         self.0
     }
@@ -1908,11 +1921,17 @@ impl From<ChromaLocation> for ffi::AVChromaLocation {
 unsafe impl CPlainElem for ChromaLocation {}
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::{c_int, c_uint};
     use core::mem::{align_of, size_of};
     use std::collections::HashSet;
+
+    use super::*;
 
     const COLOR_SPACE_NAMED: [(ColorSpace, &str); 18] = [
         (ColorSpace::RGB, "RGB"),
@@ -2455,7 +2474,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[allow(clippy::clone_on_copy)]
+    #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
     fn chroma_location_clone_and_hash_follow_the_encoding() {
         use std::collections::HashSet;
         let all: Vec<ChromaLocation> = CHROMA_LOCATION_NAMED

@@ -1,4 +1,13 @@
 //! UB tests of `libavutil/refstruct.h`'s safe wrappers.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 /// Buffer-frame wave 0, type batch 3: `RefStructOpaque` values and
 /// `RefStructPoolArc` owners, across sizes, flags, drop orders and threads.
@@ -179,7 +188,7 @@ mod pool_and_opaque {
     }
 }
 
-/// Buffer-frame wave 0, symbol batch 5: counted references to RefStruct
+/// Buffer-frame wave 0, symbol batch 5: counted references to `RefStruct`
 /// objects through every owner form, the `const` references, slot
 /// replacement and cross-thread counting.
 mod counted_references {
@@ -219,13 +228,13 @@ mod counted_references {
     #[cfg_attr(miri, ignore = "calls C")]
     fn clones_share_one_object_and_outlive_the_first_reference() {
         let mut a = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
-        a.get_mut().unwrap().set_bits(0x0123_4567_89ab_cdef);
+        a.get_mut().unwrap().set_bits(0x0123_4567_89AB_CDEF);
         let clones: Vec<_> = (0..16).map(|_| a.clone()).collect();
         assert!(clones.iter().all(|c| RefStructArc::ptr_eq(c, &a)));
         // The parent goes first.
         drop(a);
         for c in &clones {
-            assert_eq!(c.as_ref().bits(), 0x0123_4567_89ab_cdef);
+            assert_eq!(c.as_ref().bits(), 0x0123_4567_89AB_CDEF);
         }
         let mut last = clones.into_iter().next_back().unwrap();
         last.get_mut().unwrap().set_float(1.5);
@@ -721,7 +730,7 @@ mod releases_and_typed_pools {
     }
 
     /// Init failures under every flag set and callback subset: `get` is
-    /// `None`, the entry is freed (LSan reports otherwise), and the error
+    /// `None`, the entry is freed (`LSan` reports otherwise), and the error
     /// callbacks C selects run on it.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -798,7 +807,7 @@ mod releases_and_typed_pools {
 
     /// Callbacks that get from and return to their own pool while C runs
     /// them: neither holds the pool's lock. The state's pool reference is a
-    /// cycle, broken before the end so the pool is freed (LSan checks).
+    /// cycle, broken before the end so the pool is freed (`LSan` checks).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn callbacks_reenter_their_pool() {
@@ -843,7 +852,7 @@ mod releases_and_typed_pools {
 
     /// Pool references and entries spread over threads: concurrent gets,
     /// writes, returns on other threads than the getter's, and the pool's
-    /// last reference dropped while entries are out (TSan checks the C
+    /// last reference dropped while entries are out (`TSan` checks the C
     /// synchronization and the shared state).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -897,7 +906,7 @@ mod releases_and_typed_pools {
     /// C's writes to an entry (the reset callback through C's pointer, then
     /// `ZERO_EVERY_TIME`'s memset) between Rust views of it through the
     /// boxes `get` hands out, and the release's write through C's pointer
-    /// after Rust reborrows of the payload: BSan's foreign-write checks.
+    /// after Rust reborrows of the payload: `BSan`'s foreign-write checks.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn foreign_writes_between_rust_views_of_entries() {
@@ -1020,7 +1029,7 @@ mod releases_and_typed_pools {
 /// the same pool during that uninit's flush; and an init that releases the
 /// state's pool reference and entries while C is getting one. Each callback
 /// reads the shared state again after the nested teardown has returned, so a
-/// state dropped too early is a use after free (ASan), and the state's drop
+/// state dropped too early is a use after free (`ASan`), and the state's drop
 /// is checked to come after every callback.
 mod pool_teardown_in_callbacks {
     use std::sync::atomic::{AtomicBool, Ordering};

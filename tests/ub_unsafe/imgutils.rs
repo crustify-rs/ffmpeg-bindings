@@ -3,6 +3,10 @@
 //! within its contract: no parent context, and a raw one led by a valid
 //! class, with level offsets up to the overflow bound, on valid and invalid
 //! sizes, on several threads. A class-less context is no `ObjectRef`.
+#![expect(
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::{c_int, c_void};
 use core::ptr;
@@ -84,16 +88,20 @@ fn classless_context_is_no_object() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn context_with_a_class() {
     let class = Box::new(class());
-    let ctx = Box::new(Ctx { class: &*class });
+    let ctx = Box::new(Ctx {
+        class: &raw const *class,
+    });
     // SAFETY: a live struct led by a pointer to a valid, live class.
-    checks(Some(unsafe { object(&*ctx) }));
+    checks(Some(unsafe { object(&raw const *ctx) }));
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn shared_context_on_many_threads() {
     let class = class();
-    let ctx = Ctx { class: &class };
+    let ctx = Ctx {
+        class: &raw const class,
+    };
     let addr = &raw const ctx as usize;
     thread::scope(|s| {
         for _ in 0..4 {
@@ -164,16 +172,20 @@ mod max_pixels {
     #[cfg_attr(miri, ignore = "calls C")]
     fn context_with_a_class() {
         let class = Box::new(class());
-        let ctx = Box::new(Ctx { class: &*class });
+        let ctx = Box::new(Ctx {
+            class: &raw const *class,
+        });
         // SAFETY: a live struct led by a pointer to a valid, live class.
-        checks(Some(unsafe { object(&*ctx) }));
+        checks(Some(unsafe { object(&raw const *ctx) }));
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn shared_context_on_many_threads() {
         let class = class();
-        let ctx = Ctx { class: &class };
+        let ctx = Ctx {
+            class: &raw const class,
+        };
         let addr = &raw const ctx as usize;
         thread::scope(|s| {
             for _ in 0..4 {

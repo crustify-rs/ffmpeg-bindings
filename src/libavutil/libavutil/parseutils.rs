@@ -20,13 +20,12 @@ use core::ffi::{CStr, c_char, c_int};
 use core::ptr::{self, NonNull};
 
 use super::bprint::{TmMut, TmRef};
-use super::eval;
-use super::ffi;
 use super::opt::ObjectRef;
 use super::rational::Rational;
+use super::{eval, ffi};
 
 /// `AVERROR(EINVAL)`.
-const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
+const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
 /// The bytes C's `av_parse_color` skips as a hex marker before copying the
 /// color: 1 for a leading `#`, 2 for a leading `0x` (lowercase only).
@@ -51,6 +50,11 @@ const COLOR_SLEN_CAP: usize = 256;
 /// `slen` its size computation wraps to 128 and it parses past the prefix.
 /// A large `len` is capped at [`COLOR_SLEN_CAP`], which also keeps C's
 /// `slen - hex_offset + 1` from overflowing at `INT_MAX`.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "capped at `COLOR_SLEN_CAP`, below `INT_MAX`"
+)]
 fn color_slen(color: &[u8], len: usize) -> Option<c_int> {
     if len < hex_offset(color) {
         return None;
@@ -61,6 +65,10 @@ fn color_slen(color: &[u8], len: usize) -> Option<c_int> {
 /// The alpha specifier C's `av_parse_color` reads for `slen` (at least
 /// `hex_offset(color)`): the bytes after the first `@` among the up to 127
 /// it copies after the hex marker, or `None` without an `@`.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "`slen` is at least `hex_offset(color)`, a non-negative `int`"
+)]
 fn alpha_suffix(color: &[u8], slen: c_int) -> Option<&[u8]> {
     let start = hex_offset(color);
     let copied = (slen as usize - start).min(127);
@@ -110,7 +118,7 @@ fn checked_slen(color: &CStr, len: usize) -> Result<c_int, i32> {
     Ok(slen)
 }
 
-/// Wraps: av_parse_color
+/// Wraps: `av_parse_color`
 ///
 /// The red, green, blue and alpha bytes `color` names, in that order.
 ///
@@ -122,23 +130,26 @@ fn checked_slen(color: &CStr, len: usize) -> Result<c_int, i32> {
 /// opacity in `[0.0, 1.0]` (scaled by 255 and truncated), replaces it. Only
 /// the first 127 bytes after the hex marker are read.
 ///
-/// Fails with `AVERROR(EINVAL)` otherwise, after logging why at
-/// `AV_LOG_ERROR` without a context. An opacity `strtod` reads as NaN
-/// (`red@nan`), which C would convert to a byte (UB), fails with
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` otherwise, after logging why at `AV_LOG_ERROR` without a context.
+/// An opacity `strtod` reads as NaN (`red@nan`), which C would convert to a byte (UB), fails with
 /// `AVERROR(EINVAL)` before C runs, without logging.
 pub fn parse_color(color: &CStr) -> Result<[u8; 4], i32> {
     parse_color_prefix(color, usize::MAX)
 }
 
-/// Wraps: av_parse_color
+/// Wraps: `av_parse_color`
 ///
 /// As [`parse_color`], reading the color from the first `len` bytes of
 /// `color` only (the whole string when it is shorter); an invalid alpha
 /// specifier is still logged with the whole string.
 ///
-/// A prefix that ends inside the `#` or `0x` marker fails with
-/// `AVERROR(EINVAL)` before C runs, without logging: C copies no color for
-/// such a prefix and reads an uninitialised buffer, or reads past the prefix.
+/// # Errors
+///
+/// A prefix that ends inside the `#` or `0x` marker fails with `AVERROR(EINVAL)` before C runs,
+/// without logging: C copies no color for such a prefix and reads an uninitialised buffer, or reads
+/// past the prefix.
 pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
     let slen = checked_slen(color, len)?;
     let mut rgba = [0u8; 4];
@@ -153,10 +164,14 @@ pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
     if ret < 0 { Err(ret) } else { Ok(rgba) }
 }
 
-/// Wraps: av_parse_color
+/// Wraps: `av_parse_color`
 ///
 /// As [`parse_color`], or with `Some(len)` as [`parse_color_prefix`], logging
 /// a failure with `log_ctx` as the context (`None` for no context).
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_parse_color` returns when it fails.
 pub fn parse_color_with_context(
     color: &CStr,
     len: Option<usize>,
@@ -172,7 +187,7 @@ pub fn parse_color_with_context(
     if ret < 0 { Err(ret) } else { Ok(rgba) }
 }
 
-/// Wraps: av_parse_video_size
+/// Wraps: `av_parse_video_size`
 ///
 /// The width and height, both positive, that `size` gives: a named size
 /// (`vga`, `hd1080`, `4k`, ...; case-sensitive) or `<width>x<height>`, two
@@ -180,13 +195,14 @@ pub fn parse_color_with_context(
 /// allowed) separated by any one byte. C narrows each integer to `int`
 /// modulo 2^32, so `4294967297x1` is `(1, 1)`.
 ///
-/// Fails with `AVERROR(EINVAL)` on trailing bytes or a dimension that is not
-/// positive.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` on trailing bytes or a dimension that is not positive.
 pub fn parse_video_size(size: &CStr) -> Result<(i32, i32), i32> {
     let (mut width, mut height) = (0, 0);
     // SAFETY: `width` and `height` are writable locals, and `size` a live
     // NUL-terminated string that C only reads, up to its NUL.
-    let ret = unsafe { ffi::av_parse_video_size(&mut width, &mut height, size.as_ptr()) };
+    let ret = unsafe { ffi::av_parse_video_size(&raw mut width, &raw mut height, size.as_ptr()) };
     if ret < 0 {
         Err(ret)
     } else {
@@ -199,11 +215,12 @@ fn parse_time(timestr: &CStr, duration: bool) -> Result<i64, i32> {
     let mut timeval = 0;
     // SAFETY: `timeval` is a writable local and `timestr` a live
     // NUL-terminated string that C only reads, up to its NUL.
-    let ret = unsafe { ffi::av_parse_time(&mut timeval, timestr.as_ptr(), c_int::from(duration)) };
+    let ret =
+        unsafe { ffi::av_parse_time(&raw mut timeval, timestr.as_ptr(), c_int::from(duration)) };
     if ret < 0 { Err(ret) } else { Ok(timeval) }
 }
 
-/// Wraps: av_parse_time
+/// Wraps: `av_parse_time`
 ///
 /// The microseconds since 1970-01-01 00:00:00 UTC of the date `date`:
 ///
@@ -216,13 +233,15 @@ fn parse_time(timestr: &CStr, duration: bool) -> Result<i64, i32> {
 /// the date part); a missing date is today's, and `now` (any case) is the
 /// current time. Up to six fractional digits count.
 ///
-/// Fails with `AVERROR(EINVAL)` on a malformed date, and `AVERROR(ERANGE)`
-/// when the microseconds overflow an `i64`.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` on a malformed date, and `AVERROR(ERANGE)` when the microseconds
+/// overflow an `i64`.
 pub fn parse_date(date: &CStr) -> Result<i64, i32> {
     parse_time(date, false)
 }
 
-/// Wraps: av_parse_time
+/// Wraps: `av_parse_time`
 ///
 /// The microseconds the duration `duration` spans:
 ///
@@ -235,13 +254,15 @@ pub fn parse_date(date: &CStr) -> Result<i64, i32> {
 /// of seconds (or of the unit its suffix names); up to six fractional digits
 /// count (three after `ms`, none after `us`).
 ///
-/// Fails with `AVERROR(EINVAL)` on a malformed duration, and
-/// `AVERROR(ERANGE)` when it overflows an `i64` of microseconds.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` on a malformed duration, and `AVERROR(ERANGE)` when it overflows an
+/// `i64` of microseconds.
 pub fn parse_duration(duration: &CStr) -> Result<i64, i32> {
     parse_time(duration, true)
 }
 
-/// Wraps: av_find_info_tag
+/// Wraps: `av_find_info_tag`
 ///
 /// The value of tag `tag` in `info`, a URL query string of the form
 /// `?tag1=val1&tag2=val2...` (the leading `?` is optional), written into
@@ -278,24 +299,27 @@ pub fn find_info_tag<'b>(buf: &'b mut [u8], tag: &CStr, info: &CStr) -> Option<&
     CStr::from_bytes_until_nul(buf).ok()
 }
 
-/// Wraps: av_get_known_color_name
+/// Wraps: `av_get_known_color_name`
 ///
 /// Entry `index` of the table of named colors `av_parse_color` recognizes,
 /// in its order (alphabetical, `"AliceBlue"` first): the color's name and
 /// its red, green and blue components. `None` past the end of the table.
+#[must_use]
 pub fn known_color_name(index: usize) -> Option<(&'static CStr, [u8; 3])> {
     let index = c_int::try_from(index).ok()?;
-    let mut rgb = core::ptr::null();
+    let mut rgb = ptr::null();
     // SAFETY: `rgb` is a writable slot; C bounds-checks `index` and returns
     // NULL past the table, else stores a pointer into it.
-    let name = unsafe { ffi::av_get_known_color_name(index, &mut rgb) };
+    let name = unsafe { ffi::av_get_known_color_name(index, &raw mut rgb) };
     if name.is_null() || rgb.is_null() {
         return None;
     }
     // SAFETY: a non-NULL result is an entry of the `static const` color
     // table: `name` a string literal, `rgb` its 3-byte `rgb_color` member,
     // both immutable for the program's lifetime.
-    unsafe { Some((CStr::from_ptr(name), rgb.cast::<[u8; 3]>().read())) }
+    Some((unsafe { CStr::from_ptr(name) }, unsafe {
+        rgb.cast::<[u8; 3]>().read()
+    }))
 }
 
 // Options wave 1, batch 1: ratios, video rates, date fields and UTC times.
@@ -319,7 +343,7 @@ fn parse_ratio_raw(
     // evaluation could reach undefined behaviour at `log_offset`, and
     // `log_ctx` is NULL or a live object whose class callbacks `av_log` may
     // call, as `ObjectRef` guarantees for the call.
-    let ret = unsafe { ffi::av_parse_ratio(&mut q, ratio.as_ptr(), max, log_offset, log_ctx) };
+    let ret = unsafe { ffi::av_parse_ratio(&raw mut q, ratio.as_ptr(), max, log_offset, log_ctx) };
     if ret < 0 {
         Err(ret)
     } else {
@@ -327,19 +351,17 @@ fn parse_ratio_raw(
     }
 }
 
-/// Wraps: av_parse_ratio
+/// Wraps: `av_parse_ratio`
 ///
 /// The ratio `ratio` gives, both terms at most `max` in magnitude:
 ///
-/// - `<num>:<den>` and nothing after it, two decimal integers as glibc's
-///   `sscanf` reads `%d` (leading whitespace and a sign allowed, narrowed to
-///   `int` modulo 2^32, `-1` beyond the `long` range), reduced to lowest
-///   terms ([`reduce`](super::rational::reduce)), the closest approximation
-///   within `max` when it does not fit; `0:0` and `x:0` stay undefined and
-///   infinite;
-/// - anything else, an expression of the evaluator's own constants and
-///   functions ([`eval::parse_and_eval`] with no constants or functions),
-///   whose value [`Rational::from_f64`] approximates within `max`.
+/// - `<num>:<den>` and nothing after it, two decimal integers as glibc's `sscanf` reads `%d`
+///   (leading whitespace and a sign allowed, narrowed to `int` modulo 2^32, `-1` beyond the `long`
+///   range), reduced to lowest terms ([`reduce`](super::rational::reduce)), the closest
+///   approximation within `max` when it does not fit; `0:0` and `x:0` stay undefined and infinite;
+/// - anything else, an expression of the evaluator's own constants and functions
+///   ([`eval::parse_and_eval`] with no constants or functions), whose value [`Rational::from_f64`]
+///   approximates within `max`.
 ///
 /// # Errors
 ///
@@ -352,14 +374,24 @@ fn parse_ratio_raw(
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::parseutils::parse_ratio;
 /// use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
-/// assert_eq!(parse_ratio(c"16:12", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((4, 3)));
-/// assert_eq!(parse_ratio(c"0.75", 255).map(Rational::into_raw).map(|q| (q.num, q.den)), Ok((3, 4)));
+/// assert_eq!(
+///     parse_ratio(c"16:12", 255)
+///         .map(Rational::into_raw)
+///         .map(|q| (q.num, q.den)),
+///     Ok((4, 3))
+/// );
+/// assert_eq!(
+///     parse_ratio(c"0.75", 255)
+///         .map(Rational::into_raw)
+///         .map(|q| (q.num, q.den)),
+///     Ok((3, 4))
+/// );
 /// ```
 pub fn parse_ratio(ratio: &CStr, max: i32) -> Result<Rational, i32> {
     parse_ratio_raw(ratio, max, 0, None)
 }
 
-/// Wraps: av_parse_ratio
+/// Wraps: `av_parse_ratio`
 ///
 /// As [`parse_ratio`], logging an expression's errors with `log_offset`
 /// added to their level, as messages of an `"Eval"` context whose parent is
@@ -379,7 +411,7 @@ pub fn parse_ratio_with_context(
     parse_ratio_raw(ratio, max, log_offset, log_ctx)
 }
 
-/// Wraps: av_parse_video_rate
+/// Wraps: `av_parse_video_rate`
 ///
 /// The frame rate `rate` gives, both terms positive: a named rate (`ntsc`,
 /// `pal`, `qntsc`, `qpal`, `sntsc`, `spal`, `film`, `ntsc-film`;
@@ -394,7 +426,7 @@ pub fn parse_ratio_with_context(
 /// `AVERROR(EINVAL)`, before C runs, for an expression
 /// [`eval::parse_and_eval`] refuses.
 pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
-    if eval::refuses(rate.to_bytes(), ffi::AV_LOG_MAX_OFFSET as c_int) {
+    if eval::refuses(rate.to_bytes(), ffi::AV_LOG_MAX_OFFSET.cast_signed()) {
         return Err(AVERROR_EINVAL);
     }
     let mut q = ffi::AVRational::default();
@@ -402,7 +434,7 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
     // string C only reads; C's quiet ratio parses use non-negative bounds,
     // and `refuses` rejected every expression whose quiet evaluation could
     // reach undefined behaviour.
-    let ret = unsafe { ffi::av_parse_video_rate(&mut q, rate.as_ptr()) };
+    let ret = unsafe { ffi::av_parse_video_rate(&raw mut q, rate.as_ptr()) };
     if ret < 0 {
         Err(ret)
     } else {
@@ -410,7 +442,7 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
     }
 }
 
-/// Wraps: av_small_strptime
+/// Wraps: `av_small_strptime`
 ///
 /// Reads the start of `s` as `fmt` describes it, storing each field it
 /// reads in `tm`, and returns the rest of `s`: the bytes after the last one
@@ -418,14 +450,13 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
 ///
 /// - `%H`: an hour, 0 to 23, of at most 2 digits (`tm_hour`);
 /// - `%J`: hours, of at most 4 digits (`tm_hour`);
-/// - `%M`, `%S`: a minute or second, 0 to 59, of at most 2 digits
-///   (`tm_min`, `tm_sec`);
+/// - `%M`, `%S`: a minute or second, 0 to 59, of at most 2 digits (`tm_min`, `tm_sec`);
 /// - `%Y`: a year of at most 4 digits (`tm_year`, less 1900);
 /// - `%m`: a month, 1 to 12, of at most 2 digits (`tm_mon`, less 1);
 /// - `%d`: a day of the month, 1 to 31, of at most 2 digits (`tm_mday`);
 /// - `%T`: `%H:%M:%S`;
-/// - `%b`, `%B`, `%h`: a month's English name, its first three letters or
-///   all of it, in any case (`tm_mon`);
+/// - `%b`, `%B`, `%h`: a month's English name, its first three letters or all of it, in any case
+///   (`tm_mon`);
 /// - `%%`: a `%`;
 /// - a white-space byte: any run of white space, possibly empty;
 /// - any other byte: itself.
@@ -442,9 +473,13 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
 /// let mut tm = Tm::new();
 /// let rest = small_strptime(c"2024-02-29 12:34:56 UTC", c"%Y-%m-%d %T", tm.as_mut());
 /// assert_eq!(rest, Some(c" UTC"));
-/// assert_eq!((tm.as_ref().year(), tm.as_ref().mon(), tm.as_ref().mday()), (124, 1, 29));
+/// assert_eq!(
+///     (tm.as_ref().year(), tm.as_ref().mon(), tm.as_ref().mday()),
+///     (124, 1, 29)
+/// );
 /// assert_eq!(tm.as_ref().sec(), 56);
 /// ```
+#[must_use]
 pub fn small_strptime<'s>(s: &'s CStr, fmt: &CStr, mut tm: TmMut<'_>) -> Option<&'s CStr> {
     // SAFETY: `s` and `fmt` are live NUL-terminated strings C only reads,
     // never past their NULs (a trailing `%` fails as it reads the NUL), and
@@ -480,7 +515,7 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
     Some((days, secs))
 }
 
-/// Wraps: av_timegm
+/// Wraps: `av_timegm`
 ///
 /// The seconds since 1970-01-01 00:00:00 UTC of the UTC time `tm`, from its
 /// year, month, day, hour, minute and second; the other fields are ignored.
@@ -502,6 +537,7 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
 /// t.set_mday(1);
 /// assert_eq!(timegm(tm.as_ref()), Some(946_684_800));
 /// ```
+#[must_use]
 pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
     timegm_terms(tm)?;
     // SAFETY: the shared handle covers a live `struct tm`, which C only
@@ -515,11 +551,20 @@ pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
 /// NaN in a `uint8_t`, undefined behaviour (`parseutils.c:433`). As
 /// [`checked_slen`] decides it for [`parse_color`], for an option value
 /// `av_opt_set` hands C whole.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "`COLOR_SLEN_CAP` is below `INT_MAX`"
+)]
 pub(crate) fn color_alpha_is_nan(color: &[u8]) -> bool {
     alpha_suffix(color, COLOR_SLEN_CAP as c_int).is_some_and(is_nan_spelling)
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 mod unit_tests {
     use super::*;
 
@@ -613,7 +658,7 @@ mod unit_tests {
     }
 
     unsafe extern "C" {
-        fn strtod(s: *const core::ffi::c_char, end: *mut *mut core::ffi::c_char) -> f64;
+        fn strtod(s: *const c_char, end: *mut *mut c_char) -> f64;
     }
 
     /// Whether libc's `strtod` reads all of `s` as a NaN.
@@ -622,7 +667,7 @@ mod unit_tests {
         let mut end = ptr::null_mut();
         // SAFETY: `s` is a live NUL-terminated string and `end` a writable
         // local, which `strtod` points into `s`.
-        let d = unsafe { strtod(s.as_ptr(), &mut end) };
+        let d = unsafe { strtod(s.as_ptr(), &raw mut end) };
         // SAFETY: `end` points into `s`, at or before its NUL.
         d.is_nan() && unsafe { *end } == 0
     }
@@ -715,7 +760,7 @@ mod unit_tests {
     }
 
     /// The corrected behaviour: a NaN opacity fails instead of reaching C's
-    /// conversion of NaN to a byte (UBSan: `parseutils.c:433`).
+    /// conversion of NaN to a byte (`UBSan`: `parseutils.c:433`).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn nan_opacities_fail_before_c() {
@@ -864,7 +909,7 @@ mod unit_tests {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn timegm_refuses_exactly_cs_int_overflows() {
-            let mut state = 0x1234_5678_9abc_def0u64;
+            let mut state = 0x1234_5678_9ABC_DEF0u64;
             let mut next = move || {
                 state ^= state << 13;
                 state ^= state >> 7;
@@ -900,7 +945,7 @@ mod unit_tests {
             }
         }
 
-        /// The corrected behaviour: C's signed overflows (UBSan:
+        /// The corrected behaviour: C's signed overflows (`UBSan`:
         /// `parseutils.c:577`, `:585`, `:587`) become `None`.
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]

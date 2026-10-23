@@ -18,7 +18,7 @@ use super::opt::ObjectRef;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FileUnmap;
 
-/// Wraps: av_file_unmap
+/// Wraps: `av_file_unmap`
 ///
 /// # Safety
 ///
@@ -38,16 +38,13 @@ impl_clendrop!(FileUnmap, unmap);
 pub type FileMap = CVec<u8, FileUnmap>;
 
 /// `AVERROR(EINVAL)`.
-const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
+const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
-/// Wraps: av_file_map
+/// Wraps: `av_file_map`
 ///
 /// Maps the file `filename`; on failure, the `AVERROR` code C returns
 /// (`AVERROR(ENOENT)` for a missing file, say), after logging it at
 /// `AV_LOG_ERROR + log_offset` with `log_ctx` as the parent log context.
-///
-/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
-/// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
 ///
 /// `log_ctx` is the parent log context, `None` for none.
 ///
@@ -57,12 +54,21 @@ const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
 /// [`FileMap`] lives: its bytes are pages of the file, read through `&[u8]`,
 /// which other writers would change behind the borrow, and truncation
 /// unmaps them.
+///
+/// # Errors
+///
+/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the level C logs at, is
+/// rejected with `AVERROR(EINVAL)` before C runs.
+///
+/// # Panics
+///
+/// Only if C breaks the guarantee that `av_file_map` returns NULL only for an empty file.
 pub unsafe fn map(
     filename: &CStr,
     log_offset: c_int,
     log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<FileMap, c_int> {
-    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
+    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR.cast_signed() {
         return Err(AVERROR_EINVAL);
     }
     let mut buf = core::ptr::null_mut();
@@ -72,8 +78,15 @@ pub unsafe fn map(
     // and `size` are writable out-parameters; `log_ctx` is NULL or a logging
     // context, as its handle guarantees, which C only reads while logging;
     // and `log_offset` cannot overflow the error level C adds it to.
-    let ret =
-        unsafe { ffi::av_file_map(filename.as_ptr(), &mut buf, &mut size, log_offset, log_ctx) };
+    let ret = unsafe {
+        ffi::av_file_map(
+            filename.as_ptr(),
+            &raw mut buf,
+            &raw mut size,
+            log_offset,
+            log_ctx,
+        )
+    };
     if ret < 0 {
         return Err(ret);
     }
@@ -86,9 +99,18 @@ pub unsafe fn map(
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
-    use super::*;
     use ffibox::CLenDrop;
+
+    use super::*;
 
     /// A file under the temporary directory, removed on drop.
     struct TempFile(std::path::PathBuf, std::ffi::CString);

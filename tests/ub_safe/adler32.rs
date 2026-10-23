@@ -1,3 +1,12 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 use ffmpeg_bindings::libavutil::libavutil::adler32::update;
 
 #[test]
@@ -13,7 +22,7 @@ fn batch10_unaligned_empty_and_streaming() {
         assert_eq!(sum, update(1, bytes));
         assert_eq!(update(sum, &[]), sum);
     }
-    assert_eq!(update(1, b"Wikipedia"), 0x11e60398);
+    assert_eq!(update(1, b"Wikipedia"), 0x11E60398);
     assert_eq!(update(u32::MAX, &[]), u32::MAX);
 }
 
@@ -23,12 +32,9 @@ fn batch10_stateless_threads_and_reborrows() {
     let workers: Vec<_> = (0..4)
         .map(|t| {
             std::thread::spawn(move || {
-                use ffmpeg_bindings::libavutil::libavutil::{
-                    base64,
-                    crc::{Table, TableSize},
-                    hash, lzo, md5, uuid,
-                };
-                let table = Table::new(true, 32, 0xedb88320, TableSize::Fast).unwrap();
+                use ffmpeg_bindings::libavutil::libavutil::crc::{Table, TableSize};
+                use ffmpeg_bindings::libavutil::libavutil::{base64, hash, lzo, md5, uuid};
+                let table = Table::new(true, 32, 0xEDB88320, TableSize::Fast).unwrap();
                 let mut buffer = [0u8; 64];
                 for i in 0..100 {
                     buffer.fill((t + i) as u8);

@@ -4,11 +4,14 @@
 //! The public header exposes no fields or clone routine. Storage remains
 //! C-allocated and is released by the [`TwofishFree`] policy.
 
-use core::{fmt, ptr::NonNull};
+use core::fmt;
+use core::ptr::NonNull;
+
 use ffibox::{CBox, CDrop, define_ctype};
 
 use super::aes::{CryptError, Direction};
-use super::{ffi, mem::Heap};
+use super::ffi;
+use super::mem::Heap;
 
 define_ctype!(
     /// Wraps: AVTWOFISH
@@ -33,7 +36,10 @@ define_ctype!(
     /// drop(owner);
     /// let _copy = shared;
     /// ```
-    Twofish, TwofishRef, TwofishMut, ffi::AVTWOFISH
+    Twofish,
+    TwofishRef,
+    TwofishMut,
+    ffi::AVTWOFISH
 );
 
 /// Sole ownership of a C-allocated Twofish context, freed with `av_free`.
@@ -52,7 +58,7 @@ pub type TwofishBox = CBox<Twofish, TwofishFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TwofishFree;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: TwofishBox adopts only `av_twofish_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Twofish> for TwofishFree {
@@ -77,7 +83,12 @@ pub enum InitError {
     /// Negative bit counts are rejected by C with `AVERROR(EINVAL)`.
     NegativeKeyBits,
     /// C would read more bytes than the supplied key contains.
-    KeyTooShort { required: usize, actual: usize },
+    KeyTooShort {
+        /// The bytes the bit count needs.
+        required: usize,
+        /// The bytes the key holds.
+        actual: usize,
+    },
     /// The C allocator returned null.
     AllocationFailed,
 }
@@ -100,7 +111,7 @@ fn validate_key(key: &[u8], key_bits: i32) -> Result<(), InitError> {
         return Err(InitError::NegativeKeyBits);
     }
     // C reads floor(bits / 8), capped at 32; partial bytes are ignored.
-    let required = (key_bits.min(256) / 8) as usize;
+    let required = (key_bits.min(256) / 8).unsigned_abs() as usize;
     if key.len() < required {
         return Err(InitError::KeyTooShort {
             required,
@@ -111,30 +122,43 @@ fn validate_key(key: &[u8], key_bits: i32) -> Result<(), InitError> {
 }
 
 impl Twofish {
-    /// Wraps: av_twofish_alloc
+    /// Wraps: `av_twofish_alloc`
     ///
     /// Allocate a fully initialized context and return C's initialization
     /// status. Zero bits (including an empty key), partial bytes and counts
     /// above 256 are accepted as in C: missing bits are zero-padded, partial
     /// bytes ignored, and keys above 256 bits truncated to 32 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::NegativeKeyBits`] for a negative bit count, [`InitError::KeyTooShort`]
+    /// when `key` holds fewer bytes than the count needs, and [`InitError::AllocationFailed`] when
+    /// C cannot allocate the context.
     pub fn new(key: &[u8], key_bits: i32) -> Result<(TwofishBox, InitStatus), InitError> {
         validate_key(key, key_bits)?;
+        // SAFETY: as the comment below states, for this part of the operation.
+        let twofish_alloc = unsafe { ffi::av_twofish_alloc() };
         // SAFETY: fresh zero-filled C storage has only inline scalar fields,
         // and TwofishFree releases it using the paired av_free. No owner escapes
         // before init fills all fields subsequently read by the C cipher.
-        let mut owner = unsafe { TwofishBox::from_c(ffi::av_twofish_alloc()) }
-            .ok_or(InitError::AllocationFailed)?;
+        let mut owner =
+            unsafe { TwofishBox::from_c(twofish_alloc) }.ok_or(InitError::AllocationFailed)?;
         let status = owner.as_mut().init(key, key_bits)?;
         Ok((owner, status))
     }
 }
 
 impl TwofishMut<'_> {
-    /// Wraps: av_twofish_init
+    /// Wraps: `av_twofish_init`
     ///
     /// Replace the key schedule, preserving C's padding/truncation status.
     /// An invalid bit count or short slice leaves the old schedule unchanged.
     /// The key is read only during this call and need not outlive the context.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::NegativeKeyBits`] for a negative bit count, and
+    /// [`InitError::KeyTooShort`] when `key` holds fewer bytes than the count needs.
     pub fn init(&mut self, key: &[u8], key_bits: i32) -> Result<InitStatus, InitError> {
         validate_key(key, key_bits)?;
         // SAFETY: this handle exclusively borrows a full C context; validation
@@ -151,9 +175,10 @@ impl TwofishMut<'_> {
     }
 }
 
-/// Wraps: av_twofish_size
+/// Wraps: `av_twofish_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -171,12 +196,17 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl TwofishRef<'_> {
-    /// Wraps: av_twofish_crypt
+    /// Wraps: `av_twofish_crypt`
     ///
     /// Encrypt or decrypt whole 16-byte blocks. A mutable
     /// IV selects CBC and is updated after each block; `None` selects ECB.
     /// Output bytes beyond `src.len()` remain untouched. Partial blocks, short
-    /// outputs and block counts above C INT_MAX return an error before any mutation.
+    /// outputs and block counts above C `INT_MAX` return an error before any mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -186,8 +216,8 @@ impl TwofishRef<'_> {
     ) -> Result<(), CryptError> {
         let count = crypt_count(src.len(), dst.len())?;
         // SAFETY: the shared initialized schedule is read-only throughout C.
-        // Validation covers count blocks in disjoint input/output slices. The optional IV is one exclusive
-        // block and cannot alias either slice. C retains no pointers.
+        // Validation covers count blocks in disjoint input/output slices. The optional IV is one
+        // exclusive block and cannot alias either slice. C retains no pointers.
         unsafe {
             ffi::av_twofish_crypt(
                 self.as_ptr().cast_mut(),
@@ -196,12 +226,17 @@ impl TwofishRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 
     /// The in-place form of `crypt`, with the same validation and IV semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -220,7 +255,7 @@ impl TwofishRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
@@ -247,8 +282,8 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_unchanged() {
         let mut owner = Twofish::new(&[0; 16], 128).unwrap().0;
-        let mut output = [0x7b; 16];
-        let mut iv = [0x8c; 16];
+        let mut output = [0x7B; 16];
+        let mut iv = [0x8C; 16];
         assert_eq!(
             owner.as_mut().as_ref().crypt(
                 &mut output,
@@ -275,28 +310,16 @@ mod unit_tests {
             ),
             Err(CryptError::IncompleteBlock)
         );
-        assert_eq!(output, [0x7b; 16]);
-        assert_eq!(iv, [0x8c; 16]);
+        assert_eq!(output, [0x7B; 16]);
+        assert_eq!(iv, [0x8C; 16]);
     }
 
     #[test]
     fn layout_matches_ffi() {
-        assert_eq!(
-            core::mem::size_of::<Twofish>(),
-            core::mem::size_of::<ffi::AVTWOFISH>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Twofish>(),
-            core::mem::align_of::<ffi::AVTWOFISH>()
-        );
-        assert_eq!(
-            core::mem::size_of::<TwofishRef<'_>>(),
-            core::mem::size_of::<usize>()
-        );
-        assert_eq!(
-            core::mem::size_of::<TwofishMut<'_>>(),
-            core::mem::size_of::<usize>()
-        );
+        assert_eq!(size_of::<Twofish>(), size_of::<ffi::AVTWOFISH>());
+        assert_eq!(align_of::<Twofish>(), align_of::<ffi::AVTWOFISH>());
+        assert_eq!(size_of::<TwofishRef<'_>>(), size_of::<usize>());
+        assert_eq!(size_of::<TwofishMut<'_>>(), size_of::<usize>());
     }
 
     #[test]

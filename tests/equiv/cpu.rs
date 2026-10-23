@@ -1,6 +1,11 @@
 //! Equivalence of `libavutil/cpu.h`'s safe CPU queries, and of its unsafe
 //! `force_cpu_flags`, with the raw C functions, across the process-global
 //! overrides each side sets.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::c_int;
 use std::process::Command;
@@ -130,7 +135,7 @@ fn forced_flag_subsets_read_alike_after_every_step() {
     }
     let d = detected_flags();
     let mmx = ffi::AV_CPU_FLAG_MMX as c_int;
-    let masks = [0, 1, 3, 0xff, 0x7fff, !0x10, !0, 0x5555_5555, 0x2aaa_aaaa];
+    let masks = [0, 1, 3, 0xFF, 0x7FFF, !0x10, !0, 0x5555_5555, 0x2AAA_AAAA];
     for (step, mask) in masks.into_iter().enumerate() {
         let want = d & mask;
         // SAFETY: `want` names only extensions the running CPU reported, and
@@ -240,7 +245,7 @@ mod parse_caps {
     #[cfg_attr(miri, ignore = "calls C")]
     fn sequences_match_c_after_each_step() {
         for rotate in 0..STRINGS.len() {
-            let (mut c, mut r) = (0x5a5a, 0x5a5a);
+            let (mut c, mut r) = (0x5A5A, 0x5A5A);
             for s in STRINGS.iter().cycle().skip(rotate).take(STRINGS.len() * 2) {
                 let cret = c_parse(&mut c, s);
                 let rret = parse_cpu_caps(&mut r, s);
@@ -318,7 +323,12 @@ mod parse_caps {
     fn operand_sequences_match_c_after_each_step() {
         for rotate in 0..OPERANDS.len() {
             let (mut c, mut r) = (0xA5A5, 0xA5A5);
-            for s in OPERANDS.iter().cycle().skip(rotate).take(OPERANDS.len() + 3) {
+            for s in OPERANDS
+                .iter()
+                .cycle()
+                .skip(rotate)
+                .take(OPERANDS.len() + 3)
+            {
                 let cret = c_parse(&mut c, s);
                 let rret = parse_cpu_caps(&mut r, s);
                 assert_eq!((rret, r), (cret, c), "{s:?} at rotation {rotate}");

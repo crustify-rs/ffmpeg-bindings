@@ -3,6 +3,22 @@
 //! `FastBuffer` and `ZeroedFastBuffer` with C `(tab, nb)` and `(ptr, size)`
 //! pairs grown by the `av_dynarray` and `av_fast` families; and of the
 //! allocation limit and back-reference copy with the C functions they wrap.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::items_after_statements,
+    clippy::needless_for_each,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::marker::PhantomData;
@@ -60,7 +76,7 @@ fn rust_bytes<T, O>(owner: &O, ptr: *const T, len: usize) -> &[u8] {
 
 /// Element counts around every failure edge: the `av_max_alloc` limit
 /// (`INT_MAX` bytes by default) and `size_t` overflow. Successes stay at or
-/// under 4 KiB: an exact 2 GiB success would commit 2 GiB per side, and BSan's
+/// under 4 KiB: an exact 2 GiB success would commit 2 GiB per side, and `BSan`'s
 /// runtime grows without bound freeing a C block after a byte view of 32 KiB.
 const COUNTS: [usize; 8] = [
     0,
@@ -154,10 +170,12 @@ fn alloc_array_from_fn_matches_a_filled_c_array() {
     let c = CBlock(unsafe { ffi::av_malloc_array(n, size_of::<u32>()) });
     assert!(!c.0.is_null());
     for i in 0..n {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_3 = unsafe { c.0.cast::<u32>().add(i) };
         // SAFETY: `c.0` holds `n` aligned `u32` slots.
-        unsafe { c.0.cast::<u32>().add(i).write(i as u32 ^ 0x5a5a) };
+        unsafe { v_3.write(i as u32 ^ 0x5A5A) };
     }
-    let r = alloc_array_from_fn(n, |i| i as u32 ^ 0x5a5a).unwrap();
+    let r = alloc_array_from_fn(n, |i| i as u32 ^ 0x5A5A).unwrap();
     assert_eq!(rust_bytes(&r, r.as_ptr(), n), c.bytes(n * 4));
 }
 
@@ -190,8 +208,10 @@ fn from_slice_and_clone_match_av_memdup_step_by_step() {
 
     // Step 4: write one copy; its source keeps its bytes.
     r2.as_mut_slice()[512] = 7;
+    // SAFETY: as the comment below states, for this part of the operation.
+    let v_2 = unsafe { c2.0.cast::<u16>().add(512) };
     // SAFETY: `c2.0` holds `len / 2` aligned `u16`s.
-    unsafe { c2.0.cast::<u16>().add(512).write(7) };
+    unsafe { v_2.write(7) };
     assert_eq!(rust_bytes(&r2, r2.as_ptr(), src.len()), c2.bytes(len));
     assert_eq!(rust_bytes(&r1, r1.as_ptr(), src.len()), c1.bytes(len));
 }
@@ -230,10 +250,12 @@ fn new_uninit_box_matches_av_malloc_and_fills_in_place() {
     let c = CBlock(unsafe { ffi::av_malloc(size_of::<ffi::AVRational>()) });
     let mut slot = HeapBox::<Rational>::new_uninit().unwrap();
     let value = ffi::AVRational { num: -3, den: 8 };
-    // SAFETY: both blocks are aligned and `AVRational`-sized, owned here.
-    unsafe {
-        c.0.cast::<ffi::AVRational>().write(value);
-        slot.as_c_ptr().write(value);
+    // For the unsafe operations below: both blocks are aligned and `AVRational`-sized, owned here.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { c.0.cast::<ffi::AVRational>().write(value) };
+        // SAFETY: as the comment above this block states.
+        unsafe { slot.as_c_ptr().write(value) };
     }
     // SAFETY: the write above initialised the whole `AVRational`.
     let r = unsafe { slot.assume_init() };
@@ -254,10 +276,12 @@ fn box_clone_matches_av_memdup_step_by_step() {
     let c0 = CBlock(unsafe { ffi::av_malloc(size) });
     assert!(!c0.0.is_null());
     let mut r0 = HeapBox::<Rational>::new_zeroed().unwrap();
-    // SAFETY: both blocks are aligned and `AVRational`-sized, owned here.
-    unsafe {
-        c0.0.cast::<ffi::AVRational>().write(value);
-        r0.as_mut().as_mut_ptr().write(value);
+    // For the unsafe operations below: both blocks are aligned and `AVRational`-sized, owned here.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { c0.0.cast::<ffi::AVRational>().write(value) };
+        // SAFETY: as the comment above this block states.
+        unsafe { r0.as_mut().as_mut_ptr().write(value) };
     }
     assert_eq!(rust_bytes(&r0, r0.as_c_ptr(), 1), c0.bytes(size));
 
@@ -274,10 +298,12 @@ fn box_clone_matches_av_memdup_step_by_step() {
 
     // Step 3: the sources change; the copies do not.
     let other = ffi::AVRational { num: 1, den: 1 };
-    // SAFETY: as in step 1.
-    unsafe {
-        c0.0.cast::<ffi::AVRational>().write(other);
-        r0.as_mut().as_mut_ptr().write(other);
+    // For the unsafe operations below: as in step 1.
+    {
+        // SAFETY: as the comment above this block states.
+        unsafe { c0.0.cast::<ffi::AVRational>().write(other) };
+        // SAFETY: as the comment above this block states.
+        unsafe { r0.as_mut().as_mut_ptr().write(other) };
     }
     assert_eq!(rust_bytes(&r0, r0.as_c_ptr(), 1), c0.bytes(size));
     assert_eq!(rust_bytes(&r1, r1.as_c_ptr(), 1), c1.bytes(size));
@@ -334,7 +360,7 @@ impl Drop for CString {
 }
 
 /// Byte strings with and without interior NULs, every non-NUL byte value, and
-/// a 4 KiB run; views stay at or under 4 KiB for BSan.
+/// a 4 KiB run; views stay at or under 4 KiB for `BSan`.
 fn string_samples() -> Vec<Vec<u8>> {
     vec![
         Vec::new(),
@@ -352,9 +378,10 @@ fn string_samples() -> Vec<Vec<u8>> {
 #[cfg_attr(miri, ignore = "calls C")]
 fn string_from_c_str_matches_av_strdup() {
     for sample in string_samples() {
-        let src = CStr::from_bytes_until_nul(&sample)
-            .map(CStr::to_owned)
-            .unwrap_or_else(|_| std::ffi::CString::new(sample.clone()).unwrap());
+        let src = CStr::from_bytes_until_nul(&sample).map_or_else(
+            |_| std::ffi::CString::new(sample.clone()).unwrap(),
+            CStr::to_owned,
+        );
         // SAFETY: `src` is a live NUL-terminated string, only read.
         let c = CString(unsafe { ffi::av_strdup(src.as_ptr()) });
         let r = string_from_c_str(&src);
@@ -566,7 +593,7 @@ impl<T: Copy> CDyn<T> {
         let slot = unsafe {
             ffi::av_dynarray2_add(
                 (&raw mut self.tab).cast(),
-                &mut self.nb,
+                &raw mut self.nb,
                 size_of::<T>(),
                 (&raw const v).cast(),
             )
@@ -577,13 +604,13 @@ impl<T: Copy> CDyn<T> {
     /// `av_dynarray_add` of `p`.
     fn add(&mut self, p: *mut c_void) {
         // SAFETY: as `add2`, for `void *` elements (`T` is pointer-sized).
-        unsafe { ffi::av_dynarray_add((&raw mut self.tab).cast(), &mut self.nb, p) }
+        unsafe { ffi::av_dynarray_add((&raw mut self.tab).cast(), &raw mut self.nb, p) }
     }
 
     /// `av_dynarray_add_nofree` of `p`.
     fn add_nofree(&mut self, p: *mut c_void) -> c_int {
         // SAFETY: as `add`.
-        unsafe { ffi::av_dynarray_add_nofree((&raw mut self.tab).cast(), &mut self.nb, p) }
+        unsafe { ffi::av_dynarray_add_nofree((&raw mut self.tab).cast(), &raw mut self.nb, p) }
     }
 }
 
@@ -614,7 +641,7 @@ fn value_pushes_match_av_dynarray2_add_after_every_step() {
         }
     }
     check(|i| i as u8);
-    check(|i| i as u32 ^ 0xdead_beef);
+    check(|i| i as u32 ^ 0xDEAD_BEEF);
     check(|i| [i as u8, !i as u8, 7]);
     check(|i| (i as f64) * -1.5);
 }
@@ -728,7 +755,7 @@ fn dynarray_failure_at_the_av_max_alloc_limit_matches_c() {
     assert_eq!(r.len(), 3, "emptied on the ninth append, then regrown");
 
     let x = 0u8;
-    let p: *const u8 = &x;
+    let p: *const u8 = &raw const x;
     let (mut r, mut c) = (DynArray::<*const u8>::new(), CDyn::<*const u8>::new());
     for i in 0..12 {
         let ok = r.push_ptr_or_clear(p);
@@ -791,7 +818,7 @@ impl Drop for CFast {
 }
 
 /// `len` bytes `seed`, `seed + 1`, ..., written into buffers in one copy:
-/// BSan retags per reference, so a byte-at-a-time fill of a long-lived
+/// `BSan` retags per reference, so a byte-at-a-time fill of a long-lived
 /// buffer takes minutes there.
 fn pattern(len: usize, seed: u8) -> Vec<u8> {
     (0..len).map(|i| seed.wrapping_add(i as u8)).collect()
@@ -807,7 +834,7 @@ fn pattern_uninit(len: usize, seed: u8) -> Vec<MaybeUninit<u8>> {
 
 /// Requested sizes around every branch: zero, growth, reuse at and below the
 /// current size, and requests above `UINT_MAX` that must fail. Successes stay
-/// under 4 KiB, for BSan.
+/// under 4 KiB, for `BSan`.
 const FAST_SIZES: [usize; 13] = [
     0,
     1,
@@ -838,7 +865,7 @@ fn reserve_matches_av_fast_realloc_after_every_step() {
 
         let mut size = c.size;
         // SAFETY: `c.ptr` is NULL or a block of `c.size` bytes we own.
-        let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &mut size, min) };
+        let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &raw mut size, min) };
         let ok = r.reserve(min);
         assert_eq!(
             ok,
@@ -877,7 +904,7 @@ fn reserve_discarding_matches_av_fast_malloc_after_every_step() {
 
         let mut slot = c.ptr.cast::<c_void>();
         // SAFETY: the slot holds NULL or a block of `c.size` bytes we own.
-        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut c.size, min) };
+        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &raw mut c.size, min) };
         c.ptr = slot.cast();
         let ok = r.reserve_discarding(min);
         assert_eq!(ok, !c.ptr.is_null() || min == 0, "step {step}: {min}");
@@ -900,7 +927,7 @@ fn zeroed_reserve_matches_av_fast_mallocz_after_every_step() {
     for (step, min) in FAST_SIZES.into_iter().enumerate() {
         let mut slot = c.ptr.cast::<c_void>();
         // SAFETY: the slot holds NULL or a block of `c.size` bytes we own.
-        unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &mut c.size, min) };
+        unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &raw mut c.size, min) };
         c.ptr = slot.cast();
         let ok = r.reserve_discarding(min);
         assert_eq!(ok, !c.ptr.is_null() || min == 0, "step {step}: {min}");
@@ -952,7 +979,7 @@ fn fast_buffer_failure_without_address_space_matches_c() {
     r.as_mut_slice().copy_from_slice(&fill);
     let mut size = 0;
     // SAFETY: `av_fast_realloc` takes NULL with a size of 0.
-    c.ptr = unsafe { ffi::av_fast_realloc(core::ptr::null_mut(), &mut size, 100) }.cast();
+    c.ptr = unsafe { ffi::av_fast_realloc(core::ptr::null_mut(), &raw mut size, 100) }.cast();
     c.size = size;
     c.fill(3);
     let kept = c.bytes().to_vec();
@@ -963,7 +990,7 @@ fn fast_buffer_failure_without_address_space_matches_c() {
     let mut size = c.size;
     // SAFETY: `c.ptr` is a block of `c.size` bytes we own; on failure it is
     // still ours.
-    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &mut size, HUGE) };
+    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &raw mut size, HUGE) };
     assert_eq!((new, size), (core::ptr::null_mut(), 0));
     assert!(!r.reserve(HUGE));
     assert_eq!(r.capacity(), kept.len());
@@ -973,7 +1000,7 @@ fn fast_buffer_failure_without_address_space_matches_c() {
     // Both go on to grow normally.
     size = c.size;
     // SAFETY: as above.
-    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &mut size, 200) };
+    let new = unsafe { ffi::av_fast_realloc(c.ptr.cast(), &raw mut size, 200) };
     assert!(!new.is_null());
     (c.ptr, c.size) = (new.cast(), size);
     assert!(r.reserve(200));
@@ -984,10 +1011,10 @@ fn fast_buffer_failure_without_address_space_matches_c() {
         let mut slot = c.ptr.cast::<c_void>();
         if zeroed {
             // SAFETY: the slot holds a block of `c.size` bytes we own.
-            unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &mut c.size, HUGE) };
+            unsafe { ffi::av_fast_mallocz((&raw mut slot).cast(), &raw mut c.size, HUGE) };
         } else {
             // SAFETY: as above.
-            unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut c.size, HUGE) };
+            unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &raw mut c.size, HUGE) };
         }
         c.ptr = slot.cast();
         assert_eq!((c.ptr, c.size), (core::ptr::null_mut(), 0));
@@ -1005,7 +1032,7 @@ fn fast_buffer_failure_without_address_space_matches_c() {
             assert_eq!(r.capacity(), 60 + 60 / 16 + 32);
         }
         // SAFETY: NULL with a size of 0 is an empty pair.
-        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &mut c.size, 60) };
+        unsafe { ffi::av_fast_malloc((&raw mut slot).cast(), &raw mut c.size, 60) };
         c.ptr = slot.cast();
         assert_eq!(c.size as usize, 60 + 60 / 16 + 32);
     }
@@ -1142,8 +1169,10 @@ mod realloc {
                     c.0 = cp;
                     // C's added tail is uninitialised; write it as `f` does.
                     for i in len.min(n)..n {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let v_3 = unsafe { c.0.cast::<u32>().add(i) };
                         // SAFETY: `c` holds `n` writable `u32`.
-                        unsafe { c.0.cast::<u32>().add(i).write(i as u32 * 10) };
+                        unsafe { v_3.write(i as u32 * 10) };
                     }
                     len = n;
                     r
@@ -1210,8 +1239,10 @@ mod realloc {
             kept = kept.min(len);
             for i in kept..len {
                 r.as_mut_slice()[i].write(i as u8 ^ 0x5A);
+                // SAFETY: as the comment below states, for this part of the operation.
+                let v_2 = unsafe { cslot.cast::<u8>().add(i) };
                 // SAFETY: `cslot` holds `len` writable bytes.
-                unsafe { cslot.cast::<u8>().add(i).write(i as u8 ^ 0x5A) };
+                unsafe { v_2.write(i as u8 ^ 0x5A) };
             }
             kept = len;
             if len > 0 {
@@ -1269,7 +1300,7 @@ mod realloc {
             for b in v {
                 let mut cr = 0xDEAD;
                 // SAFETY: `cr` is a live, writable local.
-                let cret = unsafe { ffi::av_size_mult(a, b, &mut cr) };
+                let cret = unsafe { ffi::av_size_mult(a, b, &raw mut cr) };
                 assert_eq!(
                     checked_size_mul(a, b).ok_or(cret),
                     if cret == 0 { Ok(cr) } else { Err(cret) }
@@ -1286,9 +1317,11 @@ mod realloc {
 /// `av_memcpy_backptr(buf + dst, back, len)` on `buf`.
 fn c_backptr(buf: &mut [u8], dst: usize, back: usize, len: usize) {
     assert!(back <= dst && dst + len <= buf.len());
+    // SAFETY: as the comment below states, for this part of the operation.
+    let as_mut_ptr_add = unsafe { buf.as_mut_ptr().add(dst) };
     // SAFETY: `dst <= buf.len()`; C reads from `dst - back`, at or after
     // `buf[0]`, and writes `buf[dst..dst + len]`, inside `buf`.
-    unsafe { ffi::av_memcpy_backptr(buf.as_mut_ptr().add(dst), back as c_int, len as c_int) };
+    unsafe { ffi::av_memcpy_backptr(as_mut_ptr_add, back as c_int, len as c_int) };
 }
 
 /// A buffer of distinct bytes, so a byte copied from the wrong place shows.

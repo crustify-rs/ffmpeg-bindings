@@ -3,6 +3,10 @@
 //! `av_double2int` perform in C, on independently owned values; and of its
 //! `IntFloat32` with `union av_intfloat32`, through `av_int2float` and
 //! `av_float2int`; and of the free conversion functions with those four.
+#![expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use core::mem::{align_of, offset_of, size_of, size_of_val};
 
@@ -20,18 +24,18 @@ const BITS: [u64; 16] = [
     0,
     1 << 63,
     1,
-    0x000f_ffff_ffff_ffff,
+    0x000F_FFFF_FFFF_FFFF,
     0x0010_0000_0000_0000,
-    0x3ff0_0000_0000_0000,
-    0xc004_0000_0000_0000,
-    0x4009_21fb_5444_2d18,
-    0x7fef_ffff_ffff_ffff,
-    0x7ff0_0000_0000_0000,
-    0xfff0_0000_0000_0000,
-    0x7ff0_0000_0000_0001,
-    0x7ff4_0000_0000_0000,
-    0x7ff8_0000_0000_0000,
-    0xfff8_dead_beef_0001,
+    0x3FF0_0000_0000_0000,
+    0xC004_0000_0000_0000,
+    0x4009_21FB_5444_2D18,
+    0x7FEF_FFFF_FFFF_FFFF,
+    0x7FF0_0000_0000_0000,
+    0xFFF0_0000_0000_0000,
+    0x7FF0_0000_0000_0001,
+    0x7FF4_0000_0000_0000,
+    0x7FF8_0000_0000_0000,
+    0xFFF8_DEAD_BEEF_0001,
     u64::MAX,
 ];
 
@@ -209,24 +213,24 @@ const EDGES32: [u32; 16] = [
     0x0000_0000,
     0x8000_0000,
     0x0000_0001,
-    0x807f_ffff,
+    0x807F_FFFF,
     0x0080_0000,
-    0x3f80_0000,
-    0xbf80_0000,
-    0x7f7f_ffff,
-    0x7f80_0000,
-    0xff80_0000,
-    0x7fc0_0000,
-    0xffc0_0001,
-    0x7f80_0001,
-    0xffbf_ffff,
+    0x3F80_0000,
+    0xBF80_0000,
+    0x7F7F_FFFF,
+    0x7F80_0000,
+    0xFF80_0000,
+    0x7FC0_0000,
+    0xFFC0_0001,
+    0x7F80_0001,
+    0xFFBF_FFFF,
     0x5555_5555,
-    0xffff_ffff,
+    0xFFFF_FFFF,
 ];
 
 /// The edges, then a deterministic sweep of the whole range.
 fn inputs32() -> impl Iterator<Item = u32> {
-    let mut x = 0x2545_f491_u32;
+    let mut x = 0x2545_F491_u32;
     EDGES32.into_iter().chain((0..4096).map(move |_| {
         // xorshift32
         x ^= x << 13;
@@ -377,8 +381,10 @@ fn heap_array_clone_matches_c_memdup_after_each_step() {
         let c_copy = c_copy.cast::<ffi::av_intfloat64>();
         assert_eq!(copy.len(), c.len());
         for (j, r) in copy.as_handles().iter().enumerate() {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_copy_add = unsafe { c_copy.add(j) };
             // SAFETY: `j < BITS.len()`, inside the block copied above.
-            let cj = unsafe { c_copy.add(j).read() };
+            let cj = unsafe { c_copy_add.read() };
             compare(r, &cj, step);
         }
         // SAFETY: the block came from `av_memdup` and is not read again.

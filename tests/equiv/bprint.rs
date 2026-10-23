@@ -1,9 +1,19 @@
 //! Equivalence of `FF_PAD_STRUCTURE`'s [`PaddedStruct`] description of
 //! `AVBPrint` with the structure size `bprint.c` observes and writes.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use core::ffi::c_char;
 use core::mem::{MaybeUninit, offset_of};
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of_mut;
 
 use ffmpeg_bindings::libavutil::libavutil::bprint::PaddedStruct;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
@@ -14,14 +24,12 @@ const SIZE: usize = <ffi::AVBPrint as PaddedStruct>::SIZE;
 fn state(buf: *const ffi::AVBPrint) -> (*mut c_char, u32, u32, u32) {
     // SAFETY: per each caller, `buf` addresses an `AVBPrint` that
     // `av_bprint_init` initialised; the fields are read by value.
-    unsafe {
-        (
-            addr_of!((*buf).str_).read(),
-            addr_of!((*buf).len).read(),
-            addr_of!((*buf).size).read(),
-            addr_of!((*buf).size_max).read(),
-        )
-    }
+    (
+        unsafe { (*buf).str_ },
+        unsafe { (*buf).len },
+        unsafe { (*buf).size },
+        unsafe { (*buf).size_max },
+    )
 }
 
 /// The `size` bytes of the buffer at `str`, which the caller keeps alive.
@@ -121,7 +129,11 @@ mod fields {
     fn rust_raw(f: &BPrintFields) -> ffi::ff_pad_helper_AVBPrint {
         // SAFETY: `BPrintFields` is `#[repr(transparent)]` over
         // `ff_pad_helper_AVBPrint`, and `f` is a live, initialised value.
-        unsafe { core::ptr::from_ref(f).cast::<ffi::ff_pad_helper_AVBPrint>().read() }
+        unsafe {
+            core::ptr::from_ref(f)
+                .cast::<ffi::ff_pad_helper_AVBPrint>()
+                .read()
+        }
     }
 
     /// The `BPrintFields` holding the state C keeps in `buf`.
@@ -135,10 +147,12 @@ mod fields {
         let h = c_header(buf);
         let mut f = BPrintFields::new();
         let mut m = f.as_mut();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_ptr_2 = unsafe { CStr::from_ptr(str) };
         // SAFETY: C keeps `str` NUL-terminated within its storage, the
         // internal buffer of `buf`, which the caller keeps alive and
         // unwritten while `f` can read it.
-        unsafe { m.set_str_borrowed(Some(CStr::from_ptr(str))) };
+        unsafe { m.set_str_borrowed(Some(from_ptr_2)) };
         m.set_len(len);
         m.set_size(size);
         m.set_size_max(size_max);
@@ -150,7 +164,10 @@ mod fields {
     fn compare(buf: *const ffi::AVBPrint) {
         let (str, len, size, size_max) = state(buf);
         let h = c_header(buf);
-        assert_eq!((h.str_, h.len, h.size, h.size_max), (str, len, size, size_max));
+        assert_eq!(
+            (h.str_, h.len, h.size, h.size_max),
+            (str, len, size, size_max)
+        );
 
         // SAFETY: `buf` is live and initialised, and nothing appends to it
         // while `f` lives.
@@ -164,7 +181,10 @@ mod fields {
 
         let raw = rust_raw(&f);
         assert_eq!(raw.str_, h.str_);
-        assert_eq!((raw.len, raw.size, raw.size_max), (h.len, h.size, h.size_max));
+        assert_eq!(
+            (raw.len, raw.size, raw.size_max),
+            (h.len, h.size, h.size_max)
+        );
         assert_eq!(raw.reserved_internal_buffer, h.reserved_internal_buffer);
     }
 
@@ -235,7 +255,7 @@ mod fields {
 mod owners {
     use core::ffi::{CStr, c_char, c_int, c_long, c_uint};
     use core::mem::MaybeUninit;
-    use core::ptr::{self, addr_of, addr_of_mut};
+    use core::ptr::{self};
 
     use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
     use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
@@ -266,7 +286,7 @@ mod owners {
             // SAFETY: `buf` is writable storage, `data` writable for its
             // length, which outlives every use of `buf` in these tests.
             unsafe {
-                ffi::av_bprint_init_for_buffer(buf, data.as_mut_ptr().cast(), data.len() as c_uint)
+                ffi::av_bprint_init_for_buffer(buf, data.as_mut_ptr().cast(), data.len() as c_uint);
             };
             Self { buf, owned: false }
         }
@@ -275,30 +295,42 @@ mod owners {
         /// to NUL)`.
         fn state(&self) -> State {
             let b = self.buf;
-            // SAFETY: `b` is an initialised buffer; fields are read by value,
-            // and its string is valid for `size` bytes, written up to its NUL
+            // For the unsafe operations below: `b` is an initialised buffer; fields are read by
+            // value, and its string is valid for `size` bytes, written up to its NUL
             // at `min(len, size - 1)`.
-            unsafe {
-                let str = addr_of!((*b).str_).read();
-                let len = addr_of!((*b).len).read();
-                let size = addr_of!((*b).size).read();
+            {
+                // SAFETY: as the comment above this block states.
+                let str = unsafe { (*b).str_ };
+                // SAFETY: as the comment above this block states.
+                let len = unsafe { (*b).len };
+                // SAFETY: as the comment above this block states.
+                let size = unsafe { (*b).size };
                 let stored = len.min(size.saturating_sub(1)) as usize;
                 let bytes = if stored == 0 {
                     Vec::new()
                 } else {
-                    core::slice::from_raw_parts(str.cast::<u8>(), stored).to_vec()
+                    // SAFETY: as the comment above this block states.
+                    unsafe { core::slice::from_raw_parts(str.cast::<u8>(), stored) }.to_vec()
                 };
                 let c_str = if size == 0 {
                     Vec::new()
                 } else {
-                    CStr::from_ptr(str).to_bytes().to_vec()
+                    // SAFETY: as the comment above this block states.
+                    unsafe { CStr::from_ptr(str) }.to_bytes().to_vec()
                 };
+                // SAFETY: `b` is to a live object, as the block below relies on, so the
+                // place of its `reserved_internal_buffer` field is in bounds; nothing is accessed
+                // here.
+                let reserved_internal_buffer_ptr =
+                    unsafe { &raw mut (*b).reserved_internal_buffer };
                 State {
                     len,
                     size,
-                    size_max: addr_of!((*b).size_max).read(),
-                    inline: ptr::eq(str, addr_of_mut!((*b).reserved_internal_buffer).cast()),
-                    complete: ffi::av_bprint_is_complete(b) != 0,
+                    // SAFETY: as the comment above this block states.
+                    size_max: unsafe { (*b).size_max },
+                    inline: ptr::eq(str, reserved_internal_buffer_ptr.cast()),
+                    // SAFETY: as the comment above this block states.
+                    complete: unsafe { ffi::av_bprint_is_complete(b) } != 0,
                     bytes,
                     c_str,
                 }
@@ -311,9 +343,9 @@ mod owners {
         fn finalize(mut self) -> (i32, Option<Vec<u8>>) {
             let mut str = ptr::null_mut();
             // SAFETY: an owned, initialised buffer; `str` a writable slot.
-            let ret = unsafe { ffi::av_bprint_finalize(self.buf, &mut str) };
+            let ret = unsafe { ffi::av_bprint_finalize(self.buf, &raw mut str) };
             // SAFETY: `size` is the string's length, NUL included.
-            let real = unsafe { addr_of!((*self.buf).size).read() } as usize;
+            let real = unsafe { (*self.buf).size } as usize;
             let bytes = (ret == 0 && real > 0).then(|| {
                 // SAFETY: C's fresh block holds `real` bytes, the last a NUL.
                 unsafe { core::slice::from_raw_parts(str.cast::<u8>(), real - 1) }.to_vec()
@@ -366,7 +398,17 @@ mod owners {
 
     /// [`TIME`] as C's `struct tm`.
     fn c_tm() -> ffi::tm {
-        let [tm_sec, tm_min, tm_hour, tm_mday, tm_mon, tm_year, tm_wday, tm_yday, tm_isdst] = TIME;
+        let [
+            tm_sec,
+            tm_min,
+            tm_hour,
+            tm_mday,
+            tm_mon,
+            tm_year,
+            tm_wday,
+            tm_yday,
+            tm_isdst,
+        ] = TIME;
         ffi::tm {
             tm_sec,
             tm_min,
@@ -412,7 +454,12 @@ mod owners {
         Fmt(i32, &'static CStr),
         /// `av_vbprintf(buf, "%s", ...)`.
         CStr(&'static CStr),
-        Escape(&'static CStr, Option<&'static CStr>, EscapeMode, EscapeFlags),
+        Escape(
+            &'static CStr,
+            Option<&'static CStr>,
+            EscapeMode,
+            EscapeFlags,
+        ),
         /// [`TIME`] in this format.
         Strftime(&'static CStr),
         /// `av_bprint_get_buffer(buf, size)`, then as much of the data as the
@@ -451,7 +498,12 @@ mod owners {
         Op::Fmt(-42, c"fmt"),
         Op::CStr(c"c-str"),
         Op::CStr(c""),
-        Op::Escape(c" a'b\\c:d ", Some(c":"), EscapeMode::Backslash, EscapeFlags::empty()),
+        Op::Escape(
+            c" a'b\\c:d ",
+            Some(c":"),
+            EscapeMode::Backslash,
+            EscapeFlags::empty(),
+        ),
         Op::Escape(c" a b ", None, EscapeMode::Auto, EscapeFlags::WHITESPACE),
         Op::Escape(c"it's", None, EscapeMode::Quote, EscapeFlags::empty()),
         Op::Escape(c"<a href='x' t=\"y\">&</a>", None, EscapeMode::Xml, QUOTED),
@@ -476,53 +528,79 @@ mod owners {
     /// `op` on a C buffer, truncation as C callers write it (avcodec.c), and
     /// what a `GetBuffer` committed.
     fn c_op(b: *mut ffi::AVBPrint, op: Op) -> Option<usize> {
-        // SAFETY: `b` is an initialised buffer, which these routines append
-        // to within its `size`; the truncation writes within `size`, and the
-        // committed write within the room C reports, short of its last byte.
-        unsafe {
-            match op {
-                Op::Append(d) => {
-                    ffi::av_bprint_append_data(b, d.as_ptr().cast(), d.len() as c_uint)
-                }
-                Op::Chars(c, n) => ffi::av_bprint_chars(b, c as c_char, n),
-                Op::Clear => ffi::av_bprint_clear(b),
-                Op::Truncate(n) => {
-                    if n < (*b).len {
-                        (*b).len = n;
-                        if (*b).size > 0 {
-                            *(*b).str_.add(n.min((*b).size - 1) as usize) = 0;
-                        }
+        // `b` is an initialised buffer, which these routines append to within its `size`; the
+        // truncation writes within `size`, and the committed write within the room C reports,
+        // short of its last byte.
+        match op {
+            Op::Append(d) => {
+                // SAFETY: as above.
+                unsafe { ffi::av_bprint_append_data(b, d.as_ptr().cast(), d.len() as c_uint) };
+            }
+            // SAFETY: as above.
+            Op::Chars(c, n) => unsafe { ffi::av_bprint_chars(b, c as c_char, n) },
+            // SAFETY: as above.
+            Op::Clear => unsafe { ffi::av_bprint_clear(b) },
+            Op::Truncate(n) => {
+                // SAFETY: as above: reads of its length, size and storage.
+                let (len, size, text) = (unsafe { (*b).len }, unsafe { (*b).size }, unsafe {
+                    (*b).str_
+                });
+                if n < len {
+                    // SAFETY: as above: the length shrinks.
+                    unsafe { (*b).len = n };
+                    if size > 0 {
+                        // SAFETY: as above: the new end, within `size`.
+                        let end = unsafe { text.add(n.min(size - 1) as usize) };
+                        // SAFETY: as above.
+                        unsafe { *end = 0 };
                     }
                 }
-                Op::Fmt(i, s) => ffi::av_bprintf(b, c"%d-%s".as_ptr(), i, s.as_ptr()),
-                Op::CStr(s) => ffi::crustify_av_vbprintf(b, c"%s".as_ptr(), s.as_ptr()),
-                Op::Escape(src, special, mode, flags) => ffi::av_bprint_escape(
+            }
+            // SAFETY: as above; the format's conversions match the arguments.
+            Op::Fmt(i, s) => unsafe { ffi::av_bprintf(b, c"%d-%s".as_ptr(), i, s.as_ptr()) },
+            // SAFETY: as above.
+            Op::CStr(s) => unsafe { ffi::crustify_av_vbprintf(b, c"%s".as_ptr(), s.as_ptr()) },
+            // SAFETY: as above.
+            Op::Escape(src, special, mode, flags) => unsafe {
+                ffi::av_bprint_escape(
                     b,
                     src.as_ptr(),
                     special.map_or(ptr::null(), CStr::as_ptr),
                     mode.into(),
                     flags.bits(),
-                ),
-                Op::Strftime(fmt) => ffi::av_bprint_strftime(b, fmt.as_ptr(), &c_tm()),
-                Op::GetBuffer(size, data) => {
-                    let mut mem = ptr::null_mut();
-                    let mut room = 0;
-                    ffi::av_bprint_get_buffer(b, size, &mut mem, &mut room);
-                    let spare = room.saturating_sub(1).min(size) as usize;
-                    // The documented divergence: Rust zeroes the storage it
-                    // hands out (it may not expose uninitialised bytes),
-                    // which a caller buffer shows past the string afterwards.
-                    if spare > 0 {
-                        ptr::write_bytes(mem, 0, spare);
-                    }
-                    let n = data.len().min(spare);
-                    if n > 0 {
-                        ptr::copy_nonoverlapping(data.as_ptr(), mem, n);
-                        (*b).len += n as c_uint;
-                        *(*b).str_.add((*b).len as usize) = 0;
-                    }
-                    return Some(n);
+                );
+            },
+            // SAFETY: as above.
+            Op::Strftime(fmt) => unsafe { ffi::av_bprint_strftime(b, fmt.as_ptr(), &c_tm()) },
+            Op::GetBuffer(size, data) => {
+                let mut mem = ptr::null_mut();
+                let mut room = 0;
+                // SAFETY: as above: writable slots for the storage and its room.
+                unsafe { ffi::av_bprint_get_buffer(b, size, &raw mut mem, &raw mut room) };
+                let spare = room.saturating_sub(1).min(size) as usize;
+                // The documented divergence: Rust zeroes the storage it
+                // hands out (it may not expose uninitialised bytes),
+                // which a caller buffer shows past the string afterwards.
+                if spare > 0 {
+                    // SAFETY: as above: `spare` bytes of the room C reports.
+                    unsafe { ptr::write_bytes(mem, 0, spare) };
                 }
+                let n = data.len().min(spare);
+                if n > 0 {
+                    // SAFETY: as above: `n <= spare` bytes of the room.
+                    unsafe { ptr::copy_nonoverlapping(data.as_ptr(), mem, n) };
+                    // SAFETY: as above: a read of its length.
+                    let len = unsafe { (*b).len } + n as c_uint;
+                    // SAFETY: as above: the length grows by the committed bytes.
+                    unsafe { (*b).len = len };
+                    // SAFETY: as above: a read of its storage.
+                    let text = unsafe { (*b).str_ };
+                    // SAFETY: as above: the NUL after the text, within the room.
+                    let end = unsafe { text.add(len as usize) };
+                    // SAFETY: as above.
+                    unsafe { *end = 0 };
+                }
+                return Some(n);
             }
         }
         None
@@ -564,6 +642,10 @@ mod owners {
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
+    #[expect(
+        clippy::single_match_else,
+        reason = "the match keeps the shape of the C switch it mirrors"
+    )]
     fn new_and_its_finalizers_match_av_bprint_init_and_finalize() {
         for (size_init, size_max) in INITS {
             let c = CBuf::init(size_init, size_max);
@@ -623,8 +705,8 @@ mod owners {
     #[cfg_attr(miri, ignore = "calls C")]
     fn for_buffer_matches_av_bprint_init_for_buffer() {
         for len in [0, 1, 2, 5, 64, 2048] {
-            let mut c_data = vec![0xa5_u8; len];
-            let mut r_data = vec![0xa5_u8; len];
+            let mut c_data = vec![0xA5_u8; len];
+            let mut r_data = vec![0xA5_u8; len];
             let c = CBuf::for_buffer(&mut c_data);
             let mut r = BPrint::for_buffer(&mut r_data).unwrap();
             assert_eq!(rust_state(r.as_ref()), c.state(), "for_buffer({len})");
@@ -761,8 +843,14 @@ mod owners {
     /// Builds a C and a Rust buffer alike: `Some(size_max)` through
     /// `av_bprint_init(0, size_max)`, `None` on caller buffers of `len`.
     fn pairs(lens: &[usize], size_maxes: &[u32]) -> Vec<(String, u32, Option<usize>)> {
-        let mut v: Vec<_> = size_maxes.iter().map(|&m| (format!("init(0, {m})"), m, None)).collect();
-        v.extend(lens.iter().map(|&l| (format!("for_buffer({l})"), 0, Some(l))));
+        let mut v: Vec<_> = size_maxes
+            .iter()
+            .map(|&m| (format!("init(0, {m})"), m, None))
+            .collect();
+        v.extend(
+            lens.iter()
+                .map(|&l| (format!("for_buffer({l})"), 0, Some(l))),
+        );
         v
     }
 
@@ -781,7 +869,7 @@ mod owners {
             BPrint::SIZE_UNLIMITED,
         ];
         for (ctx, size_max, len) in pairs(&[1, 8, 30, 1100], &SIZE_MAX) {
-            let mut c_data = vec![0x5a_u8; len.unwrap_or(0)];
+            let mut c_data = vec![0x5A_u8; len.unwrap_or(0)];
             let mut r_data = c_data.clone();
             {
                 let (c, mut r_new, mut r_on);
@@ -834,7 +922,7 @@ mod owners {
         tm.as_mut().set_zone(None);
         for fmt in [c"%Z", c"[%Z]", c"%Z"] {
             // SAFETY: an initialised buffer; `fmt` and `c_tm` are live.
-            unsafe { ffi::av_bprint_strftime(c.buf, fmt.as_ptr(), &c_tm) };
+            unsafe { ffi::av_bprint_strftime(c.buf, fmt.as_ptr(), &raw const c_tm) };
             r.as_mut().append_strftime(fmt, tm.as_ref());
             assert_eq!(rust_state(r.as_ref()), c.state(), "{fmt:?}");
         }
@@ -853,7 +941,12 @@ mod owners {
             c"<]]>'\"'\"&amp;",
         ];
         const SPECIAL: [Option<&CStr>; 4] = [None, Some(c""), Some(c":ab"), Some(c" '\\")];
-        let modes = [EscapeMode::Auto, EscapeMode::Backslash, EscapeMode::Quote, EscapeMode::Xml];
+        let modes = [
+            EscapeMode::Auto,
+            EscapeMode::Backslash,
+            EscapeMode::Quote,
+            EscapeMode::Xml,
+        ];
         let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);
         let mut r = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
         for mode in modes {
@@ -884,7 +977,12 @@ mod owners {
         }
         // Escaping into limited and caller buffers truncates alike.
         run_on_every_shape(&[
-            Op::Escape(SRC[3], Some(c"ab"), EscapeMode::Backslash, EscapeFlags::WHITESPACE),
+            Op::Escape(
+                SRC[3],
+                Some(c"ab"),
+                EscapeMode::Backslash,
+                EscapeFlags::WHITESPACE,
+            ),
             Op::Escape(SRC[4], None, EscapeMode::Xml, ALL_FLAGS),
             Op::Escape(SRC[3], None, EscapeMode::Quote, EscapeFlags::empty()),
         ]);
@@ -920,9 +1018,24 @@ mod owners {
         }
         let cases: [&[Op]; 4] = [
             &[Op::Chars(b'a', 990), Op::Strftime(C20), Op::Strftime(c"%Y")],
-            &[Op::Chars(b'b', 10), Op::Strftime(C20), Op::Strftime(C20), Op::Strftime(C20)],
-            &[Op::Chars(b'c', 10), Op::GetBuffer(5000, &[b'd'; 5000]), Op::GetBuffer(5, b"e")],
-            &[Op::Fmt(1, c"x"), Op::CStr(c"y"), Op::Append(&[b'f'; 2000]), Op::Clear, Op::Fmt(2, c"z")],
+            &[
+                Op::Chars(b'b', 10),
+                Op::Strftime(C20),
+                Op::Strftime(C20),
+                Op::Strftime(C20),
+            ],
+            &[
+                Op::Chars(b'c', 10),
+                Op::GetBuffer(5000, &[b'd'; 5000]),
+                Op::GetBuffer(5, b"e"),
+            ],
+            &[
+                Op::Fmt(1, c"x"),
+                Op::CStr(c"y"),
+                Op::Append(&[b'f'; 2000]),
+                Op::Clear,
+                Op::Fmt(2, c"z"),
+            ],
         ];
         for ops in cases {
             let c = CBuf::init(0, BPrint::SIZE_UNLIMITED);

@@ -1,5 +1,10 @@
 //! Equivalence of `libavutil/mathematics.h`'s [`Rounding`] with the C
 //! `enum AVRounding` values `av_rescale_rnd` accepts and acts on.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mathematics::Rounding;
@@ -178,9 +183,9 @@ mod numeric {
         0,
         1,
         2,
-        0x7f,
+        0x7F,
         0x80,
-        0xffff,
+        0xFFFF,
         0x1_0000,
         0x8000_0000,
         u32::MAX as u64,
@@ -517,7 +522,14 @@ mod timestamps {
                 // safe call above confirms by answering.
                 let c = unsafe {
                     assert!(r.is_some(), "stream {n} step {i}");
-                    ffi::av_rescale_delta(c(s.in_tb), ts, c(s.fs_tb), dur, &mut theirs, c(s.out_tb))
+                    ffi::av_rescale_delta(
+                        c(s.in_tb),
+                        ts,
+                        c(s.fs_tb),
+                        dur,
+                        &raw mut theirs,
+                        c(s.out_tb),
+                    )
                 };
                 assert_eq!(r, Some(c), "stream {n} step {i}");
                 assert_eq!(mine, theirs, "stream {n} step {i}");
@@ -538,7 +550,7 @@ mod timestamps {
             // SAFETY: `theirs` is a live state slot; the stamp is not
             // `AV_NOPTS_VALUE`, the duration is non-negative, and C's state
             // update, about `2^61 / 1000 + 1`, stays far from overflowing.
-            let c = unsafe { ffi::av_rescale_delta(c(ms), ts, c(s), 1, &mut theirs, c(out)) };
+            let c = unsafe { ffi::av_rescale_delta(c(ms), ts, c(s), 1, &raw mut theirs, c(out)) };
             assert_eq!(c, i64::MIN, "step {i}");
             assert_eq!((r, mine), (None, theirs), "step {i}");
         }
@@ -556,7 +568,14 @@ mod timestamps {
             let r = rescale_delta(q(s.in_tb), ts, q(s.fs_tb), 1024, &mut mine, q(s.out_tb));
             // SAFETY: as in `rescale_delta_tracks_av_rescale_delta_over_streams`.
             let c = unsafe {
-                ffi::av_rescale_delta(c(s.in_tb), ts, c(s.fs_tb), 1024, &mut theirs, c(s.out_tb))
+                ffi::av_rescale_delta(
+                    c(s.in_tb),
+                    ts,
+                    c(s.fs_tb),
+                    1024,
+                    &raw mut theirs,
+                    c(s.out_tb),
+                )
             };
             assert_eq!((r, mine), (Some(c), theirs), "step {i}");
         }
@@ -622,17 +641,16 @@ mod timestamps {
         let there = rescale_rational_rounded(i64::MIN, q((1, 1000)), q((1, 90000)), pass);
         assert_eq!(there, Some(i64::MIN));
         let back = rescale_rational_rounded(there.unwrap(), q((1, 90000)), q((1, 1000)), pass);
-        // SAFETY: `av_rescale_q_rnd` takes its arguments by value.
-        let c = unsafe {
+        // For the unsafe operations below: `av_rescale_q_rnd` takes its arguments by value.
+        let c = {
             let raw = ffi::AVRounding(
                 ffi::AVRounding::AV_ROUND_NEAR_INF.0 | ffi::AVRounding::AV_ROUND_PASS_MINMAX.0,
             );
-            ffi::av_rescale_q_rnd(
-                ffi::av_rescale_q_rnd(i64::MIN, c((1, 1000)), c((1, 90000)), raw),
-                c((1, 90000)),
-                c((1, 1000)),
-                raw,
-            )
+            // SAFETY: as the comment below states, for this part of the operation.
+            let rescale_q_rnd =
+                unsafe { ffi::av_rescale_q_rnd(i64::MIN, c((1, 1000)), c((1, 90000)), raw) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_rescale_q_rnd(rescale_q_rnd, c((1, 90000)), c((1, 1000)), raw) }
         };
         assert_eq!(back, Some(c));
     }

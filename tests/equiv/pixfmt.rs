@@ -1,5 +1,10 @@
 //! Equivalence of `libavutil/pixfmt.h`'s safe types with the C enums, as C
 //! observes them.
+#![expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 /// [`ColorSpace`] and [`ColorTransfer`] against `AVColorSpace` and
 /// `AVColorTransferCharacteristic` (formats wave 0, batch 3): through
@@ -210,15 +215,19 @@ mod color_space_and_transfer {
 
         fn get(&self, i: usize) -> T {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_2 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, initialised by
             // `av_calloc` (all zero, a valid C enum value) or by `set`.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_2.read() }
         }
 
         fn set(&mut self, i: usize, v: T) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(v) }
+            unsafe { v_0_add.write(v) }
         }
 
         fn values(&self) -> Vec<T> {
@@ -239,9 +248,13 @@ mod color_space_and_transfer {
         assert_eq!(size_of::<R>(), size_of::<C>());
         let ptr = a.as_ptr().cast::<C>();
         (0..a.len())
-            // SAFETY: the callers' `R` is `#[repr(transparent)]` over `C`, and
-            // `i` is in bounds of the live, initialised array `a` borrows.
-            .map(|i| unsafe { ptr.add(i).read() })
+            .map(|i| {
+                // SAFETY: `i` is in bounds of the array `ptr` points into.
+                let at = unsafe { ptr.add(i) };
+                // SAFETY: the callers' `R` is `#[repr(transparent)]` over `C`, and
+                // `i` is in bounds of the live, initialised array `a` borrows.
+                unsafe { at.read() }
+            })
             .collect()
     }
 
@@ -421,7 +434,7 @@ mod color_space_and_transfer {
             c.set(i, v);
         }
         let (ptr, len) = (c.0, c.1);
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
         // `AVColorSpace`, whose ownership `forget` gave up; `ColorSpace` is
         // layout-compatible with it, and `av_free` releases it.
@@ -436,7 +449,7 @@ mod color_space_and_transfer {
             c.set(i, v);
         }
         let (ptr, len) = (c.0, c.1);
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: as above, for `AVColorTransferCharacteristic` and
         // `ColorTransfer`.
         let adopted = unsafe { HeapVec::<ColorTransfer>::from_raw_parts(ptr.cast(), len) }.unwrap();
@@ -519,14 +532,18 @@ mod alpha_mode {
 
         fn get(&self, i: usize) -> ffi::AVAlphaMode {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_4 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised block.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_4.read() }
         }
 
         fn set(&mut self, i: usize, mode: ffi::AVAlphaMode) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_3 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(mode) }
+            unsafe { v_0_add_3.write(mode) }
         }
     }
 
@@ -621,7 +638,7 @@ mod alpha_mode {
         // The path a field accessor over C-written storage takes: adopt the C
         // block and read it as `AlphaMode`s.
         let (ptr, len) = (c.0, c.1);
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
         // `ffi::AVAlphaMode`, whose ownership `forget` gave up; `AlphaMode` is
         // layout-compatible with it, and `av_free` releases it.
@@ -808,7 +825,7 @@ mod pixel_format {
             let mut name: *const c_char = ptr::null();
             // SAFETY: the shim takes `i` by value and writes one pointer through
             // `&mut name`, which is live and writable.
-            let f = unsafe { ffi::crustify_AV_PIX_FMT_NE(i, &mut name) };
+            let f = unsafe { ffi::crustify_AV_PIX_FMT_NE(i, &raw mut name) };
             if name.is_null() {
                 assert_eq!(f, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
                 break;
@@ -894,14 +911,18 @@ mod pixel_format {
 
         fn get(&self, i: usize) -> ffi::AVPixelFormat {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_2 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised block.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_2.read() }
         }
 
         fn set(&mut self, i: usize, f: ffi::AVPixelFormat) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(f) }
+            unsafe { v_0_add.write(f) }
         }
     }
 
@@ -916,10 +937,14 @@ mod pixel_format {
     fn rust_as_c(a: &HeapVec<PixelFormat>) -> Vec<ffi::AVPixelFormat> {
         let ptr = a.as_ptr().cast::<ffi::AVPixelFormat>();
         (0..a.len())
-            // SAFETY: `PixelFormat` is `#[repr(transparent)]` over
-            // `ffi::AVPixelFormat`, and `i` is in bounds of the live, initialised
-            // array `a` borrows.
-            .map(|i| unsafe { ptr.add(i).read() })
+            .map(|i| {
+                // SAFETY: `i` is in bounds of the array `ptr` points into.
+                let at = unsafe { ptr.add(i) };
+                // SAFETY: `PixelFormat` is `#[repr(transparent)]` over
+                // `ffi::AVPixelFormat`, and `i` is in bounds of the live, initialised
+                // array `a` borrows.
+                unsafe { at.read() }
+            })
             .collect()
     }
 
@@ -1000,7 +1025,7 @@ mod pixel_format {
         // and read it as `PixelFormat`s.
         let len = c.1;
         let ptr = c.0;
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
         // `ffi::AVPixelFormat`, whose ownership `forget` gave up; `PixelFormat` is
         // layout-compatible with it, and `av_free` releases it.
@@ -1039,7 +1064,7 @@ mod pixel_format {
 mod color_primaries_and_range {
     use core::ffi::{CStr, c_int, c_uint, c_void};
     use core::mem::size_of;
-    use core::ptr::{addr_of, addr_of_mut};
+    use core::ptr::addr_of;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
@@ -1208,14 +1233,18 @@ mod color_primaries_and_range {
 
         fn get(&self, i: usize) -> E {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_4 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised block.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_4.read() }
         }
 
         fn set(&mut self, i: usize, v: E) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_3 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(v) }
+            unsafe { v_0_add_3.write(v) }
         }
 
         fn values(&self) -> Vec<E> {
@@ -1226,7 +1255,7 @@ mod color_primaries_and_range {
         /// owner an `av_malloc`ed array.
         fn into_raw(self) -> (*mut E, usize) {
             let parts = (self.0, self.1);
-            core::mem::forget(self);
+            let _ = core::mem::ManuallyDrop::new(self);
             parts
         }
     }
@@ -1255,10 +1284,14 @@ mod color_primaries_and_range {
     fn rust_as_c<T: Wrapped>(a: &HeapVec<T>) -> Vec<T::C> {
         let ptr = a.as_ptr().cast::<T::C>();
         (0..a.len())
-            // SAFETY: each `Wrapped` implementor is `#[repr(transparent)]` over
-            // its `C`, and `i` is in bounds of the live, initialised array `a`
-            // borrows.
-            .map(|i| unsafe { ptr.add(i).read() })
+            .map(|i| {
+                // SAFETY: `i` is in bounds of the array `ptr` points into.
+                let at = unsafe { ptr.add(i) };
+                // SAFETY: each `Wrapped` implementor is `#[repr(transparent)]` over
+                // its `C`, and `i` is in bounds of the live, initialised array `a`
+                // borrows.
+                unsafe { at.read() }
+            })
             .collect()
     }
 
@@ -1274,21 +1307,29 @@ mod color_primaries_and_range {
         }
 
         fn primaries(&self) -> ffi::AVColorPrimaries {
+            // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+            // so the place of its `color_primaries` field is in bounds; nothing is accessed here.
+            let color_primaries_ptr = unsafe { addr_of!((*self.0).color_primaries) };
             // SAFETY: `self.0` is a live frame; the field is read in place.
-            unsafe { addr_of!((*self.0).color_primaries).read() }
+            unsafe { color_primaries_ptr.read() }
         }
 
         fn range(&self) -> ffi::AVColorRange {
+            // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+            // so the place of its `color_range` field is in bounds; nothing is accessed here.
+            let color_range_ptr = unsafe { addr_of!((*self.0).color_range) };
             // SAFETY: `self.0` is a live frame; the field is read in place.
-            unsafe { addr_of!((*self.0).color_range).read() }
+            unsafe { color_range_ptr.read() }
         }
 
         fn set(&mut self, p: ffi::AVColorPrimaries, r: ffi::AVColorRange) {
-            // SAFETY: `self.0` is a live frame we own; the fields are written
-            // in place.
-            unsafe {
-                addr_of_mut!((*self.0).color_primaries).write(p);
-                addr_of_mut!((*self.0).color_range).write(r);
+            // For the unsafe operations below: `self.0` is a live frame we own; the fields are
+            // written in place.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { (*self.0).color_primaries = p };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*self.0).color_range = r };
             }
         }
     }
@@ -1297,7 +1338,7 @@ mod color_primaries_and_range {
         fn drop(&mut self) {
             // SAFETY: `self.0` is a live `av_frame_alloc` frame we own;
             // `av_frame_free` frees it and NULLs the slot.
-            unsafe { ffi::av_frame_free(&mut self.0) }
+            unsafe { ffi::av_frame_free(&raw mut self.0) }
         }
     }
 
@@ -1334,10 +1375,10 @@ mod color_primaries_and_range {
                 c_primaries_name(back.into_raw()),
                 c_primaries_name(p.into_raw())
             );
-            if p != ColorPrimaries::RESERVED {
-                assert_eq!(back, p);
-            } else {
+            if p == ColorPrimaries::RESERVED {
                 assert_eq!(back, ColorPrimaries::RESERVED0);
+            } else {
+                assert_eq!(back, p);
             }
         }
         for (r, _, name) in RANGE_NAMED {
@@ -1700,14 +1741,18 @@ mod chroma_location {
 
         fn get(&self, i: usize) -> ffi::AVChromaLocation {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add_2 = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised block.
-            unsafe { self.0.add(i).read() }
+            unsafe { v_0_add_2.read() }
         }
 
         fn set(&mut self, i: usize, v: ffi::AVChromaLocation) {
             assert!(i < self.1);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_0_add = unsafe { self.0.add(i) };
             // SAFETY: `i` is in bounds of the live block, which we own.
-            unsafe { self.0.add(i).write(v) }
+            unsafe { v_0_add.write(v) }
         }
     }
 
@@ -1722,10 +1767,14 @@ mod chroma_location {
     fn rust_as_c(a: &HeapVec<ChromaLocation>) -> Vec<ffi::AVChromaLocation> {
         let ptr = a.as_ptr().cast::<ffi::AVChromaLocation>();
         (0..a.len())
-            // SAFETY: `ChromaLocation` is `#[repr(transparent)]` over
-            // `ffi::AVChromaLocation`, and `i` is in bounds of the live,
-            // initialised array `a` borrows.
-            .map(|i| unsafe { ptr.add(i).read() })
+            .map(|i| {
+                // SAFETY: `i` is in bounds of the array `ptr` points into.
+                let at = unsafe { ptr.add(i) };
+                // SAFETY: `ChromaLocation` is `#[repr(transparent)]` over
+                // `ffi::AVChromaLocation`, and `i` is in bounds of the live,
+                // initialised array `a` borrows.
+                unsafe { at.read() }
+            })
             .collect()
     }
 
@@ -1769,7 +1818,7 @@ mod chroma_location {
         // The path a field accessor over a C array of `enum AVChromaLocation`
         // takes: adopt the C block and read it as `ChromaLocation`s.
         let (ptr, len) = (c.0, c.1);
-        core::mem::forget(c);
+        let _ = core::mem::ManuallyDrop::new(c);
         // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
         // `ffi::AVChromaLocation`, whose ownership `forget` gave up;
         // `ChromaLocation` is layout-compatible with it, and `av_free`
@@ -1788,7 +1837,6 @@ mod chroma_location {
 /// (formats wave 0 review): the colour properties, the alpha mode, and the
 /// `-1` the shared `format` field holds for [`PixelFormat::NONE`].
 mod frame_defaults {
-    use core::ptr::addr_of;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::{
@@ -1813,20 +1861,29 @@ mod frame_defaults {
         // SAFETY: no arguments; NULL on failure, checked below.
         let mut f = unsafe { ffi::av_frame_alloc() };
         assert!(!f.is_null());
-        // SAFETY: `f` is a live frame `av_frame_alloc` initialised; every
+        // For the unsafe operations below: `f` is a live frame `av_frame_alloc` initialised; every
         // field is read in place as its own type, and `av_frame_free` then
         // releases the frame and NULLs the slot.
-        unsafe {
+        {
+            // SAFETY: as the comment above this block states.
             let d = FrameDefaults {
-                format: addr_of!((*f).format).read(),
-                color_primaries: addr_of!((*f).color_primaries).read(),
-                color_trc: addr_of!((*f).color_trc).read(),
-                colorspace: addr_of!((*f).colorspace).read(),
-                color_range: addr_of!((*f).color_range).read(),
-                chroma_location: addr_of!((*f).chroma_location).read(),
-                alpha_mode: addr_of!((*f).alpha_mode).read(),
+                // SAFETY: as the comment above this statement states.
+                format: unsafe { (*f).format },
+                // SAFETY: as the comment above this statement states.
+                color_primaries: unsafe { (*f).color_primaries },
+                // SAFETY: as the comment above this statement states.
+                color_trc: unsafe { (*f).color_trc },
+                // SAFETY: as the comment above this statement states.
+                colorspace: unsafe { (*f).colorspace },
+                // SAFETY: as the comment above this statement states.
+                color_range: unsafe { (*f).color_range },
+                // SAFETY: as the comment above this statement states.
+                chroma_location: unsafe { (*f).chroma_location },
+                // SAFETY: as the comment above this statement states.
+                alpha_mode: unsafe { (*f).alpha_mode },
             };
-            ffi::av_frame_free(&mut f);
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_free(&raw mut f) };
             d
         }
     }

@@ -1,6 +1,22 @@
 //! UB tests for `libavutil/eval.h`'s safe `parse_number`: suffix bytes at the
-//! very end of exactly sized heap strings, so that ASan sees any read past
+//! very end of exactly sized heap strings, so that `ASan` sees any read past
 //! the NUL, and a rest that stays inside its input.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::no_effect_underscore_binding,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::ffi::{CStr, CString};
 
@@ -55,14 +71,14 @@ fn rest_is_a_suffix_of_the_input() {
     }
 }
 
-/// Whether the suite runs under BorrowSanitizer.
+/// Whether the suite runs under `BorrowSanitizer`.
 ///
-/// BSan reports a false out-of-bounds access at `av_strtod`'s `next[0]`
+/// `BSan` reports a false out-of-bounds access at `av_strtod`'s `next[0]`
 /// (`eval.c:120`) after many calls in one thread: `next` is an
 /// uninitialised local that uninstrumented glibc `strtod` writes, so its
 /// shadow keeps the provenance a freed earlier frame left in the slot,
-/// while the byte C reads lies inside the live string (ASan agrees). The
-/// exhaustive sweeps skip under BSan; the listed inputs still run.
+/// while the byte C reads lies inside the live string (`ASan` agrees). The
+/// exhaustive sweeps skip under `BSan`; the listed inputs still run.
 fn under_bsan() -> bool {
     std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
 }
@@ -147,7 +163,7 @@ mod expr {
     const UNARY: [(&CStr, UnaryFn); 1] = [(c"f", twice)];
     const BINARY: [(&CStr, BinaryFn); 1] = [(c"g", minus)];
 
-    /// Whether this run is under BSan, which misreports C's parser: every
+    /// Whether this run is under `BSan`, which misreports C's parser: every
     /// primary goes through `av_strtod`, whose end pointer glibc's uninstrumented
     /// `strtod` writes, so the local keeps the provenance an earlier frame left
     /// in its slot (often a freed parse buffer) and `next[0]` can read as a use
@@ -433,7 +449,7 @@ mod expressions {
         parse_and_eval(&CString::new(e).unwrap(), &[], &[], &[], 0, None)
     }
 
-    /// Each reaches one of C's unchecked `double` to integer conversions (UBSan
+    /// Each reaches one of C's unchecked `double` to integer conversions (`UBSan`
     /// `float-cast-overflow` in `eval.c`) or an `int` overflow of its log level.
     #[test]
     fn conversions_c_leaves_undefined_are_refused() {
@@ -621,7 +637,7 @@ mod expressions {
             for t in 0..4 {
                 s.spawn(move || {
                     for i in 0..200 {
-                        let e = CString::new(format!("st({},{});ld({})*2", t, i, t)).unwrap();
+                        let e = CString::new(format!("st({t},{i});ld({t})*2")).unwrap();
                         assert_eq!(
                             parse_and_eval(&e, &[], &[], &[], 0, None),
                             Ok(2.0 * f64::from(i))
@@ -671,7 +687,7 @@ mod expressions {
             ";",
             "5",
         ];
-        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
         let mut next = || {
             state ^= state << 13;
             state ^= state >> 7;
@@ -711,7 +727,7 @@ mod parse_with_context {
     /// The class every parent context here has.
     static CLASS: Class = Class::new(c"ub-eval-parent", ClassCategory::NA);
 
-    /// Whether this run is under BSan, which misreports C's parser (see
+    /// Whether this run is under `BSan`, which misreports C's parser (see
     /// `expr::under_bsan`). The tests that parse return early under it.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
@@ -809,9 +825,11 @@ mod expression {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::eval::{Arity, BinaryFn, ExprBox, Expression, UnaryFn};
+    use ffmpeg_bindings::libavutil::libavutil::eval::{
+        Arity, BinaryFn, ExprBox, Expression, UnaryFn,
+    };
 
-    /// As the other modules: BSan misreports C's number parse.
+    /// As the other modules: `BSan` misreports C's number parse.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
     }

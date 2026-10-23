@@ -1,3 +1,13 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 use ffmpeg_bindings::libavutil::libavutil::twofish;
 
 #[test]
@@ -62,7 +72,7 @@ fn lifecycle_status_and_rekey_match_c() {
                 InitStatus::Adjusted
             }
         );
-        let input = [0x5a; 48];
+        let input = [0x5A; 48];
         let mut output = [0; 48];
         let mut expected = [0; 48];
         let mut constructed_output = [0; 48];
@@ -71,9 +81,9 @@ fn lifecycle_status_and_rekey_match_c() {
             let mut expected_iv = iv;
             let mut constructed_iv = iv;
             for decrypt in [0, 1, 0] {
-                // SAFETY: initialized contexts with no live borrowed handles;
-                // independent arrays cover three blocks, and IVs one block.
-                // C reads/writes only these arrays and retains no pointers.
+                // For the unsafe operations below: initialized contexts with no live borrowed
+                // handles; independent arrays cover three blocks, and IVs one
+                // block. C reads/writes only these arrays and retains no pointers.
                 owner
                     .as_mut()
                     .as_ref()
@@ -100,9 +110,9 @@ fn lifecycle_status_and_rekey_match_c() {
                         decrypt,
                     );
                 }
-                // SAFETY: constructed owns a separate initialized C allocation
-                // built with the same key/bits; arrays cover three blocks and
-                // its independent IV covers one. C retains no pointers.
+                // For the unsafe operations below: constructed owns a separate initialized C
+                // allocation built with the same key/bits; arrays cover three
+                // blocks and its independent IV covers one. C retains no pointers.
                 constructed
                     .as_mut()
                     .as_ref()
@@ -132,8 +142,8 @@ fn lifecycle_status_and_rekey_match_c() {
         // writing reference. The nonnull empty slice pointer is never read.
         let rejected = unsafe { ffi::av_twofish_init(reference, [].as_ptr(), -1) };
         assert_eq!(rejected, -(ffi::EINVAL as i32));
-        // SAFETY: both unchanged contexts remain initialized, and buffers cover
-        // three blocks. C retains no pointers.
+        // For the unsafe operations below: both unchanged contexts remain initialized, and buffers
+        // cover three blocks. C retains no pointers.
         owner
             .as_mut()
             .as_ref()
@@ -161,14 +171,14 @@ fn lifecycle_status_and_rekey_match_c() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
-    let mut owner = Twofish::new(&[0x5b; 16], 128).unwrap().0;
-    let reference = Twofish::new(&[0x5b; 16], 128).unwrap().0;
+    let mut owner = Twofish::new(&[0x5B; 16], 128).unwrap().0;
+    let reference = Twofish::new(&[0x5B; 16], 128).unwrap().0;
     for cbc in [false, true] {
         let mut iv = [0x38; 16];
         let mut expected_iv = iv;
         for decrypt in [false, true, true, false] {
             for count in [0usize, 1, 2, 17] {
-                let mut data: Vec<_> = (0..count * 16 + 1).map(|i| (i * 37) as u8).collect();
+                let mut data: Vec<_> = (0..=(count * 16)).map(|i| (i * 37) as u8).collect();
                 let mut expected = data.clone();
                 owner
                     .as_mut()
@@ -194,11 +204,11 @@ fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
                             core::ptr::null_mut()
                         },
                         i32::from(decrypt),
-                    )
+                    );
                 };
                 assert_eq!(data, expected);
                 assert_eq!(iv, expected_iv);
-                let mut output = vec![0xa5; data.len() + 16];
+                let mut output = vec![0xA5; data.len() + 16];
                 let mut expected_output = output.clone();
                 owner
                     .as_mut()
@@ -224,11 +234,11 @@ fn batch2_in_place_multi_call_buffers_and_iv_match_c() {
                             core::ptr::null_mut()
                         },
                         i32::from(decrypt),
-                    )
+                    );
                 };
                 assert_eq!(output, expected_output);
                 assert_eq!(iv, expected_iv);
-                assert!(output[data.len()..].iter().all(|&b| b == 0xa5));
+                assert!(output[data.len()..].iter().all(|&b| b == 0xA5));
             }
         }
     }

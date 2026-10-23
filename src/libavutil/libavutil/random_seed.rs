@@ -15,12 +15,12 @@ static SEED_ACCESS: Mutex<()> = Mutex::new(());
 pub(crate) fn lock_seed_access() -> MutexGuard<'static, ()> {
     SEED_ACCESS
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 use super::ffi;
 
-/// Wraps: av_get_random_seed
+/// Wraps: `av_get_random_seed`
 ///
 /// A best-effort random 32-bit seed for a faster PRNG: from the system's
 /// entropy source, or, failing that, from timing jitter. It can be slow; call
@@ -34,7 +34,7 @@ pub fn get() -> u32 {
     unsafe { ffi::av_get_random_seed() }
 }
 
-/// Wraps: av_random_bytes
+/// Wraps: `av_random_bytes`
 ///
 /// Fills `buf` with cryptographically secure random bytes, suitable for keys.
 ///
@@ -42,6 +42,12 @@ pub fn get() -> u32 {
 /// them (`AVERROR_UNKNOWN` when `/dev/urandom` cannot be read in full); `buf`
 /// may then be partly overwritten. An empty `buf` still consults the source,
 /// as in C.
+///
+/// # Errors
+///
+/// `Err` holds C's negative `AVERROR` code when no secure source could supply them
+/// (`AVERROR_UNKNOWN` when `/dev/urandom` cannot be read in full); `buf` may then be partly
+/// overwritten.
 pub fn random_bytes(buf: &mut [u8]) -> Result<(), i32> {
     // An empty slice's pointer is dangling, which C's `fread` may not receive
     // even for a zero length; a live byte stands in for it.
@@ -58,10 +64,14 @@ pub fn random_bytes(buf: &mut [u8]) -> Result<(), i32> {
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: av_random_bytes
+/// Wraps: `av_random_bytes`
 ///
 /// As [`random_bytes`], for a buffer that need not be initialised: on success
 /// the whole of `buf`, now initialised, as bytes.
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_random_bytes` returns when it fails.
 pub fn random_bytes_uninit(buf: &mut [MaybeUninit<u8>]) -> Result<&mut [u8], i32> {
     let mut empty = 0u8;
     let dst = if buf.is_empty() {
@@ -80,6 +90,10 @@ pub fn random_bytes_uninit(buf: &mut [MaybeUninit<u8>]) -> Result<&mut [u8], i32
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use super::*;
 

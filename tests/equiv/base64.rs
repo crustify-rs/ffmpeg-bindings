@@ -1,3 +1,9 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 use ffmpeg_bindings::libavutil::libavutil::{base64, ffi};
 
 #[test]
@@ -87,7 +93,7 @@ mod beyond_int_max {
 
     const LEN: usize = i32::MAX as usize + 1;
 
-    /// BSan cost grows with a 2 GiB allocation's history (see the campaign's
+    /// `BSan` cost grows with a 2 GiB allocation's history (see the campaign's
     /// test recipes); the plain and other sanitized runs cover these.
     fn under_bsan() -> bool {
         std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")

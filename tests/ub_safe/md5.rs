@@ -1,4 +1,13 @@
 //! Public safe context lifecycle, input lifetimes, and exclusive reborrows.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::md5::{Md5, Md5Box, Md5Mut, Md5Ref};
 
 #[test]
@@ -10,7 +19,7 @@ fn lifecycle_and_foreign_writes() {
     let mut outer = context.as_mut();
     {
         let mut inner: Md5Mut<'_> = outer.as_mut();
-        let mut input = vec![0xab; 129];
+        let mut input = vec![0xAB; 129];
         inner.update(&input[1..]); // deliberately unaligned, two full blocks
         input.fill(0); // no retained C pointer may read the modified input
         drop(input);
@@ -25,8 +34,8 @@ fn lifecycle_and_foreign_writes() {
     assert_eq!(
         outer.finalize(),
         [
-            0x90, 0x01, 0x50, 0x98, 0x3c, 0xd2, 0x4f, 0xb0, 0xd6, 0x96, 0x3f, 0x7d, 0x28, 0xe1,
-            0x7f, 0x72
+            0x90, 0x01, 0x50, 0x98, 0x3C, 0xD2, 0x4F, 0xB0, 0xD6, 0x96, 0x3F, 0x7D, 0x28, 0xE1,
+            0x7F, 0x72
         ]
     );
     drop(context);
@@ -35,8 +44,8 @@ fn lifecycle_and_foreign_writes() {
     assert_eq!(
         context.as_mut().finalize(),
         [
-            0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8,
-            0x42, 0x7e
+            0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8,
+            0x42, 0x7E
         ]
     );
 }
@@ -88,12 +97,12 @@ fn batch10_digest_boundary_lengths() {
     assert_eq!(
         sum(b""),
         [
-            0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8,
-            0x42, 0x7e
+            0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8,
+            0x42, 0x7E
         ]
     );
     for len in [0, 1, 55, 56, 63, 64, 65, 119, 120, 128, 2048] {
-        let independent = data[1..1 + len].to_vec();
-        assert_eq!(sum(&data[1..1 + len]), sum(&independent));
+        let independent = data[1..=len].to_vec();
+        assert_eq!(sum(&data[1..=len]), sum(&independent));
     }
 }

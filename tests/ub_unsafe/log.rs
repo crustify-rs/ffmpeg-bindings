@@ -4,6 +4,23 @@
 //! the overflow bound, through a formatting Rust callback and through the
 //! default callback in every colour mode. A NULL context, or one whose class
 //! is NULL, is no object: it logs through the general log.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
+#![expect(
+    clippy::decimal_bitwise_operands,
+    reason = "constants as the C sources and specifications spell them"
+)]
 
 use core::ffi::{CStr, c_char, c_int, c_void};
 use core::mem::offset_of;
@@ -71,7 +88,13 @@ unsafe fn log_once_in(ctx: *mut c_void, a: Level, b: Level, state: &mut bool, me
 
 /// Serializes the tests here that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
-pub(crate) struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
+pub(crate) struct LogState(
+    #[expect(
+        dead_code,
+        reason = "held only for its drop, which serialises the process-wide log callback"
+    )]
+    MutexGuard<'static, ()>,
+);
 
 impl LogState {
     pub(crate) fn lock() -> Self {
@@ -337,7 +360,7 @@ mod log_with_context {
         let _s = LogState::lock();
         let classes = classes();
         let mut ctx = Ctx {
-            class: &classes[0],
+            class: &raw const classes[0],
             level_offset: c_int::MAX - 56,
             parent: ptr::null_mut(),
         };
@@ -345,7 +368,7 @@ mod log_with_context {
         let levels: Vec<c_int> = lines.iter().map(|l| l.0.raw()).collect();
         assert_eq!(levels, [c_int::MIN, -8, 7, c_int::MAX]);
         let mut old = Ctx {
-            class: &classes[3],
+            class: &raw const classes[3],
             level_offset: c_int::MIN,
             parent: ptr::null_mut(),
         };
@@ -436,7 +459,7 @@ mod overflowing_shifts {
         let classes = classes();
         let bound = c_int::MAX - ffi::AV_LOG_TRACE as c_int;
         let mut ctx = Ctx {
-            class: &classes[0],
+            class: &raw const classes[0],
             level_offset: bound,
             parent: ptr::null_mut(),
         };
@@ -457,7 +480,7 @@ mod overflowing_shifts {
         let _s = LogState::lock();
         let classes = classes();
         let mut ctx = Ctx {
-            class: &classes[0],
+            class: &raw const classes[0],
             level_offset: c_int::MIN,
             parent: ptr::null_mut(),
         };
@@ -485,7 +508,7 @@ mod log_fmt_with_context {
                     (&raw mut *ctx).cast(),
                     Level::from_raw(level),
                     format_args!("{n:>4} %s %n {:.3}\0hidden\n", 1.0 / 3.0),
-                )
+                );
             };
         }
     }
@@ -537,7 +560,11 @@ mod log_fmt_with_context {
                         // SAFETY: as in `log_all`; the contexts outlive the
                         // scope and no thread writes them.
                         unsafe {
-                            log_fmt_in(a as *mut c_void, Level::ERROR, format_args!("thread {t}\n"))
+                            log_fmt_in(
+                                a as *mut c_void,
+                                Level::ERROR,
+                                format_args!("thread {t}\n"),
+                            );
                         };
                     }
                 });
@@ -594,7 +621,7 @@ mod log_once_with_context {
                                 Level::from_raw(b),
                                 &mut state,
                                 c"once\n",
-                            )
+                            );
                         };
                         states.push(state);
                     }
@@ -619,7 +646,7 @@ mod log_once_with_context {
                         Level::DEBUG,
                         &mut state,
                         c"o\n",
-                    )
+                    );
                 };
             }
         });
@@ -669,7 +696,7 @@ mod log_once_with_context {
                                     Level::TRACE,
                                     &mut state,
                                     c"t\n",
-                                )
+                                );
                             };
                         }
                         assert!(state);
@@ -740,14 +767,16 @@ mod vlog {
         }
 
         fn as_obj(&mut self) -> *mut c_void {
-            (self as *mut Self).cast()
+            ptr::from_mut::<Self>(self).cast()
         }
     }
 
     /// The context's class name, as `av_default_item_name` gives it.
     unsafe extern "C" fn item_name(ctx: *mut c_void) -> *const c_char {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_2 = unsafe { ctx.cast::<*const ffi::AVClass>().read() };
         // SAFETY: C passes a live context, whose first member is its class.
-        unsafe { (*ctx.cast::<*const ffi::AVClass>().read()).class_name }
+        unsafe { (*v_2).class_name }
     }
 
     /// A category read from the context.
@@ -755,6 +784,10 @@ mod vlog {
         ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER
     }
 
+    #[expect(
+        clippy::unnecessary_box_returns,
+        reason = "the class must not move: C keeps pointers to it"
+    )]
     fn class(version: c_int, offset: bool, parent: bool) -> Box<ffi::AVClass> {
         Box::new(ffi::AVClass {
             class_name: c"crustify-vlog-unsafe".as_ptr(),
@@ -796,7 +829,7 @@ mod vlog {
                 ptr::null_mut(),
                 &[DEBUG, ffi::AV_LOG_TRACE as c_int],
                 c"%s%n",
-            )
+            );
         };
         let mut ctx = Ctx::boxed(ptr::null(), 0);
         // SAFETY: a context whose class pointer is NULL.
@@ -805,7 +838,7 @@ mod vlog {
                 ctx.as_obj(),
                 &[DEBUG, INFO],
                 c"crustify ub_unsafe vlog: classless\n",
-            )
+            );
         };
     }
 
@@ -815,7 +848,7 @@ mod vlog {
         let cls = class(OFFSET_VERSION, true, false);
         let trace = ffi::AV_LOG_TRACE as c_int;
         for offset in [c_int::MIN, -1000, -FATAL, 0, 1, 1000, c_int::MAX - trace] {
-            let mut ctx = Ctx::boxed(&*cls, offset);
+            let mut ctx = Ctx::boxed(&raw const *cls, offset);
             // SAFETY: `level + offset` stays within `c_int` for these levels, from
             // `FATAL + c_int::MIN` up to exactly `c_int::MAX`.
             unsafe {
@@ -823,18 +856,18 @@ mod vlog {
                     ctx.as_obj(),
                     &[FATAL, DEBUG, trace],
                     c"crustify ub_unsafe vlog: %%%s\n",
-                )
+                );
             };
         }
-        let mut ctx = Ctx::boxed(&*cls, c_int::MAX - 0xff);
+        let mut ctx = Ctx::boxed(&raw const *cls, c_int::MAX - 0xFF);
         // SAFETY: levels below `AV_LOG_FATAL` take no offset, and `0xff` sums to
         // exactly `c_int::MAX`.
         unsafe {
             log_all(
                 ctx.as_obj(),
-                &[ffi::AV_LOG_PANIC as c_int, ffi::AV_LOG_QUIET - 1000, 0xff],
+                &[ffi::AV_LOG_PANIC as c_int, ffi::AV_LOG_QUIET - 1000, 0xFF],
                 c"crustify ub_unsafe vlog: below FATAL\n",
-            )
+            );
         };
     }
 
@@ -842,7 +875,7 @@ mod vlog {
     #[cfg_attr(miri, ignore = "calls C")]
     fn offsets_of_old_classes_are_ignored() {
         let old = class(OFFSET_VERSION - 1, true, false);
-        let mut ctx = Ctx::boxed(&*old, c_int::MAX);
+        let mut ctx = Ctx::boxed(&raw const *old, c_int::MAX);
         // SAFETY: the class predates level offsets, so the `c_int::MAX` offset is
         // never added; the levels the default callback drops.
         unsafe { log_all(ctx.as_obj(), &[DEBUG, c_int::MAX], c"old class") };
@@ -852,10 +885,10 @@ mod vlog {
     #[cfg_attr(miri, ignore = "calls C")]
     fn printed_lines_name_the_context_and_its_parent() {
         let parent_class = class(CATEGORY_VERSION, false, false);
-        let mut parent: *const ffi::AVClass = &*parent_class;
+        let mut parent: *const ffi::AVClass = &raw const *parent_class;
         let child_class = class(CATEGORY_VERSION, true, true);
-        let mut ctx = Ctx::boxed(&*child_class, -8);
-        for slot in [ptr::null_mut(), &mut parent as *mut _] {
+        let mut ctx = Ctx::boxed(&raw const *child_class, -8);
+        for slot in [ptr::null_mut(), &raw mut parent] {
             ctx.parent = slot;
             // SAFETY: a well-formed context whose parent slot is NULL or points
             // at a classed parent; the offset keeps every level in range.
@@ -864,18 +897,18 @@ mod vlog {
                     ctx.as_obj(),
                     &[INFO + 8, DEBUG],
                     c"crustify ub_unsafe vlog: child\n",
-                )
+                );
             };
         }
         let mut null_parent: *const ffi::AVClass = ptr::null();
-        ctx.parent = &mut null_parent;
+        ctx.parent = &raw mut null_parent;
         // SAFETY: the parent slot points to a NULL class pointer.
         unsafe {
             log_all(
                 ctx.as_obj(),
                 &[INFO + 8],
                 c"crustify ub_unsafe vlog: orphan\n",
-            )
+            );
         };
     }
 
@@ -883,7 +916,7 @@ mod vlog {
     #[cfg_attr(miri, ignore = "calls C")]
     fn one_context_logged_from_many_threads() {
         let cls = class(CATEGORY_VERSION, true, false);
-        let ctx = Ctx::boxed(&*cls, 16);
+        let ctx = Ctx::boxed(&raw const *cls, 16);
         let addr = Box::into_raw(ctx) as usize;
         let workers: Vec<_> = (0..8)
             .map(|i| {
@@ -897,7 +930,7 @@ mod vlog {
                                 addr as *mut c_void,
                                 Level::from_raw(level),
                                 c"crustify ub_unsafe vlog: threads\n",
-                            )
+                            );
                         };
                     }
                 })
@@ -955,12 +988,12 @@ mod item_name {
         fn new(class: *const ffi::AVClass) -> Self {
             Self {
                 class,
-                payload: [0xa5; 64],
+                payload: [0xA5; 64],
             }
         }
 
         fn ctx(&self) -> *const c_void {
-            (self as *const Self).cast()
+            std::ptr::from_ref::<Self>(self).cast()
         }
     }
 
@@ -968,7 +1001,7 @@ mod item_name {
     #[cfg_attr(miri, ignore = "calls C")]
     fn static_class_name_lives_for_static() {
         let name: &'static CStr = {
-            let obj = Obj::new(&NAMED.0);
+            let obj = Obj::new(&raw const NAMED.0);
             // SAFETY: `obj` starts with a non-NULL pointer to the live static
             // class, whose name is a literal, so any lifetime holds.
             unsafe { default_item_name(obj.ctx()) }.unwrap()
@@ -980,7 +1013,7 @@ mod item_name {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn bare_class_pointer_is_the_smallest_object() {
-        let fake: *const ffi::AVClass = &NAMED.0;
+        let fake: *const ffi::AVClass = &raw const NAMED.0;
         // SAFETY: `fake` is readable memory starting with a non-NULL class
         // pointer to the live static class.
         let name = unsafe { default_item_name((&raw const fake).cast()) };
@@ -1000,8 +1033,8 @@ mod item_name {
         }
 
         let outer = Box::new(Outer {
-            prefix: [0x5a; 24],
-            class: &NAMED.0,
+            prefix: [0x5A; 24],
+            class: &raw const NAMED.0,
             payload: 7,
         });
         let ctx: *const c_void = (&raw const outer.class).cast();
@@ -1010,7 +1043,7 @@ mod item_name {
         // literal; no other thread writes either.
         let name = unsafe { default_item_name(ctx) };
         assert_eq!(name, Some(c"ub-unsafe-class"));
-        assert_eq!((outer.prefix[0], outer.payload), (0x5a, 7));
+        assert_eq!((outer.prefix[0], outer.payload), (0x5A, 7));
     }
 
     #[test]
@@ -1022,7 +1055,7 @@ mod item_name {
                 class_name: name.as_ptr(),
                 ..Default::default()
             });
-            let obj = Box::new(Obj::new(&*cls));
+            let obj = Box::new(Obj::new(&raw const *cls));
             {
                 // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`,
                 // whose name `name` stays alive and unmodified for this block.
@@ -1042,7 +1075,7 @@ mod item_name {
             class_name: c"other".as_ptr(),
             ..Default::default()
         };
-        let mut obj = Obj::new(&NAMED.0);
+        let mut obj = Obj::new(&raw const NAMED.0);
         for (i, cls) in [&NAMED.0, &other, &NAMED.0].into_iter().enumerate() {
             obj.class = cls;
             // SAFETY: `obj` starts with a non-NULL pointer to a live class whose
@@ -1050,7 +1083,7 @@ mod item_name {
             let name = unsafe { default_item_name(obj.ctx()) }.unwrap();
             assert_eq!(name.as_ptr(), cls.class_name, "step {i}");
         }
-        assert_eq!(obj.payload, [0xa5; 64]);
+        assert_eq!(obj.payload, [0xA5; 64]);
     }
 
     #[test]
@@ -1061,7 +1094,7 @@ mod item_name {
         // SAFETY: the threads below only read the object and its static class.
         unsafe impl Sync for Shared {}
 
-        let shared = Shared(Obj::new(&NAMED.0));
+        let shared = Shared(Obj::new(&raw const NAMED.0));
         std::thread::scope(|s| {
             for _ in 0..4 {
                 let shared = &shared;
@@ -1117,7 +1150,7 @@ mod class_callbacks {
         }
 
         fn as_obj(&mut self) -> *mut c_void {
-            (self as *mut Self).cast()
+            ptr::from_mut::<Self>(self).cast()
         }
     }
 
@@ -1170,7 +1203,7 @@ mod class_callbacks {
         let mut null = raw(Some(c"null-item"));
         null.item_name = Some(null_name);
         null.get_category = Some(any_category);
-        let mut obj = Obj::new(&null);
+        let mut obj = Obj::new(&raw const null);
         let o = obj.as_obj();
         // Every category below `AV_CLASS_CATEGORY_NB`, as the contract asks.
         for v in [0, 7, 45] {
@@ -1264,8 +1297,11 @@ mod class_callbacks {
         let mut parent_class = raw(Some(c"parent"));
         parent_class.child_next = Some(next_child);
         let other_class = raw(Some(c"other-child"));
-        let mut kids = [Obj::new(&child_class), Obj::new(&other_class)];
-        let mut parent = Obj::new(&parent_class);
+        let mut kids = [
+            Obj::new(&raw const child_class),
+            Obj::new(&raw const other_class),
+        ];
+        let mut parent = Obj::new(&raw const parent_class);
         parent.children = [kids[0].as_obj(), kids[1].as_obj()];
         let p = parent.as_obj();
         // SAFETY: `p` starts with a pointer to `parent_class`, named, whose
@@ -1322,19 +1358,19 @@ mod default_category {
         fn new(class: *const ffi::AVClass) -> Self {
             Self {
                 class,
-                payload: [0x3c; 64],
+                payload: [0x3C; 64],
             }
         }
 
         fn ctx(&self) -> *const c_void {
-            (self as *const Self).cast()
+            std::ptr::from_ref::<Self>(self).cast()
         }
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn static_class_reads_its_category() {
-        let obj = Obj::new(&DEMUXER.0);
+        let obj = Obj::new(&raw const DEMUXER.0);
         // SAFETY: `obj` starts with a non-NULL pointer to the live static
         // class; nothing writes either.
         let got = unsafe { default_category(obj.ctx()) };
@@ -1344,7 +1380,7 @@ mod default_category {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn bare_class_pointer_is_the_smallest_object() {
-        let fake: *const ffi::AVClass = &DEMUXER.0;
+        let fake: *const ffi::AVClass = &raw const DEMUXER.0;
         // SAFETY: `fake` is a readable, aligned slot holding a non-NULL
         // pointer to the live static class.
         let got = unsafe { default_category((&raw const fake).cast()) };
@@ -1364,15 +1400,15 @@ mod default_category {
         }
 
         let outer = Box::new(Outer {
-            prefix: [0x5a; 40],
-            class: &DEMUXER.0,
+            prefix: [0x5A; 40],
+            class: &raw const DEMUXER.0,
             payload: 9,
         });
         // SAFETY: the context is the aligned `class` member of the live
         // `outer`, holding a non-NULL pointer to the static class.
         let got = unsafe { default_category((&raw const outer.class).cast()) };
         assert_eq!(got, ClassCategory::DEMUXER);
-        assert_eq!((outer.prefix[39], outer.payload), (0x5a, 9));
+        assert_eq!((outer.prefix[39], outer.payload), (0x5A, 9));
     }
 
     #[test]
@@ -1385,7 +1421,7 @@ mod default_category {
                 category: ffi::AVClassCategory(v),
                 ..Default::default()
             });
-            let obj = Box::new(Obj::new(&*cls));
+            let obj = Box::new(Obj::new(&raw const *cls));
             // SAFETY: `obj` starts with a non-NULL pointer to the live `cls`;
             // both are dropped only after the call.
             let got = unsafe { default_category(obj.ctx()) };
@@ -1403,7 +1439,7 @@ mod default_category {
             category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
             ..Default::default()
         };
-        let mut obj = Obj::new(&DEMUXER.0);
+        let mut obj = Obj::new(&raw const DEMUXER.0);
         for (i, cls) in [&DEMUXER.0, &other, &DEMUXER.0].into_iter().enumerate() {
             obj.class = cls;
             // SAFETY: `obj` starts with a non-NULL pointer to a live class; no
@@ -1411,7 +1447,7 @@ mod default_category {
             let got = unsafe { default_category(obj.ctx()) };
             assert_eq!(got, ClassCategory::from(cls.category), "step {i}");
         }
-        assert_eq!(obj.payload, [0x3c; 64]);
+        assert_eq!(obj.payload, [0x3C; 64]);
     }
 
     #[test]
@@ -1422,7 +1458,7 @@ mod default_category {
         // SAFETY: the threads below only read the object and its static class.
         unsafe impl Sync for Shared {}
 
-        let shared = Shared(Obj::new(&DEMUXER.0));
+        let shared = Shared(Obj::new(&raw const DEMUXER.0));
         std::thread::scope(|s| {
             for _ in 0..4 {
                 let shared = &shared;

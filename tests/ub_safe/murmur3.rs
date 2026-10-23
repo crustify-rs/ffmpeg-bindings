@@ -1,4 +1,13 @@
 //! Public safe context lifecycle, input lifetimes, and exclusive reborrows.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::murmur3::{Murmur3, Murmur3Box, Murmur3Mut, Murmur3Ref};
 
 #[test]
@@ -10,7 +19,7 @@ fn lifecycle_and_foreign_writes() {
     let mut outer = context.as_mut();
     {
         let mut inner: Murmur3Mut<'_> = outer.as_mut();
-        let mut input = vec![0xab; 33];
+        let mut input = vec![0xAB; 33];
         inner.update(&input[1..]); // deliberately unaligned, two full blocks
         input.fill(0); // update must not retain pointers across Rust reborrows
         drop(input);

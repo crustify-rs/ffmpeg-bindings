@@ -38,7 +38,7 @@
 //! [`FramesReferenceRef::context`] and [`UninitFrames::context_mut`].
 
 use core::any::Any;
-use core::ffi::{CStr, c_int, c_uint, c_void};
+use core::ffi::{CStr, c_int, c_void};
 use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
@@ -61,7 +61,7 @@ use super::opt::impl_class_object;
 use super::pixdesc::PixelFormatFlags;
 use super::pixfmt::PixelFormat;
 
-/// Wraps: AVHWDeviceType
+/// Wraps: `AVHWDeviceType`
 /// Handwritten
 ///
 /// The hardware API behind a device context: VAAPI, CUDA, Vulkan and so on,
@@ -107,45 +107,47 @@ use super::pixfmt::PixelFormat;
 pub struct DeviceType(ffi::AVHWDeviceType);
 
 impl DeviceType {
-    /// No hardware device; what C's lookups return when they find none.
-    pub const NONE: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_NONE);
-    /// NVIDIA VDPAU (`vdpau`).
-    pub const VDPAU: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VDPAU);
-    /// NVIDIA CUDA (`cuda`).
-    pub const CUDA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
-    /// VA-API (`vaapi`).
-    pub const VAAPI: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
-    /// DirectX Video Acceleration 2 (`dxva2`).
-    pub const DXVA2: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DXVA2);
-    /// Intel Quick Sync Video (`qsv`).
-    pub const QSV: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
-    /// Apple VideoToolbox (`videotoolbox`).
-    pub const VIDEOTOOLBOX: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
-    /// Direct3D 11 video acceleration (`d3d11va`).
-    pub const D3D11VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D11VA);
-    /// Linux DRM PRIME buffers (`drm`).
-    pub const DRM: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
-    /// OpenCL (`opencl`).
-    pub const OPENCL: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_OPENCL);
-    /// Android MediaCodec (`mediacodec`).
-    pub const MEDIACODEC: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_MEDIACODEC);
-    /// Vulkan (`vulkan`).
-    pub const VULKAN: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VULKAN);
-    /// Direct3D 12 video acceleration (`d3d12va`).
-    pub const D3D12VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D12VA);
     /// AMD Advanced Media Framework (`amf`).
     pub const AMF: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_AMF);
+    /// NVIDIA CUDA (`cuda`).
+    pub const CUDA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
+    /// Direct3D 11 video acceleration (`d3d11va`).
+    pub const D3D11VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D11VA);
+    /// Direct3D 12 video acceleration (`d3d12va`).
+    pub const D3D12VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D12VA);
+    /// Linux DRM PRIME buffers (`drm`).
+    pub const DRM: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+    /// DirectX Video Acceleration 2 (`dxva2`).
+    pub const DXVA2: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DXVA2);
+    /// Android MediaCodec (`mediacodec`).
+    pub const MEDIACODEC: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_MEDIACODEC);
+    /// No hardware device; what C's lookups return when they find none.
+    pub const NONE: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_NONE);
     /// OpenHarmony codec device (`ohcodec`).
     pub const OHCODEC: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_OHCODEC);
+    /// OpenCL (`opencl`).
+    pub const OPENCL: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_OPENCL);
+    /// Intel Quick Sync Video (`qsv`).
+    pub const QSV: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
+    /// VA-API (`vaapi`).
+    pub const VAAPI: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+    /// NVIDIA VDPAU (`vdpau`).
+    pub const VDPAU: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VDPAU);
+    /// Apple `VideoToolbox` (`videotoolbox`).
+    pub const VIDEOTOOLBOX: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
+    /// Vulkan (`vulkan`).
+    pub const VULKAN: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VULKAN);
 
     /// The device type C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVHWDeviceType) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this device type.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVHWDeviceType {
         self.0
     }
@@ -209,7 +211,7 @@ impl From<DeviceType> for ffi::AVHWDeviceType {
 // memory is the whole of it.
 unsafe impl CPlainElem for DeviceType {}
 
-/// Wraps: AVHWFrameTransferDirection
+/// Wraps: `AVHWFrameTransferDirection`
 /// Handwritten
 ///
 /// Which side of a transfer between a hardware frame and a software frame a
@@ -241,6 +243,7 @@ pub enum TransferDirection {
 impl TransferDirection {
     /// The C encoding of this direction.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVHWFrameTransferDirection {
         match self {
             Self::From => ffi::AVHWFrameTransferDirection::AV_HWFRAME_TRANSFER_DIRECTION_FROM,
@@ -257,7 +260,7 @@ impl From<TransferDirection> for ffi::AVHWFrameTransferDirection {
 }
 
 /// `AVERROR(EINVAL)`.
-const EINVAL: c_int = -(ffi::EINVAL as c_int);
+const EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
 /// A reference to an initialised hardware frames context: one
 /// `av_hwframe_ctx_alloc` made and `av_hwframe_ctx_init` set up, whose
@@ -322,7 +325,7 @@ impl<'a> HwFrames<'a> {
             ffi::av_hwframe_transfer_get_formats(
                 self.0.as_ptr().cast_mut(),
                 dir.into_raw(),
-                &mut list,
+                &raw mut list,
                 0,
             )
         };
@@ -332,9 +335,14 @@ impl<'a> HwFrames<'a> {
         }
         let mut len = 0;
         if !list.is_null() {
-            // SAFETY: a successful call left a terminated array at `list`,
-            // read up to and including its terminator.
-            while unsafe { list.add(len).read() } != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+            loop {
+                // SAFETY: a successful call left a terminated array at `list`, and `len` has
+                // not passed its terminator.
+                let at = unsafe { list.add(len) };
+                // SAFETY: as above; every element up to the terminator is initialised.
+                if unsafe { at.read() } == ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                    break;
+                }
                 len += 1;
             }
         }
@@ -348,7 +356,7 @@ impl<'a> HwFrames<'a> {
 }
 
 impl FrameRef<'_> {
-    /// Wraps: av_hwframe_transfer_get_formats
+    /// Wraps: `av_hwframe_transfer_get_formats`
     ///
     /// The software pixel formats a transfer with this hardware frame can
     /// use, from its hardware frames context
@@ -361,7 +369,12 @@ impl FrameRef<'_> {
     /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
     /// let software = Frame::new().unwrap();
-    /// assert!(software.as_ref().transfer_formats(TransferDirection::From).is_err());
+    /// assert!(
+    ///     software
+    ///         .as_ref()
+    ///         .transfer_formats(TransferDirection::From)
+    ///         .is_err()
+    /// );
     /// ```
     ///
     /// # Errors
@@ -414,7 +427,7 @@ fn holds_image(
             let rows = Rows {
                 len: linesize,
                 rows,
-                linesize: linesize as isize,
+                linesize: linesize.cast_signed(),
             };
             !data[i].is_null() && linesize >= len.max(1) && frame.reaches(data[i], rows, write)
         });
@@ -473,7 +486,7 @@ fn download_target(dst: FrameRef<'_>, ctx: HwFrames<'_>) -> Result<FrameBox, c_i
 }
 
 impl FrameMut<'_> {
-    /// Wraps: av_hwframe_transfer_data
+    /// Wraps: `av_hwframe_transfer_data`
     ///
     /// Copies `src`'s data into this frame where at least one of them is a
     /// hardware frame ([`FrameRef::hw_frames_context`]): downloads a
@@ -595,7 +608,7 @@ impl FrameMut<'_> {
 // device and frames contexts, and hardware frames.
 
 impl DeviceType {
-    /// Wraps: av_hwdevice_get_type_name
+    /// Wraps: `av_hwdevice_get_type_name`
     ///
     /// The name C gives this device type, as FFmpeg's options spell it
     /// (`cuda`, `vaapi`, ...); `None` for [`NONE`](Self::NONE) and any value
@@ -617,7 +630,7 @@ impl DeviceType {
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Wraps: av_hwdevice_find_type_by_name
+    /// Wraps: `av_hwdevice_find_type_by_name`
     ///
     /// The device type C names `name` (see [`name`](Self::name)), or `None`
     /// for any other string. Names are matched exactly, case included:
@@ -638,7 +651,7 @@ impl DeviceType {
         (found != Self::NONE).then_some(found)
     }
 
-    /// Wraps: av_hwdevice_iterate_types
+    /// Wraps: `av_hwdevice_iterate_types`
     ///
     /// The device types this build of the library has a backend for, so
     /// that [`DeviceReference::alloc`] can succeed, in increasing order of
@@ -707,7 +720,7 @@ fn status(ret: c_int) -> Result<(), c_int> {
 /// may take another: its count is below [`MAX_REFERENCES`], as any wrapper
 /// adding a reference checks (see [`may_add_reference`]).
 fn count_allows_another(count: c_int) -> bool {
-    may_add_reference(count as c_uint)
+    may_add_reference(count.cast_unsigned())
 }
 
 /// Whether a buffer counting `count` references is within
@@ -715,10 +728,10 @@ fn count_allows_another(count: c_int) -> bool {
 /// frames context it returns from a chain of derived ones), and a result
 /// past the limit is released instead.
 fn count_within_limit(count: c_int) -> bool {
-    count as c_uint <= MAX_REFERENCES
+    count.cast_unsigned() <= MAX_REFERENCES
 }
 
-/// Wraps: av_buffer_unref
+/// Wraps: `av_buffer_unref`
 /// Handwritten
 ///
 /// Releases a hardware device or frames context reference
@@ -746,11 +759,11 @@ unsafe impl CDrop<DeviceReference> for ContextUnref {
         // reference; C av_frees the struct (NULLing only the local slot) and
         // drops one count of the buffer with acq_rel ordering, releasing the
         // context with the last one.
-        unsafe { ffi::av_buffer_unref(&mut slot) }
+        unsafe { ffi::av_buffer_unref(&raw mut slot) }
     }
 }
 
-/// Wraps: av_buffer_ref
+/// Wraps: `av_buffer_ref`
 // SAFETY: a non-null result is a fresh struct, independent of `ptr` and
 // released by `c_drop`, referring to the same initialised device context,
 // which no handle writes. NULL means C failed, or the count would near
@@ -770,11 +783,11 @@ unsafe impl CDrop<FramesReference> for ContextUnref {
     unsafe fn c_drop(&self, ptr: NonNull<FramesReference>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
         // SAFETY: as for a device reference.
-        unsafe { ffi::av_buffer_unref(&mut slot) }
+        unsafe { ffi::av_buffer_unref(&raw mut slot) }
     }
 }
 
-/// Wraps: av_buffer_ref
+/// Wraps: `av_buffer_ref`
 // SAFETY: as for `CDupClone<DeviceReference>`, of a frames context.
 unsafe impl CDupClone<FramesReference> for ContextUnref {
     #[inline]
@@ -854,7 +867,7 @@ define_ctype!(
 pub type DeviceReferenceBox = CBox<DeviceReference, ContextUnref>;
 
 impl DeviceReference {
-    /// Wraps: av_hwdevice_ctx_alloc
+    /// Wraps: `av_hwdevice_ctx_alloc`
     ///
     /// A new, uninitialised device context of `device_type`, for the caller
     /// to fill in and [`init`](UninitDevice::init); `None` when the library
@@ -871,7 +884,7 @@ impl DeviceReference {
         unsafe { UninitDevice::from_c(buf) }
     }
 
-    /// Wraps: av_hwdevice_ctx_create
+    /// Wraps: `av_hwdevice_ctx_create`
     ///
     /// Opens the device `device` names, in the backend's own syntax (a DRM
     /// render node for VA-API, a GPU index for CUDA; `None` for the
@@ -898,7 +911,7 @@ impl DeviceReference {
         // failure C releases what it built and writes NULL.
         let ret = unsafe {
             ffi::av_hwdevice_ctx_create(
-                &mut out,
+                &raw mut out,
                 device_type.0,
                 device.map_or(ptr::null(), CStr::as_ptr),
                 options.cast_mut(),
@@ -922,22 +935,39 @@ fn within_limit_device(device: DeviceReferenceBox) -> Result<DeviceReferenceBox,
     }
 }
 
-impl<'a> DeviceReferenceRef<'a> {
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
+impl DeviceReferenceRef<'_> {
     /// The address of the device context, which identifies it.
     fn context_addr(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field of a live reference.
-        unsafe { addr_of!((*self.as_ptr()).data).read() }.addr()
+        unsafe { data_ptr.read() }.addr()
     }
 
     /// The device type of the context, as C set it at allocation.
     // The public getter is AVHWDeviceContext's.
+    #[expect(
+        clippy::cast_ptr_alignment,
+        reason = "the buffer's data is the `av_mallocz` block of the context, aligned for it"
+    )]
     fn kind(&self) -> DeviceType {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field of a live reference.
-        let data = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        let data = unsafe { data_ptr.read() };
         let ctx = data.cast::<ffi::AVHWDeviceContext>();
+        // SAFETY: `ctx` is to a live object, as the access below relies on,
+        // so the place of its `type_` field is in bounds; nothing is accessed here.
+        let type_ptr = unsafe { addr_of!((*ctx).type_) };
         // SAFETY: by the type's invariant, `data` is the context's public
         // struct, whose `type` C never changes after allocation.
-        DeviceType(unsafe { addr_of!((*ctx).type_).read() })
+        DeviceType(unsafe { type_ptr.read() })
     }
 
     /// The number of references to the device context, as C reads it.
@@ -973,7 +1003,7 @@ impl<'a> DeviceReferenceRef<'a> {
         unsafe { DeviceReferenceBox::from_c(copy) }
     }
 
-    /// Wraps: av_hwdevice_ctx_create_derived
+    /// Wraps: `av_hwdevice_ctx_create_derived`
     ///
     /// A device context of `device_type` on the hardware this one opened. If
     /// this device is of that type, or was derived from one (through any
@@ -1001,7 +1031,7 @@ impl<'a> DeviceReferenceRef<'a> {
         // failure C releases what it built and writes NULL.
         let ret = unsafe {
             ffi::av_hwdevice_ctx_create_derived(
-                &mut out,
+                &raw mut out,
                 device_type.0,
                 self.as_ptr().cast_mut(),
                 0,
@@ -1014,7 +1044,7 @@ impl<'a> DeviceReferenceRef<'a> {
         within_limit_device(device)
     }
 
-    /// Wraps: av_hwdevice_ctx_create_derived_opts
+    /// Wraps: `av_hwdevice_ctx_create_derived_opts`
     ///
     /// As [`derive`](Self::derive), handing the backend-specific `options`
     /// (those of [`DeviceReference::create`]) to the target backend when it
@@ -1037,7 +1067,7 @@ impl<'a> DeviceReferenceRef<'a> {
         // which the backends only read during the call.
         let ret = unsafe {
             ffi::av_hwdevice_ctx_create_derived_opts(
-                &mut out,
+                &raw mut out,
                 device_type.0,
                 self.as_ptr().cast_mut(),
                 options.cast_mut(),
@@ -1051,7 +1081,7 @@ impl<'a> DeviceReferenceRef<'a> {
         within_limit_device(device)
     }
 
-    /// Wraps: av_hwframe_ctx_alloc
+    /// Wraps: `av_hwframe_ctx_alloc`
     ///
     /// A new, uninitialised frames context on this device, for the caller
     /// to fill in and [`init`](UninitFrames::init): no hardware or software
@@ -1071,7 +1101,7 @@ impl<'a> DeviceReferenceRef<'a> {
         unsafe { UninitFrames::from_c(buf) }
     }
 
-    /// Wraps: av_hwdevice_hwconfig_alloc
+    /// Wraps: `av_hwdevice_hwconfig_alloc`
     ///
     /// A zeroed hardware configuration for this device's backend, which
     /// describes a configuration of the hardware to query the frames
@@ -1141,11 +1171,18 @@ impl UninitDevice {
     }
 
     /// The context, shared.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a device context reference has data.
     #[must_use]
     pub fn context(&self) -> DeviceContextRef<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.0.as_c_ptr()).data) };
         // SAFETY: a read of the `data` field of the live reference the box
         // holds; its data is the context's public struct.
-        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the reference keeps the context live for the borrow, and
         // nothing writes it except through `context_mut`, which the shared
         // borrow excludes.
@@ -1154,17 +1191,24 @@ impl UninitDevice {
     }
 
     /// The context, exclusively, to fill in before [`init`](Self::init).
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a device context reference has data.
     #[must_use]
     pub fn context_mut(&mut self) -> DeviceContextMut<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.0.as_c_ptr()).data) };
         // SAFETY: as in `context`.
-        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the box holds the context's only reference, so nothing else
         // reaches the context for the borrow.
         unsafe { DeviceContextMut::from_ptr(ctx.cast()) }
             .expect("a device context reference has data")
     }
 
-    /// Wraps: av_hwdevice_ctx_init
+    /// Wraps: `av_hwdevice_ctx_init`
     ///
     /// Finalizes the context once it is filled in: the backend checks and
     /// completes it (its `device_init`, when it has one). The initialised
@@ -1329,11 +1373,18 @@ fn within_limit_frames(frames: FramesReferenceBox) -> Result<FramesReferenceBox,
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl<'a> FramesReferenceRef<'a> {
     /// The address of the frames context, which identifies it.
     fn context_addr(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field of a live reference.
-        unsafe { addr_of!((*self.as_ptr()).data).read() }.addr()
+        unsafe { data_ptr.read() }.addr()
     }
 
     /// The number of references to the frames context, as C reads it.
@@ -1379,7 +1430,7 @@ impl<'a> FramesReferenceRef<'a> {
         HwFrames(buf.expect("a handle's reference is not NULL"))
     }
 
-    /// Wraps: av_hwframe_transfer_get_formats
+    /// Wraps: `av_hwframe_transfer_get_formats`
     ///
     /// The software pixel formats a transfer with the context's hardware
     /// frames can use: those their data can be downloaded into
@@ -1395,7 +1446,7 @@ impl<'a> FramesReferenceRef<'a> {
         self.hw_frames().transfer_formats(dir)
     }
 
-    /// Wraps: av_hwframe_get_buffer
+    /// Wraps: `av_hwframe_get_buffer`
     ///
     /// A new hardware frame from the context's pool, of its format and
     /// size, holding a reference to the context. A derived context
@@ -1429,7 +1480,7 @@ impl<'a> FramesReferenceRef<'a> {
         })
     }
 
-    /// Wraps: av_hwframe_ctx_create_derived
+    /// Wraps: `av_hwframe_ctx_create_derived`
     ///
     /// A new, initialised frames context of hardware format `format` on
     /// `device`, which maps the frames of this one: its frames are
@@ -1462,7 +1513,7 @@ impl<'a> FramesReferenceRef<'a> {
         // releases what it built.
         let ret = unsafe {
             ffi::av_hwframe_ctx_create_derived(
-                &mut out,
+                &raw mut out,
                 format.into_raw(),
                 device.as_ptr().cast_mut(),
                 self.as_ptr().cast_mut(),
@@ -1518,11 +1569,18 @@ impl UninitFrames {
     }
 
     /// The context, shared.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context reference has data.
     #[must_use]
     pub fn context(&self) -> FramesContextRef<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.0.as_c_ptr()).data) };
         // SAFETY: a read of the `data` field of the live reference the box
         // holds; its data is the context's public struct.
-        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the reference keeps the context live for the borrow, and
         // nothing writes it except through `context_mut`, which the shared
         // borrow excludes.
@@ -1531,17 +1589,24 @@ impl UninitFrames {
     }
 
     /// The context, exclusively, to fill in before [`init`](Self::init).
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context reference has data.
     #[must_use]
     pub fn context_mut(&mut self) -> FramesContextMut<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.0.as_c_ptr()).data) };
         // SAFETY: as in `context`.
-        let ctx = unsafe { addr_of!((*self.0.as_c_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the box holds the context's only reference, so nothing else
         // reaches the context for the borrow.
         unsafe { FramesContextMut::from_ptr(ctx.cast()) }
             .expect("a frames context reference has data")
     }
 
-    /// Wraps: av_hwframe_ctx_init
+    /// Wraps: `av_hwframe_ctx_init`
     ///
     /// Finalizes the context once it is filled in: C checks that the
     /// backend supports its hardware format (logging an error and failing
@@ -1636,16 +1701,26 @@ impl HardwareFrame {
     /// each of its buffers, as a mapping of the frame does.
     fn may_reference_all(&self) -> bool {
         let p = self.frame.as_c_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { &raw const (*p).buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let extended_buf_ptr = unsafe { &raw const (*p).extended_buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { &raw const (*p).hw_frames_ctx };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let nb_extended_buf_ptr = unsafe { &raw const (*p).nb_extended_buf };
         // SAFETY: reads of the `buf`, `extended_buf`, `nb_extended_buf` and
         // `hw_frames_ctx` fields of the live frame `self` owns.
-        let (bufs, extended, count, frames) = unsafe {
-            (
-                addr_of!((*p).buf).read(),
-                addr_of!((*p).extended_buf).read(),
-                addr_of!((*p).nb_extended_buf).read(),
-                addr_of!((*p).hw_frames_ctx).read(),
-            )
-        };
+        let (bufs, extended, count, frames) = (
+            unsafe { buf_ptr.read() },
+            unsafe { extended_buf_ptr.read() },
+            unsafe { nb_extended_buf_ptr.read() },
+            unsafe { hw_frames_ctx_ptr.read() },
+        );
         let count = if extended.is_null() {
             0
         } else {
@@ -1656,8 +1731,12 @@ impl HardwareFrame {
             // loads its buffer's count.
             buf.is_null() || count_allows_another(unsafe { ffi::av_buffer_get_ref_count(buf) })
         };
-        // SAFETY: `extended` holds `count` live entries when not NULL.
-        let extended_entry = |i: usize| unsafe { extended.add(i).read() };
+        let extended_entry = |i: usize| {
+            // SAFETY: `extended` holds `count` live entries when not NULL, and `i < count`.
+            let at = unsafe { extended.add(i) };
+            // SAFETY: as above; the entry is initialised.
+            unsafe { at.read() }
+        };
         may(frames) && bufs.iter().all(|&b| may(b)) && (0..count).all(|i| may(extended_entry(i)))
     }
 
@@ -1681,11 +1760,18 @@ impl HardwareFrame {
     }
 
     /// The frames context the frame belongs to, borrowed from the frame.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a hardware frame holds its frames context.
     #[must_use]
     pub fn frames(&self) -> FramesReferenceRef<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { addr_of!((*self.frame.as_c_ptr()).hw_frames_ctx) };
         // SAFETY: a read of the `hw_frames_ctx` field of the live frame
         // `self` owns.
-        let buf = unsafe { addr_of!((*self.frame.as_c_ptr()).hw_frames_ctx).read() };
+        let buf = unsafe { hw_frames_ctx_ptr.read() };
         // SAFETY: by the type's invariant, a live reference the frame owns
         // to an initialised frames context, which nothing releases or
         // replaces while `self` is borrowed.
@@ -1693,7 +1779,7 @@ impl HardwareFrame {
             .expect("a hardware frame holds its frames context")
     }
 
-    /// Wraps: av_hwframe_map
+    /// Wraps: `av_hwframe_map`
     ///
     /// Maps the frame to normal memory, as a software frame of `format`
     /// (with [`PixelFormat::NONE`], the format the backend finds most
@@ -1728,7 +1814,7 @@ impl HardwareFrame {
         })
     }
 
-    /// Wraps: av_hwframe_map
+    /// Wraps: `av_hwframe_map`
     ///
     /// Maps the frame into another frames context, `frames`, as a hardware
     /// frame of that context's format, with `flags`: the contexts' devices
@@ -1760,12 +1846,20 @@ impl HardwareFrame {
         let target = frames.try_clone().ok_or(ENOMEM)?;
         let dst = Frame::new().ok_or(ENOMEM)?;
         let (p, format) = (dst.as_c_ptr(), frames.context().format());
-        // SAFETY: writes of two fields of the fresh frame `dst` owns, which
-        // nothing else reaches: the format, and its frames context
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `format` field is in bounds; nothing is accessed here.
+        let format_ptr = unsafe { &raw mut (*p).format };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { &raw mut (*p).hw_frames_ctx };
+        // For the unsafe operations below: writes of two fields of the fresh frame `dst` owns,
+        // which nothing else reaches: the format, and its frames context
         // reference, which the frame then owns and releases.
-        unsafe {
-            addr_of_mut!((*p).format).write(format.into_raw().0);
-            addr_of_mut!((*p).hw_frames_ctx).write(target.into_c());
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { format_ptr.write(format.into_raw().0) };
+            // SAFETY: as the comment above this block states.
+            unsafe { hw_frames_ctx_ptr.write(target.into_c()) };
         }
         // The contexts differ, so C unmaps only when this frame's context
         // was derived from `frames`, whose frames are all mappings C made,
@@ -1786,7 +1880,7 @@ impl HardwareFrame {
         })
     }
 
-    /// Wraps: av_hwframe_transfer_data
+    /// Wraps: `av_hwframe_transfer_data`
     ///
     /// Downloads the frame's data into the software frame `dst`, as
     /// [`FrameMut::transfer_data_from`] does from a hardware source: `dst`
@@ -1816,7 +1910,7 @@ impl HardwareFrame {
         unsafe { dst.transfer_data_from(self.frame.as_ref()) }
     }
 
-    /// Wraps: av_hwframe_transfer_data
+    /// Wraps: `av_hwframe_transfer_data`
     ///
     /// Uploads the data of the software frame `src` into the frame's
     /// surface, as [`FrameMut::transfer_data_from`] does into a hardware
@@ -1844,7 +1938,7 @@ impl HardwareFrame {
         unsafe { self.frame.as_mut().transfer_data_from(src) }
     }
 
-    /// Wraps: av_hwframe_transfer_data
+    /// Wraps: `av_hwframe_transfer_data`
     ///
     /// Copies the data of the hardware frame `src` into the frame's surface,
     /// where the backend of either frame can: `src`'s first, then this
@@ -1965,18 +2059,17 @@ define_ctype!(
     ///
     /// - `type`, the [`DeviceType`], set by the allocator and never changed
     ///   ([`device_type`](DeviceContextRef::device_type), no setter);
-    /// - `av_class`, the logging class C's allocator sets
-    ///   ([`class`](DeviceContextRef::class), no setter);
-    /// - `hwctx`, the device type's own hardware context (an
-    ///   `AVVAAPIDeviceContext` for VAAPI, an `AVCUDADeviceContext` for CUDA,
-    ///   and so on), allocated and freed with the context, which the caller
-    ///   fills before initialisation: typed by the caller
-    ///   ([`hwctx`](DeviceContextRef::hwctx),
-    ///   [`into_hwctx`](DeviceContextMut::into_hwctx), both `unsafe`);
-    /// - `free` and `user_opaque`, a callback C runs at the last release and
-    ///   the data it is meant for, which Rust fills with a closure
-    ///   ([`set_free_callback`](DeviceContextMut::set_free_callback)) and any
-    ///   `Send + Sync` value ([`set_user_data`](DeviceContextMut::set_user_data)).
+    /// - `av_class`, the logging class C's allocator sets ([`class`](DeviceContextRef::class), no
+    ///   setter);
+    /// - `hwctx`, the device type's own hardware context (an `AVVAAPIDeviceContext` for VAAPI, an
+    ///   `AVCUDADeviceContext` for CUDA, and so on), allocated and freed with the context, which
+    ///   the caller fills before initialisation: typed by the caller
+    ///   ([`hwctx`](DeviceContextRef::hwctx), [`into_hwctx`](DeviceContextMut::into_hwctx), both
+    ///   `unsafe`);
+    /// - `free` and `user_opaque`, a callback C runs at the last release and the data it is meant
+    ///   for, which Rust fills with a closure
+    ///   ([`set_free_callback`](DeviceContextMut::set_free_callback)) and any `Send + Sync` value
+    ///   ([`set_user_data`](DeviceContextMut::set_user_data)).
     ///
     /// Neither `Send` nor `Sync`, as [`DeviceReference`]; the user data and
     /// free callback are `Send` (and the data `Sync`) all the same, since C
@@ -2027,11 +2120,14 @@ fn is_release_hooks(free: Option<unsafe extern "C" fn(*mut ffi::AVHWDeviceContex
 /// free callback with the context, then drops the hooks, the user data with
 /// them, and clears both fields. A panic in either aborts the process.
 unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `user_opaque` field is in bounds; nothing is accessed here.
+    let user_opaque_ptr = unsafe { addr_of!((*ctx).user_opaque) };
     // SAFETY: hwdevice_ctx_free calls `free` once, with the live context whose
     // last reference is gone, so nothing else reaches it; this function is
     // its `free` only while `user_opaque` holds the `Box<Hooks>` the setters
     // leaked, which is read here without a reference to the context.
-    let hooks = unsafe { addr_of!((*ctx).user_opaque).read() }.cast::<Hooks>();
+    let hooks = unsafe { user_opaque_ptr.read() }.cast::<Hooks>();
     if hooks.is_null() {
         return;
     }
@@ -2045,11 +2141,17 @@ unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
             on_free(ctx);
         }
     }
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `free` field is in bounds; nothing is accessed here.
+    let free_ptr = unsafe { addr_of_mut!((*ctx).free) };
     // The callback may have taken the hooks out, or installed new ones.
     // SAFETY: as above, the callback's handle is gone.
-    let free = unsafe { addr_of_mut!((*ctx).free).replace(None) };
+    let free = unsafe { free_ptr.replace(None) };
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `user_opaque` field is in bounds; nothing is accessed here.
+    let user_opaque_ptr = unsafe { addr_of_mut!((*ctx).user_opaque) };
     // SAFETY: as above.
-    let hooks = unsafe { addr_of_mut!((*ctx).user_opaque).replace(ptr::null_mut()) };
+    let hooks = unsafe { user_opaque_ptr.replace(ptr::null_mut()) };
     if is_release_hooks(free) && !hooks.is_null() {
         // SAFETY: `free` marks `user_opaque` as the `Box<Hooks>` a setter
         // leaked, now detached from the context.
@@ -2063,21 +2165,27 @@ impl<'a> DeviceContextRef<'a> {
     /// The hardware API the context drives, fixed when it was allocated.
     #[must_use]
     pub fn device_type(&self) -> DeviceType {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `type_` field is in bounds; nothing is accessed here.
+        let type_ptr = unsafe { addr_of!((*self.as_ptr()).type_) };
         // SAFETY: a read of the `type` field projected through the shared
         // handle's pointer to a live context; nothing writes it after
         // allocation.
-        DeviceType::from_raw(unsafe { addr_of!((*self.as_ptr()).type_).read() })
+        DeviceType::from_raw(unsafe { type_ptr.read() })
     }
 
-    /// Field: AVHWDeviceContext.av_class
+    /// Field: `AVHWDeviceContext.av_class`
     ///
     /// The context's logging class, which C's allocator sets
     /// (`AVHWDeviceContext`, in the hardware device log category); `None`
     /// only for a context C did not allocate and left without one.
     #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `av_class` field is in bounds; nothing is accessed here.
+        let av_class_ptr = unsafe { addr_of!((*self.as_ptr()).av_class) };
         // SAFETY: as in `device_type`, for the `av_class` field.
-        let class = unsafe { addr_of!((*self.as_ptr()).av_class).read() };
+        let class = unsafe { av_class_ptr.read() };
         // SAFETY: NULL, or a well-formed class that outlives the context:
         // `av_hwdevice_ctx_alloc` stores its static `hwdevice_ctx_class`.
         unsafe { ClassRef::from_ptr(class.cast_mut()) }
@@ -2098,9 +2206,12 @@ impl<'a> DeviceContextRef<'a> {
     /// the backends do not after initialisation.
     #[must_use]
     pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hwctx` field is in bounds; nothing is accessed here.
+        let hwctx_ptr = unsafe { addr_of!((*self.as_ptr()).hwctx) };
         // SAFETY: as in `device_type`, for the `hwctx` pointer, which C never
         // replaces.
-        let hwctx = unsafe { addr_of!((*self.as_ptr()).hwctx).read() };
+        let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's hardware context, live as long as
         // the context; the caller vouches for its type and for writers.
         unsafe { T::ref_from_void_ptr(hwctx) }
@@ -2114,14 +2225,18 @@ impl<'a> DeviceContextRef<'a> {
     /// data alone is not one, though it is dropped then.
     #[must_use]
     pub fn has_free_callback(&self) -> bool {
-        match self.hooks() {
-            Some(hooks) => hooks.on_free.is_some(),
+        if let Some(hooks) = self.hooks() {
+            hooks.on_free.is_some()
+        } else {
+            // SAFETY: the handle's pointer is to a live context, so the place of its
+            // `free` field is in bounds; nothing is accessed here.
+            let free = unsafe { &raw const (*self.as_ptr()).free };
             // SAFETY: as in `device_type`, for the `free` field.
-            None => unsafe { addr_of!((*self.as_ptr()).free).read() }.is_some(),
+            unsafe { free.read() }.is_some()
         }
     }
 
-    /// Field: AVHWDeviceContext.user_opaque
+    /// Field: `AVHWDeviceContext.user_opaque`
     ///
     /// The value [`set_user_data`](DeviceContextMut::set_user_data) stored,
     /// borrowed from the context; `None` when it stored none, or one of
@@ -2135,14 +2250,17 @@ impl<'a> DeviceContextRef<'a> {
     /// The Rust hooks the context's `user_opaque` holds, if any.
     fn hooks(&self) -> Option<&'a Hooks> {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw const (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
         // SAFETY: as in `device_type`, for the `free` and `user_opaque`
         // fields.
-        let (free, opaque) = unsafe {
-            (
-                addr_of!((*p).free).read(),
-                addr_of!((*p).user_opaque).read(),
-            )
-        };
+        let (free, opaque) = (unsafe { free_ptr.read() }, unsafe {
+            user_opaque_ptr.read()
+        });
         if !is_release_hooks(free) {
             return None;
         }
@@ -2179,9 +2297,12 @@ impl<'a> DeviceContextMut<'a> {
     /// context was initialised or not.
     #[must_use]
     pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hwctx` field is in bounds; nothing is accessed here.
+        let hwctx_ptr = unsafe { addr_of!((*self.as_mut_ptr()).hwctx) };
         // SAFETY: a read of the `hwctx` pointer projected through the
         // exclusive handle's pointer to a live context.
-        let hwctx = unsafe { addr_of!((*self.as_mut_ptr()).hwctx).read() };
+        let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's hardware context, which this
         // exclusive borrow, consumed here, reaches alone for `'a`; the
         // caller vouches for its type.
@@ -2197,6 +2318,8 @@ impl<'a> DeviceContextMut<'a> {
     /// [user data](Self::set_user_data), which is dropped after it returns;
     /// a callback it sets is dropped uncalled. A panic in it aborts the
     /// process.
+    ///
+    /// # Errors
     ///
     /// Refused, giving `f` back, when the context's `free` or `user_opaque`
     /// is someone else's, either one alone: a backend's device creation sets
@@ -2236,13 +2359,15 @@ impl<'a> DeviceContextMut<'a> {
         on_free
     }
 
-    /// Field: AVHWDeviceContext.user_opaque
+    /// Field: `AVHWDeviceContext.user_opaque`
     ///
     /// Makes `data` the context's user data, dropping the value this set
     /// before. It lives as long as the context, readable through
     /// [`DeviceContextRef::user_data`] (the free callback's handle
     /// included), and is dropped on the thread releasing the context's last
     /// reference, hence `Send + Sync`.
+    ///
+    /// # Errors
     ///
     /// Refused, giving `data` back, when the context's `free` or
     /// `user_opaque` is someone else's, as for
@@ -2269,7 +2394,7 @@ impl<'a> DeviceContextMut<'a> {
         }
     }
 
-    /// Field: AVHWDeviceContext.user_opaque
+    /// Field: `AVHWDeviceContext.user_opaque`
     ///
     /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
     /// `None` when it stored none.
@@ -2285,11 +2410,16 @@ impl<'a> DeviceContextMut<'a> {
     fn hooks_mut(&mut self) -> Option<&mut Hooks> {
         if self.as_ref().hooks().is_none() {
             let p = self.as_mut_ptr();
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `free` field is in bounds; nothing is accessed here.
+            let free_ptr = unsafe { &raw const (*p).free };
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `user_opaque` field is in bounds; nothing is accessed here.
+            let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
             // SAFETY: reads of the `free` and `user_opaque` fields projected
             // through the exclusive handle's pointer to a live context.
-            let unset = unsafe {
-                addr_of!((*p).free).read().is_none() && addr_of!((*p).user_opaque).read().is_null()
-            };
+            let unset =
+                unsafe { free_ptr.read() }.is_none() && unsafe { user_opaque_ptr.read() }.is_null();
             if !unset {
                 return None;
             }
@@ -2297,13 +2427,21 @@ impl<'a> DeviceContextMut<'a> {
                 data: None,
                 on_free: None,
             }));
-            // SAFETY: writes of both fields through the exclusive handle;
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `free` field is in bounds; nothing is accessed here.
+            let free_ptr = unsafe { &raw mut (*p).free };
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `user_opaque` field is in bounds; nothing is accessed here.
+            let user_opaque_ptr = unsafe { &raw mut (*p).user_opaque };
+            // For the unsafe operations below: writes of both fields through the exclusive handle;
             // neither held anything to release, and C reads them only in
             // hwdevice_ctx_free, which then calls `release_hooks` to free
             // the box.
-            unsafe {
-                addr_of_mut!((*p).user_opaque).write(hooks.cast());
-                addr_of_mut!((*p).free).write(Some(RELEASE_HOOKS));
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { user_opaque_ptr.write(hooks.cast()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { free_ptr.write(Some(RELEASE_HOOKS)) };
             }
         }
         self.hooks_mut_if_installed()
@@ -2312,13 +2450,16 @@ impl<'a> DeviceContextMut<'a> {
     /// The context's Rust hooks, if `user_opaque` holds them.
     fn hooks_mut_if_installed(&mut self) -> Option<&mut Hooks> {
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw const (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
         // SAFETY: as in `hooks_mut`, for both fields.
-        let (free, opaque) = unsafe {
-            (
-                addr_of!((*p).free).read(),
-                addr_of!((*p).user_opaque).read(),
-            )
-        };
+        let (free, opaque) = (unsafe { free_ptr.read() }, unsafe {
+            user_opaque_ptr.read()
+        });
         if !is_release_hooks(free) {
             return None;
         }
@@ -2338,11 +2479,19 @@ impl<'a> DeviceContextMut<'a> {
             return;
         }
         let p = self.as_mut_ptr();
-        // SAFETY: writes of both fields through the exclusive handle; the
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw mut (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw mut (*p).user_opaque };
+        // For the unsafe operations below: writes of both fields through the exclusive handle; the
         // hooks were installed, so `user_opaque` held their box.
-        let hooks = unsafe {
-            addr_of_mut!((*p).free).write(None);
-            addr_of_mut!((*p).user_opaque).replace(ptr::null_mut())
+        let hooks = {
+            // SAFETY: as the comment above this block states.
+            unsafe { free_ptr.write(None) };
+            // SAFETY: as the comment above this block states.
+            unsafe { user_opaque_ptr.replace(ptr::null_mut()) }
         };
         // SAFETY: the empty `Box<Hooks>` a setter leaked, now detached.
         drop(unsafe { Box::from_raw(hooks.cast::<Hooks>()) });
@@ -2359,18 +2508,25 @@ impl<'a> DeviceReferenceRef<'a> {
     /// The device context the reference keeps alive, shared: its type, class,
     /// hardware context and user data. An initialised context is not written
     /// through any reference, so there is no exclusive form.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a device context reference has data.
     #[must_use]
     pub fn context(&self) -> DeviceContextRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field of the live reference, which by
         // the type's invariant is an initialised context's public struct.
-        let ctx = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the reference keeps the context live for `'a`, and nothing
         // writes an initialised context's fields while it is shared.
         unsafe { DeviceContextRef::from_ptr(ctx.cast()) }
             .expect("a device context reference has data")
     }
 
-    /// Wraps: av_hwdevice_get_hwframe_constraints
+    /// Wraps: `av_hwdevice_get_hwframe_constraints`
     ///
     /// The limits on frames of this device at its maximum capabilities: the
     /// pixel formats and sizes a hardware frames context may use; `None`
@@ -2388,7 +2544,7 @@ impl<'a> DeviceReferenceRef<'a> {
         unsafe { FramesConstraintsBox::from_c(constraints) }
     }
 
-    /// Wraps: av_hwdevice_get_hwframe_constraints
+    /// Wraps: `av_hwdevice_get_hwframe_constraints`
     ///
     /// The limits on frames of this device under the hardware configuration
     /// `config` ([`alloc_hw_config`](Self::alloc_hw_config)), as
@@ -2447,7 +2603,7 @@ unsafe impl Send for FramesConstraintsRef<'_> {}
 // SAFETY: as above.
 unsafe impl Sync for FramesConstraintsRef<'_> {}
 
-/// Wraps: av_hwframe_constraints_free
+/// Wraps: `av_hwframe_constraints_free`
 /// Handwritten
 ///
 /// Releases a [`FramesConstraintsBox`]: C frees both format lists, then the
@@ -2468,7 +2624,7 @@ unsafe impl CDrop<FramesConstraints> for FramesConstraintsFree {
         let mut slot = ptr.as_ptr().cast::<ffi::AVHWFramesConstraints>();
         // SAFETY: the caller hands over the box's sole claim on a live
         // structure; C keeps no pointer to the slot.
-        unsafe { ffi::av_hwframe_constraints_free(&mut slot) }
+        unsafe { ffi::av_hwframe_constraints_free(&raw mut slot) }
     }
 }
 
@@ -2482,11 +2638,19 @@ unsafe impl CNew<FramesConstraints> for FramesConstraintsFree {
         // zero-filled block aligned for any C object.
         let p = unsafe { ffi::av_mallocz(size) }.cast::<ffi::AVHWFramesConstraints>();
         let p = NonNull::new(p)?;
-        // SAFETY: writes of two fields of the block just allocated, which
+        // SAFETY: `p.as_ptr()` is to a live object, as the block below relies on, so the
+        // place of its `max_height` field is in bounds; nothing is accessed here.
+        let max_height_ptr = unsafe { &raw mut (*p.as_ptr()).max_height };
+        // SAFETY: `p.as_ptr()` is to a live object, as the block below relies on, so the
+        // place of its `max_width` field is in bounds; nothing is accessed here.
+        let max_width_ptr = unsafe { &raw mut (*p.as_ptr()).max_width };
+        // For the unsafe operations below: writes of two fields of the block just allocated, which
         // nothing else reaches.
-        unsafe {
-            addr_of_mut!((*p.as_ptr()).max_width).write(c_int::MAX);
-            addr_of_mut!((*p.as_ptr()).max_height).write(c_int::MAX);
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { max_width_ptr.write(c_int::MAX) };
+            // SAFETY: as the comment above this block states.
+            unsafe { max_height_ptr.write(c_int::MAX) };
         }
         Some(p.cast())
     }
@@ -2525,31 +2689,46 @@ enum FormatList {
 impl<'a> FramesConstraintsRef<'a> {
     /// The formats of `which` list before its terminating `NONE`, borrowed
     /// from the constraints; `None` for NULL.
+    #[expect(
+        clippy::similar_names,
+        reason = "the names follow the C variables they mirror"
+    )]
     fn list(&self, which: FormatList) -> Option<CSlice<'a, PixelFormat>> {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `valid_hw_formats` field is in bounds; nothing is accessed here.
+        let valid_hw_formats_ptr = unsafe { &raw const (*p).valid_hw_formats };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `valid_sw_formats` field is in bounds; nothing is accessed here.
+        let valid_sw_formats_ptr = unsafe { &raw const (*p).valid_sw_formats };
         // SAFETY: a read of one list pointer projected through the shared
         // handle's pointer to live constraints.
-        let list = unsafe {
-            match which {
-                FormatList::Hardware => addr_of!((*p).valid_hw_formats).read(),
-                FormatList::Software => addr_of!((*p).valid_sw_formats).read(),
-            }
+        let list = match which {
+            // SAFETY: as the comment above this statement states.
+            FormatList::Hardware => unsafe { valid_hw_formats_ptr.read() },
+            // SAFETY: as the comment above this statement states.
+            FormatList::Software => unsafe { valid_sw_formats_ptr.read() },
         };
         // By the type's invariant, NULL or a NONE-terminated list the
         // constraints own, which nothing frees or writes while they are
         // borrowed shared; `PixelFormat` is transparent over `AVPixelFormat`.
         let list = NonNull::new(list)?.cast::<PixelFormat>();
         let mut len = 0;
-        // SAFETY: every element up to and including the terminator is live
-        // and initialised, as above.
-        while unsafe { list.add(len).read() } != PixelFormat::NONE {
+        loop {
+            // SAFETY: every element up to and including the terminator is live, as above,
+            // and `len` has not passed the terminator.
+            let at = unsafe { list.add(len) };
+            // SAFETY: as above; the element is initialised.
+            if unsafe { at.read() } == PixelFormat::NONE {
+                break;
+            }
             len += 1;
         }
         // SAFETY: `len` initialised elements, live and unwritten for `'a`.
         Some(unsafe { CSlice::from_raw_parts(list, len) })
     }
 
-    /// Field: AVHWFramesConstraints.valid_hw_formats
+    /// Field: `AVHWFramesConstraints.valid_hw_formats`
     ///
     /// The formats a frames context of the device may use as its `format`,
     /// borrowed from the constraints; `None` when they list none (a
@@ -2559,7 +2738,7 @@ impl<'a> FramesConstraintsRef<'a> {
         self.list(FormatList::Hardware)
     }
 
-    /// Field: AVHWFramesConstraints.valid_sw_formats
+    /// Field: `AVHWFramesConstraints.valid_sw_formats`
     ///
     /// The formats a frames context of the device may use as its
     /// `sw_format`, borrowed from the constraints; `None` when the device
@@ -2569,41 +2748,53 @@ impl<'a> FramesConstraintsRef<'a> {
         self.list(FormatList::Software)
     }
 
-    /// Field: AVHWFramesConstraints.min_width
+    /// Field: `AVHWFramesConstraints.min_width`
     ///
     /// The smallest frame width; 0 when not known.
     #[must_use]
     pub fn min_width(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `min_width` field is in bounds; nothing is accessed here.
+        let min_width_ptr = unsafe { addr_of!((*self.as_ptr()).min_width) };
         // SAFETY: a read of an `int` field projected through the shared
         // handle's pointer to live constraints.
-        unsafe { addr_of!((*self.as_ptr()).min_width).read() }
+        unsafe { min_width_ptr.read() }
     }
 
-    /// Field: AVHWFramesConstraints.min_height
+    /// Field: `AVHWFramesConstraints.min_height`
     ///
     /// The smallest frame height; 0 when not known.
     #[must_use]
     pub fn min_height(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `min_height` field is in bounds; nothing is accessed here.
+        let min_height_ptr = unsafe { addr_of!((*self.as_ptr()).min_height) };
         // SAFETY: as in `min_width`, for the `min_height` field.
-        unsafe { addr_of!((*self.as_ptr()).min_height).read() }
+        unsafe { min_height_ptr.read() }
     }
 
-    /// Field: AVHWFramesConstraints.max_width
+    /// Field: `AVHWFramesConstraints.max_width`
     ///
     /// The largest frame width; `i32::MAX` when not known or unlimited.
     #[must_use]
     pub fn max_width(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `max_width` field is in bounds; nothing is accessed here.
+        let max_width_ptr = unsafe { addr_of!((*self.as_ptr()).max_width) };
         // SAFETY: as in `min_width`, for the `max_width` field.
-        unsafe { addr_of!((*self.as_ptr()).max_width).read() }
+        unsafe { max_width_ptr.read() }
     }
 
-    /// Field: AVHWFramesConstraints.max_height
+    /// Field: `AVHWFramesConstraints.max_height`
     ///
     /// The largest frame height; `i32::MAX` when not known or unlimited.
     #[must_use]
     pub fn max_height(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `max_height` field is in bounds; nothing is accessed here.
+        let max_height_ptr = unsafe { addr_of!((*self.as_ptr()).max_height) };
         // SAFETY: as in `min_width`, for the `max_height` field.
-        unsafe { addr_of!((*self.as_ptr()).max_height).read() }
+        unsafe { max_height_ptr.read() }
     }
 }
 
@@ -2624,6 +2815,10 @@ impl fmt::Debug for FramesConstraintsRef<'_> {
 impl FramesConstraintsMut<'_> {
     /// Makes `with` (a NONE-terminated list, or none) the list in `which`,
     /// and returns the formats the old one held.
+    #[expect(
+        clippy::similar_names,
+        reason = "the names follow the C variables they mirror"
+    )]
     fn replace_list(
         &mut self,
         which: FormatList,
@@ -2632,15 +2827,21 @@ impl FramesConstraintsMut<'_> {
         let len = self.as_ref().list(which).map_or(0, |l| l.len());
         let with = with.map_or(ptr::null_mut(), |v| v.into_raw_parts().0);
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `valid_hw_formats` field is in bounds; nothing is accessed here.
+        let valid_hw_formats_ptr = unsafe { &raw mut (*p).valid_hw_formats };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `valid_sw_formats` field is in bounds; nothing is accessed here.
+        let valid_sw_formats_ptr = unsafe { &raw mut (*p).valid_sw_formats };
         // SAFETY: a read and a write of one list pointer projected through
         // the exclusive handle's pointer to live constraints; `with` is NULL
         // or an av_malloc block holding a NONE-terminated list, whose claim
         // moves to the constraints.
-        let old = unsafe {
-            match which {
-                FormatList::Hardware => addr_of_mut!((*p).valid_hw_formats).replace(with.cast()),
-                FormatList::Software => addr_of_mut!((*p).valid_sw_formats).replace(with.cast()),
-            }
+        let old = match which {
+            // SAFETY: as the comment above this statement states.
+            FormatList::Hardware => unsafe { valid_hw_formats_ptr.replace(with.cast()) },
+            // SAFETY: as the comment above this statement states.
+            FormatList::Software => unsafe { valid_sw_formats_ptr.replace(with.cast()) },
         };
         // SAFETY: by the type's invariant, NULL or an av_malloc block the
         // constraints owned, holding `len` initialised formats and their
@@ -2677,17 +2878,21 @@ impl FramesConstraintsMut<'_> {
         Ok(())
     }
 
-    /// Field: AVHWFramesConstraints.valid_hw_formats
+    /// Field: `AVHWFramesConstraints.valid_hw_formats`
     ///
     /// Makes a copy of `formats` the hardware formats, up to the first
     /// [`PixelFormat::NONE`] it holds, and frees the old list; `None` lists
     /// none. `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot
     /// allocate the copy.
+    ///
+    /// # Errors
+    ///
+    /// `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot allocate the copy.
     pub fn set_valid_hw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Hardware, formats)
     }
 
-    /// Field: AVHWFramesConstraints.valid_hw_formats
+    /// Field: `AVHWFramesConstraints.valid_hw_formats`
     ///
     /// Takes the hardware formats out (without their terminator), leaving
     /// none; `None` when there were none.
@@ -2696,16 +2901,20 @@ impl FramesConstraintsMut<'_> {
         self.replace_list(FormatList::Hardware, None)
     }
 
-    /// Field: AVHWFramesConstraints.valid_sw_formats
+    /// Field: `AVHWFramesConstraints.valid_sw_formats`
     ///
     /// Makes a copy of `formats` the software formats, as
     /// [`set_valid_hw_formats`](Self::set_valid_hw_formats); `None` marks
     /// them unknown.
+    ///
+    /// # Errors
+    ///
+    /// Returns C's negative `AVERROR` code when it fails.
     pub fn set_valid_sw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Software, formats)
     }
 
-    /// Field: AVHWFramesConstraints.valid_sw_formats
+    /// Field: `AVHWFramesConstraints.valid_sw_formats`
     ///
     /// Takes the software formats out (without their terminator), leaving
     /// them unknown; `None` when they were.
@@ -2714,37 +2923,49 @@ impl FramesConstraintsMut<'_> {
         self.replace_list(FormatList::Software, None)
     }
 
-    /// Field: AVHWFramesConstraints.min_width
+    /// Field: `AVHWFramesConstraints.min_width`
     ///
     /// Sets the smallest frame width.
     pub fn set_min_width(&mut self, width: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `min_width` field is in bounds; nothing is accessed here.
+        let min_width_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).min_width) };
         // SAFETY: a write of an `int` field projected through the exclusive
         // handle's pointer to live constraints.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).min_width).write(width) }
+        unsafe { min_width_ptr.write(width) }
     }
 
-    /// Field: AVHWFramesConstraints.min_height
+    /// Field: `AVHWFramesConstraints.min_height`
     ///
     /// Sets the smallest frame height.
     pub fn set_min_height(&mut self, height: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `min_height` field is in bounds; nothing is accessed here.
+        let min_height_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).min_height) };
         // SAFETY: as in `set_min_width`, for the `min_height` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).min_height).write(height) }
+        unsafe { min_height_ptr.write(height) }
     }
 
-    /// Field: AVHWFramesConstraints.max_width
+    /// Field: `AVHWFramesConstraints.max_width`
     ///
     /// Sets the largest frame width.
     pub fn set_max_width(&mut self, width: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `max_width` field is in bounds; nothing is accessed here.
+        let max_width_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).max_width) };
         // SAFETY: as in `set_min_width`, for the `max_width` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).max_width).write(width) }
+        unsafe { max_width_ptr.write(width) }
     }
 
-    /// Field: AVHWFramesConstraints.max_height
+    /// Field: `AVHWFramesConstraints.max_height`
     ///
     /// Sets the largest frame height.
     pub fn set_max_height(&mut self, height: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `max_height` field is in bounds; nothing is accessed here.
+        let max_height_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).max_height) };
         // SAFETY: as in `set_min_width`, for the `max_height` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).max_height).write(height) }
+        unsafe { max_height_ptr.write(height) }
     }
 }
 
@@ -2779,34 +3000,29 @@ define_ctype!(
     ///
     /// Its fields are:
     ///
-    /// - `av_class`, the logging class C's allocator sets
-    ///   ([`class`](FramesContextRef::class), no setter);
-    /// - `device_ref` and `device_ctx`, the reference to the device the
-    ///   context was allocated on, which the context owns, and that device's
-    ///   context, both set by the allocator and never changed: the backend
-    ///   and the hardware context were chosen by that device
+    /// - `av_class`, the logging class C's allocator sets ([`class`](FramesContextRef::class), no
+    ///   setter);
+    /// - `device_ref` and `device_ctx`, the reference to the device the context was allocated on,
+    ///   which the context owns, and that device's context, both set by the allocator and never
+    ///   changed: the backend and the hardware context were chosen by that device
     ///   ([`device`](FramesContextRef::device),
-    ///   [`device_context`](FramesContextRef::device_context), no setters;
-    ///   `device().try_clone()` is an owned reference);
-    /// - `hwctx`, the device type's own frames context (an
-    ///   `AVVAAPIFramesContext` for VAAPI, and so on), allocated and freed
-    ///   with the context, which the caller may fill before initialisation:
-    ///   typed by the caller ([`hwctx`](FramesContextRef::hwctx),
+    ///   [`device_context`](FramesContextRef::device_context), no setters; `device().try_clone()`
+    ///   is an owned reference);
+    /// - `hwctx`, the device type's own frames context (an `AVVAAPIFramesContext` for VAAPI, and
+    ///   so on), allocated and freed with the context, which the caller may fill before
+    ///   initialisation: typed by the caller ([`hwctx`](FramesContextRef::hwctx),
     ///   [`into_hwctx`](FramesContextMut::into_hwctx), both `unsafe`);
-    /// - `free` and `user_opaque`, a callback C runs at the last release and
-    ///   the data it is meant for, which Rust fills with a closure
-    ///   ([`set_free_callback`](FramesContextMut::set_free_callback)) and any
-    ///   `Send + Sync` value ([`set_user_data`](FramesContextMut::set_user_data));
-    /// - `pool`, where `av_hwframe_get_buffer` takes the surfaces from: one
-    ///   the caller sets before initialisation, which the context then owns
-    ///   ([`set_pool`](FramesContextMut::set_pool), `unsafe`), or else the one
-    ///   the backend makes and C releases
-    ///   ([`has_pool`](FramesContextRef::has_pool),
-    ///   [`pool`](FramesContextRef::pool), `unsafe`);
-    /// - `initial_pool_size`, `format`, `sw_format`, `width` and `height`,
-    ///   plain values the caller sets before initialisation, which C checks
-    ///   (a hardware format the backend lists, a valid image size) and the
-    ///   backend uses ([`format`](FramesContextRef::format),
+    /// - `free` and `user_opaque`, a callback C runs at the last release and the data it is meant
+    ///   for, which Rust fills with a closure
+    ///   ([`set_free_callback`](FramesContextMut::set_free_callback)) and any `Send + Sync` value
+    ///   ([`set_user_data`](FramesContextMut::set_user_data));
+    /// - `pool`, where `av_hwframe_get_buffer` takes the surfaces from: one the caller sets before
+    ///   initialisation, which the context then owns ([`set_pool`](FramesContextMut::set_pool),
+    ///   `unsafe`), or else the one the backend makes and C releases
+    ///   ([`has_pool`](FramesContextRef::has_pool), [`pool`](FramesContextRef::pool), `unsafe`);
+    /// - `initial_pool_size`, `format`, `sw_format`, `width` and `height`, plain values the caller
+    ///   sets before initialisation, which C checks (a hardware format the backend lists, a valid
+    ///   image size) and the backend uses ([`format`](FramesContextRef::format),
     ///   [`set_format`](FramesContextMut::set_format), and so on).
     ///
     /// Neither `Send` nor `Sync`, as [`FramesReference`]; the user data, free
@@ -2867,14 +3083,22 @@ fn is_release_frames_hooks(
 /// context, drops the hooks, the user data with them, and clears `free` and
 /// `user_opaque`. A panic in any of them aborts the process.
 unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
-    // SAFETY: hwframe_ctx_free calls `free` once, with the live context whose
-    // last reference is gone, so nothing else reaches it; it reads `pool` no
+    // SAFETY: `ctx` is to a live object, as the block below relies on, so the
+    // place of its `pool` field is in bounds; nothing is accessed here.
+    let pool_ptr = unsafe { &raw mut (*ctx).pool };
+    // SAFETY: `ctx` is to a live object, as the block below relies on, so the
+    // place of its `user_opaque` field is in bounds; nothing is accessed here.
+    let user_opaque_ptr = unsafe { &raw const (*ctx).user_opaque };
+    // For the unsafe operations below: hwframe_ctx_free calls `free` once, with the live context
+    // whose last reference is gone, so nothing else reaches it; it reads `pool` no
     // more. This function is its `free` only while `user_opaque` holds the
     // `Box<FramesHooks>` the setters leaked, read here without a reference
     // to the context.
-    let hooks = unsafe {
-        addr_of_mut!((*ctx).pool).write(ptr::null_mut());
-        addr_of!((*ctx).user_opaque).read()
+    let hooks = {
+        // SAFETY: as the comment above this block states.
+        unsafe { pool_ptr.write(ptr::null_mut()) };
+        // SAFETY: as the comment above this block states.
+        unsafe { user_opaque_ptr.read() }
     }
     .cast::<FramesHooks>();
     if hooks.is_null() {
@@ -2896,13 +3120,22 @@ unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
             on_free(ctx);
         }
     }
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `free` field is in bounds; nothing is accessed here.
+    let free_ptr = unsafe { addr_of_mut!((*ctx).free) };
     // The callback may have taken the hooks out, or installed new ones.
     // SAFETY: as above, the callback's handle is gone.
-    let free = unsafe { addr_of_mut!((*ctx).free).replace(None) };
+    let free = unsafe { free_ptr.replace(None) };
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `user_opaque` field is in bounds; nothing is accessed here.
+    let user_opaque_ptr = unsafe { addr_of_mut!((*ctx).user_opaque) };
     // SAFETY: as above.
-    let hooks = unsafe { addr_of_mut!((*ctx).user_opaque).replace(ptr::null_mut()) };
+    let hooks = unsafe { user_opaque_ptr.replace(ptr::null_mut()) };
+    // SAFETY: `ctx` is to a live object, as the access below relies on,
+    // so the place of its `pool` field is in bounds; nothing is accessed here.
+    let pool_ptr = unsafe { addr_of_mut!((*ctx).pool) };
     // SAFETY: as above; a pool the callback set goes with its hooks.
-    unsafe { addr_of_mut!((*ctx).pool).write(ptr::null_mut()) };
+    unsafe { pool_ptr.write(ptr::null_mut()) };
     if is_release_frames_hooks(free) && !hooks.is_null() {
         // SAFETY: `free` marks `user_opaque` as the `Box<FramesHooks>` a
         // setter leaked, now detached from the context.
@@ -2911,33 +3144,43 @@ unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
 }
 
 impl<'a> FramesContextRef<'a> {
-    /// Field: AVHWFramesContext.av_class
+    /// Field: `AVHWFramesContext.av_class`
     ///
     /// The context's logging class, which C's allocator sets
     /// (`AVHWFramesContext`); `None` only for a context C did not allocate
     /// and left without one.
     #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `av_class` field is in bounds; nothing is accessed here.
+        let av_class_ptr = unsafe { addr_of!((*self.as_ptr()).av_class) };
         // SAFETY: a read of the `av_class` field projected through the shared
         // handle's pointer to a live context; nothing writes it after
         // allocation.
-        let class = unsafe { addr_of!((*self.as_ptr()).av_class).read() };
+        let class = unsafe { av_class_ptr.read() };
         // SAFETY: NULL, or a well-formed class that outlives the context:
         // `av_hwframe_ctx_alloc` stores its static `hwframe_ctx_class`.
         unsafe { ClassRef::from_ptr(class.cast_mut()) }
     }
 
-    /// Field: AVHWFramesContext.device_ref
+    /// Field: `AVHWFramesContext.device_ref`
     ///
     /// The device the context was allocated on, through the reference the
     /// context owns and releases with its last one; the device lives at
     /// least as long. [`try_clone`](DeviceReferenceRef::try_clone) it for a
     /// reference of the caller's own.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context holds its device.
     #[must_use]
     pub fn device(&self) -> DeviceReferenceRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `device_ref` field is in bounds; nothing is accessed here.
+        let device_ref_ptr = unsafe { addr_of!((*self.as_ptr()).device_ref) };
         // SAFETY: as in `class`, for the `device_ref` field, which C sets at
         // allocation and releases only after the context's free callback.
-        let device = unsafe { addr_of!((*self.as_ptr()).device_ref).read() };
+        let device = unsafe { device_ref_ptr.read() };
         // SAFETY: a live reference the context owns, to the initialised
         // device context `av_hwframe_ctx_alloc` was given (only initialised
         // devices lend the reference handle that allocates frames contexts,
@@ -2945,15 +3188,22 @@ impl<'a> FramesContextRef<'a> {
         unsafe { DeviceReferenceRef::from_ptr(device) }.expect("a frames context holds its device")
     }
 
-    /// Field: AVHWFramesContext.device_ctx
+    /// Field: `AVHWFramesContext.device_ctx`
     ///
     /// The context of the device the context was allocated on, shared: the
     /// data of [`device`](Self::device).
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context has a device context.
     #[must_use]
     pub fn device_context(&self) -> DeviceContextRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `device_ctx` field is in bounds; nothing is accessed here.
+        let device_ctx_ptr = unsafe { addr_of!((*self.as_ptr()).device_ctx) };
         // SAFETY: as in `class`, for the `device_ctx` field, which C sets at
         // allocation to the data of `device_ref`.
-        let ctx = unsafe { addr_of!((*self.as_ptr()).device_ctx).read() };
+        let ctx = unsafe { device_ctx_ptr.read() };
         // SAFETY: the initialised device context the context's `device_ref`
         // keeps live for `'a`; nothing writes an initialised device context
         // while it is shared.
@@ -2977,9 +3227,12 @@ impl<'a> FramesContextRef<'a> {
     /// does through any reference.
     #[must_use]
     pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hwctx` field is in bounds; nothing is accessed here.
+        let hwctx_ptr = unsafe { addr_of!((*self.as_ptr()).hwctx) };
         // SAFETY: as in `class`, for the `hwctx` pointer, which C never
         // replaces.
-        let hwctx = unsafe { addr_of!((*self.as_ptr()).hwctx).read() };
+        let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's frames struct, live as long as the
         // context; the caller vouches for its type and for writers.
         unsafe { T::ref_from_void_ptr(hwctx) }
@@ -2993,14 +3246,18 @@ impl<'a> FramesContextRef<'a> {
     /// pool alone are not one, though they are dropped then.
     #[must_use]
     pub fn has_free_callback(&self) -> bool {
-        match self.hooks() {
-            Some(hooks) => hooks.on_free.is_some(),
+        if let Some(hooks) = self.hooks() {
+            hooks.on_free.is_some()
+        } else {
+            // SAFETY: the handle's pointer is to a live context, so the place of its
+            // `free` field is in bounds; nothing is accessed here.
+            let free = unsafe { &raw const (*self.as_ptr()).free };
             // SAFETY: as in `class`, for the `free` field.
-            None => unsafe { addr_of!((*self.as_ptr()).free).read() }.is_some(),
+            unsafe { free.read() }.is_some()
         }
     }
 
-    /// Field: AVHWFramesContext.user_opaque
+    /// Field: `AVHWFramesContext.user_opaque`
     ///
     /// The value [`set_user_data`](FramesContextMut::set_user_data) stored,
     /// borrowed from the context; `None` when it stored none, or one of
@@ -3017,8 +3274,11 @@ impl<'a> FramesContextRef<'a> {
     /// or C code set, or, once initialised, the one its backend made.
     #[must_use]
     pub fn has_pool(&self) -> bool {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pool` field is in bounds; nothing is accessed here.
+        let pool_ptr = unsafe { addr_of!((*self.as_ptr()).pool) };
         // SAFETY: as in `class`, for the `pool` field.
-        !unsafe { addr_of!((*self.as_ptr()).pool).read() }.is_null()
+        !unsafe { pool_ptr.read() }.is_null()
     }
 
     /// Field: AVHWFramesContext.pool
@@ -3041,8 +3301,11 @@ impl<'a> FramesContextRef<'a> {
     /// stay live as long as the context.
     #[must_use]
     pub unsafe fn pool(&self) -> Option<BufferPoolRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pool` field is in bounds; nothing is accessed here.
+        let pool_ptr = unsafe { addr_of!((*self.as_ptr()).pool) };
         // SAFETY: as in `class`, for the `pool` field.
-        let pool = unsafe { addr_of!((*self.as_ptr()).pool).read() };
+        let pool = unsafe { pool_ptr.read() };
         // SAFETY: NULL, or a pool live as long as the context: the backend's
         // (released by the context's last release, before which the field
         // is not cleared while shared), the hooks' (dropped there too), or
@@ -3051,15 +3314,18 @@ impl<'a> FramesContextRef<'a> {
         unsafe { BufferPoolRef::from_ptr(pool) }
     }
 
-    /// Field: AVHWFramesContext.initial_pool_size
+    /// Field: `AVHWFramesContext.initial_pool_size`
     ///
     /// How many frames initialisation allocates (and releases) to fill the
     /// pool; for backends whose pools cannot grow, also how many frames the
     /// pool holds at most. Zero or less preallocates nothing.
     #[must_use]
     pub fn initial_pool_size(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `initial_pool_size` field is in bounds; nothing is accessed here.
+        let initial_pool_size_ptr = unsafe { addr_of!((*self.as_ptr()).initial_pool_size) };
         // SAFETY: as in `class`, for the `initial_pool_size` field.
-        unsafe { addr_of!((*self.as_ptr()).initial_pool_size).read() }
+        unsafe { initial_pool_size_ptr.read() }
     }
 
     /// Field: AVHWFramesContext.format
@@ -3068,19 +3334,25 @@ impl<'a> FramesContextRef<'a> {
     /// frames; [`PixelFormat::NONE`] until set.
     #[must_use]
     pub fn format(&self) -> PixelFormat {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `format` field is in bounds; nothing is accessed here.
+        let format_ptr = unsafe { addr_of!((*self.as_ptr()).format) };
         // SAFETY: as in `class`, for the `format` field.
-        PixelFormat::from_raw(unsafe { addr_of!((*self.as_ptr()).format).read() })
+        PixelFormat::from_raw(unsafe { format_ptr.read() })
     }
 
-    /// Field: AVHWFramesContext.sw_format
+    /// Field: `AVHWFramesContext.sw_format`
     ///
     /// The pixel format of the data the surfaces hold, as the backend lays
     /// it out (or the fully planar format of its depth and subsampling, where
     /// the hardware API does not say); [`PixelFormat::NONE`] until set.
     #[must_use]
     pub fn sw_format(&self) -> PixelFormat {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `sw_format` field is in bounds; nothing is accessed here.
+        let sw_format_ptr = unsafe { addr_of!((*self.as_ptr()).sw_format) };
         // SAFETY: as in `class`, for the `sw_format` field.
-        PixelFormat::from_raw(unsafe { addr_of!((*self.as_ptr()).sw_format).read() })
+        PixelFormat::from_raw(unsafe { sw_format_ptr.read() })
     }
 
     /// Field: AVHWFramesContext.width
@@ -3088,8 +3360,11 @@ impl<'a> FramesContextRef<'a> {
     /// The allocated width of the surfaces, in pixels.
     #[must_use]
     pub fn width(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `width` field is in bounds; nothing is accessed here.
+        let width_ptr = unsafe { addr_of!((*self.as_ptr()).width) };
         // SAFETY: as in `class`, for the `width` field.
-        unsafe { addr_of!((*self.as_ptr()).width).read() }
+        unsafe { width_ptr.read() }
     }
 
     /// Field: AVHWFramesContext.height
@@ -3097,20 +3372,26 @@ impl<'a> FramesContextRef<'a> {
     /// The allocated height of the surfaces, in pixels.
     #[must_use]
     pub fn height(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `height` field is in bounds; nothing is accessed here.
+        let height_ptr = unsafe { addr_of!((*self.as_ptr()).height) };
         // SAFETY: as in `class`, for the `height` field.
-        unsafe { addr_of!((*self.as_ptr()).height).read() }
+        unsafe { height_ptr.read() }
     }
 
     /// The Rust hooks the context's `user_opaque` holds, if any.
     fn hooks(&self) -> Option<&'a FramesHooks> {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw const (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
         // SAFETY: as in `class`, for the `free` and `user_opaque` fields.
-        let (free, opaque) = unsafe {
-            (
-                addr_of!((*p).free).read(),
-                addr_of!((*p).user_opaque).read(),
-            )
-        };
+        let (free, opaque) = (unsafe { free_ptr.read() }, unsafe {
+            user_opaque_ptr.read()
+        });
         if !is_release_frames_hooks(free) {
             return None;
         }
@@ -3153,9 +3434,12 @@ impl<'a> FramesContextMut<'a> {
     /// initialised or not.
     #[must_use]
     pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hwctx` field is in bounds; nothing is accessed here.
+        let hwctx_ptr = unsafe { addr_of!((*self.as_mut_ptr()).hwctx) };
         // SAFETY: a read of the `hwctx` pointer projected through the
         // exclusive handle's pointer to a live context.
-        let hwctx = unsafe { addr_of!((*self.as_mut_ptr()).hwctx).read() };
+        let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's frames struct, which this exclusive
         // borrow, consumed here, reaches alone for `'a`; the caller vouches
         // for its type.
@@ -3172,6 +3456,8 @@ impl<'a> FramesContextMut<'a> {
     /// [user data](Self::set_user_data), which is dropped after it returns;
     /// a callback or pool it sets is dropped unused. A panic in it aborts the
     /// process.
+    ///
+    /// # Errors
     ///
     /// Refused, giving `f` back, when the context's `free` or `user_opaque`
     /// is someone else's, either one alone: hardware decoders set `free`
@@ -3212,13 +3498,15 @@ impl<'a> FramesContextMut<'a> {
         on_free
     }
 
-    /// Field: AVHWFramesContext.user_opaque
+    /// Field: `AVHWFramesContext.user_opaque`
     ///
     /// Makes `data` the context's user data, dropping the value this set
     /// before. It lives as long as the context, readable through
     /// [`FramesContextRef::user_data`] (the free callback's handle
     /// included), and is dropped on the thread releasing the context's last
     /// reference, hence `Send + Sync`.
+    ///
+    /// # Errors
     ///
     /// Refused, giving `data` back, when the context's `free` or
     /// `user_opaque` is someone else's, as for
@@ -3246,7 +3534,7 @@ impl<'a> FramesContextMut<'a> {
         }
     }
 
-    /// Field: AVHWFramesContext.user_opaque
+    /// Field: `AVHWFramesContext.user_opaque`
     ///
     /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
     /// `None` when it stored none.
@@ -3266,6 +3554,8 @@ impl<'a> FramesContextMut<'a> {
     /// when the context's last reference is released, before the free
     /// callback runs.
     ///
+    /// # Errors
+    ///
     /// Refused, giving `pool` back, when the context's `free` or
     /// `user_opaque` is someone else's, as for
     /// [`set_free_callback`](Self::set_free_callback), or its `pool` is (C
@@ -3283,11 +3573,18 @@ impl<'a> FramesContextMut<'a> {
     /// one only for a backend whose surfaces are bytes.
     ///
     /// [`BufferPool::new`]: super::buffer::BufferPool::new
+    #[expect(
+        clippy::redundant_closure_for_method_calls,
+        reason = "`CBox::as_c_ptr` is ambiguous between the owner and its uninitialised form as a path"
+    )]
     pub unsafe fn set_pool(&mut self, pool: BufferPoolBox) -> Result<(), BufferPoolBox> {
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the access below relies on,
+        // so the place of its `pool` field is in bounds; nothing is accessed here.
+        let pool_ptr = unsafe { addr_of!((*p).pool) };
         // SAFETY: a read of the `pool` field projected through the exclusive
         // handle's pointer to a live context.
-        let current = unsafe { addr_of!((*p).pool).read() };
+        let current = unsafe { pool_ptr.read() };
         let owned = self
             .hooks_mut_if_installed()
             .and_then(|h| h.pool.as_ref())
@@ -3299,9 +3596,12 @@ impl<'a> FramesContextMut<'a> {
         match self.hooks_mut() {
             Some(hooks) => {
                 let old = hooks.pool.replace(pool);
+                // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+                // so the place of its `pool` field is in bounds; nothing is accessed here.
+                let pool_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).pool) };
                 // SAFETY: as above, a write of the field; the hooks own the
                 // pool it points at until they drop it, after clearing it.
-                unsafe { addr_of_mut!((*self.as_mut_ptr()).pool).write(new) };
+                unsafe { pool_ptr.write(new) };
                 drop(old);
                 Ok(())
             }
@@ -3318,15 +3618,18 @@ impl<'a> FramesContextMut<'a> {
     #[must_use]
     pub fn take_pool(&mut self) -> Option<BufferPoolBox> {
         let pool = self.hooks_mut_if_installed()?.pool.take()?;
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pool` field is in bounds; nothing is accessed here.
+        let pool_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).pool) };
         // SAFETY: a write of the `pool` field projected through the exclusive
         // handle's pointer to a live context, which pointed at the hooks'
         // pool.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).pool).write(ptr::null_mut()) };
+        unsafe { pool_ptr.write(ptr::null_mut()) };
         self.release_empty_hooks();
         Some(pool)
     }
 
-    /// Field: AVHWFramesContext.initial_pool_size
+    /// Field: `AVHWFramesContext.initial_pool_size`
     ///
     /// Sets how many frames initialisation preallocates, as for
     /// [`FramesContextRef::initial_pool_size`]. Backends whose pools cannot
@@ -3334,10 +3637,13 @@ impl<'a> FramesContextMut<'a> {
     /// reference frames and more) when the context has no pool of the
     /// caller's.
     pub fn set_initial_pool_size(&mut self, size: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `initial_pool_size` field is in bounds; nothing is accessed here.
+        let initial_pool_size_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).initial_pool_size) };
         // SAFETY: a write of the `initial_pool_size` field projected through
         // the exclusive handle's pointer to a live context; any value is one
         // C and the backends take (zero or less preallocates nothing).
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).initial_pool_size).write(size) }
+        unsafe { initial_pool_size_ptr.write(size) }
     }
 
     /// Field: AVHWFramesContext.format
@@ -3346,21 +3652,27 @@ impl<'a> FramesContextMut<'a> {
     /// device's backend lists, or [`UninitFrames::init`] fails with
     /// `AVERROR(ENOSYS)`.
     pub fn set_format(&mut self, format: PixelFormat) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `format` field is in bounds; nothing is accessed here.
+        let format_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).format) };
         // SAFETY: as in `set_initial_pool_size`, for the `format` field;
         // `av_hwframe_ctx_init` checks it against the backend's list.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).format).write(format.into_raw()) }
+        unsafe { format_ptr.write(format.into_raw()) }
     }
 
-    /// Field: AVHWFramesContext.sw_format
+    /// Field: `AVHWFramesContext.sw_format`
     ///
     /// Sets the pixel format of the data the surfaces hold, as for
     /// [`FramesContextRef::sw_format`]: one the backend supports, or its
     /// initialisation fails.
     pub fn set_sw_format(&mut self, format: PixelFormat) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `sw_format` field is in bounds; nothing is accessed here.
+        let sw_format_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).sw_format) };
         // SAFETY: as in `set_initial_pool_size`, for the `sw_format` field;
         // backends check it in `frames_init`, and the transfer wrappers
         // check software frames against it.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).sw_format).write(format.into_raw()) }
+        unsafe { sw_format_ptr.write(format.into_raw()) }
     }
 
     /// Field: AVHWFramesContext.width
@@ -3369,9 +3681,12 @@ impl<'a> FramesContextMut<'a> {
     /// `av_image_check_size` accepts with the height, or
     /// [`UninitFrames::init`] fails with `AVERROR(EINVAL)`.
     pub fn set_width(&mut self, width: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `width` field is in bounds; nothing is accessed here.
+        let width_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).width) };
         // SAFETY: as in `set_initial_pool_size`, for the `width` field;
         // `av_hwframe_ctx_init` checks the size.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).width).write(width) }
+        unsafe { width_ptr.write(width) }
     }
 
     /// Field: AVHWFramesContext.height
@@ -3379,8 +3694,11 @@ impl<'a> FramesContextMut<'a> {
     /// Sets the allocated height of the surfaces, in pixels, as for
     /// [`set_width`](Self::set_width).
     pub fn set_height(&mut self, height: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `height` field is in bounds; nothing is accessed here.
+        let height_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).height) };
         // SAFETY: as in `set_width`, for the `height` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).height).write(height) }
+        unsafe { height_ptr.write(height) }
     }
 
     /// The context's Rust hooks, installed first when `free` and
@@ -3388,11 +3706,16 @@ impl<'a> FramesContextMut<'a> {
     fn hooks_mut(&mut self) -> Option<&mut FramesHooks> {
         if self.as_ref().hooks().is_none() {
             let p = self.as_mut_ptr();
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `free` field is in bounds; nothing is accessed here.
+            let free_ptr = unsafe { &raw const (*p).free };
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `user_opaque` field is in bounds; nothing is accessed here.
+            let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
             // SAFETY: reads of the `free` and `user_opaque` fields projected
             // through the exclusive handle's pointer to a live context.
-            let unset = unsafe {
-                addr_of!((*p).free).read().is_none() && addr_of!((*p).user_opaque).read().is_null()
-            };
+            let unset =
+                unsafe { free_ptr.read() }.is_none() && unsafe { user_opaque_ptr.read() }.is_null();
             if !unset {
                 return None;
             }
@@ -3401,13 +3724,21 @@ impl<'a> FramesContextMut<'a> {
                 on_free: None,
                 pool: None,
             }));
-            // SAFETY: writes of both fields through the exclusive handle;
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `free` field is in bounds; nothing is accessed here.
+            let free_ptr = unsafe { &raw mut (*p).free };
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `user_opaque` field is in bounds; nothing is accessed here.
+            let user_opaque_ptr = unsafe { &raw mut (*p).user_opaque };
+            // For the unsafe operations below: writes of both fields through the exclusive handle;
             // neither held anything to release, and C reads them only in
             // hwframe_ctx_free, which then calls `release_frames_hooks` to
             // free the box.
-            unsafe {
-                addr_of_mut!((*p).user_opaque).write(hooks.cast());
-                addr_of_mut!((*p).free).write(Some(RELEASE_FRAMES_HOOKS));
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { user_opaque_ptr.write(hooks.cast()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { free_ptr.write(Some(RELEASE_FRAMES_HOOKS)) };
             }
         }
         self.hooks_mut_if_installed()
@@ -3416,13 +3747,16 @@ impl<'a> FramesContextMut<'a> {
     /// The context's Rust hooks, if `user_opaque` holds them.
     fn hooks_mut_if_installed(&mut self) -> Option<&mut FramesHooks> {
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw const (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw const (*p).user_opaque };
         // SAFETY: as in `hooks_mut`, for both fields.
-        let (free, opaque) = unsafe {
-            (
-                addr_of!((*p).free).read(),
-                addr_of!((*p).user_opaque).read(),
-            )
-        };
+        let (free, opaque) = (unsafe { free_ptr.read() }, unsafe {
+            user_opaque_ptr.read()
+        });
         if !is_release_frames_hooks(free) {
             return None;
         }
@@ -3440,11 +3774,19 @@ impl<'a> FramesContextMut<'a> {
             return;
         }
         let p = self.as_mut_ptr();
-        // SAFETY: writes of both fields through the exclusive handle; the
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `free` field is in bounds; nothing is accessed here.
+        let free_ptr = unsafe { &raw mut (*p).free };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `user_opaque` field is in bounds; nothing is accessed here.
+        let user_opaque_ptr = unsafe { &raw mut (*p).user_opaque };
+        // For the unsafe operations below: writes of both fields through the exclusive handle; the
         // hooks were installed, so `user_opaque` held their box.
-        let hooks = unsafe {
-            addr_of_mut!((*p).free).write(None);
-            addr_of_mut!((*p).user_opaque).replace(ptr::null_mut())
+        let hooks = {
+            // SAFETY: as the comment above this block states.
+            unsafe { free_ptr.write(None) };
+            // SAFETY: as the comment above this block states.
+            unsafe { user_opaque_ptr.replace(ptr::null_mut()) }
         };
         // SAFETY: the empty `Box<FramesHooks>` a setter leaked, now detached.
         drop(unsafe { Box::from_raw(hooks.cast::<FramesHooks>()) });
@@ -3493,11 +3835,18 @@ impl<'a> FramesReferenceRef<'a> {
     /// The frames context the reference keeps alive, shared: its formats,
     /// size, pool, device and user data. An initialised context is not
     /// written through any reference, so there is no exclusive form.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context reference has data.
     #[must_use]
     pub fn context(&self) -> FramesContextRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` field of the live reference, which by
         // the type's invariant is an initialised context's public struct.
-        let ctx = unsafe { addr_of!((*self.as_ptr()).data).read() };
+        let ctx = unsafe { data_ptr.read() };
         // SAFETY: the reference keeps the context live for `'a`, and nothing
         // writes an initialised context's fields while it is shared.
         unsafe { FramesContextRef::from_ptr(ctx.cast()) }
@@ -3506,30 +3855,59 @@ impl<'a> FramesReferenceRef<'a> {
 }
 
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../../../tests/common/hwdevice.rs"]
 pub(crate) mod hwdevice;
 
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../../../tests/common/hwframes.rs"]
 mod fixture;
 
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../../../tests/common/hwbackend.rs"]
 pub(crate) mod backend;
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#[expect(
+    clippy::default_trait_access,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::c_uint;
     use core::mem::{align_of, size_of};
     use std::collections::HashSet;
 
+    use super::*;
     use crate::libavutil::libavutil::buffer::BufferReference;
     use crate::libavutil::libavutil::dict::Dict;
     use crate::libavutil::libavutil::mem::alloc_array_zeroed;
 
     /// `AVERROR(ENOSYS)`.
-    const ENOSYS: c_int = -(ffi::ENOSYS as c_int);
+    const ENOSYS: c_int = -(ffi::ENOSYS.cast_signed());
 
     const NAMED: [(DeviceType, &str); 15] = [
         (DeviceType::NONE, "NONE"),
@@ -3556,7 +3934,7 @@ mod unit_tests {
         16,
         1 << 20,
         i32::MAX as c_uint,
-        i32::MIN as c_uint,
+        i32::MIN.cast_unsigned(),
         c_uint::MAX,
     ];
 
@@ -3658,13 +4036,13 @@ mod unit_tests {
     /// The fake backend's hardware frames contexts and frames
     /// (`tests/common/hwframes.rs`), adopted by the crate's owners.
     mod hw {
-        use super::super::fixture;
-        use super::*;
-        use crate::libavutil::libavutil::buffer::BufferReferenceBox;
-
         pub(super) use fixture::{
             EMPTY, GRAY_FIRST, INERT, LISTING_FAILS, NO_LIST, TRANSFER_FAILS, YUV, pattern,
         };
+
+        use super::super::fixture;
+        use super::*;
+        use crate::libavutil::libavutil::buffer::BufferReferenceBox;
 
         /// Adopts a reference the fixture made.
         pub(super) fn adopt_context(buf: *mut ffi::AVBufferRef) -> BufferReferenceBox {
@@ -3697,11 +4075,12 @@ mod unit_tests {
 
         /// A hardware frame of `ctx` whose surface holds `pattern(seed)`.
         pub(super) fn hw_frame(ctx: &BufferReferenceBox, seed: u8) -> FrameBox {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_hw_frame_2 = unsafe { fixture::new_hw_frame(ctx.as_c_ptr(), pattern(seed)) };
             // SAFETY: `ctx` is a live fake context; the fresh frame satisfies
             // `Frame`'s invariant: `hw_frames_ctx` references that context,
             // and `data[3]` is the start of `buf[0]`'s window, the surface.
-            unsafe { FrameBox::from_c(fixture::new_hw_frame(ctx.as_c_ptr(), pattern(seed))) }
-                .unwrap()
+            unsafe { FrameBox::from_c(new_hw_frame_2) }.unwrap()
         }
 
         /// The image of the surface of `frame`, a hardware frame of a fake
@@ -4005,28 +4384,37 @@ mod unit_tests {
         let mut clean = Frame::new().unwrap();
         let counted = software(GRAY8, 4, 4);
         let mut counted_dst = software(GRAY8, 4, 4);
-        // SAFETY: no frame holds a hardware frames context.
-        unsafe {
-            assert_eq!(
-                clean.as_mut().transfer_data_from(counted.as_ref()),
-                Err(EINVAL)
-            );
-            assert_eq!(
-                counted_dst.as_mut().transfer_data_from(counted.as_ref()),
-                Err(ENOSYS)
-            );
-            assert_eq!(
-                clean
-                    .as_mut()
-                    .transfer_data_from(Frame::new().unwrap().as_ref()),
-                Err(EINVAL)
-            );
+        // For the unsafe operations below: no frame holds a hardware frames context.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    clean.as_mut().transfer_data_from(counted.as_ref()),
+                    Err(EINVAL)
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    counted_dst.as_mut().transfer_data_from(counted.as_ref()),
+                    Err(ENOSYS)
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    clean
+                        .as_mut()
+                        .transfer_data_from(Frame::new().unwrap().as_ref()),
+                    Err(EINVAL)
+                );
+            };
         }
     }
 
     /// C's `transfer_data_alloc` leaks what the frame held and leaves the
     /// bytes around the copied lines uninitialised; the Rust composition
-    /// releases it (LeakSanitizer sees no leak) and zeroes them.
+    /// releases it (`LeakSanitizer` sees no leak) and zeroes them.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn download_into_new_buffers_releases_the_old_contents_and_zeroes_padding() {
@@ -4166,26 +4554,32 @@ mod unit_tests {
         let mut hw_dst = hw::hw_frame(&inert, 7);
         let yuv = hw::context(&hw::YUV, 16, 8);
         let mut other = hw::hw_frame(&yuv, 8);
-        // SAFETY: every hardware frame is one of its fake context.
-        unsafe {
-            assert_eq!(sw.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS));
-            assert_eq!(clean.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS));
-            assert_eq!(hw_dst.as_mut().transfer_data_from(sw.as_ref()), Err(ENOSYS));
-            assert_eq!(
-                hw_dst.as_mut().transfer_data_from(other.as_ref()),
-                Err(ENOSYS)
-            );
-            assert_eq!(other.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS));
+        // For the unsafe operations below: every hardware frame is one of its fake context.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(sw.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS)) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(clean.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS)) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(hw_dst.as_mut().transfer_data_from(sw.as_ref()), Err(ENOSYS)) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                assert_eq!(
+                    hw_dst.as_mut().transfer_data_from(other.as_ref()),
+                    Err(ENOSYS)
+                );
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(other.as_mut().transfer_data_from(src.as_ref()), Err(ENOSYS)) };
         }
     }
     /// Wave 1, batch 1: names, the backend list, map flags, and the device
     /// and frames contexts and hardware frames over the test backends of
     /// `tests/common/hwbackend.rs`, adopted through the crate's seams.
     mod contexts {
-        use super::*;
         use core::ffi::CStr;
-        use core::ptr::{addr_of, addr_of_mut};
 
+        use super::*;
         use crate::libavutil::libavutil::buffer::MAX_REFERENCES;
         use crate::libavutil::libavutil::dict::Dict;
         use crate::libavutil::libavutil::hwcontext::backend::{
@@ -4208,11 +4602,16 @@ mod unit_tests {
         /// Sets the count of `buf`'s buffer behind C's back; the caller
         /// restores the true count before any reference is released.
         fn set_count(buf: *const ffi::AVBufferRef, count: c_uint) {
-            // SAFETY: a live reference, whose private buffer body starts
+            // SAFETY: `buf` is to a live object, as the block below relies on, so the
+            // place of its `buffer` field is in bounds; nothing is accessed here.
+            let buffer_ptr = unsafe { &raw const (*buf).buffer };
+            // For the unsafe operations below: a live reference, whose private buffer body starts
             // with the mirrored prefix; this test alone references it.
-            unsafe {
-                let body = addr_of!((*buf).buffer).read().cast::<BufferCount>();
-                addr_of_mut!((*body).refcount).write(count);
+            {
+                // SAFETY: as the comment above this block states.
+                let body = unsafe { buffer_ptr.read().cast::<BufferCount>() };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*body).refcount = count };
             }
         }
 
@@ -4332,10 +4731,12 @@ mod unit_tests {
             let mut uninit = uninit_device(Kind::A);
             assert_eq!(format!("{uninit:?}"), "UninitDevice(VAAPI)");
             let ctx = uninit.context_mut().as_mut_ptr();
-            // SAFETY: the public struct of the context `uninit` owns.
-            unsafe {
-                assert_eq!((*ctx).type_, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
-                assert!(!(*ctx).hwctx.is_null());
+            // For the unsafe operations below: the public struct of the context `uninit` owns.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!((*ctx).type_, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(!(*ctx).hwctx.is_null()) };
             }
             assert!(fx::take_events().is_empty());
             // SAFETY: the test backend's `device_init` reads only its knobs.
@@ -4360,8 +4761,10 @@ mod unit_tests {
         fn failed_device_init_releases_the_context() {
             let mut uninit = uninit_device(Kind::B);
             let ctx = uninit.context_mut().as_mut_ptr();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let hwctx_2 = unsafe { (*ctx).hwctx };
             // SAFETY: the backend struct of the context `uninit` owns.
-            unsafe { (*(*ctx).hwctx.cast::<fx::DeviceHwctx>()).init_ret = -77 };
+            unsafe { (*hwctx_2.cast::<fx::DeviceHwctx>()).init_ret = -77 };
             // SAFETY: as in `uninit_device_inits_once_and_releases_on_drop`.
             assert_eq!(unsafe { uninit.init() }.err(), Some(-77));
             assert_eq!(
@@ -4442,7 +4845,7 @@ mod unit_tests {
             // limit is released.
             set_count(a.as_c_ptr(), MAX_REFERENCES);
             assert_eq!(b.as_ref().derive(DeviceType::VAAPI).err(), Some(ENOMEM_));
-            assert_eq!(count(a.as_c_ptr()) as c_uint, MAX_REFERENCES);
+            assert_eq!((count(a.as_c_ptr())).cast_unsigned(), MAX_REFERENCES);
             set_count(a.as_c_ptr(), 3);
             drop((found, itself, b));
             assert_eq!(count(a.as_c_ptr()), 1);
@@ -4657,7 +5060,7 @@ mod unit_tests {
                 Some(EINVAL_)
             );
             // SAFETY: the frame's first buffer, a live reference it owns.
-            let surface = unsafe { addr_of!((*frame.frame.as_c_ptr()).buf[0]).read() };
+            let surface = unsafe { (*frame.frame.as_c_ptr()).buf[0] };
             set_count(surface, MAX_REFERENCES);
             assert_eq!(
                 frame.map(PixelFormat::NONE, MapFlags::READ).err(),
@@ -4698,7 +5101,7 @@ mod unit_tests {
             let frame = fa.as_ref().get_buffer().unwrap();
             fx::take_events();
             // SAFETY: the frame's first buffer, a live reference it owns.
-            let surface = unsafe { addr_of!((*frame.frame.as_c_ptr()).buf[0]).read() };
+            let surface = unsafe { (*frame.frame.as_c_ptr()).buf[0] };
             set_count(surface, MAX_REFERENCES);
             assert_eq!(
                 frame.map_to(fb.as_ref(), MapFlags::READ).err(),
@@ -4867,7 +5270,7 @@ mod unit_tests {
         unsafe extern "C" fn count_free(ctx: *mut ffi::AVHWFramesContext) {
             // SAFETY: C passes the live context being released.
             let opaque = unsafe { (*ctx).user_opaque };
-            assert_eq!(opaque.addr(), 0x5eed);
+            assert_eq!(opaque.addr(), 0x5EED);
             FREED.with(|f| f.set(f.get() + 1));
         }
 
@@ -4879,11 +5282,14 @@ mod unit_tests {
             let a = device(Kind::A);
             let mut uninit = a.as_ref().alloc_frames().unwrap();
             let p = uninit.context_mut().as_mut_ptr();
-            // SAFETY: the uninitialised context `uninit` owns.
-            unsafe {
-                fx::fill_frames(p, Kind::A, 4, 4, 0);
-                (*p).free = Some(count_free);
-                (*p).user_opaque = ptr::without_provenance_mut(0x5eed);
+            // For the unsafe operations below: the uninitialised context `uninit` owns.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::fill_frames(p, Kind::A, 4, 4, 0) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p).free = Some(count_free) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p).user_opaque = ptr::without_provenance_mut(0x5EED) };
             }
             let frames = uninit.init().unwrap();
             let frame = frames.as_ref().get_buffer().unwrap();
@@ -5201,11 +5607,15 @@ mod unit_tests {
                 let mut dst = Frame::new().unwrap();
                 assert_eq!(dst.as_mut().try_clone_from(f.as_ref()), Err(ENOSYS));
                 let mut mem = [0u8; 64 * 48];
-                // SAFETY: `mem` holds a 64 x 32 NV12 image at line size 64
+                // For the unsafe operations below: `mem` holds a 64 x 32 NV12 image at line size 64
                 // and outlives every use of the plane pointers below.
-                unsafe {
-                    f.as_mut().set_data_ptr(0, mem.as_mut_ptr());
-                    f.as_mut().set_data_ptr(1, mem.as_mut_ptr().add(64 * 32));
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { f.as_mut().set_data_ptr(0, mem.as_mut_ptr()) };
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let as_mut_ptr_add = unsafe { mem.as_mut_ptr().add(64 * 32) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { f.as_mut().set_data_ptr(1, as_mut_ptr_add) };
                 }
                 f.as_mut().set_linesize(0, 64);
                 f.as_mut().set_linesize(1, 64);
@@ -5214,10 +5624,12 @@ mod unit_tests {
                 assert_eq!(fx::take_events(), []);
                 // Without planes, `assign` copies no data: it takes the
                 // properties and a reference to the context, as C does.
-                // SAFETY: NULL planes are always allowed.
-                unsafe {
-                    f.as_mut().set_data_ptr(0, ptr::null_mut());
-                    f.as_mut().set_data_ptr(1, ptr::null_mut());
+                // For the unsafe operations below: NULL planes are always allowed.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { f.as_mut().set_data_ptr(0, ptr::null_mut()) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { f.as_mut().set_data_ptr(1, ptr::null_mut()) };
                 }
                 dst.as_mut().assign(f.as_ref()).unwrap();
                 assert!(
@@ -5261,12 +5673,13 @@ mod unit_tests {
     /// Device contexts and frame constraints over the fake backend of
     /// `tests/common/hwdevice.rs` (hwcontext wave 1, batch 0).
     mod device_context {
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc, Mutex};
+
         use super::super::hwdevice::{
             self, BARE_TYPE, Events, FakeConfig, FakeHw, HW_FORMAT, SIZES, SW_FORMATS,
         };
         use super::*;
-        use core::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::{Arc, Mutex};
 
         /// A fresh fake context under construction, counting into `events`.
         fn builder(events: &Arc<Events>) -> UninitDevice {
@@ -5284,13 +5697,16 @@ mod unit_tests {
         fn raw_hooks(b: &UninitDevice) -> (bool, bool) {
             let p = b.context().as_ptr();
             // SAFETY: reads of the builder's live context.
-            unsafe { ((*p).free.is_some(), !(*p).user_opaque.is_null()) }
+            (
+                unsafe { (*p).free }.is_some(),
+                !unsafe { (*p).user_opaque }.is_null(),
+            )
         }
 
         /// The number of references to the context `arc` holds.
         fn count(arc: &DeviceReferenceBox) -> u32 {
             // SAFETY: a live reference.
-            unsafe { ffi::av_buffer_get_ref_count(arc.as_c_ptr()) as u32 }
+            unsafe { (ffi::av_buffer_get_ref_count(arc.as_c_ptr())).cast_unsigned() }
         }
 
         /// A value that counts its drops.
@@ -5489,7 +5905,7 @@ mod unit_tests {
             let raw = hwdevice::fake_device();
             // SAFETY: the only reference to a fresh fake context; `freed`
             // outlives it.
-            unsafe { hwdevice::set_foreign_free(raw, &freed) };
+            unsafe { hwdevice::set_foreign_free(raw, &raw const freed) };
             // SAFETY: as in `builder`; the hooks are a backend's.
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert!(b.context().has_free_callback());
@@ -5504,8 +5920,10 @@ mod unit_tests {
             // A cookie without a callback is someone else's as well.
             let raw = hwdevice::fake_device();
             let mut cookie = 0u8;
+            // SAFETY: as the comment below states, for this part of the operation.
+            let context_3 = unsafe { hwdevice::context(raw) };
             // SAFETY: a write of the fresh context's `user_opaque`.
-            unsafe { (*hwdevice::context(raw)).user_opaque = (&raw mut cookie).cast() };
+            unsafe { (*context_3).user_opaque = (&raw mut cookie).cast() };
             // SAFETY: as in `builder`.
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert!(b.context_mut().set_user_data(1u8).is_err());
@@ -5527,9 +5945,11 @@ mod unit_tests {
         #[cfg_attr(miri, ignore = "calls C")]
         fn a_backend_free_alone_is_neither_read_nor_replaced() {
             let raw = hwdevice::fake_device();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let context_2 = unsafe { hwdevice::context(raw) };
             // SAFETY: a write of the fresh context's `free`, as
             // drm_device_create does, leaving `user_opaque` NULL.
-            unsafe { (*hwdevice::context(raw)).free = Some(backend_free_alone) };
+            unsafe { (*context_2).free = Some(backend_free_alone) };
             // SAFETY: as in `builder`; the callback is a backend's.
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert!(b.context().has_free_callback());
@@ -5580,7 +6000,10 @@ mod unit_tests {
                 // nothing else reaches.
                 unsafe { release_hooks(ctx) };
                 // SAFETY: a read of the boxed context.
-                assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+                assert!(
+                    // SAFETY: as the comment above this statement states.
+                    unsafe { (*ctx).free }.is_none() && unsafe { (*ctx).user_opaque }.is_null()
+                );
             }
             assert_eq!(calls.load(Ordering::SeqCst), 2);
             assert_eq!(drops.load(Ordering::SeqCst), 3);
@@ -5592,12 +6015,15 @@ mod unit_tests {
         #[cfg_attr(miri, ignore = "calls C")]
         fn release_hooks_tolerates_a_cleared_cookie() {
             let raw = hwdevice::fake_device();
-            // SAFETY: the only reference to a fresh fake context: a `free`
+            // For the unsafe operations below: the only reference to a fresh fake context: a `free`
             // of `release_hooks` with no cookie must do nothing.
-            unsafe {
-                let ctx = hwdevice::context(raw);
-                (*ctx).free = Some(RELEASE_HOOKS);
-                ffi::av_buffer_unref(&mut { raw });
+            {
+                // SAFETY: as the comment above this block states.
+                let ctx = unsafe { hwdevice::context(raw) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*ctx).free = Some(RELEASE_HOOKS) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_buffer_unref(&mut { raw }) };
             }
         }
 
@@ -5806,8 +6232,11 @@ mod unit_tests {
             // The copy is terminated in C's way.
             // SAFETY: a read of the live list and its terminator.
             let raw = unsafe { (*m.as_ref().as_ptr()).valid_sw_formats };
+            // SAFETY: `2` is within the block `raw` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let raw_at = unsafe { raw.add(2) };
             // SAFETY: three elements, the terminator included.
-            let terminator = unsafe { raw.add(2).read() };
+            let terminator = unsafe { raw_at.read() };
             assert_eq!(terminator, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
             // An empty list is not an unknown one.
             m.set_valid_sw_formats(Some(&[])).unwrap();
@@ -5890,11 +6319,11 @@ mod unit_tests {
     /// Rust hooks in `free`/`user_opaque` and the pool they own, and their
     /// release.
     mod frames_context {
-        use super::super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
-        use super::*;
         use core::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::{Arc, Mutex};
 
+        use super::super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
+        use super::*;
         use crate::libavutil::libavutil::buffer::{BufferPool, BufferReference};
 
         /// An initialised test device of `kind`, adopted as a box, with its
@@ -5920,13 +6349,11 @@ mod unit_tests {
         fn raw_fields(u: &UninitFrames) -> (bool, bool, bool) {
             let p = u.context().as_ptr();
             // SAFETY: reads of the live context `u` holds.
-            unsafe {
-                (
-                    (*p).free.is_some(),
-                    !(*p).user_opaque.is_null(),
-                    !(*p).pool.is_null(),
-                )
-            }
+            (
+                unsafe { (*p).free }.is_some(),
+                !unsafe { (*p).user_opaque }.is_null(),
+                !unsafe { (*p).pool }.is_null(),
+            )
         }
 
         /// A value that counts its drops.
@@ -5998,7 +6425,12 @@ mod unit_tests {
             fill(u.context_mut(), Kind::A, 2);
             let p = u.context().as_ptr();
             // SAFETY: reads of the live context `u` holds.
-            let raw = unsafe { ((*p).format, (*p).sw_format, (*p).width, (*p).height) };
+            let raw = (
+                unsafe { (*p).format },
+                unsafe { (*p).sw_format },
+                unsafe { (*p).width },
+                unsafe { (*p).height },
+            );
             assert_eq!(
                 raw,
                 (
@@ -6062,9 +6494,9 @@ mod unit_tests {
             );
             let a_ = a.as_ref();
             let refused = a_.create_frames(PixelFormat::DRM_PRIME, PixelFormat::NV12, 32, 16, 0);
-            assert_eq!(refused.err(), Some(-(ffi::ENOSYS as c_int)));
+            assert_eq!(refused.err(), Some(-(ffi::ENOSYS.cast_signed())));
             let refused = a_.create_frames(PixelFormat::VAAPI, PixelFormat::NV12, 0, 16, 0);
-            assert_eq!(refused.err(), Some(-(ffi::EINVAL as c_int)));
+            assert_eq!(refused.err(), Some(-(ffi::EINVAL.cast_signed())));
             assert_eq!(
                 fx::take_events(),
                 [Event::FramesUninit(Kind::A), Event::FramesUninit(Kind::A)]
@@ -6208,14 +6640,13 @@ mod unit_tests {
             for case in 0..2 {
                 let mut u = a.as_ref().alloc_frames().unwrap();
                 let p = u.context_mut().as_mut_ptr();
-                // SAFETY: writes to the context `u` alone holds, as C code
-                // makes them before init.
-                unsafe {
-                    if case == 0 {
-                        (*p).free = Some(foreign_free);
-                    } else {
-                        (*p).user_opaque = ptr::without_provenance_mut(0x5eed);
-                    }
+                if case == 0 {
+                    // SAFETY: a write to the context `u` alone holds, as C code makes it
+                    // before init.
+                    unsafe { (*p).free = Some(foreign_free) };
+                } else {
+                    // SAFETY: as above.
+                    unsafe { (*p).user_opaque = ptr::without_provenance_mut(0x5EED) };
                 }
                 let mut m = u.context_mut();
                 assert_eq!(m.set_user_data(3u8), Err(3));
@@ -6228,10 +6659,12 @@ mod unit_tests {
                 assert!(m.take_pool().is_none());
                 assert!(m.as_ref().user_data::<u8>().is_none());
                 assert_eq!(m.as_ref().has_free_callback(), case == 0);
-                // SAFETY: as above, restored before the release.
-                unsafe {
-                    (*p).free = None;
-                    (*p).user_opaque = ptr::null_mut();
+                // For the unsafe operations below: as above, restored before the release.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*p).free = None };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*p).user_opaque = ptr::null_mut() };
                 }
             }
             assert_eq!(drops.load(Ordering::SeqCst), 2);
@@ -6446,14 +6879,20 @@ mod unit_tests {
                     drop(m.take_free_callback());
                     drop(m.take_user_data());
                     // SAFETY: a read of the boxed context.
-                    assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+                    assert!(
+                        // SAFETY: as the comment above this statement states.
+                        unsafe { (*ctx).free }.is_none() && unsafe { (*ctx).user_opaque }.is_null()
+                    );
                     continue;
                 }
                 // SAFETY: as hwframe_ctx_free calls it, with the context
                 // nothing else reaches.
                 unsafe { release_frames_hooks(ctx) };
                 // SAFETY: a read of the boxed context.
-                assert!(unsafe { (*ctx).free.is_none() && (*ctx).user_opaque.is_null() });
+                assert!(
+                    // SAFETY: as the comment above this statement states.
+                    unsafe { (*ctx).free }.is_none() && unsafe { (*ctx).user_opaque }.is_null()
+                );
             }
             assert_eq!(calls.load(Ordering::SeqCst), 3);
             assert_eq!(drops.load(Ordering::SeqCst), 9);
@@ -6497,9 +6936,14 @@ mod unit_tests {
                 // nothing else reaches.
                 unsafe { release_frames_hooks(ctx) };
                 // SAFETY: reads of the boxed context.
-                assert!(unsafe {
-                    (*ctx).free.is_none() && (*ctx).user_opaque.is_null() && (*ctx).pool.is_null()
-                });
+                assert!(
+                    // SAFETY: as the comment above this statement states.
+                    unsafe { (*ctx).free }.is_none()
+                        // SAFETY: as the comment above this statement states.
+                        && unsafe { (*ctx).user_opaque }.is_null()
+                        // SAFETY: as the comment above this statement states.
+                        && unsafe { (*ctx).pool }.is_null()
+                );
             }
             assert_eq!(calls.load(Ordering::SeqCst), 2);
             assert_eq!(drops.load(Ordering::SeqCst), 3);
@@ -6531,26 +6975,36 @@ mod unit_tests {
         /// `av_hwdevice_ctx_alloc` builds one; its backend has no routine
         /// for C to call at init or release.
         fn big_struct_device() -> DeviceReferenceBox {
-            // SAFETY: `av_hwdevice_ctx_alloc`'s steps over a zeroed
+            // For the unsafe operations below: `av_hwdevice_ctx_alloc`'s steps over a zeroed
             // allocation (no device struct: its size is 0), then C's init,
             // which calls no backend routine, and the only reference.
-            unsafe {
-                let ctxi =
-                    ffi::av_mallocz(size_of::<fx::DeviceInternal>()).cast::<fx::DeviceInternal>();
+            {
+                // SAFETY: as the comment above this block states.
+                let ctxi = unsafe {
+                    ffi::av_mallocz(size_of::<fx::DeviceInternal>()).cast::<fx::DeviceInternal>()
+                };
                 assert!(!ctxi.is_null());
-                let buf = ffi::av_buffer_create(
-                    ctxi.cast(),
-                    size_of::<ffi::AVHWDeviceContext>(),
-                    Some(free_big_struct_device),
-                    ptr::null_mut(),
-                    ffi::AV_BUFFER_FLAG_READONLY as c_int,
-                );
+                // SAFETY: as the comment above this block states.
+                let buf = unsafe {
+                    ffi::av_buffer_create(
+                        ctxi.cast(),
+                        size_of::<ffi::AVHWDeviceContext>(),
+                        Some(free_big_struct_device),
+                        ptr::null_mut(),
+                        ffi::AV_BUFFER_FLAG_READONLY.cast_signed(),
+                    )
+                };
                 assert!(!buf.is_null());
-                (*ctxi).p.type_ = ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM;
-                (*ctxi).p.av_class = &raw const fx::DEVICE_CLASS.0;
-                (*ctxi).hw_type = &raw const BIG_FRAMES_STRUCT.0;
-                assert_eq!(ffi::av_hwdevice_ctx_init(buf), 0);
-                DeviceReferenceBox::from_c(buf).unwrap()
+                // SAFETY: as the comment above this block states.
+                unsafe { (*ctxi).p.type_ = ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*ctxi).p.av_class = &raw const fx::DEVICE_CLASS.0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*ctxi).hw_type = &raw const BIG_FRAMES_STRUCT.0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!(ffi::av_hwdevice_ctx_init(buf), 0) };
+                // SAFETY: as the comment above this block states.
+                unsafe { DeviceReferenceBox::from_c(buf).unwrap() }
             }
         }
 
@@ -6585,7 +7039,7 @@ mod unit_tests {
             assert!(!hwctx.is_null());
             // SAFETY: C's `av_mallocz` block of the backend's 4096 bytes.
             let bytes = unsafe { core::slice::from_raw_parts(hwctx.cast::<u8>(), 4096) };
-            assert!(bytes == [0u8; 4096].as_slice());
+            assert_eq!(bytes, [0u8; 4096].as_slice());
             drop(u);
             // SAFETY: as above.
             assert_eq!(unsafe { ffi::av_buffer_get_ref_count(d.as_c_ptr()) }, 1);

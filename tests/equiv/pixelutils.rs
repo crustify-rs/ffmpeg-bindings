@@ -1,6 +1,11 @@
 //! Equivalence of `libavutil/pixelutils.h`'s safe API with the C library:
 //! [`SadFn::new`] against `av_pixelutils_get_sad_fn`, by what each selection
 //! is (a function or NULL) and by the sums the functions compute.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 
 use core::ffi::c_int;
 
@@ -82,8 +87,11 @@ fn selected_functions_sum_as_c_s_do() {
                 // SAFETY: both blocks lie inside the slices from their row 0,
                 // whose rows are 64-byte aligned (aligned buffers, offsets
                 // and strides multiples of 32 at least the block size or 0).
-                let c_sum =
-                    unsafe { c_fn(l1.as_ptr().add(row0(s1)), s1, l2.as_ptr().add(row0(s2)), s2) };
+                let (b1, b2) = (unsafe { l1.as_ptr().add(row0(s1)) }, unsafe {
+                    l2.as_ptr().add(row0(s2))
+                });
+                // SAFETY: as above.
+                let c_sum = unsafe { c_fn(b1, s1, b2, s2) };
                 assert_eq!(sum, c_sum as u32, "{bits} {al:?} {s1} {s2}");
             }
         }

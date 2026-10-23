@@ -1,0 +1,2 @@
+# Proper nouns the docs name in prose, beside clippy's defaults ("..").
+doc-valid-idents = ["FFmpeg", "OpenCL", "Direct3D11", "OpenHarmony", "MediaCodec", ".."]

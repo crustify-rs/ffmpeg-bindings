@@ -2,6 +2,15 @@
 //! API only: every block size and alignment C is asked for, the functions it
 //! returns called at the edges of their blocks, and selection from several
 //! threads at once.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use std::thread;
 

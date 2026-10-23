@@ -6,30 +6,33 @@
 
 use super::ffi;
 
-/// Wraps: av_bswap16
+/// Wraps: `av_bswap16`
 ///
 /// `x` with its two bytes swapped, as [`u16::swap_bytes`].
 #[inline]
+#[must_use]
 pub fn swap16(x: u16) -> u16 {
     // SAFETY: `av_bswap16` takes and returns an integer by value and touches
     // no memory.
     unsafe { ffi::av_bswap16(x) }
 }
 
-/// Wraps: av_bswap32
+/// Wraps: `av_bswap32`
 ///
 /// `x` with its byte order reversed, as [`u32::swap_bytes`].
 #[inline]
+#[must_use]
 pub fn swap32(x: u32) -> u32 {
     // SAFETY: `av_bswap32` takes and returns an integer by value and touches
     // no memory.
     unsafe { ffi::av_bswap32(x) }
 }
 
-/// Wraps: av_bswap64
+/// Wraps: `av_bswap64`
 ///
 /// `x` with its byte order reversed, as [`u64::swap_bytes`].
 #[inline]
+#[must_use]
 pub fn swap64(x: u64) -> u64 {
     // SAFETY: `av_bswap64` takes and returns an integer by value and touches
     // no memory.
@@ -51,13 +54,13 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn swaps_are_involutions() {
-        for x in [0, 1, 0x80, 0xff, 0x7fff, 0x8000, u16::MAX] {
+        for x in [0, 1, 0x80, 0xFF, 0x7FFF, 0x8000, u16::MAX] {
             assert_eq!(swap16(swap16(x)), x);
         }
-        for x in [0, 1, 0x8000_0000, 0xdead_beef, u32::MAX] {
+        for x in [0, 1, 0x8000_0000, 0xDEAD_BEEF, u32::MAX] {
             assert_eq!(swap32(swap32(x)), x);
         }
-        for x in [0, 1, 1 << 63, 0xdead_beef_cafe_f00d, u64::MAX] {
+        for x in [0, 1, 1 << 63, 0xDEAD_BEEF_CAFE_F00D, u64::MAX] {
             assert_eq!(swap64(swap64(x)), x);
         }
     }

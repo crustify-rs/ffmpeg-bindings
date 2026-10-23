@@ -42,7 +42,7 @@ use super::bprint::BPrintMut;
 use super::ffi;
 use super::mem::HeapVec;
 
-/// Wraps: AVChannel
+/// Wraps: `AVChannel`
 /// Handwritten
 ///
 /// The identity of one audio channel: a speaker position, an Ambisonic
@@ -83,97 +83,99 @@ use super::mem::HeapVec;
 pub struct Channel(ffi::AVChannel);
 
 impl Channel {
-    /// Invalid channel index.
-    pub const NONE: Self = Self(ffi::AVChannel::AV_CHAN_NONE);
-    /// Front left (`FL`).
-    pub const FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT);
-    /// Front right (`FR`).
-    pub const FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT);
-    /// Front center (`FC`).
-    pub const FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_CENTER);
-    /// Low frequency (`LFE`).
-    pub const LOW_FREQUENCY: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY);
+    /// The Ambisonic component with ACN index 0.
+    pub const AMBISONIC_BASE: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_BASE);
+    /// The last Ambisonic component, ACN index 1023 (order-32 harmonics).
+    pub const AMBISONIC_END: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_END);
+    /// Back center (`BC`).
+    pub const BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_BACK_CENTER);
     /// Back left (`BL`).
     pub const BACK_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BACK_LEFT);
     /// Back right (`BR`).
     pub const BACK_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BACK_RIGHT);
-    /// Front left-of-center (`FLC`).
-    pub const FRONT_LEFT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT_OF_CENTER);
-    /// Front right-of-center (`FRC`).
-    pub const FRONT_RIGHT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT_OF_CENTER);
-    /// Back center (`BC`).
-    pub const BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_BACK_CENTER);
-    /// Side left (`SL`).
-    pub const SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_LEFT);
-    /// Side right (`SR`).
-    pub const SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_RIGHT);
-    /// Top center (`TC`).
-    pub const TOP_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_CENTER);
-    /// Top front left (`TFL`).
-    pub const TOP_FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_LEFT);
-    /// Top front center (`TFC`).
-    pub const TOP_FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_CENTER);
-    /// Top front right (`TFR`).
-    pub const TOP_FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_RIGHT);
-    /// Top back left (`TBL`).
-    pub const TOP_BACK_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_LEFT);
-    /// Top back center (`TBC`).
-    pub const TOP_BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_CENTER);
-    /// Top back right (`TBR`).
-    pub const TOP_BACK_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_RIGHT);
-    /// Stereo downmix left (`DL`).
-    pub const STEREO_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_LEFT);
-    /// Stereo downmix right (`DR`).
-    pub const STEREO_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_RIGHT);
-    /// Wide left (`WL`).
-    pub const WIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_LEFT);
-    /// Wide right (`WR`).
-    pub const WIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_RIGHT);
-    /// Surround direct left (`SDL`).
-    pub const SURROUND_DIRECT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_LEFT);
-    /// Surround direct right (`SDR`).
-    pub const SURROUND_DIRECT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_RIGHT);
-    /// Second low frequency (`LFE2`).
-    pub const LOW_FREQUENCY_2: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY_2);
-    /// Top side left (`TSL`).
-    pub const TOP_SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_LEFT);
-    /// Top side right (`TSR`).
-    pub const TOP_SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_RIGHT);
+    /// Binaural left (`BIL`).
+    pub const BINAURAL_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_LEFT);
+    /// Binaural right (`BIR`).
+    pub const BINAURAL_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_RIGHT);
     /// Bottom front center (`BFC`).
     pub const BOTTOM_FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_CENTER);
     /// Bottom front left (`BFL`).
     pub const BOTTOM_FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_LEFT);
     /// Bottom front right (`BFR`).
     pub const BOTTOM_FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_RIGHT);
+    /// Front center (`FC`).
+    pub const FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_CENTER);
+    /// Front left (`FL`).
+    pub const FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT);
+    /// Front left-of-center (`FLC`).
+    pub const FRONT_LEFT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT_OF_CENTER);
+    /// Front right (`FR`).
+    pub const FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT);
+    /// Front right-of-center (`FRC`).
+    pub const FRONT_RIGHT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT_OF_CENTER);
+    /// Low frequency (`LFE`).
+    pub const LOW_FREQUENCY: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY);
+    /// Second low frequency (`LFE2`).
+    pub const LOW_FREQUENCY_2: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY_2);
+    /// Invalid channel index.
+    pub const NONE: Self = Self(ffi::AVChannel::AV_CHAN_NONE);
+    /// Side left (`SL`).
+    pub const SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_LEFT);
+    /// Side right (`SR`).
+    pub const SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_RIGHT);
     /// Side surround left, +90 degrees (`SSL`).
     pub const SIDE_SURROUND_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_SURROUND_LEFT);
     /// Side surround right, -90 degrees (`SSR`).
     pub const SIDE_SURROUND_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_SURROUND_RIGHT);
+    /// Stereo downmix left (`DL`).
+    pub const STEREO_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_LEFT);
+    /// Stereo downmix right (`DR`).
+    pub const STEREO_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_RIGHT);
+    /// Surround direct left (`SDL`).
+    pub const SURROUND_DIRECT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_LEFT);
+    /// Surround direct right (`SDR`).
+    pub const SURROUND_DIRECT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_RIGHT);
+    /// Top back center (`TBC`).
+    pub const TOP_BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_CENTER);
+    /// Top back left (`TBL`).
+    pub const TOP_BACK_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_LEFT);
+    /// Top back right (`TBR`).
+    pub const TOP_BACK_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_RIGHT);
+    /// Top center (`TC`).
+    pub const TOP_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_CENTER);
+    /// Top front center (`TFC`).
+    pub const TOP_FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_CENTER);
+    /// Top front left (`TFL`).
+    pub const TOP_FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_LEFT);
+    /// Top front right (`TFR`).
+    pub const TOP_FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_RIGHT);
+    /// Top side left (`TSL`).
+    pub const TOP_SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_LEFT);
+    /// Top side right (`TSR`).
+    pub const TOP_SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_RIGHT);
     /// Top surround left, +110 degrees (`TTL`).
     pub const TOP_SURROUND_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SURROUND_LEFT);
     /// Top surround right, -110 degrees (`TTR`).
     pub const TOP_SURROUND_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SURROUND_RIGHT);
-    /// Binaural left (`BIL`).
-    pub const BINAURAL_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_LEFT);
-    /// Binaural right (`BIR`).
-    pub const BINAURAL_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_RIGHT);
-    /// An empty channel that can be safely skipped.
-    pub const UNUSED: Self = Self(ffi::AVChannel::AV_CHAN_UNUSED);
     /// A channel with data at an unknown position.
     pub const UNKNOWN: Self = Self(ffi::AVChannel::AV_CHAN_UNKNOWN);
-    /// The Ambisonic component with ACN index 0.
-    pub const AMBISONIC_BASE: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_BASE);
-    /// The last Ambisonic component, ACN index 1023 (order-32 harmonics).
-    pub const AMBISONIC_END: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_END);
+    /// An empty channel that can be safely skipped.
+    pub const UNUSED: Self = Self(ffi::AVChannel::AV_CHAN_UNUSED);
+    /// Wide left (`WL`).
+    pub const WIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_LEFT);
+    /// Wide right (`WR`).
+    pub const WIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_RIGHT);
 
     /// The channel C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVChannel) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this channel.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVChannel {
         self.0
     }
@@ -181,6 +183,7 @@ impl Channel {
     /// The Ambisonic component with ACN index `acn`, or `None` past
     /// [`AMBISONIC_END`](Self::AMBISONIC_END).
     #[inline]
+    #[must_use]
     pub const fn ambisonic(acn: u16) -> Option<Self> {
         let base = Self::AMBISONIC_BASE.0.0;
         if acn as i32 <= Self::AMBISONIC_END.0.0 - base {
@@ -194,6 +197,12 @@ impl Channel {
     /// [`AMBISONIC_BASE`](Self::AMBISONIC_BASE) to
     /// [`AMBISONIC_END`](Self::AMBISONIC_END) inclusive.
     #[inline]
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "within the checked ambisonic range, which is below 2^16"
+    )]
     pub const fn ambisonic_index(self) -> Option<u16> {
         let (raw, base) = (self.0.0, Self::AMBISONIC_BASE.0.0);
         if raw >= base && raw <= Self::AMBISONIC_END.0.0 {
@@ -332,7 +341,7 @@ impl From<Channel> for ffi::AVChannel {
 // memory is the whole of it.
 unsafe impl CPlainElem for Channel {}
 
-/// Wraps: AVMatrixEncoding
+/// Wraps: `AVMatrixEncoding`
 /// Handwritten
 ///
 /// The matrixed-stereo encoding of a downmix: none, or one of the Dolby
@@ -374,35 +383,36 @@ unsafe impl CPlainElem for Channel {}
 pub struct MatrixEncoding(ffi::AVMatrixEncoding);
 
 impl MatrixEncoding {
-    /// No matrixed encoding.
-    pub const NONE: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NONE);
+    /// The number of encodings from [`NONE`](Self::NONE) to
+    /// [`DOLBY_HEADPHONE`](Self::DOLBY_HEADPHONE) (`AV_MATRIX_ENCODING_NB`):
+    /// the length of an array indexed by [`index`](Self::index).
+    pub const COUNT: usize = ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB.0 as usize;
     /// Dolby Surround.
     pub const DOLBY: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBY);
-    /// Dolby Pro Logic II.
-    pub const DPLII: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLII);
-    /// Dolby Pro Logic IIx.
-    pub const DPLIIX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIX);
-    /// Dolby Pro Logic IIz.
-    pub const DPLIIZ: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIZ);
     /// Dolby Digital EX.
     pub const DOLBY_EX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYEX);
     /// Dolby Headphone.
     pub const DOLBY_HEADPHONE: Self =
         Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYHEADPHONE);
-
-    /// The number of encodings from [`NONE`](Self::NONE) to
-    /// [`DOLBY_HEADPHONE`](Self::DOLBY_HEADPHONE) (`AV_MATRIX_ENCODING_NB`):
-    /// the length of an array indexed by [`index`](Self::index).
-    pub const COUNT: usize = ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB.0 as usize;
+    /// Dolby Pro Logic II.
+    pub const DPLII: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLII);
+    /// Dolby Pro Logic `IIx`.
+    pub const DPLIIX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIX);
+    /// Dolby Pro Logic `IIz`.
+    pub const DPLIIZ: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIZ);
+    /// No matrixed encoding.
+    pub const NONE: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NONE);
 
     /// The encoding C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVMatrixEncoding) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this value.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVMatrixEncoding {
         self.0
     }
@@ -410,6 +420,7 @@ impl MatrixEncoding {
     /// This encoding's position in `0..COUNT`, or `None` for any value C
     /// does not name.
     #[inline]
+    #[must_use]
     pub const fn index(self) -> Option<usize> {
         let raw = self.0.0 as usize;
         if raw < Self::COUNT { Some(raw) } else { None }
@@ -466,7 +477,7 @@ impl From<MatrixEncoding> for ffi::AVMatrixEncoding {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for MatrixEncoding {}
 
-/// Wraps: AVChannelOrder
+/// Wraps: `AVChannelOrder`
 /// Handwritten
 ///
 /// How a channel layout describes its channels: by count alone, as a bitmask
@@ -497,28 +508,30 @@ unsafe impl CPlainElem for MatrixEncoding {}
 pub struct ChannelOrder(ffi::AVChannelOrder);
 
 impl ChannelOrder {
-    /// Only the channel count is known, not which channels they are or their
-    /// order.
-    pub const UNSPEC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
-    /// The channels are those set in the layout's mask, in the order of the
-    /// `AVChannel` values; up to 63 distinct channels.
-    pub const NATIVE: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE);
-    /// The channels are listed one by one in the layout's map, in any order,
-    /// with unused or repeated channels and 64 or more of them allowed.
-    pub const CUSTOM: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
     /// Each channel is one spherical harmonic of the sound field, in ACN
     /// order (SN3D normalization); the mask, if any, marks the trailing
     /// non-diegetic channels.
     pub const AMBISONIC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC);
+    /// The channels are listed one by one in the layout's map, in any order,
+    /// with unused or repeated channels and 64 or more of them allowed.
+    pub const CUSTOM: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+    /// The channels are those set in the layout's mask, in the order of the
+    /// `AVChannel` values; up to 63 distinct channels.
+    pub const NATIVE: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE);
+    /// Only the channel count is known, not which channels they are or their
+    /// order.
+    pub const UNSPEC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
 
     /// The channel order C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVChannelOrder) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this channel order.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVChannelOrder {
         self.0
     }
@@ -722,10 +735,13 @@ impl ChannelCustomRef<'_> {
     /// The channel's id: any value, user-defined ids included.
     #[must_use]
     pub fn id(&self) -> Channel {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `id` field is in bounds; nothing is accessed here.
+        let id_ptr = unsafe { addr_of!((*self.as_ptr()).id) };
         // SAFETY: a read of the `id` field projected through the shared
         // handle's pointer to a live, initialised `AVChannelCustom`; `Channel`
         // accepts every `int` C may store there.
-        Channel::from_raw(unsafe { addr_of!((*self.as_ptr()).id).read() })
+        Channel::from_raw(unsafe { id_ptr.read() })
     }
 
     /// Field: AVChannelCustom.name
@@ -736,11 +752,14 @@ impl ChannelCustomRef<'_> {
     /// bytes.
     #[must_use]
     pub fn name(&self) -> ChannelName {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `name` field is in bounds; nothing is accessed here.
+        let name_ptr = unsafe { addr_of!((*self.as_ptr()).name) };
         // SAFETY: a read of the 16-`char` `name` array projected through the
         // shared handle's pointer to a live, initialised `AVChannelCustom`;
         // every bit pattern is a valid `c_char`, and the copy reads no byte
         // outside the field.
-        ChannelName::from_field(unsafe { addr_of!((*self.as_ptr()).name).read() })
+        ChannelName::from_field(unsafe { name_ptr.read() })
     }
 
     /// Field: AVChannelCustom.opaque
@@ -753,10 +772,13 @@ impl ChannelCustomRef<'_> {
     /// business.
     #[must_use]
     pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of!((*self.as_ptr()).opaque) };
         // SAFETY: a read of the `opaque` field projected through the shared
         // handle's pointer to a live, initialised `AVChannelCustom`; the
         // pointer is copied, not dereferenced.
-        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+        unsafe { opaque_ptr.read() }
     }
 
     /// A copy of the whole channel, independent of the place it was read
@@ -776,10 +798,13 @@ impl ChannelCustomMut<'_> {
     ///
     /// Sets the channel's id, which C stores as given.
     pub fn set_id(&mut self, id: Channel) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `id` field is in bounds; nothing is accessed here.
+        let id_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).id) };
         // SAFETY: a write of the `id` field projected through the exclusive
         // handle's pointer to a live `AVChannelCustom`; the old value owns
         // nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).id).write(id.into_raw()) }
+        unsafe { id_ptr.write(id.into_raw()) }
     }
 
     /// Field: AVChannelCustom.name
@@ -787,6 +812,10 @@ impl ChannelCustomMut<'_> {
     /// Sets the channel's name to `name` if it fits the field with its NUL
     /// (at most [`ChannelName::MAX_LEN`] bytes); otherwise leaves the name as
     /// it was and returns the error. An empty name clears it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NameTooLong`] when `name` does not fit the field, leaving the name as it was.
     pub fn set_name(&mut self, name: &CStr) -> Result<(), NameTooLong> {
         let len = name.to_bytes().len();
         if len > ChannelName::MAX_LEN {
@@ -817,14 +846,18 @@ impl ChannelCustomMut<'_> {
         // SAFETY: projects the `name` field through the exclusive handle's
         // pointer to a live `AVChannelCustom`, without forming a reference.
         let field = unsafe { addr_of_mut!((*self.as_mut_ptr()).name) }.cast::<u8>();
-        // SAFETY: `field` addresses the 16-byte `name` array of the live
+        // For the unsafe operations below: `field` addresses the 16-byte `name` array of the live
         // `AVChannelCustom` the exclusive handle covers, so its first
         // `len + 1 <= 16` bytes are writable; `bytes` is a Rust slice, which
         // cannot overlap C memory only this handle reaches; `u8` and `c_char`
         // share size, alignment and every bit pattern.
-        unsafe {
-            core::ptr::copy_nonoverlapping(bytes.as_ptr(), field, len);
-            field.add(len).write(0);
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), field, len) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let field_add = unsafe { field.add(len) };
+            // SAFETY: as the comment above this block states.
+            unsafe { field_add.write(0) };
         }
     }
 
@@ -837,13 +870,19 @@ impl ChannelCustomMut<'_> {
     /// the map is freed.
     // The lint reads the write of `opaque` as a dereference of it: the
     // pointer is the value stored, through the handle's own pointer.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[expect(
+        clippy::not_unsafe_ptr_arg_deref,
+        reason = "the pointer is an opaque user cookie, stored and never dereferenced"
+    )]
     pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque) };
         // SAFETY: a write of the `opaque` field projected through the
         // exclusive handle's pointer to a live `AVChannelCustom`; the old
         // pointer is a cookie nothing frees, so overwriting it leaks nothing
         // C or this crate owns.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+        unsafe { opaque_ptr.write(opaque) }
     }
 
     /// Overwrites the whole channel with `ch`'s fields, the name's bytes
@@ -865,7 +904,6 @@ pub struct ChannelName([u8; ChannelName::FIELD_LEN + 1]);
 impl ChannelName {
     /// Size of the C field, `char name[16]`, its NUL included.
     const FIELD_LEN: usize = 16;
-
     /// The longest name the field stores with its NUL.
     pub const MAX_LEN: usize = Self::FIELD_LEN - 1;
 
@@ -877,7 +915,7 @@ impl ChannelName {
             if c == 0 {
                 break;
             }
-            *b = c as u8;
+            *b = c.cast_unsigned();
         }
         Self(buf)
     }
@@ -896,6 +934,10 @@ impl ChannelName {
     }
 
     /// The name as UTF-8, if it is.
+    ///
+    /// # Errors
+    ///
+    /// The [`Utf8Error`](core::str::Utf8Error) of a name that is not UTF-8.
     pub fn to_str(&self) -> Result<&str, core::str::Utf8Error> {
         self.as_c_str().to_str()
     }
@@ -993,7 +1035,7 @@ impl Channel {
             .to_owned()
     }
 
-    /// Wraps: av_channel_name
+    /// Wraps: `av_channel_name`
     ///
     /// Writes this channel's abbreviated name, as [`name`](Self::name)
     /// returns it, into `buf`, truncated to fit with its NUL, and returns the
@@ -1009,7 +1051,7 @@ impl Channel {
         self.write_with(ffi::av_channel_name, buf)
     }
 
-    /// Wraps: av_channel_name
+    /// Wraps: `av_channel_name`
     ///
     /// This channel's abbreviated name, which [`from_name`](Self::from_name)
     /// maps back: `FL`, `LFE` and the like for the named channels, `AMBI<n>`
@@ -1027,7 +1069,7 @@ impl Channel {
         self.to_c_string(ffi::av_channel_name)
     }
 
-    /// Wraps: av_channel_description
+    /// Wraps: `av_channel_description`
     ///
     /// Writes this channel's description, as
     /// [`description`](Self::description) returns it, into `buf`, as
@@ -1041,7 +1083,7 @@ impl Channel {
         self.write_with(ffi::av_channel_description, buf)
     }
 
-    /// Wraps: av_channel_description
+    /// Wraps: `av_channel_description`
     ///
     /// A human-readable description of this channel: `front left` and the
     /// like for the named channels, `ambisonic ACN <n>` for Ambisonic
@@ -1053,7 +1095,7 @@ impl Channel {
         self.to_c_string(ffi::av_channel_description)
     }
 
-    /// Wraps: av_channel_name_bprint
+    /// Wraps: `av_channel_name_bprint`
     ///
     /// Appends this channel's abbreviated name, as [`name`](Self::name)
     /// returns it, to `buf`, truncated as `buf` truncates what does not fit.
@@ -1076,7 +1118,7 @@ impl Channel {
         unsafe { ffi::av_channel_name_bprint(buf.as_mut_ptr(), self.into_raw()) }
     }
 
-    /// Wraps: av_channel_description_bprint
+    /// Wraps: `av_channel_description_bprint`
     ///
     /// Appends this channel's description, as
     /// [`description`](Self::description) returns it, to `buf`, truncated
@@ -1086,7 +1128,7 @@ impl Channel {
         unsafe { ffi::av_channel_description_bprint(buf.as_mut_ptr(), self.into_raw()) }
     }
 
-    /// Wraps: av_channel_from_string
+    /// Wraps: `av_channel_from_string`
     ///
     /// The channel `name` names, the inverse of [`name`](Self::name): an
     /// abbreviation such as `FL`, `UNK` or `UNSD`, `AMBI<n>` for Ambisonic
@@ -1099,6 +1141,7 @@ impl Channel {
     /// number is ignored, and `AMBI` with no number is component 0; `USR`
     /// with no number is channel 0; and a number beyond `i32` is truncated
     /// to an `int` before it is checked.
+    #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only reads
         // during the call.
@@ -1119,10 +1162,15 @@ const EINVAL: i32 = -22;
 /// are [`ChannelLayout`]'s constants of the same names.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+///     ChannelLayout, LayoutDetails, masks,
+/// };
 /// let l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
 /// assert_eq!(l.as_ref().channel_count(), 6);
-/// assert!(matches!(l.as_ref().details(), LayoutDetails::Native(masks::L5POINT1)));
+/// assert!(matches!(
+///     l.as_ref().details(),
+///     LayoutDetails::Native(masks::L5POINT1)
+/// ));
 /// ```
 pub mod masks {
     use super::Channel;
@@ -1324,7 +1372,7 @@ unsafe impl Sync for ChannelLayoutRef<'_> {}
 // shared handle; the setters need `&mut`.
 unsafe impl Sync for ChannelLayoutMut<'_> {}
 
-/// Wraps: av_channel_layout_uninit
+/// Wraps: `av_channel_layout_uninit`
 ///
 /// The disposal policy of a [`ChannelLayoutVal`]: `av_channel_layout_uninit`
 /// frees a custom layout's map and zeroes every field, leaving the storage,
@@ -1359,7 +1407,7 @@ fn c_strtol(s: &[u8]) -> (i64, usize) {
     let mut i = 0;
     while s
         .get(i)
-        .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+        .is_some_and(|b| matches!(b, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r'))
     {
         i += 1;
     }
@@ -1408,6 +1456,10 @@ fn c_strtol(s: &[u8]) -> (i64, usize) {
 /// the one before is in range and ends at a `+`; a segment of any other form
 /// (a standard name, a channel list, a mask, a count) ends the chain without
 /// reading another order.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "C narrows the `long` to an `int` modulo 2^32, as `as` does"
+)]
 pub(crate) fn ambisonic_order_overflows(description: &[u8]) -> bool {
     let mut segment = description;
     loop {
@@ -1478,12 +1530,14 @@ impl ChannelLayout {
     /// `unspecified(0)` is the zeroed layout.
     pub fn unspecified(nb_channels: i32) -> ChannelLayoutVal {
         let raw = Self::masked(ChannelOrder::UNSPEC, nb_channels, 0, ptr::null_mut());
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_parts_2 = unsafe { Self::from_parts(raw) };
         // SAFETY: an unspecified-order layout holds no map, so it owns
         // nothing and `av_channel_layout_uninit` frees nothing for it.
-        unsafe { ChannelLayoutVal::new(Self::from_parts(raw)) }
+        unsafe { ChannelLayoutVal::new(from_parts_2) }
     }
 
-    /// Wraps: av_channel_layout_custom_init
+    /// Wraps: `av_channel_layout_custom_init`
     ///
     /// A custom-order layout of `nb_channels` channels, each
     /// [`Channel::UNKNOWN`] and unnamed, to be designated through
@@ -1500,7 +1554,7 @@ impl ChannelLayout {
         Self::init_with(|l| unsafe { ffi::av_channel_layout_custom_init(l, nb_channels) })
     }
 
-    /// Wraps: av_channel_layout_from_mask
+    /// Wraps: `av_channel_layout_from_mask`
     ///
     /// The native-order layout of the channels set in `mask`: bit `n` is
     /// the [`Channel`] of id `n`.
@@ -1514,7 +1568,7 @@ impl ChannelLayout {
         Self::init_with(|l| unsafe { ffi::av_channel_layout_from_mask(l, mask) })
     }
 
-    /// Wraps: av_channel_layout_from_string
+    /// Wraps: `av_channel_layout_from_string`
     ///
     /// The layout `description` describes, in any of the forms C accepts: a
     /// standard layout name (`stereo`, `5.1(side)`), channel names joined by
@@ -1525,11 +1579,16 @@ impl ChannelLayout {
     /// (`ambisonic 2+stereo`).
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, LayoutDetails};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     ChannelLayout, ChannelOrder, LayoutDetails,
+    /// };
     /// let stereo = ChannelLayout::parse(c"stereo").unwrap();
     /// assert_eq!(stereo.as_ref().order(), ChannelOrder::NATIVE);
     /// assert_eq!(stereo.as_ref().channel_count(), 2);
-    /// assert!(matches!(stereo.as_ref().details(), LayoutDetails::Native(0x3)));
+    /// assert!(matches!(
+    ///     stereo.as_ref().details(),
+    ///     LayoutDetails::Native(0x3)
+    /// ));
     /// ```
     ///
     /// # Errors
@@ -1555,7 +1614,7 @@ impl ChannelLayout {
         Self::init_with(|l| unsafe { ffi::av_channel_layout_from_string(l, description.as_ptr()) })
     }
 
-    /// Wraps: av_channel_layout_default
+    /// Wraps: `av_channel_layout_default`
     ///
     /// The default layout of `nb_channels` channels: the first standard
     /// native layout with that many (`mono`, `stereo`, `2.1`, ...), or, for a
@@ -1574,15 +1633,24 @@ impl ChannelLayout {
     /// or longer than `i32::MAX`, which a layout cannot count.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelCustom, ChannelLayout};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     Channel, ChannelCustom, ChannelLayout,
+    /// };
     /// use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
     /// let mut map = alloc_cell_array_zeroed::<ChannelCustom>(2).unwrap();
-    /// for (i, id) in [Channel::FRONT_LEFT, Channel::LOW_FREQUENCY].into_iter().enumerate() {
+    /// for (i, id) in [Channel::FRONT_LEFT, Channel::LOW_FREQUENCY]
+    ///     .into_iter()
+    ///     .enumerate()
+    /// {
     ///     map.as_handles_mut().get_mut(i).unwrap().set_id(id);
     /// }
     /// let layout = ChannelLayout::from_custom_map(map).unwrap();
     /// assert_eq!(layout.as_ref().channel_count(), 2);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `map` when it is empty or longer than `i32::MAX`.
     pub fn from_custom_map(
         map: HeapVec<ChannelCustom>,
     ) -> Result<ChannelLayoutVal, HeapVec<ChannelCustom>> {
@@ -1599,7 +1667,9 @@ impl ChannelLayout {
 /// [`ChannelLayoutMut::set`] and its siblings take.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal, ChannelOrder};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+///     ChannelLayout, ChannelLayoutVal, ChannelOrder,
+/// };
 /// assert_eq!(ChannelLayout::L5POINT1.as_ref().channel_count(), 6);
 /// let mut l = ChannelLayoutVal::from(ChannelLayout::STEREO);
 /// l.as_mut().set(ChannelLayout::AMBISONIC_FIRST_ORDER.into());
@@ -1607,60 +1677,59 @@ impl ChannelLayout {
 /// assert_eq!(l.as_ref().channel_count(), 4);
 /// ```
 impl ChannelLayout {
-    /// The native-order layout of the channels set in `mask`, counting
-    /// them: what C's `AV_CHANNEL_LAYOUT_MASK(nb, m)` initialises for a
-    /// consistent `nb` (the only way the header and FFmpeg use it), and what
-    /// [`from_mask`](Self::from_mask) builds, with no error for an empty
-    /// mask, which leaves no channels.
-    #[must_use]
-    pub const fn native(mask: u64) -> Self {
-        // SAFETY: a native-order layout holds a mask, no map.
-        unsafe {
-            Self::from_parts(ffi::AVChannelLayout {
-                order: ChannelOrder::NATIVE.into_raw(),
-                nb_channels: mask.count_ones() as c_int,
-                u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
-                opaque: ptr::null_mut(),
-            })
-        }
-    }
-
-    /// `AV_CHANNEL_LAYOUT_MONO`: the native layout of [`masks::MONO`].
-    pub const MONO: Self = Self::native(masks::MONO);
-    /// `AV_CHANNEL_LAYOUT_STEREO`: the native layout of [`masks::STEREO`].
-    pub const STEREO: Self = Self::native(masks::STEREO);
+    /// `AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER`: the four first-order
+    /// Ambisonic components and no non-diegetic channel.
+    // SAFETY: an ambisonic layout with a zero mask holds no map.
+    pub const AMBISONIC_FIRST_ORDER: Self = unsafe {
+        Self::from_parts(ffi::AVChannelLayout {
+            order: ChannelOrder::AMBISONIC.into_raw(),
+            nb_channels: 4,
+            u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
+            opaque: ptr::null_mut(),
+        })
+    };
+    /// `AV_CHANNEL_LAYOUT_BINAURAL`: the native layout of [`masks::BINAURAL`].
+    pub const BINAURAL: Self = Self::native(masks::BINAURAL);
+    /// `AV_CHANNEL_LAYOUT_CUBE`: the native layout of [`masks::CUBE`].
+    pub const CUBE: Self = Self::native(masks::CUBE);
+    /// `AV_CHANNEL_LAYOUT_HEXADECAGONAL`: the native layout of [`masks::HEXADECAGONAL`].
+    pub const HEXADECAGONAL: Self = Self::native(masks::HEXADECAGONAL);
+    /// `AV_CHANNEL_LAYOUT_HEXAGONAL`: the native layout of [`masks::HEXAGONAL`].
+    pub const HEXAGONAL: Self = Self::native(masks::HEXAGONAL);
+    /// `AV_CHANNEL_LAYOUT_22POINT2`: the native layout of [`masks::L22POINT2`].
+    pub const L22POINT2: Self = Self::native(masks::L22POINT2);
     /// `AV_CHANNEL_LAYOUT_2POINT1`: the native layout of [`masks::L2POINT1`].
     pub const L2POINT1: Self = Self::native(masks::L2POINT1);
     /// `AV_CHANNEL_LAYOUT_2_1`: the native layout of [`masks::L2_1`].
     pub const L2_1: Self = Self::native(masks::L2_1);
-    /// `AV_CHANNEL_LAYOUT_SURROUND`: the native layout of [`masks::SURROUND`].
-    pub const SURROUND: Self = Self::native(masks::SURROUND);
+    /// `AV_CHANNEL_LAYOUT_2_2`: the native layout of [`masks::L2_2`].
+    pub const L2_2: Self = Self::native(masks::L2_2);
     /// `AV_CHANNEL_LAYOUT_3POINT1`: the native layout of [`masks::L3POINT1`].
     pub const L3POINT1: Self = Self::native(masks::L3POINT1);
+    /// `AV_CHANNEL_LAYOUT_3POINT1POINT2`: the native layout of [`masks::L3POINT1POINT2`].
+    pub const L3POINT1POINT2: Self = Self::native(masks::L3POINT1POINT2);
     /// `AV_CHANNEL_LAYOUT_4POINT0`: the native layout of [`masks::L4POINT0`].
     pub const L4POINT0: Self = Self::native(masks::L4POINT0);
     /// `AV_CHANNEL_LAYOUT_4POINT1`: the native layout of [`masks::L4POINT1`].
     pub const L4POINT1: Self = Self::native(masks::L4POINT1);
-    /// `AV_CHANNEL_LAYOUT_2_2`: the native layout of [`masks::L2_2`].
-    pub const L2_2: Self = Self::native(masks::L2_2);
-    /// `AV_CHANNEL_LAYOUT_QUAD`: the native layout of [`masks::QUAD`].
-    pub const QUAD: Self = Self::native(masks::QUAD);
     /// `AV_CHANNEL_LAYOUT_5POINT0`: the native layout of [`masks::L5POINT0`].
     pub const L5POINT0: Self = Self::native(masks::L5POINT0);
-    /// `AV_CHANNEL_LAYOUT_5POINT1`: the native layout of [`masks::L5POINT1`].
-    pub const L5POINT1: Self = Self::native(masks::L5POINT1);
     /// `AV_CHANNEL_LAYOUT_5POINT0_BACK`: the native layout of [`masks::L5POINT0_BACK`].
     pub const L5POINT0_BACK: Self = Self::native(masks::L5POINT0_BACK);
+    /// `AV_CHANNEL_LAYOUT_5POINT1`: the native layout of [`masks::L5POINT1`].
+    pub const L5POINT1: Self = Self::native(masks::L5POINT1);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2`: the native layout of [`masks::L5POINT1POINT2`].
+    pub const L5POINT1POINT2: Self = Self::native(masks::L5POINT1POINT2);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2_BACK`: the native layout of [`masks::L5POINT1POINT2_BACK`].
+    pub const L5POINT1POINT2_BACK: Self = Self::native(masks::L5POINT1POINT2_BACK);
+    /// `AV_CHANNEL_LAYOUT_5POINT1POINT4`: the native layout of [`masks::L5POINT1POINT4`].
+    pub const L5POINT1POINT4: Self = Self::native(masks::L5POINT1POINT4);
     /// `AV_CHANNEL_LAYOUT_5POINT1_BACK`: the native layout of [`masks::L5POINT1_BACK`].
     pub const L5POINT1_BACK: Self = Self::native(masks::L5POINT1_BACK);
     /// `AV_CHANNEL_LAYOUT_6POINT0`: the native layout of [`masks::L6POINT0`].
     pub const L6POINT0: Self = Self::native(masks::L6POINT0);
     /// `AV_CHANNEL_LAYOUT_6POINT0_FRONT`: the native layout of [`masks::L6POINT0_FRONT`].
     pub const L6POINT0_FRONT: Self = Self::native(masks::L6POINT0_FRONT);
-    /// `AV_CHANNEL_LAYOUT_HEXAGONAL`: the native layout of [`masks::HEXAGONAL`].
-    pub const HEXAGONAL: Self = Self::native(masks::HEXAGONAL);
-    /// `AV_CHANNEL_LAYOUT_3POINT1POINT2`: the native layout of [`masks::L3POINT1POINT2`].
-    pub const L3POINT1POINT2: Self = Self::native(masks::L3POINT1POINT2);
     /// `AV_CHANNEL_LAYOUT_6POINT1`: the native layout of [`masks::L6POINT1`].
     pub const L6POINT1: Self = Self::native(masks::L6POINT1);
     /// `AV_CHANNEL_LAYOUT_6POINT1_BACK`: the native layout of [`masks::L6POINT1_BACK`].
@@ -1673,49 +1742,50 @@ impl ChannelLayout {
     pub const L7POINT0_FRONT: Self = Self::native(masks::L7POINT0_FRONT);
     /// `AV_CHANNEL_LAYOUT_7POINT1`: the native layout of [`masks::L7POINT1`].
     pub const L7POINT1: Self = Self::native(masks::L7POINT1);
-    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE`: the native layout of [`masks::L7POINT1_WIDE`].
-    pub const L7POINT1_WIDE: Self = Self::native(masks::L7POINT1_WIDE);
-    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK`: the native layout of [`masks::L7POINT1_WIDE_BACK`].
-    pub const L7POINT1_WIDE_BACK: Self = Self::native(masks::L7POINT1_WIDE_BACK);
-    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2`: the native layout of [`masks::L5POINT1POINT2`].
-    pub const L5POINT1POINT2: Self = Self::native(masks::L5POINT1POINT2);
-    /// `AV_CHANNEL_LAYOUT_5POINT1POINT2_BACK`: the native layout of [`masks::L5POINT1POINT2_BACK`].
-    pub const L5POINT1POINT2_BACK: Self = Self::native(masks::L5POINT1POINT2_BACK);
-    /// `AV_CHANNEL_LAYOUT_OCTAGONAL`: the native layout of [`masks::OCTAGONAL`].
-    pub const OCTAGONAL: Self = Self::native(masks::OCTAGONAL);
-    /// `AV_CHANNEL_LAYOUT_CUBE`: the native layout of [`masks::CUBE`].
-    pub const CUBE: Self = Self::native(masks::CUBE);
-    /// `AV_CHANNEL_LAYOUT_5POINT1POINT4`: the native layout of [`masks::L5POINT1POINT4`].
-    pub const L5POINT1POINT4: Self = Self::native(masks::L5POINT1POINT4);
     /// `AV_CHANNEL_LAYOUT_7POINT1POINT2`: the native layout of [`masks::L7POINT1POINT2`].
     pub const L7POINT1POINT2: Self = Self::native(masks::L7POINT1POINT2);
     /// `AV_CHANNEL_LAYOUT_7POINT1POINT4`: the native layout of [`masks::L7POINT1POINT4`].
     pub const L7POINT1POINT4: Self = Self::native(masks::L7POINT1POINT4);
+    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE`: the native layout of [`masks::L7POINT1_WIDE`].
+    pub const L7POINT1_WIDE: Self = Self::native(masks::L7POINT1_WIDE);
+    /// `AV_CHANNEL_LAYOUT_7POINT1_WIDE_BACK`: the native layout of [`masks::L7POINT1_WIDE_BACK`].
+    pub const L7POINT1_WIDE_BACK: Self = Self::native(masks::L7POINT1_WIDE_BACK);
     /// `AV_CHANNEL_LAYOUT_7POINT2POINT3`: the native layout of [`masks::L7POINT2POINT3`].
     pub const L7POINT2POINT3: Self = Self::native(masks::L7POINT2POINT3);
     /// `AV_CHANNEL_LAYOUT_9POINT1POINT4`: the native layout of [`masks::L9POINT1POINT4`].
     pub const L9POINT1POINT4: Self = Self::native(masks::L9POINT1POINT4);
     /// `AV_CHANNEL_LAYOUT_9POINT1POINT6`: the native layout of [`masks::L9POINT1POINT6`].
     pub const L9POINT1POINT6: Self = Self::native(masks::L9POINT1POINT6);
-    /// `AV_CHANNEL_LAYOUT_HEXADECAGONAL`: the native layout of [`masks::HEXADECAGONAL`].
-    pub const HEXADECAGONAL: Self = Self::native(masks::HEXADECAGONAL);
-    /// `AV_CHANNEL_LAYOUT_BINAURAL`: the native layout of [`masks::BINAURAL`].
-    pub const BINAURAL: Self = Self::native(masks::BINAURAL);
+    /// `AV_CHANNEL_LAYOUT_MONO`: the native layout of [`masks::MONO`].
+    pub const MONO: Self = Self::native(masks::MONO);
+    /// `AV_CHANNEL_LAYOUT_OCTAGONAL`: the native layout of [`masks::OCTAGONAL`].
+    pub const OCTAGONAL: Self = Self::native(masks::OCTAGONAL);
+    /// `AV_CHANNEL_LAYOUT_QUAD`: the native layout of [`masks::QUAD`].
+    pub const QUAD: Self = Self::native(masks::QUAD);
+    /// `AV_CHANNEL_LAYOUT_STEREO`: the native layout of [`masks::STEREO`].
+    pub const STEREO: Self = Self::native(masks::STEREO);
     /// `AV_CHANNEL_LAYOUT_STEREO_DOWNMIX`: the native layout of [`masks::STEREO_DOWNMIX`].
     pub const STEREO_DOWNMIX: Self = Self::native(masks::STEREO_DOWNMIX);
-    /// `AV_CHANNEL_LAYOUT_22POINT2`: the native layout of [`masks::L22POINT2`].
-    pub const L22POINT2: Self = Self::native(masks::L22POINT2);
-    /// `AV_CHANNEL_LAYOUT_AMBISONIC_FIRST_ORDER`: the four first-order
-    /// Ambisonic components and no non-diegetic channel.
-    // SAFETY: an ambisonic layout with a zero mask holds no map.
-    pub const AMBISONIC_FIRST_ORDER: Self = unsafe {
-        Self::from_parts(ffi::AVChannelLayout {
-            order: ChannelOrder::AMBISONIC.into_raw(),
-            nb_channels: 4,
-            u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
-            opaque: ptr::null_mut(),
-        })
-    };
+    /// `AV_CHANNEL_LAYOUT_SURROUND`: the native layout of [`masks::SURROUND`].
+    pub const SURROUND: Self = Self::native(masks::SURROUND);
+
+    /// The native-order layout of the channels set in `mask`, counting
+    /// them: what C's `AV_CHANNEL_LAYOUT_MASK(nb, m)` initialises for a
+    /// consistent `nb` (the only way the header and FFmpeg use it), and what
+    /// [`from_mask`](Self::from_mask) builds, with no error for an empty
+    /// mask, which leaves no channels.
+    #[must_use]
+    pub const fn native(mask: u64) -> Self {
+        // SAFETY: a native-order layout holds a mask, no map.
+        unsafe {
+            Self::from_parts(ffi::AVChannelLayout {
+                order: ChannelOrder::NATIVE.into_raw(),
+                nb_channels: mask.count_ones().cast_signed(),
+                u: ffi::AVChannelLayout__bindgen_ty_1 { mask },
+                opaque: ptr::null_mut(),
+            })
+        }
+    }
 }
 
 /// Takes a bare layout, such as one of [`ChannelLayout`]'s standard
@@ -1805,13 +1875,16 @@ impl<'a> ChannelLayoutRef<'a> {
     /// How the layout describes its channels, any value C stored included.
     #[must_use]
     pub fn order(&self) -> ChannelOrder {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `order` field is in bounds; nothing is accessed here.
+        let order_ptr = unsafe { addr_of!((*self.as_ptr()).order) };
         // SAFETY: a read of the `order` field projected through the shared
         // handle's pointer to a live, initialised `AVChannelLayout`;
         // `ChannelOrder` accepts every `unsigned`.
-        ChannelOrder::from_raw(unsafe { addr_of!((*self.as_ptr()).order).read() })
+        ChannelOrder::from_raw(unsafe { order_ptr.read() })
     }
 
-    /// Field: AVChannelLayout.nb_channels
+    /// Field: `AVChannelLayout.nb_channels`
     ///
     /// The number of channels, as C stores it: never negative on a layout
     /// a safe path built, except one built [unspecified](ChannelLayout::unspecified)
@@ -1819,9 +1892,12 @@ impl<'a> ChannelLayoutRef<'a> {
     /// count.
     #[must_use]
     pub fn channel_count(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nb_channels` field is in bounds; nothing is accessed here.
+        let nb_channels_ptr = unsafe { addr_of!((*self.as_ptr()).nb_channels) };
         // SAFETY: a read of the `nb_channels` field projected through the
         // shared handle's pointer to a live, initialised `AVChannelLayout`.
-        unsafe { addr_of!((*self.as_ptr()).nb_channels).read() }
+        unsafe { nb_channels_ptr.read() }
     }
 
     /// The map pointer and the count of a custom-order layout.
@@ -1829,10 +1905,13 @@ impl<'a> ChannelLayoutRef<'a> {
         if self.order() != ChannelOrder::CUSTOM {
             return None;
         }
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `u.map` field is in bounds; nothing is accessed here.
+        let map_ptr = unsafe { addr_of!((*self.as_ptr()).u.map) };
         // SAFETY: a read of the `u.map` union member projected through the
         // shared handle's pointer; a custom-order layout stores `map` there,
         // and the pointer is copied, not dereferenced.
-        let map = unsafe { addr_of!((*self.as_ptr()).u.map).read() };
+        let map = unsafe { map_ptr.read() };
         Some((map, self.channel_count()))
     }
 
@@ -1845,20 +1924,31 @@ impl<'a> ChannelLayoutRef<'a> {
     /// layout.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout, LayoutDetails};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     Channel, ChannelLayout, LayoutDetails,
+    /// };
     /// let layout = ChannelLayout::parse(c"FL@left+LFE").unwrap();
-    /// let LayoutDetails::Custom(map) = layout.as_ref().details() else { panic!() };
+    /// let LayoutDetails::Custom(map) = layout.as_ref().details() else {
+    ///     panic!()
+    /// };
     /// assert_eq!(map.get(0).unwrap().name().as_c_str(), c"left");
     /// assert_eq!(map.get(1).unwrap().id(), Channel::LOW_FREQUENCY);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that the order is custom.
     #[must_use]
     pub fn details(&self) -> LayoutDetails<'a> {
         let order = self.order();
         let mask = || {
+            // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+            // so the place of its `u.mask` field is in bounds; nothing is accessed here.
+            let mask_ptr = unsafe { addr_of!((*self.as_ptr()).u.mask) };
             // SAFETY: a read of the `u.mask` union member projected through
             // the shared handle's pointer; a native or ambisonic layout
             // stores the mask there, and every bit pattern is a `u64`.
-            unsafe { addr_of!((*self.as_ptr()).u.mask).read() }
+            unsafe { mask_ptr.read() }
         };
         match order {
             ChannelOrder::UNSPEC => LayoutDetails::Unspecified,
@@ -1895,13 +1985,16 @@ impl<'a> ChannelLayoutRef<'a> {
     /// cookie it is, and dereferencing it is the caller's `unsafe` business.
     #[must_use]
     pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of!((*self.as_ptr()).opaque) };
         // SAFETY: a read of the `opaque` field projected through the shared
         // handle's pointer to a live, initialised `AVChannelLayout`; the
         // pointer is copied, not dereferenced.
-        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+        unsafe { opaque_ptr.read() }
     }
 
-    /// Wraps: av_channel_layout_copy
+    /// Wraps: `av_channel_layout_copy`
     ///
     /// A deep copy of this layout: a custom map is duplicated, the user
     /// pointer copied by address.
@@ -1927,12 +2020,18 @@ impl<'a> ChannelLayoutMut<'a> {
     /// read it back is the caller's concern.
     // The lint reads the write of `opaque` as a dereference of it: the
     // pointer is the value stored, through the handle's own pointer.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[expect(
+        clippy::not_unsafe_ptr_arg_deref,
+        reason = "the pointer is an opaque user cookie, stored and never dereferenced"
+    )]
     pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque) };
         // SAFETY: a write of the `opaque` field projected through the
         // exclusive handle's pointer to a live `AVChannelLayout`; the old
         // pointer is a cookie nothing frees.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+        unsafe { opaque_ptr.write(opaque) }
     }
 
     /// Field: AVChannelLayout.u.map
@@ -1975,9 +2074,11 @@ impl<'a> ChannelLayoutMut<'a> {
         // of the old map moves to the returned owner, that of the new one
         // into the layout, so neither is freed or leaked twice.
         let old = unsafe { ptr::replace(self.as_mut_ptr(), new) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_parts_2 = unsafe { ChannelLayout::from_parts(old) };
         // SAFETY: `old` moved out of the layout whole, so it is the sole owner
         // of the map the layout held, if any.
-        unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(old)) }
+        unsafe { ChannelLayoutVal::new(from_parts_2) }
     }
 
     /// Overwrites the layout with `layout`, disposing of the previous one.
@@ -1997,12 +2098,15 @@ impl<'a> ChannelLayoutMut<'a> {
     fn reset_to(&mut self, order: ChannelOrder, nb_channels: c_int, mask: u64) {
         let opaque = self.as_ref().opaque();
         let raw = ChannelLayout::masked(order, nb_channels, mask, opaque);
-        // SAFETY: `masked` builds a layout with no map, which owns nothing.
-        self.set(unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) });
+        // SAFETY: `masked` builds a layout with no map, so it owns no block.
+        let layout = unsafe { ChannelLayout::from_parts(raw) };
+        // SAFETY: as above: the value owns nothing its disposal could free under another
+        // owner.
+        self.set(unsafe { ChannelLayoutVal::new(layout) });
     }
 
     /// Field: AVChannelLayout.order
-    /// Field: AVChannelLayout.nb_channels
+    /// Field: `AVChannelLayout.nb_channels`
     ///
     /// Makes this a layout of `nb_channels` channels in unspecified order,
     /// freeing a custom map and keeping the user pointer.
@@ -2011,7 +2115,7 @@ impl<'a> ChannelLayoutMut<'a> {
     }
 
     /// Field: AVChannelLayout.order
-    /// Field: AVChannelLayout.nb_channels
+    /// Field: `AVChannelLayout.nb_channels`
     /// Field: AVChannelLayout.u.mask
     ///
     /// Makes this the native-order layout of the channels set in `mask`,
@@ -2019,11 +2123,11 @@ impl<'a> ChannelLayoutMut<'a> {
     /// map and keeps the user pointer. An empty mask, which
     /// [`ChannelLayout::from_mask`] refuses, leaves no channels.
     pub fn set_native(&mut self, mask: u64) {
-        self.reset_to(ChannelOrder::NATIVE, mask.count_ones() as c_int, mask);
+        self.reset_to(ChannelOrder::NATIVE, mask.count_ones().cast_signed(), mask);
     }
 
     /// Field: AVChannelLayout.order
-    /// Field: AVChannelLayout.nb_channels
+    /// Field: `AVChannelLayout.nb_channels`
     /// Field: AVChannelLayout.u.mask
     ///
     /// Makes this the layout of the `(order + 1)^2` ambisonic components of
@@ -2055,6 +2159,10 @@ impl<'a> ChannelLayoutMut<'a> {
     /// `map` comes back as the error, the layout left as it was, when it is
     /// empty (C's `av_channel_layout_custom_init` refuses no channels too)
     /// or longer than `i32::MAX`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `map`, the layout left as it was, when it is empty or longer than `i32::MAX`.
     pub fn set_custom_map(
         &mut self,
         map: HeapVec<ChannelCustom>,
@@ -2070,9 +2178,11 @@ impl<'a> ChannelLayoutMut<'a> {
             u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
             opaque,
         };
-        // SAFETY: the layout now owns the `av_malloc`-family block of `count`
-        // initialised elements, which `av_channel_layout_uninit` frees.
-        self.set(unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) });
+        // SAFETY: the map is the `av_malloc`-family block of `count` initialised elements
+        // `into_raw_parts` released, which nothing else frees.
+        let layout = unsafe { ChannelLayout::from_parts(raw) };
+        // SAFETY: the value owns that block alone, which `av_channel_layout_uninit` frees.
+        self.set(unsafe { ChannelLayoutVal::new(layout) });
         Ok(())
     }
 
@@ -2100,7 +2210,7 @@ impl<'a> ChannelLayoutMut<'a> {
         unsafe { HeapVec::from_raw_parts(map.cast(), usize::try_from(count).unwrap_or(0)) }
     }
 
-    /// Wraps: av_channel_layout_uninit
+    /// Wraps: `av_channel_layout_uninit`
     ///
     /// Frees a custom layout's map and zeroes every field, the user pointer
     /// included, leaving the empty unspecified layout.
@@ -2111,7 +2221,7 @@ impl<'a> ChannelLayoutMut<'a> {
         unsafe { ffi::av_channel_layout_uninit(self.as_mut_ptr()) }
     }
 
-    /// Wraps: av_channel_layout_copy
+    /// Wraps: `av_channel_layout_copy`
     ///
     /// Overwrites this layout with a deep copy of `src`, disposing of the
     /// previous one first: a custom map is duplicated, the user pointer
@@ -2145,10 +2255,10 @@ impl<'a> ChannelLayoutMut<'a> {
 }
 
 /// `AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS`: refuse a lossy retype.
-const RETYPE_LOSSLESS: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS as c_int;
+const RETYPE_LOSSLESS: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_LOSSLESS.cast_signed();
 /// `AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL`: retype to the simplest order
 /// that keeps every designation and name, ignoring the order asked for.
-const RETYPE_CANONICAL: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL as c_int;
+const RETYPE_CANONICAL: c_int = ffi::AV_CHANNEL_LAYOUT_RETYPE_FLAG_CANONICAL.cast_signed();
 
 /// Whether [`ChannelLayoutMut::retype`] kept every channel designation and
 /// name.
@@ -2162,7 +2272,7 @@ pub enum Conversion {
 }
 
 impl ChannelLayoutRef<'_> {
-    /// Wraps: av_channel_layout_subset
+    /// Wraps: `av_channel_layout_subset`
     ///
     /// The channels of `mask` (bit `n` the [`Channel`] of id `n`, as in
     /// [`masks`]) that the layout holds, wherever it holds them: `mask`
@@ -2174,8 +2284,14 @@ impl ChannelLayoutRef<'_> {
     /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout, masks};
     /// let l = ChannelLayout::parse(c"LFE@sub+FL+USR40").unwrap();
     /// let front_right = Channel::FRONT_RIGHT.mask().unwrap();
-    /// assert_eq!(l.as_ref().subset(masks::L2POINT1), masks::L2POINT1 ^ front_right);
-    /// assert_eq!(ChannelLayout::STEREO.as_ref().subset(u64::MAX), masks::STEREO);
+    /// assert_eq!(
+    ///     l.as_ref().subset(masks::L2POINT1),
+    ///     masks::L2POINT1 ^ front_right
+    /// );
+    /// assert_eq!(
+    ///     ChannelLayout::STEREO.as_ref().subset(u64::MAX),
+    ///     masks::STEREO
+    /// );
     /// ```
     #[must_use]
     pub fn subset(&self, mask: u64) -> u64 {
@@ -2214,30 +2330,39 @@ impl ChannelLayoutMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(ret) }
     }
 
-    /// Wraps: av_channel_layout_retype
+    /// Wraps: `av_channel_layout_retype`
     ///
     /// Changes the layout's order to `order`, keeping its channel count and
     /// user pointer, and reports whether channel names or designations were
     /// lost on the way. C converts
     ///
     /// - any layout to [custom](ChannelOrder::CUSTOM) order, losslessly;
-    /// - any layout to [unspecified](ChannelOrder::UNSPEC) order, lossily
-    ///   unless it is a custom map of unnamed [`Channel::UNKNOWN`]s;
-    /// - a custom layout to [native](ChannelOrder::NATIVE) order when its
-    ///   map lists distinct native channels (ids below 63) in increasing
-    ///   order, lossily when they are named;
-    /// - a custom layout to [ambisonic](ChannelOrder::AMBISONIC) order when
-    ///   its map starts with every component of some ambisonic order, in
-    ///   ACN order, followed by native channels as above, lossily when they
-    ///   are named.
+    /// - any layout to [unspecified](ChannelOrder::UNSPEC) order, lossily unless it is a custom map
+    ///   of unnamed [`Channel::UNKNOWN`]s;
+    /// - a custom layout to [native](ChannelOrder::NATIVE) order when its map lists distinct native
+    ///   channels (ids below 63) in increasing order, lossily when they are named;
+    /// - a custom layout to [ambisonic](ChannelOrder::AMBISONIC) order when its map starts with
+    ///   every component of some ambisonic order, in ACN order, followed by native channels as
+    ///   above, lossily when they are named.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, Conversion};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     ChannelLayout, ChannelOrder, Conversion,
+    /// };
     /// let mut l = ChannelLayout::parse(c"FL@left+FR").unwrap();
     /// assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
-    /// assert_eq!(l.as_mut().retype(ChannelOrder::NATIVE), Ok(Conversion::Lossy));
-    /// assert_eq!(l.as_mut().retype(ChannelOrder::CUSTOM), Ok(Conversion::Lossless));
-    /// assert_eq!(l.as_mut().retype(ChannelOrder::UNSPEC), Ok(Conversion::Lossy));
+    /// assert_eq!(
+    ///     l.as_mut().retype(ChannelOrder::NATIVE),
+    ///     Ok(Conversion::Lossy)
+    /// );
+    /// assert_eq!(
+    ///     l.as_mut().retype(ChannelOrder::CUSTOM),
+    ///     Ok(Conversion::Lossless)
+    /// );
+    /// assert_eq!(
+    ///     l.as_mut().retype(ChannelOrder::UNSPEC),
+    ///     Ok(Conversion::Lossy)
+    /// );
     /// assert_eq!(l.as_ref().channel_count(), 2);
     /// ```
     ///
@@ -2258,7 +2383,7 @@ impl ChannelLayoutMut<'_> {
         })
     }
 
-    /// Wraps: av_channel_layout_retype
+    /// Wraps: `av_channel_layout_retype`
     ///
     /// Changes the layout's order to `order` as [`retype`](Self::retype)
     /// does, but only if every channel designation and name survives.
@@ -2279,7 +2404,7 @@ impl ChannelLayoutMut<'_> {
         self.retype_with(order, RETYPE_LOSSLESS).map(drop)
     }
 
-    /// Wraps: av_channel_layout_retype
+    /// Wraps: `av_channel_layout_retype`
     ///
     /// Changes the layout to the simplest order that keeps every channel
     /// designation and name: a custom map of unnamed channels becomes
@@ -2289,7 +2414,9 @@ impl ChannelLayoutMut<'_> {
     /// is.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelOrder, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     ChannelLayout, ChannelOrder, masks,
+    /// };
     /// let mut l = ChannelLayout::from_mask(masks::L5POINT1).unwrap();
     /// l.as_mut().retype(ChannelOrder::CUSTOM).unwrap();
     /// l.as_mut().canonicalize().unwrap();
@@ -2308,16 +2435,21 @@ impl ChannelLayoutMut<'_> {
     }
 }
 
-/// Wraps: av_channel_layout_standard
+/// Wraps: `av_channel_layout_standard`
 ///
 /// Every standard layout in C's table, in the table's order: the native
 /// layouts [`ChannelLayout::parse`] knows by name, from `mono` and `stereo`
 /// to `22.2`, each borrowed for the whole program.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, LayoutDetails, masks, standard_layouts};
+/// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+///     ChannelLayout, LayoutDetails, masks, standard_layouts,
+/// };
 /// let first = standard_layouts().next().unwrap();
-/// assert!(matches!(first.details(), LayoutDetails::Native(masks::MONO)));
+/// assert!(matches!(
+///     first.details(),
+///     LayoutDetails::Native(masks::MONO)
+/// ));
 /// assert!(standard_layouts().any(|l| l.channel_count() == 24));
 /// let owned = standard_layouts().last().unwrap().try_clone().unwrap();
 /// assert_eq!(owned.as_ref().subset(u64::MAX), masks::L22POINT2);
@@ -2344,6 +2476,10 @@ pub struct StandardLayouts {
     next: usize,
 }
 
+#[expect(
+    clippy::copy_iterator,
+    reason = "a copied iterator restarts where the copy was taken, as a C cursor does"
+)]
 impl Iterator for StandardLayouts {
     type Item = ChannelLayoutRef<'static>;
 
@@ -2352,7 +2488,7 @@ impl Iterator for StandardLayouts {
         // SAFETY: `state` is a live, writable slot holding an index, which C
         // reads back as an integer and replaces by the next one while its
         // table has entries left, never dereferencing it.
-        let layout = unsafe { ffi::av_channel_layout_standard(&mut state) };
+        let layout = unsafe { ffi::av_channel_layout_standard(&raw mut state) };
         self.next = state.addr();
         // SAFETY: C returns NULL past its table's end, or the address of an
         // entry of its `static const` table, which lives unwritten for the
@@ -2382,7 +2518,11 @@ fn compares_map_names(name: &CStr) -> bool {
         .is_some_and(|at| at + 1 < bytes.len())
 }
 
-impl<'a> ChannelLayoutRef<'a> {
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
+impl ChannelLayoutRef<'_> {
     /// Whether C's per-channel readers (`av_channel_layout_channel_from_index`,
     /// `_index_from_channel` and the readers built on them) can read this
     /// layout: false for a custom layout C left without a map (after its own
@@ -2397,7 +2537,7 @@ impl<'a> ChannelLayoutRef<'a> {
                 .is_some_and(|(map, count)| !map.is_null() && count >= 0),
             LayoutDetails::Native(mask) | LayoutDetails::Ambisonic(mask) => self
                 .channel_count()
-                .checked_sub(mask.count_ones() as c_int)
+                .checked_sub(mask.count_ones().cast_signed())
                 .is_some(),
             _ => true,
         }
@@ -2441,7 +2581,7 @@ impl<'a> ChannelLayoutRef<'a> {
         }
     }
 
-    /// Wraps: av_channel_layout_check
+    /// Wraps: `av_channel_layout_check`
     ///
     /// Whether C deems the layout valid: it holds at least one channel and,
     /// by its order, a native mask of as many channels, a custom map with no
@@ -2464,7 +2604,7 @@ impl<'a> ChannelLayoutRef<'a> {
         unsafe { ffi::av_channel_layout_check(self.as_ptr()) == 1 }
     }
 
-    /// Wraps: av_channel_layout_ambisonic_order
+    /// Wraps: `av_channel_layout_ambisonic_order`
     ///
     /// The Ambisonic order `n` of a layout that starts with all `(n + 1)^2`
     /// components of order `n`, each at its own ACN index: an ambisonic
@@ -2475,7 +2615,12 @@ impl<'a> ChannelLayoutRef<'a> {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
-    /// assert_eq!(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref().ambisonic_order(), Some(1));
+    /// assert_eq!(
+    ///     ChannelLayout::AMBISONIC_FIRST_ORDER
+    ///         .as_ref()
+    ///         .ambisonic_order(),
+    ///     Some(1)
+    /// );
     /// let custom = ChannelLayout::parse(c"AMBI0+AMBI1+AMBI2+AMBI3+FL@x").unwrap();
     /// assert_eq!(custom.as_ref().ambisonic_order(), Some(1));
     /// assert_eq!(ChannelLayout::STEREO.as_ref().ambisonic_order(), None);
@@ -2494,7 +2639,7 @@ impl<'a> ChannelLayoutRef<'a> {
         u32::try_from(ret).ok()
     }
 
-    /// Wraps: av_channel_layout_channel_from_index
+    /// Wraps: `av_channel_layout_channel_from_index`
     ///
     /// The channel at `index` in the layout's order: a custom map's id at
     /// `index`, an ambisonic layout's component `index` before its
@@ -2525,7 +2670,7 @@ impl<'a> ChannelLayoutRef<'a> {
         Some(Channel::from_raw(raw)).filter(|&ch| ch != Channel::NONE)
     }
 
-    /// Wraps: av_channel_layout_index_from_channel
+    /// Wraps: `av_channel_layout_index_from_channel`
     ///
     /// The index of `channel` in the layout, the inverse of
     /// [`channel`](Self::channel): its first position in a custom map, its
@@ -2562,7 +2707,7 @@ impl<'a> ChannelLayoutRef<'a> {
         self.walkable() && (!compares_map_names(name) || self.names_terminated())
     }
 
-    /// Wraps: av_channel_layout_index_from_string
+    /// Wraps: `av_channel_layout_index_from_string`
     ///
     /// The index of the channel `name` names in the layout, as
     /// [`index_of`](Self::index_of) finds the channel
@@ -2603,7 +2748,7 @@ impl<'a> ChannelLayoutRef<'a> {
         usize::try_from(ret).ok()
     }
 
-    /// Wraps: av_channel_layout_channel_from_string
+    /// Wraps: `av_channel_layout_channel_from_string`
     ///
     /// The channel `name` names in the layout: the [`channel`](Self::channel)
     /// at the [`index_by_name`](Self::index_by_name) of `name`, so a custom
@@ -2613,7 +2758,10 @@ impl<'a> ChannelLayoutRef<'a> {
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Channel, ChannelLayout};
     /// let l = ChannelLayout::parse(c"FL@left+LFE@sub").unwrap();
-    /// assert_eq!(l.as_ref().channel_by_name(c"@sub"), Some(Channel::LOW_FREQUENCY));
+    /// assert_eq!(
+    ///     l.as_ref().channel_by_name(c"@sub"),
+    ///     Some(Channel::LOW_FREQUENCY)
+    /// );
     /// assert_eq!(l.as_ref().channel_by_name(c"FR"), None);
     /// ```
     #[must_use]
@@ -2628,7 +2776,7 @@ impl<'a> ChannelLayoutRef<'a> {
         Some(Channel::from_raw(raw)).filter(|&ch| ch != Channel::NONE)
     }
 
-    /// Wraps: av_channel_layout_describe
+    /// Wraps: `av_channel_layout_describe`
     ///
     /// Writes the layout's description, as
     /// [`description`](Self::description) returns it, into `buf`, truncated
@@ -2652,7 +2800,7 @@ impl<'a> ChannelLayoutRef<'a> {
         usize::try_from(ret).map_err(|_| ret)
     }
 
-    /// Wraps: av_channel_layout_describe
+    /// Wraps: `av_channel_layout_describe`
     ///
     /// The description of the layout, which [`ChannelLayout::parse`] reads
     /// back: the name of a standard native layout (`stereo`, `5.1(side)`),
@@ -2664,12 +2812,17 @@ impl<'a> ChannelLayoutRef<'a> {
     /// Ambisonic order) is described as such.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutRef, masks};
+    /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+    ///     ChannelLayout, ChannelLayoutRef, masks,
+    /// };
     /// let d = |l: ChannelLayoutRef<'_>| l.description().unwrap().into_string().unwrap();
     /// assert_eq!(d(ChannelLayout::L5POINT1.as_ref()), "5.1(side)");
     /// let odd = ChannelLayout::native(masks::STEREO | 1 << 50);
     /// assert_eq!(d(odd.as_ref()), "3 channels (FL+FR+USR50)");
-    /// assert_eq!(d(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref()), "ambisonic 1");
+    /// assert_eq!(
+    ///     d(ChannelLayout::AMBISONIC_FIRST_ORDER.as_ref()),
+    ///     "ambisonic 1"
+    /// );
     /// let custom = ChannelLayout::parse(c"FR@r+FL").unwrap();
     /// assert_eq!(d(custom.as_ref()), "2 channels (FR@r+FL)");
     /// ```
@@ -2678,6 +2831,10 @@ impl<'a> ChannelLayoutRef<'a> {
     ///
     /// `AVERROR(EINVAL)` for an order C does not know, and, before C is
     /// called, for a map name with no NUL, which C would print past.
+    ///
+    /// # Panics
+    ///
+    /// Only if C writes a NUL other than the one at the end.
     pub fn description(&self) -> Result<CString, i32> {
         let need = self.write_description(&mut [])?;
         let mut buf = vec![0; need];
@@ -2685,7 +2842,7 @@ impl<'a> ChannelLayoutRef<'a> {
         Ok(CString::from_vec_with_nul(buf).expect("C writes one NUL, at the end"))
     }
 
-    /// Wraps: av_channel_layout_describe_bprint
+    /// Wraps: `av_channel_layout_describe_bprint`
     ///
     /// Appends the layout's [description](Self::description) to `buf`,
     /// truncated as `buf` truncates what does not fit. `buf` is a handle,
@@ -2696,7 +2853,10 @@ impl<'a> ChannelLayoutRef<'a> {
     /// use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     /// let mut buf = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
     /// buf.as_mut().append_bytes(b"layout: ");
-    /// ChannelLayout::STEREO.as_ref().append_description(buf.as_mut()).unwrap();
+    /// ChannelLayout::STEREO
+    ///     .as_ref()
+    ///     .append_description(buf.as_mut())
+    ///     .unwrap();
     /// assert_eq!(buf.as_ref().as_bytes(), b"layout: stereo");
     /// ```
     ///
@@ -2715,7 +2875,7 @@ impl<'a> ChannelLayoutRef<'a> {
     }
 }
 
-/// Wraps: av_channel_layout_compare
+/// Wraps: `av_channel_layout_compare`
 ///
 /// Whether two layouts hold the same channels in the same order, as C
 /// compares them: their counts must be equal; two unspecified layouts are
@@ -2765,6 +2925,18 @@ impl PartialEq for ChannelLayout {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use core::ffi::{c_int, c_long, c_uint};
     use core::mem::{align_of, size_of};
@@ -2823,8 +2995,8 @@ mod unit_tests {
         28,
         45,
         63,
-        0x1ff,
-        0x3ff,
+        0x1FF,
+        0x3FF,
         0x800,
         c_int::MAX,
     ];
@@ -2846,7 +3018,7 @@ mod unit_tests {
             assert_eq!(ch.into_raw().0, raw, "{ch:?}");
         }
         assert_eq!(Channel::AMBISONIC_BASE.into_raw().0, 0x400);
-        assert_eq!(Channel::AMBISONIC_END.into_raw().0, 0x7ff);
+        assert_eq!(Channel::AMBISONIC_END.into_raw().0, 0x7FF);
     }
 
     #[test]
@@ -2917,7 +3089,7 @@ mod unit_tests {
             .iter()
             .map(|&(_, raw, _)| raw)
             .chain(CHANNEL_UNNAMED)
-            .chain([0x400, 0x7ff])
+            .chain([0x400, 0x7FF])
             .collect();
         let mut channels: Vec<Channel> = raws.iter().map(|&r| channel(r)).collect();
         raws.sort_unstable();
@@ -2933,7 +3105,7 @@ mod unit_tests {
     #[test]
     fn channel_raw_conversions_round_trip_every_value() {
         let named = CHANNEL_NAMED.iter().map(|&(_, raw, _)| raw);
-        for raw in named.chain(CHANNEL_UNNAMED).chain([0x400, 0x5ab, 0x7ff]) {
+        for raw in named.chain(CHANNEL_UNNAMED).chain([0x400, 0x5AB, 0x7FF]) {
             let c = ffi::AVChannel(raw);
             assert_eq!(Channel::from(c).into_raw(), c);
             assert_eq!(ffi::AVChannel::from(Channel::from_raw(c)), c);
@@ -3081,7 +3253,7 @@ mod unit_tests {
     }
 
     #[test]
-    #[allow(clippy::clone_on_copy)]
+    #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
     fn channel_order_clone_and_hash_follow_the_encoding() {
         use std::collections::HashSet;
         let all: Vec<ChannelOrder> = CHANNEL_ORDER_NAMED
@@ -3101,9 +3273,9 @@ mod unit_tests {
     /// A raw channel whose name field holds `name`'s bytes, a NUL if they
     /// leave room for one, then `fill` up to the end of the field.
     fn channel_custom_raw(id: c_int, name: &[u8], fill: u8, opaque: usize) -> ffi::AVChannelCustom {
-        let mut field = [fill as c_char; 16];
+        let mut field = [fill.cast_signed(); 16];
         for (f, &b) in field.iter_mut().zip(name) {
-            *f = b as c_char;
+            *f = b.cast_signed();
         }
         if let Some(nul) = field.get_mut(name.len()) {
             *nul = 0;
@@ -3111,7 +3283,7 @@ mod unit_tests {
         ffi::AVChannelCustom {
             id: ffi::AVChannel(id),
             name: field,
-            opaque: core::ptr::without_provenance_mut(opaque),
+            opaque: ptr::without_provenance_mut(opaque),
         }
     }
 
@@ -3122,9 +3294,15 @@ mod unit_tests {
 
     #[test]
     fn channel_custom_layout_is_the_c_struct() {
-        assert_eq!(size_of::<ChannelCustom>(), size_of::<ffi::AVChannelCustom>());
+        assert_eq!(
+            size_of::<ChannelCustom>(),
+            size_of::<ffi::AVChannelCustom>()
+        );
         assert_eq!(size_of::<ChannelCustom>(), 32);
-        assert_eq!(align_of::<ChannelCustom>(), align_of::<ffi::AVChannelCustom>());
+        assert_eq!(
+            align_of::<ChannelCustom>(),
+            align_of::<ffi::AVChannelCustom>()
+        );
         assert_eq!(ChannelName::MAX_LEN, 15);
     }
 
@@ -3155,7 +3333,7 @@ mod unit_tests {
         assert_eq!(back.opaque, raw.opaque);
         assert_eq!(ch.as_ref().id(), Channel::from_raw(ffi::AVChannel(-7)));
         assert_eq!(ch.as_ref().name(), c"abc");
-        assert!(ch.as_ref().name() == *c"abc");
+        assert_eq!(ch.as_ref().name(), *c"abc");
         assert!(ch.as_ref().name() != *c"ab");
         assert_eq!(ch.as_ref().opaque().addr(), 0x1234);
         assert_eq!(ch.as_ref().get().into_raw().name, raw.name);
@@ -3174,7 +3352,7 @@ mod unit_tests {
         assert_eq!(m.set_name(c"rear"), Ok(()));
         assert_eq!(m.as_ref().opaque(), (&raw mut cookie).cast());
         assert_eq!(m.as_ref().id().into_raw().0, c_int::MAX);
-        m.set_opaque(core::ptr::null_mut());
+        m.set_opaque(ptr::null_mut());
         assert!(ch.as_ref().opaque().is_null());
         assert_eq!(ch.as_ref().name(), c"rear");
     }
@@ -3183,7 +3361,7 @@ mod unit_tests {
     fn channel_custom_set_name_accepts_up_to_fifteen_bytes() {
         let long = c"0123456789abcdefXYZ";
         for len in 0..=long.to_bytes().len() {
-            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"previous", 0x7f, 0));
+            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"previous", 0x7F, 0));
             let name = CString::new(&long.to_bytes()[..len]).unwrap();
             let r = ch.as_mut().set_name(&name);
             if len <= 15 {
@@ -3196,7 +3374,7 @@ mod unit_tests {
                 assert_eq!(ch.as_ref().name(), c"previous");
                 assert_eq!(
                     channel_custom_bytes(ch.into_raw()),
-                    channel_custom_bytes(channel_custom_raw(0, b"previous", 0x7f, 0))
+                    channel_custom_bytes(channel_custom_raw(0, b"previous", 0x7F, 0))
                 );
             }
         }
@@ -3206,7 +3384,7 @@ mod unit_tests {
     fn channel_custom_set_name_truncated_mirrors_strlcpy() {
         let long = c"0123456789abcdefXYZ";
         for len in 0..=long.to_bytes().len() {
-            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"", 0x7f, 0));
+            let mut ch = ChannelCustom::from_raw(channel_custom_raw(0, b"", 0x7F, 0));
             let name = CString::new(&long.to_bytes()[..len]).unwrap();
             let whole = ch.as_mut().set_name_truncated(&name);
             assert_eq!(whole, len <= 15, "{len}");
@@ -3216,7 +3394,7 @@ mod unit_tests {
             // as `av_strlcpy` leaves it.
             let raw = ch.into_raw().name;
             assert_eq!(raw[kept], 0);
-            assert!(raw[kept + 1..].iter().all(|&c| c == 0x7f), "{len}");
+            assert!(raw[kept + 1..].iter().all(|&c| c == 0x7F), "{len}");
         }
         // A shorter name over a longer one keeps the longer one's tail.
         let mut ch = ChannelCustom::zeroed();
@@ -3243,7 +3421,10 @@ mod unit_tests {
         assert_eq!(c.as_ref().name().as_bytes(), b"\xff\xfe");
         assert!(c.as_ref().name().to_str().is_err());
         assert!(!c.as_ref().name().is_empty());
-        assert_eq!(format!("{:?}", c.as_ref().name()), format!("{:?}", c"\xff\xfe"));
+        assert_eq!(
+            format!("{:?}", c.as_ref().name()),
+            format!("{:?}", c"\xff\xfe")
+        );
         assert_eq!(ChannelName::default().as_c_str(), c"");
     }
 
@@ -3252,7 +3433,11 @@ mod unit_tests {
         use std::collections::HashSet;
         let names: HashSet<ChannelName> = [b"ab".as_slice(), b"ab\0x", b"abc", b""]
             .into_iter()
-            .map(|n| ChannelCustom::from_raw(channel_custom_raw(0, n, 0x30, 0)).as_ref().name())
+            .map(|n| {
+                ChannelCustom::from_raw(channel_custom_raw(0, n, 0x30, 0))
+                    .as_ref()
+                    .name()
+            })
             .collect();
         // `"ab\0x"` and `"ab"` (tail `0x30`s after the NUL) are the same
         // name; `""` is an empty one.
@@ -3263,10 +3448,22 @@ mod unit_tests {
     fn channel_custom_equality_is_by_c_observable_fields() {
         let base = channel_custom_raw(3, b"lfe", 0, 0x10);
         let a = ChannelCustom::from_raw(base);
-        assert_eq!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0x44, 0x10)));
-        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(4, b"lfe", 0, 0x10)));
-        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lf", 0, 0x10)));
-        assert_ne!(a, ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0, 0x11)));
+        assert_eq!(
+            a,
+            ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0x44, 0x10))
+        );
+        assert_ne!(
+            a,
+            ChannelCustom::from_raw(channel_custom_raw(4, b"lfe", 0, 0x10))
+        );
+        assert_ne!(
+            a,
+            ChannelCustom::from_raw(channel_custom_raw(3, b"lf", 0, 0x10))
+        );
+        assert_ne!(
+            a,
+            ChannelCustom::from_raw(channel_custom_raw(3, b"lfe", 0, 0x11))
+        );
     }
 
     #[test]
@@ -3300,11 +3497,14 @@ mod unit_tests {
         let src = ChannelCustom::from_raw(channel_custom_raw(9, b"side", 0x22, 0x99));
         let mut dst = ChannelCustom::zeroed();
         dst.as_mut().set(src);
-        assert_eq!(channel_custom_bytes(dst.into_raw()), channel_custom_bytes(src.into_raw()));
+        assert_eq!(
+            channel_custom_bytes(dst.into_raw()),
+            channel_custom_bytes(src.into_raw())
+        );
         let copy = dst.as_ref().get();
         dst.as_mut().set_id(Channel::NONE);
         assert_eq!(copy, src);
-        #[allow(clippy::clone_on_copy)] // exercises the explicit `Clone` impl
+        #[expect(clippy::clone_on_copy, reason = "exercises the explicit `Clone` impl")]
         let c = Clone::clone(&copy);
         assert_eq!(c, src);
     }
@@ -3322,7 +3522,10 @@ mod unit_tests {
     #[test]
     fn channel_custom_name_too_long_displays_both_lengths() {
         let e = NameTooLong { len: 20 };
-        assert_eq!(e.to_string(), "channel name of 20 bytes exceeds the 15-byte limit");
+        assert_eq!(
+            e.to_string(),
+            "channel name of 20 bytes exceeds the 15-byte limit"
+        );
         let _: &dyn core::error::Error = &e;
     }
 
@@ -3339,17 +3542,14 @@ mod unit_tests {
         let r = unsafe { ChannelCustomRef::from_ptr(&raw mut raw) }.unwrap();
         assert_eq!(r.name(), c"centre");
         // SAFETY: NULL is accepted and yields `None`.
-        assert!(unsafe { ChannelCustomRef::from_ptr(core::ptr::null_mut()) }.is_none());
+        assert!(unsafe { ChannelCustomRef::from_ptr(ptr::null_mut()) }.is_none());
         // SAFETY: as above.
-        assert!(unsafe { ChannelCustomMut::from_ptr(core::ptr::null_mut()) }.is_none());
+        assert!(unsafe { ChannelCustomMut::from_ptr(ptr::null_mut()) }.is_none());
     }
 
     #[test]
     fn channel_custom_is_a_plain_shareable_value() {
-        fn assert_traits<
-            T: Copy + Send + Sync + Eq + core::hash::Hash + core::fmt::Debug + Default + 'static,
-        >() {
-        }
+        fn assert_traits<T: Copy + Send + Sync + Eq + Hash + fmt::Debug + Default + 'static>() {}
         fn assert_handles<T: Send + Sync>() {}
         assert_traits::<ChannelCustom>();
         assert_traits::<ChannelName>();
@@ -3472,7 +3672,7 @@ mod unit_tests {
 
     /// Whether `av_channel_layout_from_string` may be given a description it
     /// parses through glibc `strtol` end pointers (the `ambisonic` forms and
-    /// whatever `parse_channel_list` rejects): not under BSan, which reports
+    /// whatever `parse_channel_list` rejects): not under `BSan`, which reports
     /// a stale stack shadow there as a use after free (see
     /// `tests/common/channel_layout.rs`).
     fn c_parser_takes_numbers() -> bool {
@@ -3751,8 +3951,8 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_c_initialisers_fill_a_fresh_layout() {
-        let l = ChannelLayout::from_mask(0x60f).unwrap();
-        assert_eq!(layout_raw(l.as_ref()), (1, 6, 0x60f, 0));
+        let l = ChannelLayout::from_mask(0x60F).unwrap();
+        assert_eq!(layout_raw(l.as_ref()), (1, 6, 0x60F, 0));
         assert_eq!(ChannelLayout::from_mask(0).unwrap_err(), EINVAL);
         let l = ChannelLayout::custom(3).unwrap();
         let LayoutDetails::Custom(map) = l.as_ref().details() else {
@@ -3868,9 +4068,9 @@ mod unit_tests {
         assert_eq!(masks::STEREO, 0x3);
         assert_eq!(masks::L2POINT1, masks::STEREO | bit(Channel::LOW_FREQUENCY));
         assert_eq!(masks::L2_1, masks::STEREO | bit(Channel::BACK_CENTER));
-        assert_eq!(masks::L5POINT1, 0x60f);
-        assert_eq!(masks::L7POINT1, 0x63f);
-        assert_eq!(masks::L5POINT1_BACK, 0x3f);
+        assert_eq!(masks::L5POINT1, 0x60F);
+        assert_eq!(masks::L7POINT1, 0x63F);
+        assert_eq!(masks::L5POINT1_BACK, 0x3F);
         assert_eq!(masks::QUAD, 0x33);
         assert_eq!(masks::STEREO_DOWNMIX, (1 << 29) | (1 << 30));
         assert_eq!(masks::BINAURAL, (1 << 61) | (1 << 62));
@@ -3926,7 +4126,7 @@ mod unit_tests {
         ] {
             assert_eq!(
                 layout_raw(layout.as_ref()),
-                (1, mask.count_ones() as c_int, mask, 0),
+                (1, mask.count_ones().cast_signed(), mask, 0),
                 "{name}"
             );
             assert!(matches!(layout.as_ref().details(), LayoutDetails::Native(m) if m == mask));
@@ -3944,7 +4144,7 @@ mod unit_tests {
             let l = ChannelLayout::native(mask);
             assert_eq!(
                 layout_raw(l.as_ref()),
-                (1, mask.count_ones() as c_int, mask, 0)
+                (1, mask.count_ones().cast_signed(), mask, 0)
             );
             let mut set = ChannelLayout::unspecified(9);
             set.as_mut().set_native(mask);
@@ -3984,9 +4184,11 @@ mod unit_tests {
             },
             opaque: cookie(40),
         };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_parts_4 = unsafe { ChannelLayout::from_parts(raw) };
         // SAFETY: the map is NULL, so the layout owns nothing, and
         // `av_channel_layout_uninit` frees NULL harmlessly.
-        let mut l = unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) };
+        let mut l = unsafe { ChannelLayoutVal::new(from_parts_4) };
         assert_eq!(l.as_ref().subset(u64::MAX), 0);
         assert_eq!(l.as_ref().subset(0), 0);
         for order in [
@@ -4028,10 +4230,12 @@ mod unit_tests {
     /// no user pointer: states no safe path leaves, for the readers' guards.
     fn raw_layout(order: ChannelOrder, nb_channels: c_int, u: u64) -> ChannelLayoutVal {
         let raw = ChannelLayout::masked(order, nb_channels, u, ptr::null_mut());
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_parts_3 = unsafe { ChannelLayout::from_parts(raw) };
         // SAFETY: `u` is a union of bits here, never a map this test frees
         // twice: in custom order only `u == 0` is passed, a NULL map, which
         // `av_channel_layout_uninit` frees harmlessly.
-        unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) }
+        unsafe { ChannelLayoutVal::new(from_parts_3) }
     }
 
     /// Every reader refuses, before calling C.
@@ -4066,12 +4270,14 @@ mod unit_tests {
             u: ffi::AVChannelLayout__bindgen_ty_1 { map: map.cast() },
             opaque: ptr::null_mut(),
         };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let from_parts_2 = unsafe { ChannelLayout::from_parts(raw) };
         // SAFETY: the layout takes sole ownership of the `HeapVec`'s block,
         // released by `into_raw_parts`, which `av_channel_layout_uninit` frees.
-        let negative = unsafe { ChannelLayoutVal::new(ChannelLayout::from_parts(raw)) };
+        let negative = unsafe { ChannelLayoutVal::new(from_parts_2) };
         assert_refused(negative.as_ref());
         assert!(!negative.as_ref().is_valid());
-        assert!(negative.as_ref() != mapless.as_ref());
+        assert_ne!(negative.as_ref(), mapless.as_ref());
         // `av_channel_layout_uninit` frees the map on drop, whatever the
         // count.
     }
@@ -4174,7 +4380,7 @@ mod unit_tests {
             .unwrap()
             .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
                 id: Channel::FRONT_LEFT.into_raw(),
-                name: [b'y' as c_char; 16],
+                name: [(b'y').cast_signed(); 16],
                 opaque: ptr::null_mut(),
             }));
         let l = ChannelLayout::from_custom_map(map).unwrap();
@@ -4193,7 +4399,7 @@ mod unit_tests {
         assert_eq!(r.channel(0), Some(Channel::FRONT_LEFT));
         assert!(r.is_valid());
         let same = r;
-        assert!(r == same);
+        assert_eq!(r, same);
         // Terminated, the same names are searched.
         let named = ChannelLayout::from_custom_map(named_map(&[
             Channel::FRONT_LEFT,
@@ -4206,7 +4412,7 @@ mod unit_tests {
             named.as_ref().channel_by_name(c"LFE@n1"),
             Some(Channel::LOW_FREQUENCY)
         );
-        assert!(named.as_ref() == r);
+        assert_eq!(named.as_ref(), r);
     }
 
     /// The `strtol` mirror reads what glibc reads: white space, a sign, the
@@ -4254,7 +4460,7 @@ mod unit_tests {
             // SAFETY: `s` is a live C string glibc only reads during the
             // call, and `end` a writable slot it stores a pointer into `s`
             // in.
-            let value = unsafe { strtol(s.as_ptr(), &mut end, 0) };
+            let value = unsafe { strtol(s.as_ptr(), &raw mut end, 0) };
             (value, end.addr() - s.as_ptr().addr())
         };
         let mut inputs: Vec<Vec<u8>> = [
@@ -4279,7 +4485,7 @@ mod unit_tests {
         .map(<[u8]>::to_vec)
         .collect();
         const ALPHABET: &[u8] = b" \t+-0xX0123456789abcdefgABF";
-        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut x = 0x9E37_79B9_7F4A_7C15u64;
         let mut next = move || {
             x ^= x << 13;
             x ^= x >> 7;

@@ -112,53 +112,65 @@ impl fmt::Debug for IntFloat64Ref<'_> {
 }
 
 impl IntFloat64Ref<'_> {
-    /// Field: av_intfloat64.i
+    /// Field: `av_intfloat64.i`
     ///
     /// The word as an unsigned integer: the bit pattern of
     /// [`float`](Self::float), as `f64::to_bits` gives it.
     #[must_use]
     pub fn bits(&self) -> u64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `i` field is in bounds; nothing is accessed here.
+        let i_ptr = unsafe { addr_of!((*self.as_ptr()).i) };
         // SAFETY: a read of the `i` member projected through the shared
         // handle's pointer to a live `av_intfloat64`. Both members span all 8
         // initialised bytes, and any bit pattern is a valid `u64`, whichever
         // member was last written.
-        unsafe { addr_of!((*self.as_ptr()).i).read() }
+        unsafe { i_ptr.read() }
     }
 
-    /// Field: av_intfloat64.f
+    /// Field: `av_intfloat64.f`
     ///
     /// The word as a `double`: [`bits`](Self::bits) reinterpreted, as
     /// `f64::from_bits` does, NaN payloads included.
     #[must_use]
     pub fn float(&self) -> f64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f` field is in bounds; nothing is accessed here.
+        let f_ptr = unsafe { addr_of!((*self.as_ptr()).f) };
         // SAFETY: a read of the `f` member projected through the shared
         // handle's pointer to a live `av_intfloat64`. Both members span all 8
         // initialised bytes, and any bit pattern is a valid `f64`.
-        unsafe { addr_of!((*self.as_ptr()).f).read() }
+        unsafe { f_ptr.read() }
     }
 }
 
 impl IntFloat64Mut<'_> {
-    /// Field: av_intfloat64.i
+    /// Field: `av_intfloat64.i`
     ///
     /// Overwrites the whole word with `bits`, which [`float`](IntFloat64Ref::float)
     /// then reads reinterpreted.
     pub fn set_bits(&mut self, bits: u64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `i` field is in bounds; nothing is accessed here.
+        let i_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).i) };
         // SAFETY: a write of the `i` member projected through the exclusive
         // handle's pointer to a live `av_intfloat64`; it covers the whole
         // union, which owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).i).write(bits) }
+        unsafe { i_ptr.write(bits) }
     }
 
-    /// Field: av_intfloat64.f
+    /// Field: `av_intfloat64.f`
     ///
     /// Overwrites the whole word with `value`'s bit pattern, which
     /// [`bits`](IntFloat64Ref::bits) then reads.
     pub fn set_float(&mut self, value: f64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f` field is in bounds; nothing is accessed here.
+        let f_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).f) };
         // SAFETY: a write of the `f` member projected through the exclusive
         // handle's pointer to a live `av_intfloat64`; it covers the whole
         // union, which owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).f).write(value) }
+        unsafe { f_ptr.write(value) }
     }
 }
 
@@ -233,7 +245,7 @@ impl Eq for IntFloat32 {}
 /// Hashes the bits, consistent with the bitwise [`PartialEq`].
 impl Hash for IntFloat32 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().bits().hash(state)
+        self.as_ref().bits().hash(state);
     }
 }
 
@@ -253,40 +265,52 @@ impl fmt::Debug for IntFloat32Ref<'_> {
 }
 
 impl IntFloat32Ref<'_> {
-    /// Field: av_intfloat32.i
+    /// Field: `av_intfloat32.i`
     #[must_use]
     pub fn bits(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `i` field is in bounds; nothing is accessed here.
+        let i_ptr = unsafe { addr_of!((*self.as_ptr()).i) };
         // SAFETY: a read of a projected member through the shared handle; it
         // spans the whole initialised union, and every bit pattern is a `u32`.
-        unsafe { addr_of!((*self.as_ptr()).i).read() }
+        unsafe { i_ptr.read() }
     }
 
-    /// Field: av_intfloat32.f
+    /// Field: `av_intfloat32.f`
     ///
     /// The bits read as an `f32`, NaN payloads included.
     #[must_use]
     pub fn float(&self) -> f32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f` field is in bounds; nothing is accessed here.
+        let f_ptr = unsafe { addr_of!((*self.as_ptr()).f) };
         // SAFETY: as `bits`; every bit pattern is an `f32`.
-        unsafe { addr_of!((*self.as_ptr()).f).read() }
+        unsafe { f_ptr.read() }
     }
 }
 
 impl IntFloat32Mut<'_> {
-    /// Field: av_intfloat32.i
+    /// Field: `av_intfloat32.i`
     pub fn set_bits(&mut self, bits: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `i` field is in bounds; nothing is accessed here.
+        let i_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).i) };
         // SAFETY: a write of a projected member through the exclusive handle;
         // it spans the whole union, which the other member then reads.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).i).write(bits) }
+        unsafe { i_ptr.write(bits) }
     }
 
-    /// Field: av_intfloat32.f
+    /// Field: `av_intfloat32.f`
     pub fn set_float(&mut self, v: f32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `f` field is in bounds; nothing is accessed here.
+        let f_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).f) };
         // SAFETY: as `set_bits`, for an `f32`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).f).write(v) }
+        unsafe { f_ptr.write(v) }
     }
 }
 
-/// Wraps: av_int2float
+/// Wraps: `av_int2float`
 ///
 /// The `f32` whose bit pattern is `bits`, as [`f32::from_bits`] gives it, NaN
 /// payloads included.
@@ -297,7 +321,7 @@ pub fn float_from_bits(bits: u32) -> f32 {
     unsafe { ffi::av_int2float(bits) }
 }
 
-/// Wraps: av_float2int
+/// Wraps: `av_float2int`
 ///
 /// The bit pattern of `value`, as [`f32::to_bits`] gives it.
 #[must_use]
@@ -307,7 +331,7 @@ pub fn float_to_bits(value: f32) -> u32 {
     unsafe { ffi::av_float2int(value) }
 }
 
-/// Wraps: av_int2double
+/// Wraps: `av_int2double`
 ///
 /// The `f64` whose bit pattern is `bits`, as [`f64::from_bits`] gives it, NaN
 /// payloads included.
@@ -318,7 +342,7 @@ pub fn double_from_bits(bits: u64) -> f64 {
     unsafe { ffi::av_int2double(bits) }
 }
 
-/// Wraps: av_double2int
+/// Wraps: `av_double2int`
 ///
 /// The bit pattern of `value`, as [`f64::to_bits`] gives it.
 #[must_use]
@@ -330,9 +354,9 @@ pub fn double_to_bits(value: f64) -> u64 {
 
 #[cfg(test)]
 mod unit_tests {
-    use super::*;
     use core::mem::{align_of, size_of};
 
+    use super::*;
     use crate::libavutil::libavutil::mem::HeapBox;
 
     #[test]
@@ -369,7 +393,7 @@ mod unit_tests {
 
     #[test]
     fn constructors_set_one_member_and_the_other_reinterprets() {
-        let v = IntFloat64::from_bits(0x3ff0_0000_0000_0000);
+        let v = IntFloat64::from_bits(0x3FF0_0000_0000_0000);
         assert_eq!(v.as_ref().float(), 1.0);
         let v = IntFloat64::from_float(-2.5);
         assert_eq!(v.as_ref().bits(), (-2.5f64).to_bits());
@@ -380,7 +404,7 @@ mod unit_tests {
     #[test]
     fn nan_payloads_survive_both_views() {
         // A signalling NaN with a payload, and a negative quiet one.
-        for bits in [0x7ff0_0000_0000_0001u64, 0xfff8_dead_beef_0001] {
+        for bits in [0x7FF0_0000_0000_0001u64, 0xFFF8_DEAD_BEEF_0001] {
             let mut v = IntFloat64::from_bits(bits);
             assert!(v.as_ref().float().is_nan());
             assert_eq!(v.as_ref().float().to_bits(), bits);
@@ -395,7 +419,7 @@ mod unit_tests {
         let mut v = IntFloat64::zeroed();
         let mut m = v.as_mut();
         m.as_mut().set_float(f64::INFINITY);
-        assert_eq!(m.as_ref().bits(), 0x7ff0_0000_0000_0000);
+        assert_eq!(m.as_ref().bits(), 0x7FF0_0000_0000_0000);
         m.set_bits(u64::MAX);
         assert!(m.as_ref().float().is_nan());
         assert_eq!(v.as_ref().bits(), u64::MAX);
@@ -482,11 +506,11 @@ mod unit_tests {
         for bits in [
             0,
             1,
-            0x3f80_0000,
+            0x3F80_0000,
             0x8000_0000,
-            0x7f80_0000,
-            0x7fc0_0000,
-            0x7f80_0001,
+            0x7F80_0000,
+            0x7FC0_0000,
+            0x7F80_0001,
             u32::MAX,
         ] {
             let a = IntFloat32::from_bits(bits);
@@ -502,11 +526,11 @@ mod unit_tests {
         let mut m = a.as_mut();
         m.set_float(-2.5);
         assert_eq!(m.as_ref().bits(), (-2.5f32).to_bits());
-        m.set_bits(0x7f80_0001);
-        assert_eq!(m.as_ref().float().to_bits(), 0x7f80_0001);
+        m.set_bits(0x7F80_0001);
+        assert_eq!(m.as_ref().float().to_bits(), 0x7F80_0001);
         let c = a;
         a.as_mut().set_float(1.0);
-        assert_eq!((c.as_ref().bits(), a.as_ref().float()), (0x7f80_0001, 1.0));
+        assert_eq!((c.as_ref().bits(), a.as_ref().float()), (0x7F80_0001, 1.0));
     }
 
     fn hash_of<T: Hash>(v: &T) -> u64 {
@@ -521,24 +545,24 @@ mod unit_tests {
         fn eq_hash<T: Eq + Hash>() {}
         eq_hash::<IntFloat32>();
 
-        let nan = IntFloat32::from_bits(0x7fc0_1234);
+        let nan = IntFloat32::from_bits(0x7FC0_1234);
         assert_eq!(nan, nan);
-        assert_eq!(nan, IntFloat32::from_float(f32::from_bits(0x7fc0_1234)));
-        assert_ne!(nan, IntFloat32::from_bits(0x7fc0_1235));
+        assert_eq!(nan, IntFloat32::from_float(f32::from_bits(0x7FC0_1234)));
+        assert_ne!(nan, IntFloat32::from_bits(0x7FC0_1235));
         assert_ne!(IntFloat32::from_float(0.0), IntFloat32::from_float(-0.0));
         assert_eq!(
             IntFloat32::from_float(1.5),
-            IntFloat32::from_bits(0x3fc0_0000)
+            IntFloat32::from_bits(0x3FC0_0000)
         );
         assert_eq!(IntFloat32::default(), IntFloat32::zeroed());
 
-        assert_eq!(hash_of(&nan), hash_of(&0x7fc0_1234u32));
+        assert_eq!(hash_of(&nan), hash_of(&0x7FC0_1234u32));
         assert_eq!(
             hash_of(&IntFloat32::from_float(-0.0)),
             hash_of(&(1u32 << 31))
         );
         let mut seen = std::collections::HashSet::new();
-        for bits in [0, 1, 1 << 31, 0x7fc0_1234, u32::MAX, 0, 1] {
+        for bits in [0, 1, 1 << 31, 0x7FC0_1234, u32::MAX, 0, 1] {
             seen.insert(IntFloat32::from_bits(bits));
         }
         assert_eq!(seen.len(), 5);

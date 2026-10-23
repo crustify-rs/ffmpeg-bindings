@@ -24,10 +24,9 @@
 //! C's own arithmetic overflows.
 
 use core::ffi::c_int;
-use core::fmt;
 use core::mem::MaybeUninit;
 use core::ops::Range;
-use core::ptr;
+use core::{fmt, ptr};
 
 use super::ffi;
 use super::mem::HeapVec;
@@ -37,41 +36,45 @@ use super::pixfmt::{ColorRange, PixelFormat};
 use super::rational::Rational;
 
 /// `AVERROR(EINVAL)`.
-const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
+const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
-/// Wraps: av_image_check_size
+/// Wraps: `av_image_check_size`
 ///
 /// Checks that a `width` x `height` image is valid, as FFmpeg requires of
 /// every image it allocates: both dimensions non-zero and at most `INT_MAX`,
 /// and every row (with 1 KiB of padding) and the whole image (with 128 rows
 /// of padding) addressable in an `int`, assuming 8 bytes per pixel.
 ///
-/// Fails with `AVERROR(EINVAL)` otherwise, after logging the size at
-/// `AV_LOG_ERROR` in C's `IMGUTILS` class context.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` otherwise, after logging the size at `AV_LOG_ERROR` in C's
+/// `IMGUTILS` class context.
 pub fn check_size(width: u32, height: u32) -> Result<(), i32> {
     // SAFETY: a NULL log context is "no parent context", and a zero offset
     // leaves the error level unchanged; C reads nothing else through
     // pointers.
-    let ret = unsafe { ffi::av_image_check_size(width, height, 0, core::ptr::null_mut()) };
+    let ret = unsafe { ffi::av_image_check_size(width, height, 0, ptr::null_mut()) };
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: av_image_check_size
+/// Wraps: `av_image_check_size`
 ///
 /// As [`check_size`], logging a failure at `AV_LOG_ERROR + log_offset` with
 /// `log_ctx` as the parent log context.
 ///
-/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
-/// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
-///
 /// `log_ctx` is the parent log context, `None` for none.
+///
+/// # Errors
+///
+/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the level C logs at, is
+/// rejected with `AVERROR(EINVAL)` before C runs.
 pub fn check_size_with_context(
     width: u32,
     height: u32,
     log_offset: i32,
     log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<(), i32> {
-    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
+    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR.cast_signed() {
         return Err(AVERROR_EINVAL);
     }
     let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
@@ -148,7 +151,7 @@ fn plane_copy_origins(
     Ok((dst_at, src_at))
 }
 
-/// Wraps: av_image_copy_plane
+/// Wraps: `av_image_copy_plane`
 ///
 /// Copies `height` rows of `bytewidth` bytes from the plane in `src`, rows
 /// `src_linesize` apart, to the plane in `dst`, rows `dst_linesize` apart,
@@ -156,9 +159,11 @@ fn plane_copy_origins(
 /// row `r` of `dst`, so linesizes of opposite signs flip the plane
 /// vertically. Bytes between rows are left alone.
 ///
-/// Fails without touching `dst` when `bytewidth` exceeds the magnitude of
-/// either linesize (on which C aborts), when either plane ends past its
-/// slice, or when `bytewidth` or `height` exceeds `INT_MAX`.
+/// # Errors
+///
+/// Fails without touching `dst` when `bytewidth` exceeds the magnitude of either linesize (on which
+/// C aborts), when either plane ends past its slice, or when `bytewidth` or `height` exceeds
+/// `INT_MAX`.
 pub fn copy_plane(
     dst: &mut [u8],
     dst_linesize: i32,
@@ -185,7 +190,9 @@ pub fn copy_plane(
     }
     // SAFETY: `plane_origin` placed both row-0 offsets inside their slices,
     // and the pointers derive from the whole slices.
-    let (dst_row0, src_row0) = unsafe { (dst.as_mut_ptr().add(dst_at), src.as_ptr().add(src_at)) };
+    let (dst_row0, src_row0) = (unsafe { dst.as_mut_ptr().add(dst_at) }, unsafe {
+        src.as_ptr().add(src_at)
+    });
     // SAFETY: C writes `bytewidth` bytes at `dst_row0 + r * dst_linesize`
     // and reads as many at `src_row0 + r * src_linesize` for `r` in
     // `0..height`, all inside `dst` and `src` by `plane_origin`; the borrows
@@ -199,7 +206,7 @@ pub fn copy_plane(
             src_linesize,
             c_bytewidth,
             c_height,
-        )
+        );
     };
     Ok(())
 }
@@ -212,7 +219,7 @@ const UC_ROW_ALIGN: usize = 64;
 /// require of every row it copies.
 const UC_ACCESS_ALIGN: usize = 16;
 
-/// Wraps: av_image_copy_plane_uc_from
+/// Wraps: `av_image_copy_plane_uc_from`
 ///
 /// As [`copy_plane`], for a source in uncacheable memory (GPU-mapped, say):
 /// on x86 CPUs with SSE4.1, C reads it with streaming loads, which can be
@@ -223,9 +230,6 @@ const UC_ACCESS_ALIGN: usize = 16;
 /// `bytewidth` up to that multiple may be copied too, which both linesizes
 /// cover. Aligning the rows to 64 bytes gets the best performance.
 ///
-/// Fails as [`copy_plane`] does, and when `height` exceeds `INT_MAX`, a
-/// linesize is `isize::MIN`, or `bytewidth` is within 63 of `isize::MAX`.
-///
 /// # Divergence from C
 ///
 /// C takes the fast path whenever both linesizes cover the rounded-up width,
@@ -234,6 +238,11 @@ const UC_ACCESS_ALIGN: usize = 16;
 /// does not hold the rounded-up width. For such planes this wrapper copies
 /// the `bytewidth` bytes of each row itself instead, as C's plain path (on
 /// other CPUs) does.
+///
+/// # Errors
+///
+/// Fails as [`copy_plane`] does, and when `height` exceeds `INT_MAX`, a linesize is `isize::MIN`,
+/// or `bytewidth` is within 63 of `isize::MAX`.
 pub fn copy_plane_from_uncacheable(
     dst: &mut [u8],
     dst_linesize: isize,
@@ -278,7 +287,9 @@ pub fn copy_plane_from_uncacheable(
         return Ok(());
     }
     // SAFETY: as in `copy_plane`.
-    let (dst_row0, src_row0) = unsafe { (dst.as_mut_ptr().add(dst_at), src.as_ptr().add(src_at)) };
+    let (dst_row0, src_row0) = (unsafe { dst.as_mut_ptr().add(dst_at) }, unsafe {
+        src.as_ptr().add(src_at)
+    });
     // SAFETY: as in `copy_plane`, with `bytewidth` and `height` positive. On
     // the SSE4 path C copies `FFALIGN(bytewidth, 64)` bytes of each row
     // instead, which `uc_call_is_sound` checked inside both slices (and
@@ -290,9 +301,9 @@ pub fn copy_plane_from_uncacheable(
             dst_linesize,
             src_row0,
             src_linesize,
-            bytewidth as isize,
+            bytewidth.cast_signed(),
             c_height,
-        )
+        );
     };
     Ok(())
 }
@@ -312,14 +323,14 @@ fn uc_call_is_sound(
 ) -> bool {
     // No overflow: `bytewidth` is at most `isize::MAX - 63`.
     let wide = bytewidth.next_multiple_of(UC_ROW_ALIGN);
-    let fast = |linesize: isize| linesize >= 0 && wide <= linesize as usize;
+    let fast = |linesize: isize| linesize >= 0 && wide <= linesize.cast_unsigned();
     if !(fast(dst_linesize) && fast(src_linesize)) {
         return true;
     }
     // Both linesizes are positive: row 0 starts each slice.
     let aligned = |at: *const u8, linesize: isize| {
         at.addr().is_multiple_of(UC_ACCESS_ALIGN)
-            && (linesize as usize).is_multiple_of(UC_ACCESS_ALIGN)
+            && linesize.unsigned_abs().is_multiple_of(UC_ACCESS_ALIGN)
     };
     aligned(dst.as_ptr(), dst_linesize)
         && aligned(src.as_ptr(), src_linesize)
@@ -329,7 +340,10 @@ fn uc_call_is_sound(
 
 /// `image_copy_plane`'s plain row loop, on planes `plane_copy_origins`
 /// validated.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "mirrors the arguments of the C routine it stands for"
+)]
 fn copy_rows(
     dst: &mut [u8],
     dst_at: usize,
@@ -342,7 +356,8 @@ fn copy_rows(
 ) {
     // No overflow: every row start lies inside its slice, at most
     // `isize::MAX` bytes from row 0.
-    let row = |at: usize, linesize: isize, r: usize| at.wrapping_add_signed(r as isize * linesize);
+    let row =
+        |at: usize, linesize: isize, r: usize| at.wrapping_add_signed(r.cast_signed() * linesize);
     for r in 0..height {
         let d = row(dst_at, dst_linesize, r);
         let s = row(src_at, src_linesize, r);
@@ -351,7 +366,7 @@ fn copy_rows(
 }
 
 /// `AVERROR(ENOMEM)`.
-const AVERROR_ENOMEM: c_int = -(ffi::ENOMEM as c_int);
+const AVERROR_ENOMEM: c_int = -(ffi::ENOMEM.cast_signed());
 
 /// The bytes of the palette a palettized image keeps in plane 1: 256
 /// native-endian `u32` entries (`AVPALETTE_SIZE`).
@@ -373,6 +388,11 @@ fn status(ret: c_int) -> Result<c_int, i32> {
 /// and overflows `int` for alignments near `INT_MAX`; this bound keeps its
 /// sums in range for every image `av_image_check_size` accepts, whose rows
 /// are under 64 MiB.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "`align <= MAX_ALIGN`, checked just above"
+)]
 fn c_align(align: usize) -> Result<c_int, i32> {
     if align.is_power_of_two() && align <= MAX_ALIGN {
         Ok(align as c_int)
@@ -449,6 +469,11 @@ impl Geometry {
     /// a `width` pixels wide image: for a bitstream format, a row of bits C
     /// accepts (at most `INT_MAX`) that its round-up to bytes (`+ 7`)
     /// carries past `INT_MAX`.
+    #[expect(
+        clippy::cast_possible_wrap,
+        clippy::cast_sign_loss,
+        reason = "`width` is a non-negative `int`, so the shifted value is below 2^31"
+    )]
     fn linesize_overflows(&self, width: c_int, plane: usize) -> bool {
         if !self.has(ffi::AV_PIX_FMT_FLAG_BITSTREAM) || width < 0 {
             return false;
@@ -489,7 +514,7 @@ pub struct MaxPixelSteps {
     pub components: [usize; 4],
 }
 
-/// Wraps: av_image_fill_max_pixsteps
+/// Wraps: `av_image_fill_max_pixsteps`
 ///
 /// The largest pixel step of each of the four planes of an image laid out
 /// as `desc` describes, and the first component with it: what a row of a
@@ -526,28 +551,33 @@ pub fn max_pixel_steps(
     // checked to be 0 to 3; the descriptor is live and only read. C keeps no
     // pointer.
     unsafe {
-        ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), components.as_mut_ptr(), desc.as_ptr())
+        ffi::av_image_fill_max_pixsteps(steps.as_mut_ptr(), components.as_mut_ptr(), desc.as_ptr());
     };
     Ok(MaxPixelSteps {
         steps,
         // A component index, 0 to 3.
-        components: components.map(|c: c_int| c as usize),
+        components: components.map(|c: c_int| c.unsigned_abs() as usize),
     })
 }
 
-/// Wraps: av_image_check_size2
-///
-/// As [`check_size`], for an image of pixel format `format` of at most
-/// `max_pixels` pixels (`i64::MAX` for no limit): the row bound uses the
-/// format's own row width where it has one (8 bytes a pixel otherwise), and
-/// `width * height` above `max_pixels` fails too, after logging both at
-/// `AV_LOG_ERROR` in C's `IMGUTILS` class context.
+/// Wraps: `av_image_check_size2`
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::check_size_max_pixels, pixfmt::PixelFormat};
-/// assert_eq!(check_size_max_pixels(1920, 1080, i64::MAX, PixelFormat::YUV420P), Ok(()));
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::check_size_max_pixels;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
+/// assert_eq!(
+///     check_size_max_pixels(1920, 1080, i64::MAX, PixelFormat::YUV420P),
+///     Ok(())
+/// );
 /// assert!(check_size_max_pixels(1920, 1080, 1 << 20, PixelFormat::YUV420P).is_err());
 /// ```
+///
+/// # Errors
+///
+/// As [`check_size`], for an image of pixel format `format` of at most `max_pixels` pixels
+/// (`i64::MAX` for no limit): the row bound uses the format's own row width where it has one (8
+/// bytes a pixel otherwise), and `width * height` above `max_pixels` fails too, after logging both
+/// at `AV_LOG_ERROR` in C's `IMGUTILS` class context.
 pub fn check_size_max_pixels(
     width: u32,
     height: u32,
@@ -557,15 +587,17 @@ pub fn check_size_max_pixels(
     check_size_max_pixels_with_context(width, height, max_pixels, format, 0, None)
 }
 
-/// Wraps: av_image_check_size2
+/// Wraps: `av_image_check_size2`
 ///
 /// As [`check_size_max_pixels`], logging a failure at
 /// `AV_LOG_ERROR + log_offset` with `log_ctx` as the parent log context.
 ///
-/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the
-/// level C logs at, is rejected with `AVERROR(EINVAL)` before C runs.
-///
 /// `log_ctx` is the parent log context, `None` for none.
+///
+/// # Errors
+///
+/// A `log_offset` above `INT_MAX - AV_LOG_ERROR`, which would overflow the level C logs at, is
+/// rejected with `AVERROR(EINVAL)` before C runs.
 pub fn check_size_max_pixels_with_context(
     width: u32,
     height: u32,
@@ -574,7 +606,7 @@ pub fn check_size_max_pixels_with_context(
     log_offset: i32,
     log_ctx: Option<ObjectRef<'_>>,
 ) -> Result<(), i32> {
-    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
+    if log_offset > c_int::MAX - ffi::AV_LOG_ERROR.cast_signed() {
         return Err(AVERROR_EINVAL);
     }
     // C takes plane 0's linesize of a `width as int` wide image. Where its
@@ -582,7 +614,7 @@ pub fn check_size_max_pixels_with_context(
     // invalid for every format: C's fallback for a format without a
     // linesize, 8 bytes a pixel, reaches the same verdict and message.
     let format = match Geometry::of(format) {
-        Some(g) if g.linesize_overflows(width as c_int, 0) => PixelFormat::NONE,
+        Some(g) if g.linesize_overflows(width.cast_signed(), 0) => PixelFormat::NONE,
         _ => format,
     };
     let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
@@ -603,11 +635,15 @@ pub fn check_size_max_pixels_with_context(
     status(ret).map(drop)
 }
 
-/// Wraps: av_image_check_sar
+/// Wraps: `av_image_check_sar`
 ///
 /// Checks that `sar`, the sample (pixel) aspect ratio of a `width` x
 /// `height` image, is usable: `0/1` (unknown) or positive, and not so
 /// extreme that scaling the image's smaller side by it rounds to zero.
+/// Fails with `AVERROR(EINVAL)` otherwise.
+///
+/// # Errors
+///
 /// Fails with `AVERROR(EINVAL)` otherwise.
 pub fn check_sar(width: u32, height: u32, sar: Rational) -> Result<(), i32> {
     // SAFETY: every argument is passed by value, and C rejects
@@ -615,22 +651,30 @@ pub fn check_sar(width: u32, height: u32, sar: Rational) -> Result<(), i32> {
     status(unsafe { ffi::av_image_check_sar(width, height, sar.into_raw()) }).map(drop)
 }
 
-/// Wraps: av_image_get_linesize
+/// Wraps: `av_image_get_linesize`
 ///
 /// The bytes one row of plane `plane` of a `width` pixels wide image of
 /// pixel format `format` takes, without padding: 0 for a plane the format
 /// does not use.
 ///
-/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a
-/// hardware format, a negative width, a row wider than `INT_MAX` bytes, and
-/// a plane past 3 (which C would read past its arrays for).
-///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::linesize, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::linesize;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 0), Ok(101));
 /// assert_eq!(linesize(PixelFormat::YUV420P, 101, 1), Ok(51));
 /// assert_eq!(linesize(PixelFormat::RGB24, 101, 1), Ok(0));
 /// ```
+///
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a hardware format, a negative
+/// width, a row wider than `INT_MAX` bytes, and a plane past 3 (which C would read past its arrays
+/// for).
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "`plane < 4`, checked above"
+)]
 pub fn linesize(format: PixelFormat, width: i32, plane: usize) -> Result<i32, i32> {
     if plane >= 4 || Geometry::of(format).is_some_and(|g| g.linesize_overflows(width, plane)) {
         return Err(AVERROR_EINVAL);
@@ -648,11 +692,15 @@ pub(crate) fn linesize_overflows(format: PixelFormat, width: i32, plane: usize) 
     plane < 4 && Geometry::of(format).is_some_and(|g| g.linesize_overflows(width, plane))
 }
 
-/// Wraps: av_image_fill_linesizes
+/// Wraps: `av_image_fill_linesizes`
 ///
 /// The unpadded row width of each of the four planes of a `width` pixels
 /// wide image of pixel format `format`, as [`linesize`] gives them: 0 for
 /// the planes it does not use. Fails as [`linesize`] does.
+///
+/// # Errors
+///
+/// Fails as [`linesize`] does.
 pub fn fill_linesizes(format: PixelFormat, width: i32) -> Result<[i32; 4], i32> {
     if Geometry::of(format).is_some_and(|g| (0..4).any(|p| g.linesize_overflows(width, p))) {
         return Err(AVERROR_EINVAL);
@@ -666,17 +714,18 @@ pub fn fill_linesizes(format: PixelFormat, width: i32) -> Result<[i32; 4], i32> 
     Ok(linesizes)
 }
 
-/// Wraps: av_image_fill_plane_sizes
+/// Wraps: `av_image_fill_plane_sizes`
 ///
 /// The bytes each of the four planes of a `height` rows high image of pixel
 /// format `format` takes with rows `linesizes` apart: `linesize * rows`, for
 /// chroma rows subsampled as the format says, 0 for the planes it does not
 /// use, and the 1024 bytes of the palette for plane 1 of a palettized format.
 ///
-/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a
-/// hardware format, a size past `usize::MAX`, and a height that is not
-/// positive (for which C divides by zero). A negative linesize is taken as
-/// C takes it, converted to `size_t`.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a hardware format, a size past
+/// `usize::MAX`, and a height that is not positive (for which C divides by zero). A negative
+/// linesize is taken as C takes it, converted to `size_t`.
 pub fn fill_plane_sizes(
     format: PixelFormat,
     height: i32,
@@ -729,7 +778,8 @@ fn c_fill_pointers(
             ptr::null_mut(),
             linesizes.as_ptr(),
         )
-    })? as usize;
+    })?
+    .unsigned_abs() as usize;
     let Some(buf) = buf else {
         return Ok((Default::default(), size));
     };
@@ -787,12 +837,16 @@ fn split_planes<'a>(mut buf: &'a mut [u8], ranges: &PlaneRanges) -> [&'a mut [u8
     planes
 }
 
-/// Wraps: av_image_fill_pointers
+/// Wraps: `av_image_fill_pointers`
 ///
 /// The bytes a `height` rows high image of pixel format `format` with rows
 /// `linesizes` apart takes in one buffer, its planes back to back as
 /// [`fill_pointers`] lays them out. Fails as [`fill_plane_sizes`] does, and
 /// with `AVERROR(EINVAL)` for a size past `INT_MAX`.
+///
+/// # Errors
+///
+/// Fails as [`fill_plane_sizes`] does, and with `AVERROR(EINVAL)` for a size past `INT_MAX`.
 pub fn buffer_size_for_linesizes(
     format: PixelFormat,
     height: i32,
@@ -801,15 +855,17 @@ pub fn buffer_size_for_linesizes(
     c_fill_pointers(None, format, height, linesizes).map(|(_, size)| size)
 }
 
-/// Wraps: av_image_fill_pointers
+/// Wraps: `av_image_fill_pointers`
 ///
 /// The planes of a `height` rows high image of pixel format `format` with
 /// rows `linesizes` apart, laid out back to back from the start of `buf`
 /// (palette included), borrowed from `buf` for reading. Each plane spans
 /// all its rows at full linesize; a plane the format does not use is empty.
 ///
-/// Fails as [`buffer_size_for_linesizes`] does, and with `AVERROR(EINVAL)`
-/// when `buf` is shorter than that size.
+/// # Errors
+///
+/// Fails as [`buffer_size_for_linesizes`] does, and with `AVERROR(EINVAL)` when `buf` is shorter
+/// than that size.
 pub fn fill_pointers(
     buf: &[u8],
     format: PixelFormat,
@@ -823,9 +879,13 @@ pub fn fill_pointers(
     })
 }
 
-/// Wraps: av_image_fill_pointers
+/// Wraps: `av_image_fill_pointers`
 ///
 /// As [`fill_pointers`], with the planes borrowed from `buf` for writing.
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_image_fill_pointers` returns when it fails.
 pub fn fill_pointers_mut(
     buf: &mut [u8],
     format: PixelFormat,
@@ -866,7 +926,8 @@ fn c_fill_arrays(
             height,
             align,
         )
-    })? as usize;
+    })?
+    .unsigned_abs() as usize;
     if buf.len() < size {
         return Err(AVERROR_EINVAL);
     }
@@ -888,23 +949,25 @@ fn c_fill_arrays(
     Ok((ranges, linesizes, size))
 }
 
-/// Wraps: av_image_fill_arrays
+/// Wraps: `av_image_fill_arrays`
 ///
 /// The planes of a `width` x `height` image of pixel format `format` laid
 /// out back to back from the start of `buf`, each row padded to a multiple
 /// of `align` bytes, borrowed from `buf` for reading: the layout
 /// [`buffer_size`] sizes and [`copy_to_buffer`] writes.
 ///
-/// Fails as [`buffer_size`] does, and with `AVERROR(EINVAL)` when `buf` is
-/// shorter than that size.
-///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::fill_arrays, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::fill_arrays;
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let buf = [0u8; 64 * 48 * 3 / 2];
 /// let planes = fill_arrays(&buf, PixelFormat::YUV420P, 64, 48, 1).unwrap();
 /// assert_eq!(planes.linesizes, [64, 32, 32, 0]);
 /// assert_eq!(planes.data.map(<[u8]>::len), [64 * 48, 32 * 24, 32 * 24, 0]);
 /// ```
+///
+/// # Errors
+///
+/// Fails as [`buffer_size`] does, and with `AVERROR(EINVAL)` when `buf` is shorter than that size.
 pub fn fill_arrays(
     buf: &[u8],
     format: PixelFormat,
@@ -919,9 +982,13 @@ pub fn fill_arrays(
     })
 }
 
-/// Wraps: av_image_fill_arrays
+/// Wraps: `av_image_fill_arrays`
 ///
 /// As [`fill_arrays`], with the planes borrowed from `buf` for writing.
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_image_fill_arrays` returns when it fails.
 pub fn fill_arrays_mut(
     buf: &mut [u8],
     format: PixelFormat,
@@ -936,17 +1003,18 @@ pub fn fill_arrays_mut(
     })
 }
 
-/// Wraps: av_image_get_buffer_size
+/// Wraps: `av_image_get_buffer_size`
 ///
 /// The bytes a `width` x `height` image of pixel format `format` takes in
 /// one buffer, its rows padded to a multiple of `align` bytes and its
 /// planes (palette included) back to back: the size [`fill_arrays`] lays
 /// out and [`copy_to_buffer`] writes.
 ///
-/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a
-/// hardware format, a size [`check_size`] rejects or past `INT_MAX`, and an
-/// `align` that is not a power of two up to 2^30 (C takes any `int`, which
-/// its rounding up is meaningless or overflows for).
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` for a format without a descriptor or a hardware format, a size
+/// [`check_size`] rejects or past `INT_MAX`, and an `align` that is not a power of two up to 2^30
+/// (C takes any `int`, which its rounding up is meaningless or overflows for).
 pub fn buffer_size(
     format: PixelFormat,
     width: i32,
@@ -957,7 +1025,7 @@ pub fn buffer_size(
     // SAFETY: by value; C checks the size first, which keeps its linesizes
     // under 64 MiB, so their alignment to at most 2^30 stays in `int`.
     let ret = unsafe { ffi::av_image_get_buffer_size(format.into_raw(), width, height, align) };
-    Ok(status(ret)? as usize)
+    Ok(status(ret)?.unsigned_abs() as usize)
 }
 
 /// The planes of an image, borrowed for reading: C's `uint8_t *data[4]` and
@@ -988,6 +1056,7 @@ pub struct PlanesMut<'a> {
 
 impl PlanesMut<'_> {
     /// The same planes, borrowed for reading.
+    #[must_use]
     pub fn as_planes(&self) -> Planes<'_> {
         Planes {
             data: self.data.each_ref().map(|d| &**d),
@@ -1027,25 +1096,27 @@ pub struct Image {
 }
 
 impl Image {
-    /// Wraps: av_image_alloc
+    /// Wraps: `av_image_alloc`
     ///
     /// Allocates a `width` x `height` image of pixel format `format` with
     /// every linesize a multiple of `align` (a power of two up to 2^30), and
     /// with rows padded to a multiple of 8 pixels for an `align` above 7.
     /// The planes are zero-filled; C leaves them uninitialised.
     ///
-    /// Fails with `AVERROR(EINVAL)` as [`buffer_size`] does, for an `align`
-    /// below 4 with a palettized format (after logging it at
-    /// `AV_LOG_ERROR`), and with `AVERROR(ENOMEM)` when the allocation
-    /// fails.
-    ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::{imgutils::Image, pixfmt::PixelFormat};
+    /// use ffmpeg_bindings::libavutil::libavutil::imgutils::Image;
+    /// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     /// let mut image = Image::alloc(100, 50, PixelFormat::YUV420P, 32).unwrap();
     /// assert_eq!(image.linesizes(), [128, 64, 64, 0]);
     /// image.planes_mut().data[0].fill(16);
     /// assert_eq!(image.planes().data[1].len(), 64 * 25);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(EINVAL)` as [`buffer_size`] does, for an `align` below 4 with a
+    /// palettized format (after logging it at `AV_LOG_ERROR`), and with `AVERROR(ENOMEM)` when the
+    /// allocation fails.
     pub fn alloc(width: i32, height: i32, format: PixelFormat, align: usize) -> Result<Self, i32> {
         let c_align = c_align(align)?;
         let mut pointers = [ptr::null_mut(); 4];
@@ -1062,7 +1133,8 @@ impl Image {
                 format.into_raw(),
                 c_align,
             )
-        })? as usize;
+        })?
+        .unsigned_abs() as usize;
         // C allocated the plane sizes it returns the sum of, plus `align`.
         let len = size + align;
         // SAFETY: on success `pointers[0]` is a fresh `av_malloc` block of
@@ -1089,27 +1161,32 @@ impl Image {
     }
 
     /// The image's pixel format.
+    #[must_use]
     pub fn format(&self) -> PixelFormat {
         self.format
     }
 
     /// The image's width, in pixels.
+    #[must_use]
     pub fn width(&self) -> i32 {
         self.width
     }
 
     /// The image's height, in pixels.
+    #[must_use]
     pub fn height(&self) -> i32 {
         self.height
     }
 
     /// The distance between rows of each plane, in bytes; 0 for the planes
     /// the format does not use.
+    #[must_use]
     pub fn linesizes(&self) -> [i32; 4] {
         self.linesizes
     }
 
     /// The image's planes, for reading.
+    #[must_use]
     pub fn planes(&self) -> Planes<'_> {
         let buf = self.buf.as_slice();
         Planes {
@@ -1179,6 +1256,10 @@ struct CopyPlan {
 }
 
 impl CopyPlan {
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "non-negative sizes the checks above validated"
+    )]
     fn new(format: PixelFormat, width: i32, height: i32) -> Result<Self, ImageCopyError> {
         let g = Geometry::of(format)
             .filter(|g| !g.has(ffi::AV_PIX_FMT_FLAG_HWACCEL))
@@ -1304,7 +1385,7 @@ fn copy_args(
     ))
 }
 
-/// Wraps: av_image_copy
+/// Wraps: `av_image_copy`
 ///
 /// Copies a `width` x `height` image of pixel format `format` from `src` to
 /// `dst`: in each plane the format uses, as many rows as it has (chroma
@@ -1313,10 +1394,11 @@ fn copy_args(
 /// of plane 0 and the 1024-byte palette at the start of plane 1. Bytes
 /// between rows, and other planes, are left alone.
 ///
-/// Fails without touching `dst` for a format C copies nothing of, a
-/// negative dimension, and a plane whose slices or linesizes cannot hold
-/// the copy ([`ImageCopyError`]), including linesizes beyond `i32` and rows
-/// wider than a linesize, on which C aborts.
+/// # Errors
+///
+/// Fails without touching `dst` for a format C copies nothing of, a negative dimension, and a plane
+/// whose slices or linesizes cannot hold the copy ([`ImageCopyError`]), including linesizes beyond
+/// `i32` and rows wider than a linesize, on which C aborts.
 pub fn copy(
     dst: &mut PlanesMut<'_>,
     src: Planes<'_>,
@@ -1340,16 +1422,20 @@ pub fn copy(
             format.into_raw(),
             width,
             height,
-        )
+        );
     };
     Ok(())
 }
 
-/// Wraps: av_image_copy2
+/// Wraps: `av_image_copy2`
 ///
 /// As [`copy`], from the planes of another writable image, borrowed for
 /// reading: C's `av_image_copy` for sources typed `uint8_t *`, without
 /// first reborrowing them with [`PlanesMut::as_planes`].
+///
+/// # Errors
+///
+/// As [`copy`].
 pub fn copy_from_mut(
     dst: &mut PlanesMut<'_>,
     src: &PlanesMut<'_>,
@@ -1371,19 +1457,16 @@ pub fn copy_from_mut(
             format.into_raw(),
             width,
             height,
-        )
+        );
     };
     Ok(())
 }
 
-/// Wraps: av_image_copy_uc_from
+/// Wraps: `av_image_copy_uc_from`
 ///
 /// As [`copy`], for a source in uncacheable memory (GPU-mapped, say), each
 /// plane copied as [`copy_plane_from_uncacheable`] copies one: rows padded
 /// to 64 bytes may be copied whole where both linesizes cover them.
-///
-/// Fails as [`copy`] does, and for linesizes or row widths
-/// [`copy_plane_from_uncacheable`] refuses.
 ///
 /// # Divergence from C
 ///
@@ -1392,6 +1475,10 @@ pub fn copy_from_mut(
 /// path loops away), the planes are copied one by one through
 /// [`copy_plane_from_uncacheable`] and the palette by a plain copy, rather
 /// than all through `av_image_copy_uc_from`.
+///
+/// # Errors
+///
+/// Fails as [`copy`] does, and for linesizes or row widths [`copy_plane_from_uncacheable`] refuses.
 pub fn copy_from_uncacheable(
     dst: &mut PlanesMut<'_>,
     src: Planes<'_>,
@@ -1448,12 +1535,12 @@ pub fn copy_from_uncacheable(
             format.into_raw(),
             width,
             height,
-        )
+        );
     };
     Ok(())
 }
 
-/// Wraps: av_image_copy_to_buffer
+/// Wraps: `av_image_copy_to_buffer`
 ///
 /// Copies a `width` x `height` image of pixel format `format` from `src`
 /// into `dst`, its planes (palette included) back to back and each row
@@ -1461,10 +1548,17 @@ pub fn copy_from_uncacheable(
 /// returns the bytes written, [`buffer_size`]'s size. Padding is left
 /// alone.
 ///
-/// Fails with `AVERROR(EINVAL)` as [`buffer_size`] does, when `dst` is
-/// shorter than that size, and when a plane of `src` does not hold the
-/// rows C reads (1024 bytes of plane 1 for a palette) or has a linesize
-/// beyond `i32`.
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)` as [`buffer_size`] does, when `dst` is shorter than that size, and
+/// when a plane of `src` does not hold the rows C reads (1024 bytes of plane 1 for a palette) or
+/// has a linesize beyond `i32`.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "non-negative sizes the checks above validated; `align` is bounded by `c_align`'s check"
+)]
 pub fn copy_to_buffer(
     dst: &mut [u8],
     src: Planes<'_>,
@@ -1522,12 +1616,16 @@ pub fn copy_to_buffer(
             align as c_int,
         )
     };
-    status(ret).map(|n| n as usize)
+    status(ret).map(|n| n.unsigned_abs() as usize)
 }
 
 /// The row-0 pointers and linesizes of the planes `av_image_fill_color`
 /// fills in `dst` for a `width` x `height` image, after checking each plane
 /// holds them.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "non-negative sizes the checks above validated"
+)]
 fn fill_args(
     dst: &mut PlanesMut<'_>,
     format: PixelFormat,
@@ -1549,7 +1647,7 @@ fn fill_args(
     Ok((row0_ptrs_mut(dst, at), linesizes))
 }
 
-/// Wraps: av_image_fill_color
+/// Wraps: `av_image_fill_color`
 ///
 /// Fills a `width` x `height` image of pixel format `format` in `dst` with
 /// one color: `color` holds a value per component in the format's
@@ -1558,17 +1656,26 @@ fn fill_args(
 /// of each plane is written for the bytes [`linesize`] gives; bytes between
 /// rows are left alone. A negative height fills nothing.
 ///
-/// Fails with `AVERROR(EINVAL)`, before writing, for a format without a
-/// descriptor, a hardware format, a format C cannot fill (components wider
-/// than 32 bits, or pixel groups wider than 32 bytes), a width [`linesize`]
-/// rejects, and a plane of `dst` that does not hold its rows.
-///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::{imgutils::{fill_color, Image}, pixfmt::PixelFormat};
+/// use ffmpeg_bindings::libavutil::libavutil::imgutils::{Image, fill_color};
+/// use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 /// let mut image = Image::alloc(4, 2, PixelFormat::RGB24, 1).unwrap();
-/// fill_color(&mut image.planes_mut(), PixelFormat::RGB24, [1, 2, 3, 0], 4, 2).unwrap();
+/// fill_color(
+///     &mut image.planes_mut(),
+///     PixelFormat::RGB24,
+///     [1, 2, 3, 0],
+///     4,
+///     2,
+/// )
+/// .unwrap();
 /// assert_eq!(&image.planes().data[0][..6], &[1, 2, 3, 1, 2, 3]);
 /// ```
+///
+/// # Errors
+///
+/// Fails with `AVERROR(EINVAL)`, before writing, for a format without a descriptor, a hardware
+/// format, a format C cannot fill (components wider than 32 bits, or pixel groups wider than 32
+/// bytes), a width [`linesize`] rejects, and a plane of `dst` that does not hold its rows.
 pub fn fill_color(
     dst: &mut PlanesMut<'_>,
     format: PixelFormat,
@@ -1599,11 +1706,12 @@ pub fn fill_color(
     .map(drop)
 }
 
-/// Wraps: av_image_fill_color
+/// Wraps: `av_image_fill_color`
 ///
-/// Checks that [`fill_color`] can fill a `width` pixels wide image of
-/// pixel format `format` with `color`, without an image: fails as it does
-/// for the format, the color and the width.
+/// # Errors
+///
+/// Checks that [`fill_color`] can fill a `width` pixels wide image of pixel format `format` with
+/// `color`, without an image: fails as it does for the format, the color and the width.
 pub fn check_fill_color(format: PixelFormat, color: [u32; 4], width: i32) -> Result<(), i32> {
     if Geometry::of(format).is_some_and(|g| (0..4).any(|p| g.linesize_overflows(width, p))) {
         return Err(AVERROR_EINVAL);
@@ -1624,7 +1732,7 @@ pub fn check_fill_color(format: PixelFormat, color: [u32; 4], width: i32) -> Res
     .map(drop)
 }
 
-/// Wraps: av_image_fill_black
+/// Wraps: `av_image_fill_black`
 ///
 /// Fills a `width` x `height` image of pixel format `format` in `dst` with
 /// black, as [`fill_color`] fills with a color: zero for RGB, XYZ and
@@ -1632,8 +1740,10 @@ pub fn check_fill_color(format: PixelFormat, color: [u32; 4], width: i32) -> Res
 /// limited range, 0 for [`ColorRange::JPEG`]), mid-scale for chroma, and
 /// opaque alpha; monochrome white formats get their set bit.
 ///
-/// Fails as [`fill_color`] does, and for a limited-range format C has no
-/// black for (luma below 8 bits).
+/// # Errors
+///
+/// Fails as [`fill_color`] does, and for a limited-range format C has no black for (luma below 8
+/// bits).
 pub fn fill_black(
     dst: &mut PlanesMut<'_>,
     format: PixelFormat,
@@ -1658,10 +1768,14 @@ pub fn fill_black(
     .map(drop)
 }
 
-/// Wraps: av_image_fill_black
+/// Wraps: `av_image_fill_black`
 ///
 /// Checks that [`fill_black`] can fill a `width` pixels wide image of pixel
 /// format `format` and color range `range`, without an image.
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_image_fill_black` returns when it fails.
 pub fn check_fill_black(format: PixelFormat, range: ColorRange, width: i32) -> Result<(), i32> {
     if Geometry::of(format).is_some_and(|g| (0..4).any(|p| g.linesize_overflows(width, p))) {
         return Err(AVERROR_EINVAL);
@@ -1683,6 +1797,20 @@ pub fn check_fill_black(format: PixelFormat, range: ColorRange, width: i32) -> R
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::items_after_statements,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use super::*;
 
@@ -1698,7 +1826,10 @@ mod unit_tests {
 
     /// `av_image_copy_plane` of the same planes, the C reference of the plain
     /// path.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors the arguments of the C routine it stands for"
+    )]
     fn c_copy_plane(
         dst: &mut [u8],
         dst_at: usize,
@@ -1709,17 +1840,24 @@ mod unit_tests {
         w: usize,
         h: usize,
     ) {
-        // SAFETY: the callers pass planes `plane_copy_origins` accepted, with
-        // positive `w` and `h`, at the origins it computed.
-        unsafe {
-            ffi::av_image_copy_plane(
-                dst.as_mut_ptr().add(dst_at),
-                dl,
-                src.as_ptr().add(src_at),
-                sl,
-                w as c_int,
-                h as c_int,
-            )
+        // For the unsafe operations below: the callers pass planes `plane_copy_origins` accepted,
+        // with positive `w` and `h`, at the origins it computed.
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_mut_ptr_add = unsafe { dst.as_mut_ptr().add(dst_at) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_ptr_add = unsafe { src.as_ptr().add(src_at) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ffi::av_image_copy_plane(
+                    as_mut_ptr_add,
+                    dl,
+                    as_ptr_add,
+                    sl,
+                    w as c_int,
+                    h as c_int,
+                );
+            };
         }
     }
 
@@ -1827,8 +1965,8 @@ mod unit_tests {
             (0, 64, 1, 64, 64, 4),
             (0, 80, 0, 96, 17, 3),
         ] {
-            let mut rust = Aligned([0xeeu8; 1024]);
-            let mut c = Aligned([0xeeu8; 1024]);
+            let mut rust = Aligned([0xEEu8; 1024]);
+            let mut c = Aligned([0xEEu8; 1024]);
             let len = (h - 1) * dl as usize + w;
             copy_plane_from_uncacheable(
                 &mut rust.0[dst_off..dst_off + len],
@@ -2059,7 +2197,7 @@ mod unit_tests {
 
     #[test]
     fn plane_ranges_end_where_the_next_plane_starts() {
-        let r = plane_ranges(0x1000, [0x1000, 0x1064, 0x107d, 0], 150);
+        let r = plane_ranges(0x1000, [0x1000, 0x1064, 0x107D, 0], 150);
         assert_eq!(r, [0..100, 100..125, 125..150, 0..0]);
         let r = plane_ranges(0x1000, [0x1000, 0, 0, 0], 7);
         assert_eq!(r, [0..7, 0..0, 0..0, 0..0]);

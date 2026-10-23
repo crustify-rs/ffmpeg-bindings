@@ -3,13 +3,25 @@
 //! [`Rational::new`], read by C's `av_inv_q`, `av_q2d` and `av_cmp_q` against
 //! the safe getters, and written in place by `av_reduce` against the safe
 //! setters, in Rust-owned and C-owned storage.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use core::ffi::c_void;
 use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapBox, HeapVec, alloc_array_from_fn, alloc_cell_array_zeroed,
+};
 use ffmpeg_bindings::libavutil::libavutil::rational::{Rational, RationalMut, RationalRef};
 
 /// Pairs at the edges C stores: `0/0`, the infinities, signs on either part,
@@ -41,7 +53,7 @@ fn c_make(num: i32, den: i32) -> ffi::AVRational {
 /// value as a `double` through `av_q2d`, as bits.
 fn c_reads(q: ffi::AVRational) -> (i32, i32, u64) {
     // SAFETY: both take the struct by value and have no preconditions.
-    let (inv, d) = unsafe { (ffi::av_inv_q(q), ffi::av_q2d(q)) };
+    let (inv, d) = (unsafe { ffi::av_inv_q(q) }, unsafe { ffi::av_q2d(q) });
     (inv.den, inv.num, d.to_bits())
 }
 
@@ -67,10 +79,16 @@ fn c_cmp(a: ffi::AVRational, b: ffi::AVRational) -> i32 {
 /// `dst` must address a live `AVRational` nothing else accesses during the
 /// call.
 unsafe fn c_reduce_into(dst: *mut ffi::AVRational, num: i64, den: i64, max: i64) -> i32 {
+    // SAFETY: `dst` is to a live object, as the block below relies on, so the
+    // place of its `den` field is in bounds; nothing is accessed here.
+    let den_ptr = unsafe { &raw mut (*dst).den };
+    // SAFETY: `dst` is to a live object, as the block below relies on, so the
+    // place of its `num` field is in bounds; nothing is accessed here.
+    let num_ptr = unsafe { &raw mut (*dst).num };
     // SAFETY: the caller guarantees `dst` is live and unaliased; the field
     // pointers are projected without forming a reference, and `av_reduce`
     // writes one `int` through each.
-    unsafe { ffi::av_reduce(&raw mut (*dst).num, &raw mut (*dst).den, num, den, max) }
+    unsafe { ffi::av_reduce(num_ptr, den_ptr, num, den, max) }
 }
 
 #[test]
@@ -151,12 +169,12 @@ fn c_writes_in_place_read_back_through_the_handles() {
     let mut rust = HeapBox::<Rational>::new_zeroed().unwrap();
     let mut c = ffi::AVRational::default();
     let steps: [(i64, i64, i64); 7] = [
-        (6, 4, i32::MAX as i64),
-        (30000, 1001, i32::MAX as i64),
+        (6, 4, i64::from(i32::MAX)),
+        (30000, 1001, i64::from(i32::MAX)),
         (-90000, 3003, 1000),
-        (1, 0, i32::MAX as i64),
+        (1, 0, i64::from(i32::MAX)),
         (0, 7, 255),
-        (i64::MAX, 3, i32::MAX as i64),
+        (i64::MAX, 3, i64::from(i32::MAX)),
         (355, 113, 100),
     ];
     for (step, (num, den, max)) in steps.into_iter().enumerate() {
@@ -213,8 +231,10 @@ fn zeroed_arrays_read_as_c_zeroed_storage() {
     let c = unsafe { ffi::av_calloc(LEN, size_of::<ffi::AVRational>()) }.cast::<ffi::AVRational>();
     assert!(!c.is_null());
     for i in 0..LEN {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add_5 = unsafe { c.add(i) };
         // SAFETY: `i` is in bounds of the live, zero-filled C block.
-        let ci = unsafe { c.add(i).read() };
+        let ci = unsafe { c_add_5.read() };
         assert_eq!(rust_reads(rust.as_handles().get(i).unwrap()), c_reads(ci));
     }
     // A `{0, 0}`-terminated list, as `av_find_nearest_q_idx` takes: written
@@ -224,12 +244,16 @@ fn zeroed_arrays_read_as_c_zeroed_storage() {
             .get_mut(i)
             .unwrap()
             .set(Rational::new(num, den));
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add_4 = unsafe { c.add(i) };
         // SAFETY: `i` is in bounds of the live C block, owned here.
-        unsafe { c.add(i).write(c_make(num, den)) };
+        unsafe { c_add_4.write(c_make(num, den)) };
     }
     for i in 0..LEN {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add_3 = unsafe { c.add(i) };
         // SAFETY: as above.
-        let ci = unsafe { c.add(i).read() };
+        let ci = unsafe { c_add_3.read() };
         assert_eq!(
             rust_reads(rust.as_handles().get(i).unwrap()),
             c_reads(ci),
@@ -277,11 +301,15 @@ fn copies_of_a_run_match_c_memdup_after_every_step() {
             .get_mut(slot)
             .unwrap()
             .set_den(next.den);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add_2 = unsafe { c.add(slot) };
         // SAFETY: `slot` is in bounds of the live C block, owned here.
-        unsafe { c.add(slot).write(next) };
+        unsafe { c_add_2.write(next) };
         for i in 0..len {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_add = unsafe { c.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised C block.
-            let ci = unsafe { c.add(i).read() };
+            let ci = unsafe { c_add.read() };
             let expect = c_reads(ci);
             assert_eq!(
                 rust_reads(from_slice.as_handles().get(i).unwrap()),
@@ -319,7 +347,7 @@ mod reduce {
         // SAFETY: both out-parameters are live locals; the tests pass `num` and
         // `den` other than `INT64_MIN` and `max` in `0..=INT_MAX`, for which C's
         // arithmetic does not overflow.
-        let exact = unsafe { ffi::av_reduce(&mut n, &mut d, num, den, max) };
+        let exact = unsafe { ffi::av_reduce(&raw mut n, &raw mut d, num, den, max) };
         (n, d, exact != 0)
     }
 
@@ -461,32 +489,44 @@ mod arithmetic {
             for k in PAIRS {
                 let (rb, rk) = (rust(b.0, b.1), rust(k.0, k.1));
                 let (cb, ck) = (c(b.0, b.1), c(k.0, k.1));
-                // SAFETY: each takes its structs by value; for `int` terms
+                // For the unsafe operations below: each takes its structs by value; for `int` terms
                 // only `av_add_q` of two `INT_MIN/INT_MIN` overflows, which is
                 // skipped.
-                unsafe {
-                    if !add_overflows(b, k) {
-                        assert_eq!(
-                            parts(rb + rk),
-                            c_parts(ffi::av_add_q(cb, ck)),
-                            "{b:?}+{k:?}"
-                        );
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        if !add_overflows(b, k) {
+                            assert_eq!(
+                                parts(rb + rk),
+                                c_parts(ffi::av_add_q(cb, ck)),
+                                "{b:?}+{k:?}"
+                            );
+                        }
                     }
-                    assert_eq!(
-                        parts(rb - rk),
-                        c_parts(ffi::av_sub_q(cb, ck)),
-                        "{b:?}-{k:?}"
-                    );
-                    assert_eq!(
-                        parts(rb * rk),
-                        c_parts(ffi::av_mul_q(cb, ck)),
-                        "{b:?}*{k:?}"
-                    );
-                    assert_eq!(
-                        parts(rb / rk),
-                        c_parts(ffi::av_div_q(cb, ck)),
-                        "{b:?}/{k:?}"
-                    );
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        assert_eq!(
+                            parts(rb - rk),
+                            c_parts(ffi::av_sub_q(cb, ck)),
+                            "{b:?}-{k:?}"
+                        );
+                    };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        assert_eq!(
+                            parts(rb * rk),
+                            c_parts(ffi::av_mul_q(cb, ck)),
+                            "{b:?}*{k:?}"
+                        );
+                    };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        assert_eq!(
+                            parts(rb / rk),
+                            c_parts(ffi::av_div_q(cb, ck)),
+                            "{b:?}/{k:?}"
+                        );
+                    };
                 }
             }
         }
@@ -523,7 +563,9 @@ mod arithmetic {
             let r = rust(b.0, b.1);
             // SAFETY: both take the struct by value and have no
             // preconditions.
-            let (inv, d) = unsafe { (ffi::av_inv_q(c(b.0, b.1)), ffi::av_q2d(c(b.0, b.1))) };
+            let (inv, d) = (unsafe { ffi::av_inv_q(c(b.0, b.1)) }, unsafe {
+                ffi::av_q2d(c(b.0, b.1))
+            });
             assert_eq!(parts(r.recip()), c_parts(inv));
             assert_eq!(r.to_f64().to_bits(), d.to_bits(), "{b:?}");
         }
@@ -590,7 +632,9 @@ mod arithmetic {
         let (d1, d2) = (c(-7, 3), c(5, -11));
         // SAFETY: `av_gcd_q` takes the structs by value; the callers never
         // pass two zero denominators, the one case it divides by zero.
-        let (r1, r2) = unsafe { (ffi::av_gcd_q(a, b, max, d1), ffi::av_gcd_q(a, b, max, d2)) };
+        let (r1, r2) = (unsafe { ffi::av_gcd_q(a, b, max, d1) }, unsafe {
+            ffi::av_gcd_q(a, b, max, d2)
+        });
         (c_parts(r1) == c_parts(r2)).then_some(c_parts(r1))
     }
 
@@ -708,7 +752,14 @@ mod arithmetic {
             &[(-5, 1), m, m],
             &[(-5, 1), m, (-7, 1), m],
             &[(1, 3), m, m],
-            &[(0, 1), (3, i32::MIN), (1, 1), (-1, 1), (i32::MAX, i32::MIN), (1, -1)],
+            &[
+                (0, 1),
+                (3, i32::MIN),
+                (1, 1),
+                (-1, 1),
+                (i32::MAX, i32::MIN),
+                (1, -1),
+            ],
             &[(i32::MIN, 1), (i32::MIN, i32::MIN), (i32::MIN, i32::MIN)],
         ];
         let (mut finished, mut overflowed) = (0, 0);
@@ -752,11 +803,17 @@ mod arithmetic {
         for (i, &(n, d)) in steps.iter().cycle().take(40).enumerate() {
             r_sum = r_sum + rust(n, d) - rust(d, 17);
             r_prod = r_prod * rust(n, d) / rust(d, n);
-            // SAFETY: each takes its structs by value; no step adds two
+            // For the unsafe operations below: each takes its structs by value; no step adds two
             // `INT_MIN/INT_MIN`.
-            unsafe {
-                c_sum = ffi::av_sub_q(ffi::av_add_q(c_sum, c(n, d)), c(d, 17));
-                c_prod = ffi::av_div_q(ffi::av_mul_q(c_prod, c(n, d)), c(d, n));
+            {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let add_q = unsafe { ffi::av_add_q(c_sum, c(n, d)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { c_sum = ffi::av_sub_q(add_q, c(d, 17)) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let mul_q = unsafe { ffi::av_mul_q(c_prod, c(n, d)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { c_prod = ffi::av_div_q(mul_q, c(d, n)) };
             }
             assert_eq!(parts(r_sum), c_parts(c_sum), "step {i}");
             assert_eq!(parts(r_prod), c_parts(c_prod), "step {i}");

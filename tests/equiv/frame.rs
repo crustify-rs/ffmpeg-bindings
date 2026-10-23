@@ -1,5 +1,24 @@
 //! Equivalence of `libavutil/frame.h`'s wrapped types with C, as C observes
 //! them.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// [`SideDataType`] against C's `enum AVFrameSideDataType`, as C observes it:
 /// through `av_frame_side_data_name`'s descriptor table, and as the
@@ -9,13 +28,11 @@
 /// [`SideDataType`]: ffmpeg_bindings::libavutil::libavutil::frame::SideDataType
 mod side_data_type {
     use core::ffi::CStr;
-    use core::ptr;
 
+    use ffi::AVFrameSideDataType as C;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
-
-    use ffi::AVFrameSideDataType as C;
 
     /// Every named constant beside its C enumerator, in declaration order.
     const NAMED: [(SideDataType, C); 38] = [
@@ -186,16 +203,22 @@ mod side_data_type {
 
         /// The types of the frame's side data, in C's list order.
         fn types(&self) -> Vec<SideDataType> {
-            // SAFETY: `self.0` is a live frame; its side-data list holds
+            // For the unsafe operations below: `self.0` is a live frame; its side-data list holds
             // `nb_side_data` live entries, which only the C calls below
             // change, none of which runs while this borrow reads them.
-            unsafe {
-                let n = ptr::addr_of!((*self.0).nb_side_data).read();
-                let list = ptr::addr_of!((*self.0).side_data).read();
+            {
+                // SAFETY: as the comment above this block states.
+                let n = unsafe { (*self.0).nb_side_data };
+                // SAFETY: as the comment above this block states.
+                let list = unsafe { (*self.0).side_data };
                 (0..usize::try_from(n).unwrap())
                     .map(|i| {
-                        let sd = list.add(i).read();
-                        SideDataType::from_raw(ptr::addr_of!((*sd).type_).read())
+                        // SAFETY: as the comment above this block states, for entry `i < n`.
+                        let at = unsafe { list.add(i) };
+                        // SAFETY: as above; the entry is initialised.
+                        let sd = unsafe { at.read() };
+                        // SAFETY: as above; `sd` is a live entry.
+                        SideDataType::from_raw(unsafe { (*sd).type_ })
                     })
                     .collect()
             }
@@ -208,7 +231,7 @@ mod side_data_type {
                 return false;
             }
             // SAFETY: a non-NULL result is the entry C just appended.
-            let stored = unsafe { ptr::addr_of!((*sd).type_).read() };
+            let stored = unsafe { (*sd).type_ };
             assert_eq!(SideDataType::from_raw(stored), t);
             true
         }
@@ -221,7 +244,7 @@ mod side_data_type {
                 return None;
             }
             // SAFETY: a non-NULL result is one of the frame's live entries.
-            let raw = unsafe { ptr::addr_of!((*sd).type_).read() };
+            let raw = unsafe { (*sd).type_ };
             Some(SideDataType::from_raw(raw))
         }
 
@@ -234,7 +257,7 @@ mod side_data_type {
     impl Drop for Frame {
         fn drop(&mut self) {
             // SAFETY: `self.0` is a live `av_frame_alloc` frame we own.
-            unsafe { ffi::av_frame_free(&mut self.0) }
+            unsafe { ffi::av_frame_free(&raw mut self.0) }
         }
     }
 
@@ -312,9 +335,11 @@ mod side_data_type {
         }
         let ptr = a.as_ptr().cast::<C>();
         for (i, &c) in values.iter().enumerate() {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let ptr_add = unsafe { ptr.add(i) };
             // SAFETY: `SideDataType` is `#[repr(transparent)]` over `C`, and
             // `i` is in bounds of the live, initialised array.
-            let raw = unsafe { ptr.add(i).read() };
+            let raw = unsafe { ptr_add.read() };
             assert_eq!(raw, c);
             assert_eq!(c_name(raw).is_some(), rust_names(a.as_slice()[i]));
         }
@@ -374,28 +399,36 @@ mod active_format_description {
                 ffi::av_frame_new_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1)
             };
             assert!(!sd.is_null());
-            // SAFETY: `sd` is the live entry C just added to our frame; its
-            // `data` is a writable `av_buffer_alloc` block of `size` bytes.
-            unsafe {
-                assert_eq!(addr_of!((*sd).size).read(), 1);
-                addr_of!((*sd).data).read().write(byte);
+            // For the unsafe operations below: `sd` is the live entry C just added to our frame;
+            // its `data` is a writable `av_buffer_alloc` block of `size` bytes.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!((*sd).size, 1) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let data_4 = unsafe { (*sd).data };
+                // SAFETY: as the comment above this block states.
+                unsafe { data_4.write(byte) };
             }
         }
 
         /// Overwrites the AFD byte C finds on this frame.
         fn set_afd(&mut self, byte: u8) {
             let sd = self.afd_entry();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_3 = unsafe { (*sd).data };
             // SAFETY: `sd` is a live entry of our frame with at least one
             // byte of `data`, which no Rust reference covers.
-            unsafe { addr_of!((*sd).data).read().write(byte) }
+            unsafe { data_3.write(byte) }
         }
 
         /// The AFD byte C finds on this frame.
         fn afd(&self) -> u8 {
             let sd = self.afd_entry();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_2 = unsafe { (*sd).data };
             // SAFETY: `sd` is a live entry of our frame with at least one
             // byte of `data`.
-            unsafe { addr_of!((*sd).data).read().read() }
+            unsafe { data_2.read() }
         }
 
         /// C's own view of the AFD byte: the payload converted to the enum,
@@ -410,8 +443,11 @@ mod active_format_description {
                 ffi::av_frame_get_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD)
             };
             assert!(!sd.is_null());
+            // SAFETY: `sd` is to a live object, as the access below relies on,
+            // so the place of its `size` field is in bounds; nothing is accessed here.
+            let size_ptr = unsafe { addr_of!((*sd).size) };
             // SAFETY: `sd` is a live entry of our frame.
-            assert!(unsafe { addr_of!((*sd).size).read() } >= 1);
+            assert!(unsafe { size_ptr.read() } >= 1);
             sd
         }
     }
@@ -420,7 +456,7 @@ mod active_format_description {
         fn drop(&mut self) {
             // SAFETY: `self.0` is a live frame we own; `av_frame_free`
             // releases it with its side data and NULLs the slot.
-            unsafe { ffi::av_frame_free(&mut self.0) }
+            unsafe { ffi::av_frame_free(&raw mut self.0) }
         }
     }
 
@@ -471,7 +507,7 @@ mod active_format_description {
             let mut copy = frame.copy_props_c();
             assert_eq!(copy.afd(), byte);
             assert_eq!(Afd::from_byte(copy.afd()).into_raw(), copy.afd_as_c_enum());
-            let nibble = byte & 0xf;
+            let nibble = byte & 0xF;
             frame.set_afd(Afd::from_byte(nibble).to_byte().unwrap());
             for (f, held) in [(&frame, nibble), (&copy, byte)] {
                 assert_eq!(f.afd(), held);
@@ -642,7 +678,7 @@ mod side_data_descriptor {
                     &raw mut self.sd,
                     &raw mut self.nb,
                     props.bits() as c_int,
-                )
+                );
             }
         }
 
@@ -650,8 +686,12 @@ mod side_data_descriptor {
         fn types(&self) -> Vec<c_uint> {
             let mut v: Vec<c_uint> = (0..self.nb as usize)
                 .map(|i| {
-                    // SAFETY: `i < nb`, so `sd[i]` is a live entry C owns.
-                    unsafe { (*self.sd.add(i)).read().type_.0 }
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let sd_add = unsafe { self.sd.add(i) };
+                    // SAFETY: `i < nb`, so `sd[i]` is an initialised entry.
+                    let sd = unsafe { sd_add.read() };
+                    // SAFETY: as above; `sd` is a live entry C owns.
+                    unsafe { (*sd).type_.0 }
                 })
                 .collect();
             v.sort_unstable();
@@ -804,7 +844,7 @@ mod side_data_lookups {
             named += 1;
             // SAFETY: a non-NULL entry of the static table, whose name is a
             // non-NULL string literal for every entry C returns.
-            let (c_name, c_props) = unsafe { ((*c).name, (*c).props) };
+            let (c_name, c_props) = (unsafe { (*c).name }, unsafe { (*c).props });
             let name = d.name().expect("every returned entry is named");
             assert_eq!(name.as_ptr(), c_name, "{raw}: the same literal");
             assert_eq!(d.props().bits(), c_props, "{raw}");
@@ -905,7 +945,7 @@ mod region_of_interest {
 
     #[test]
     fn new_encodes_as_the_c_designated_initializer() {
-        let mut x = 0x5eed_u64;
+        let mut x = 0x5EED_u64;
         for _ in 0..2000 {
             let f: [i32; 6] = core::array::from_fn(|_| edge(&mut x));
             let r = RegionOfInterest::new(f[0], f[1], f[2], f[3], q(f[4], f[5]));
@@ -951,7 +991,7 @@ mod region_of_interest {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_arrays_count_and_read_as_c_readers_do() {
-        let mut x = 0xa11ce_u64;
+        let mut x = 0xA11CE_u64;
         for n in [1usize, 2, 7, 33] {
             let mut array = Array {
                 sd: ptr::null_mut(),
@@ -975,26 +1015,35 @@ mod region_of_interest {
                     RegionOfInterest::new(f[0], f[1], f[2], f[3], q(f[4], f[5]))
                 })
                 .collect();
-            // SAFETY: the entry's payload holds `size` bytes, room for `n`
+            // For the unsafe operations below: the entry's payload holds `size` bytes, room for `n`
             // elements at stride `SELF_SIZE`, written unaligned as C's
             // readers read them.
-            unsafe {
-                let data = (*entry).data;
-                assert_eq!((*entry).size, size);
+            {
+                // SAFETY: as the comment above this block states.
+                let data = unsafe { (*entry).data };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!((*entry).size, size) };
                 for (i, r) in regions.iter().enumerate() {
-                    let at = data.add(i * RegionOfInterest::SELF_SIZE as usize);
-                    at.cast::<ffi::AVRegionOfInterest>()
-                        .write_unaligned(r.into_raw());
+                    // SAFETY: as the comment above this block states: element `i < n` at
+                    // stride `SELF_SIZE` is within the payload.
+                    let at = unsafe { data.add(i * RegionOfInterest::SELF_SIZE as usize) };
+                    // SAFETY: as above, written unaligned.
+                    unsafe {
+                        at.cast::<ffi::AVRegionOfInterest>()
+                            .write_unaligned(r.into_raw());
+                    };
                 }
                 // What `libx264.c` and `vf_showinfo.c` compute.
-                let first = data.cast::<ffi::AVRegionOfInterest>().read_unaligned();
+                // SAFETY: as the comment above this block states.
+                let first = unsafe { data.cast::<ffi::AVRegionOfInterest>().read_unaligned() };
                 let stride = first.self_size as usize;
-                assert_eq!((*entry).size / stride, n);
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!((*entry).size / stride, n) };
                 for (i, r) in regions.iter().enumerate() {
-                    let c = data
-                        .add(i * stride)
-                        .cast::<ffi::AVRegionOfInterest>()
-                        .read_unaligned();
+                    // SAFETY: as the comment above this block states, at C's stride.
+                    let at = unsafe { data.add(i * stride) };
+                    // SAFETY: as above; the element was written above.
+                    let c = unsafe { at.cast::<ffi::AVRegionOfInterest>().read_unaligned() };
                     assert_eq!(c_fields(&c), rust_fields(r.as_ref()));
                     // C-written fields read back through the Rust getters.
                     let mut c = c;
@@ -1010,7 +1059,7 @@ mod region_of_interest {
     #[test]
     fn setter_sequences_match_c_field_writes() {
         for seed in 1..=8u64 {
-            let mut x = seed * 0x9e37_79b9;
+            let mut x = seed * 0x9E37_79B9;
             let mut rust = RegionOfInterest::default();
             let mut c = rust.into_raw();
             for step in 0..300 {
@@ -1080,7 +1129,7 @@ mod region_of_interest {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn equality_agrees_with_av_cmp_q_on_offsets() {
-        let mut x = 0xe0_u64;
+        let mut x = 0xE0_u64;
         let small = |x: &mut u64| (xorshift(x) % 7) as i32 - 3;
         for _ in 0..5000 {
             let (a, b) = (
@@ -1122,7 +1171,9 @@ mod side_data {
     use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataRef, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        SideDataArray, SideDataFlags, SideDataRef, SideDataType,
+    };
 
     use super::side_data_fixture::{SAMPLE, Spec};
 
@@ -1148,8 +1199,14 @@ mod side_data {
             if e.is_null() {
                 return out;
             }
+            // SAFETY: as the comment below states, for this part of the operation.
+            let key_2 = unsafe { (*e).key };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let from_ptr_2 = unsafe { CStr::from_ptr(key_2) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let value_2 = unsafe { (*e).value };
             // SAFETY: a live entry, whose key and value are C strings.
-            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            let (k, v) = unsafe { (from_ptr_2, CStr::from_ptr(value_2)) };
             out.push((k.to_bytes().into(), v.to_bytes().into()));
         }
     }
@@ -1162,21 +1219,34 @@ mod side_data {
     unsafe fn c_seen(sd: *const *mut ffi::AVFrameSideData, nb: c_int) -> Vec<Seen> {
         (0..nb as usize)
             .map(|i| {
-                // SAFETY: entry `i` of the caller's array, and its buffer.
-                unsafe {
-                    let e = *sd.add(i);
-                    let (buf, data, size) = ((*e).buf, (*e).data, (*e).size);
+                // For the unsafe operations below: entry `i` of the caller's array, and its buffer.
+                {
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let sd_add_3 = unsafe { sd.add(i) };
+                    // SAFETY: as the comment above this block states.
+                    let e = unsafe { *sd_add_3 };
+                    // SAFETY: as the comment above this block states.
+                    let (buf, data, size) = (unsafe { (*e).buf }, unsafe { (*e).data }, unsafe {
+                        (*e).size
+                    });
+                    // SAFETY: as the comment above this block states.
                     Seen {
-                        kind: (*e).type_.0,
+                        // SAFETY: as the comment above this statement states.
+                        kind: unsafe { (*e).type_ }.0,
                         bytes: if size == 0 {
                             Vec::new()
                         } else {
-                            std::slice::from_raw_parts(data, size).to_vec()
+                            // SAFETY: as the comment above this statement states.
+                            unsafe { std::slice::from_raw_parts(data, size) }.to_vec()
                         },
-                        metadata: c_pairs((*e).metadata),
-                        count: ffi::av_buffer_get_ref_count(buf),
-                        writable: ffi::av_buffer_is_writable(buf) != 0,
-                        window: data == (*buf).data && size == (*buf).size,
+                        // SAFETY: as the comment above this statement states.
+                        metadata: c_pairs(unsafe { (*e).metadata }),
+                        // SAFETY: as the comment above this statement states.
+                        count: unsafe { ffi::av_buffer_get_ref_count(buf) },
+                        // SAFETY: as the comment above this statement states.
+                        writable: unsafe { ffi::av_buffer_is_writable(buf) } != 0,
+                        // SAFETY: as the comment above this statement states.
+                        window: data == unsafe { (*buf).data } && size == unsafe { (*buf).size },
                     }
                 }
             })
@@ -1223,8 +1293,10 @@ mod side_data {
 
         pub(super) fn entry(&self, i: usize) -> *mut ffi::AVFrameSideData {
             assert!(i < self.nb as usize);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let sd_add_2 = unsafe { self.sd.add(i) };
             // SAFETY: `i < nb`.
-            unsafe { *self.sd.add(i) }
+            unsafe { *sd_add_2 }
         }
 
         pub(super) fn seen(&self) -> Vec<Seen> {
@@ -1247,7 +1319,7 @@ mod side_data {
                     &raw mut self.sd,
                     &raw mut self.nb,
                     ffi::AVFrameSideDataType(kind),
-                    &mut slot,
+                    &raw mut slot,
                     flags.bits(),
                 )
             };
@@ -1263,14 +1335,17 @@ mod side_data {
             buf: *mut ffi::AVBufferRef,
         ) -> *mut ffi::AVBufferRef {
             let e = self.entry(i);
-            // SAFETY: a live entry and a live reference it takes over.
-            unsafe {
-                let old = (*e).buf;
-                (*e).buf = buf;
-                (*e).data = (*buf).data;
-                (*e).size = (*buf).size;
-                old
-            }
+            // SAFETY: `e` is a live entry: a read of its reference.
+            let old = unsafe { (*e).buf };
+            // SAFETY: `buf` is a live reference: reads of its window.
+            let (data, size) = (unsafe { (*buf).data }, unsafe { (*buf).size });
+            // SAFETY: as above; the entry takes over `buf`.
+            unsafe { (*e).buf = buf };
+            // SAFETY: as above; the entry's window is the new reference's.
+            unsafe { (*e).data = data };
+            // SAFETY: as above.
+            unsafe { (*e).size = size };
+            old
         }
 
         pub(super) fn replace_metadata(
@@ -1292,15 +1367,17 @@ mod side_data {
         /// writable; whether it was.
         fn write(&mut self, i: usize, byte: u8) -> bool {
             let e = self.entry(i);
-            // SAFETY: a live entry; its payload is written only when its
-            // buffer is sole and not read-only.
-            unsafe {
-                let ok = ffi::av_buffer_is_writable((*e).buf) != 0;
-                if ok {
-                    ptr::write_bytes((*e).data, byte, (*e).size);
-                }
-                ok
+            // SAFETY: `e` is a live entry: a read of its reference.
+            let buf = unsafe { (*e).buf };
+            // SAFETY: `buf` is the entry's live reference.
+            let ok = unsafe { ffi::av_buffer_is_writable(buf) } != 0;
+            if ok {
+                // SAFETY: as above: reads of the entry's window.
+                let (data, size) = (unsafe { (*e).data }, unsafe { (*e).size });
+                // SAFETY: the window's bytes are writable: the buffer is sole and not read-only.
+                unsafe { ptr::write_bytes(data, byte, size) };
             }
+            ok
         }
     }
 
@@ -1313,11 +1390,15 @@ mod side_data {
 
     /// A C reference holding `bytes`.
     pub(super) fn c_buffer(bytes: &[u8]) -> *mut ffi::AVBufferRef {
-        // SAFETY: a fresh reference to `len` bytes, filled from `bytes`.
-        unsafe {
-            let b = ffi::av_buffer_alloc(bytes.len());
+        // For the unsafe operations below: a fresh reference to `len` bytes, filled from `bytes`.
+        {
+            // SAFETY: as the comment above this block states.
+            let b = unsafe { ffi::av_buffer_alloc(bytes.len()) };
             assert!(!b.is_null());
-            ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).data, bytes.len());
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_4 = unsafe { (*b).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data_4, bytes.len()) };
             b
         }
     }
@@ -1329,7 +1410,7 @@ mod side_data {
             // SAFETY: C copies the strings into `m`.
             let r = unsafe {
                 ffi::av_dict_set(
-                    &mut m,
+                    &raw mut m,
                     k.as_ptr(),
                     v.as_ptr(),
                     ffi::AV_DICT_MULTIKEY as c_int,
@@ -1342,15 +1423,16 @@ mod side_data {
 
     /// C's reading of a reference the caller holds: bytes and count.
     fn c_buf_seen(b: *const ffi::AVBufferRef) -> (Vec<u8>, c_int) {
-        // SAFETY: a live reference.
-        unsafe {
-            let bytes = if (*b).size == 0 {
-                Vec::new()
-            } else {
-                std::slice::from_raw_parts((*b).data, (*b).size).to_vec()
-            };
-            (bytes, ffi::av_buffer_get_ref_count(b))
-        }
+        // SAFETY: `b` is a live reference: reads of its window.
+        let (data, size) = (unsafe { (*b).data }, unsafe { (*b).size });
+        let bytes = if size == 0 {
+            Vec::new()
+        } else {
+            // SAFETY: as above; `size` initialised bytes at `data`, read while `b` lives.
+            unsafe { std::slice::from_raw_parts(data, size) }.to_vec()
+        };
+        // SAFETY: as above.
+        (bytes, unsafe { ffi::av_buffer_get_ref_count(b) })
     }
 
     fn rust_buf_seen(b: &BufferReferenceBox) -> (Vec<u8>, c_int) {
@@ -1373,20 +1455,22 @@ mod side_data {
         let (sd, nb) = core::mem::take(r).into_raw_parts();
         for kind in KINDS {
             // SAFETY: the two live arrays, read for the call.
-            let (rf, cf) = unsafe {
-                (
-                    ffi::av_frame_side_data_get_c(sd.cast(), nb, ffi::AVFrameSideDataType(kind)),
-                    ffi::av_frame_side_data_get_c(
-                        c.sd.cast(),
-                        c.nb,
-                        ffi::AVFrameSideDataType(kind),
-                    ),
-                )
-            };
+            let (rf, cf) = (
+                unsafe {
+                    ffi::av_frame_side_data_get_c(sd.cast(), nb, ffi::AVFrameSideDataType(kind))
+                },
+                unsafe {
+                    ffi::av_frame_side_data_get_c(c.sd.cast(), c.nb, ffi::AVFrameSideDataType(kind))
+                },
+            );
             let index =
                 |p: *const ffi::AVFrameSideData, sd: *mut *mut ffi::AVFrameSideData, nb: c_int| {
-                    // SAFETY: `i < nb` entries of a live array.
-                    (0..nb as usize).position(|i| ptr::eq(unsafe { *sd.add(i) }, p))
+                    (0..nb as usize).position(|i| {
+                        // SAFETY: `i < nb` entries of a live array.
+                        let at = unsafe { sd.add(i) };
+                        // SAFETY: as above; the entry is initialised.
+                        ptr::eq(unsafe { *at }, p)
+                    })
                 };
             assert_eq!(
                 index(rf, sd, nb),
@@ -1396,14 +1480,18 @@ mod side_data {
         }
         let (mut rc, mut cc) = (CArray::new(), CArray::new());
         for i in 0..nb as usize {
-            // SAFETY: entry `i` of each live array, cloned by C into a fresh
-            // array; a non-MULTI duplicate is refused alike.
-            let (x, y) = unsafe {
-                (
-                    ffi::av_frame_side_data_clone(&raw mut rc.sd, &raw mut rc.nb, *sd.add(i), 0),
-                    ffi::av_frame_side_data_clone(&raw mut cc.sd, &raw mut cc.nb, *c.sd.add(i), 0),
-                )
-            };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let sd_add = unsafe { sd.add(i) };
+            // SAFETY: entry `i < nb` of C's live array.
+            let c_add = unsafe { c.sd.add(i) };
+            // SAFETY: entry `i` of each live array, initialised.
+            let (rs, cs) = (unsafe { *sd_add }, unsafe { *c_add });
+            // SAFETY: each entry is live, cloned by C into a fresh array; a non-MULTI
+            // duplicate is refused alike.
+            let (x, y) = (
+                unsafe { ffi::av_frame_side_data_clone(&raw mut rc.sd, &raw mut rc.nb, rs, 0) },
+                unsafe { ffi::av_frame_side_data_clone(&raw mut cc.sd, &raw mut cc.nb, cs, 0) },
+            );
             assert_eq!(x, y, "{step}: clone {i}");
         }
         assert_eq!(rc.seen(), cc.seen(), "{step}: clones");
@@ -1471,7 +1559,7 @@ mod side_data {
                     let (ca, cb) = c.add(kind, c_buffer(&payload), flags);
                     assert_eq!(ra.is_ok(), ca, "{label}");
                     match ra {
-                        Ok(_) => assert!(cb.is_null()),
+                        Ok(()) => assert!(cb.is_null()),
                         Err(back) => {
                             assert_eq!(rust_buf_seen(&back), c_buf_seen(cb), "{label}");
                             r_kept.push(back);
@@ -1544,8 +1632,10 @@ mod side_data {
                 }
                 _ => {
                     let copy = r.as_ref().get(i).unwrap().buffer().try_clone().unwrap();
-                    // SAFETY: a live entry's reference, to which C adds one.
-                    let ccopy = unsafe { ffi::av_buffer_ref((*c.entry(i)).buf) };
+                    // SAFETY: a read of a live entry's reference.
+                    let cbuf = unsafe { (*c.entry(i)).buf };
+                    // SAFETY: a live reference, to which C adds one.
+                    let ccopy = unsafe { ffi::av_buffer_ref(cbuf) };
                     assert_eq!(rust_buf_seen(&copy), c_buf_seen(ccopy), "{label}");
                     r_kept.push(copy);
                     c_kept.push(ccopy);
@@ -1558,7 +1648,7 @@ mod side_data {
                 drop(r_kept.remove(0));
                 let mut b = c_kept.remove(0);
                 // SAFETY: the kept reference, released once.
-                unsafe { ffi::av_buffer_unref(&mut b) };
+                unsafe { ffi::av_buffer_unref(&raw mut b) };
                 compare(&mut r, &c, &format!("{label} release"));
             }
         }
@@ -1574,11 +1664,11 @@ mod side_data {
         }
         for mut b in c_kept {
             // SAFETY: each kept reference, released once.
-            unsafe { ffi::av_buffer_unref(&mut b) };
+            unsafe { ffi::av_buffer_unref(&raw mut b) };
         }
         for mut m in c_dicts {
             // SAFETY: each kept dictionary, freed once.
-            unsafe { ffi::av_dict_free(&mut m) };
+            unsafe { ffi::av_dict_free(&raw mut m) };
         }
         drop(r_dicts);
     }
@@ -1587,7 +1677,7 @@ mod side_data {
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_match_c_after_every_step() {
         for seed in 1..=40u64 {
-            run(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15), 120);
+            run(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15), 120);
         }
     }
 
@@ -1646,12 +1736,20 @@ mod side_data {
             // SAFETY: the Rust array, lent to C for the call, and a fresh
             // C buffer of 5 bytes C fills nothing in.
             let e = unsafe {
-                ffi::av_frame_side_data_new(&mut sd, &mut nb, ffi::AVFrameSideDataType(k), 5, flags)
+                ffi::av_frame_side_data_new(
+                    &raw mut sd,
+                    &raw mut nb,
+                    ffi::AVFrameSideDataType(k),
+                    5,
+                    flags,
+                )
             };
             if !e.is_null() {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let data_3 = unsafe { (*e).data };
                 // SAFETY: the entry C returned, whose fresh payload is written
                 // in full before the array goes back to Rust.
-                unsafe { ptr::write_bytes((*e).data, k as u8, 5) };
+                unsafe { ptr::write_bytes(data_3, k as u8, 5) };
             }
             // SAFETY: the array C changed, every payload initialised.
             r = unsafe { SideDataArray::from_raw_parts(sd, nb) };
@@ -1667,8 +1765,10 @@ mod side_data {
             };
             assert_eq!(e.is_null(), ce.is_null(), "new({k}, {flags})");
             if !ce.is_null() {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let data_2 = unsafe { (*ce).data };
                 // SAFETY: as above.
-                unsafe { ptr::write_bytes((*ce).data, k as u8, 5) };
+                unsafe { ptr::write_bytes(data_2, k as u8, 5) };
             }
             compare(&mut r, &c, &format!("new({k}, {flags})"));
         }
@@ -1692,7 +1792,9 @@ mod side_data {
                 let entry = src.entry(i);
                 // SAFETY: the Rust array, lent to C for the call, and a live
                 // source entry, whose buffer C shares and metadata it copies.
-                let x = unsafe { ffi::av_frame_side_data_clone(&mut sd, &mut nb, entry, flags) };
+                let x = unsafe {
+                    ffi::av_frame_side_data_clone(&raw mut sd, &raw mut nb, entry, flags)
+                };
                 // SAFETY: the array C changed, its entries' fields copied
                 // from initialised entries.
                 r = unsafe { SideDataArray::from_raw_parts(sd, nb) };
@@ -1728,7 +1830,9 @@ mod side_data_array_routines {
     use core::ptr;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataProps, SideDataType};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        SideDataArray, SideDataFlags, SideDataProps, SideDataType,
+    };
 
     use super::side_data::{
         CArray, FLAGS, KINDS, PAIRS, c_buffer, c_dict, compare, getters, rust_seen, xorshift,
@@ -1783,20 +1887,28 @@ mod side_data_array_routines {
         flags: SideDataFlags,
         fill: Option<&[u8]>,
     ) -> Option<usize> {
-        // SAFETY: the array C built; the payload of an entry C returns is
+        // For the unsafe operations below: the array C built; the payload of an entry C returns is
         // written in full before anything reads it.
-        let e = unsafe {
-            let e = ffi::av_frame_side_data_new(
-                &raw mut c.sd,
-                &raw mut c.nb,
-                ffi::AVFrameSideDataType(k),
-                size,
-                flags.bits(),
-            );
+        let e = {
+            // SAFETY: as the comment above this block states.
+            let e = unsafe {
+                ffi::av_frame_side_data_new(
+                    &raw mut c.sd,
+                    &raw mut c.nb,
+                    ffi::AVFrameSideDataType(k),
+                    size,
+                    flags.bits(),
+                )
+            };
             if !e.is_null() {
+                // SAFETY: as the comment above this block states: a read of the new entry's
+                // payload pointer.
+                let data = unsafe { (*e).data };
                 match fill {
-                    Some(bytes) => ptr::copy_nonoverlapping(bytes.as_ptr(), (*e).data, size),
-                    None => ptr::write_bytes((*e).data, 0, size),
+                    // SAFETY: as above; the payload holds `size` bytes, and so does `bytes`.
+                    Some(bytes) => unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data, size) },
+                    // SAFETY: as above.
+                    None => unsafe { ptr::write_bytes(data, 0, size) },
                 }
             }
             e
@@ -1869,7 +1981,7 @@ mod side_data_array_routines {
                             &raw mut c.sd,
                             &raw mut c.nb,
                             ffi::AVFrameSideDataType(k),
-                        )
+                        );
                     };
                 }
                 4 => {
@@ -1882,7 +1994,7 @@ mod side_data_array_routines {
                             &raw mut c.sd,
                             &raw mut c.nb,
                             props as c_int,
-                        )
+                        );
                     };
                 }
                 5 => {
@@ -1905,12 +2017,12 @@ mod side_data_array_routines {
                     // Marks the entry found with another kind, which tells
                     // in the comparison which one it was.
                     let mark = KINDS[(v >> 12) as usize % KINDS.len()] ^ 2;
-                    let found = match owner {
-                        true => r.find_mut(kind(k)).map(|mut e| e.set_kind(kind(mark))),
-                        false => r
-                            .as_mut()
+                    let found = if owner {
+                        r.find_mut(kind(k)).map(|mut e| e.set_kind(kind(mark)))
+                    } else {
+                        r.as_mut()
                             .find_mut(kind(k))
-                            .map(|mut e| e.set_kind(kind(mark))),
+                            .map(|mut e| e.set_kind(kind(mark)))
                     };
                     // SAFETY: C's array; the entry C returns is one of its
                     // own, written as the array's holder may.
@@ -1930,14 +2042,25 @@ mod side_data_array_routines {
                         .find_mut(kind(k))
                         .and_then(|mut e| e.data_mut().map(|d| d.fill(byte)))
                         .is_some();
-                    // SAFETY: C's array; a payload is written only when its
-                    // buffer is sole and not read-only.
-                    let c_wrote = unsafe {
-                        let e =
-                            ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k));
-                        let ok = !e.is_null() && ffi::av_buffer_is_writable((*e).buf) != 0;
+                    // For the unsafe operations below: C's array; a payload is written only when
+                    // its buffer is sole and not read-only.
+                    let c_wrote = {
+                        // SAFETY: as the comment above this block states.
+                        let e = unsafe {
+                            ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k))
+                        };
+                        let ok = !e.is_null() && {
+                            // SAFETY: as the comment above this block states: `e` is a live entry
+                            // of C's array; a read of its reference.
+                            let buf = unsafe { (*e).buf };
+                            // SAFETY: as above, a live reference.
+                            unsafe { ffi::av_buffer_is_writable(buf) != 0 }
+                        };
                         if ok {
-                            ptr::write_bytes((*e).data, byte, (*e).size);
+                            // SAFETY: as above: reads of the entry's window.
+                            let (data, size) = (unsafe { (*e).data }, unsafe { (*e).size });
+                            // SAFETY: as above; the buffer is sole and not read-only.
+                            unsafe { ptr::write_bytes(data, byte, size) };
                         }
                         ok
                     };
@@ -1958,7 +2081,7 @@ mod side_data_array_routines {
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_sequences_match_c_after_every_step() {
         for seed in 1..=40u64 {
-            run(seed.wrapping_mul(0x2545_f491_4f6c_dd1d), 120);
+            run(seed.wrapping_mul(0x2545_F491_4F6C_DD1D), 120);
         }
     }
 
@@ -2012,7 +2135,10 @@ mod side_data_array_routines {
                         .alloc_from_slice(k, b"src", SideDataFlags::NONE)
                         .unwrap();
                     e.set_metadata(
-                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(
+                            pairs.iter().copied(),
+                        )
+                        .unwrap(),
                     );
                     let i = c_new(
                         &mut c_src,
@@ -2118,8 +2244,10 @@ mod side_data_array_routines {
                             .alloc_from_slice(kind(k), b"source", SideDataFlags::NONE)
                             .unwrap();
                         e.set_metadata(
-                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied())
-                                .unwrap(),
+                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(
+                                pairs.iter().copied(),
+                            )
+                            .unwrap(),
                         );
                         let i =
                             c_new(&mut c_src, k, 6, SideDataFlags::NONE, Some(b"source")).unwrap();
@@ -2129,8 +2257,10 @@ mod side_data_array_routines {
                             .alloc_from_slice(kind(k), b"old", SideDataFlags::NONE)
                             .unwrap();
                         e.set_metadata(
-                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(old.iter().copied())
-                                .unwrap(),
+                            ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(
+                                old.iter().copied(),
+                            )
+                            .unwrap(),
                         );
                         if shared {
                             let b = r_src.as_ref().get(0).unwrap().buffer().try_clone().unwrap();
@@ -2139,17 +2269,30 @@ mod side_data_array_routines {
                         let i = c_new(&mut c, k, 3, SideDataFlags::NONE, Some(b"old")).unwrap();
                         let _ = c.replace_metadata(i, c_dict(old));
                         if shared {
-                            // SAFETY: a live reference of C's source.
-                            let b = unsafe { ffi::av_buffer_ref((*c_src.entry(0)).buf) };
+                            // SAFETY: a read of the reference of C's source's live entry.
+                            let src_buf = unsafe { (*c_src.entry(0)).buf };
+                            // SAFETY: a live reference, to which C adds one.
+                            let b = unsafe { ffi::av_buffer_ref(src_buf) };
                             assert!(!b.is_null());
                             let e = c.entry(i);
-                            // SAFETY: a live entry of C's array, which takes
-                            // over `b` and its window, as `set_buffer` does.
-                            unsafe {
-                                ffi::av_buffer_unref(&raw mut (*e).buf);
-                                (*e).buf = b;
-                                (*e).data = (*b).data;
-                                (*e).size = (*b).size;
+                            // For the unsafe operations below: a live entry of C's array, which
+                            // takes over `b` and its window, as
+                            // `set_buffer` does.
+                            {
+                                // SAFETY: `e` is to a live object, as the block below relies on, so
+                                // the place of its `buf` field is
+                                // in bounds; nothing is accessed here.
+                                let buf_ptr = unsafe { &raw mut (*e).buf };
+                                // SAFETY: as the comment above this block states.
+                                unsafe { ffi::av_buffer_unref(buf_ptr) };
+                                // SAFETY: as the comment above this block states.
+                                unsafe { (*e).buf = b };
+                                // SAFETY: `b` is a live reference: reads of its window.
+                                let (data, size) = (unsafe { (*b).data }, unsafe { (*b).size });
+                                // SAFETY: as the comment above this block states.
+                                unsafe { (*e).data = data };
+                                // SAFETY: as the comment above this block states.
+                                unsafe { (*e).size = size };
                             }
                         }
                         compare(&mut r, &c, &label);
@@ -2216,7 +2359,10 @@ mod side_data_array_routines {
                         .alloc_from_slice(kind(k2), &[m as u8; 3], SideDataFlags::NONE)
                         .unwrap();
                     e.set_metadata(
-                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(pairs.iter().copied()).unwrap(),
+                        ffmpeg_bindings::libavutil::libavutil::dict::Dict::from_entries(
+                            pairs.iter().copied(),
+                        )
+                        .unwrap(),
                     );
                     let i = c_new(&mut c, k2, 3, SideDataFlags::NONE, Some(&[m as u8; 3])).unwrap();
                     let _ = c.replace_metadata(i, c_dict(pairs));
@@ -2326,25 +2472,35 @@ mod frame_type {
             if e.is_null() {
                 return out;
             }
+            // SAFETY: as the comment below states, for this part of the operation.
+            let key_2 = unsafe { (*e).key };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let from_ptr_2 = unsafe { CStr::from_ptr(key_2) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let value_2 = unsafe { (*e).value };
             // SAFETY: a live entry, whose key and value are C strings.
-            let (k, v) = unsafe { (CStr::from_ptr((*e).key), CStr::from_ptr((*e).value)) };
+            let (k, v) = unsafe { (from_ptr_2, CStr::from_ptr(value_2)) };
             out.push((k.to_bytes().into(), v.to_bytes().into()));
         }
     }
 
     /// C's reading of a reference: bytes, count, writability.
     fn c_buf(b: *const ffi::AVBufferRef) -> (Vec<u8>, c_int, bool) {
-        // SAFETY: a live reference whose window is initialised bytes.
-        unsafe {
-            let bytes = if (*b).size == 0 {
+        // For the unsafe operations below: a live reference whose window is initialised bytes.
+        {
+            // SAFETY: as the comment above this block states: reads of its window.
+            let (data, size) = (unsafe { (*b).data }, unsafe { (*b).size });
+            let bytes = if size == 0 {
                 Vec::new()
             } else {
-                std::slice::from_raw_parts((*b).data, (*b).size).to_vec()
+                // SAFETY: as the comment above this block states: `size` initialised bytes.
+                unsafe { std::slice::from_raw_parts(data, size) }.to_vec()
             };
+            // SAFETY: as the comment above this block states.
             (
                 bytes,
-                ffi::av_buffer_get_ref_count(b),
-                ffi::av_buffer_is_writable(b) != 0,
+                unsafe { ffi::av_buffer_get_ref_count(b) },
+                unsafe { ffi::av_buffer_is_writable(b) } != 0,
             )
         }
     }
@@ -2355,14 +2511,19 @@ mod frame_type {
     ///
     /// `f` must be a live frame.
     pub(super) unsafe fn c_buffers(f: *const ffi::AVFrame) -> Vec<*mut ffi::AVBufferRef> {
-        // SAFETY: the caller's live frame and its extra block.
-        unsafe {
-            let mut v: Vec<_> = (*f).buf.to_vec();
-            for i in 0..(*f).nb_extended_buf.max(0) as usize {
-                v.push(*(*f).extended_buf.add(i));
-            }
-            v
+        // SAFETY: the caller's live frame: a copy of its `buf` array.
+        let mut v: Vec<_> = unsafe { (*f).buf }.to_vec();
+        // SAFETY: as above: reads of its extra block and its count.
+        let (ext, n) = (unsafe { (*f).extended_buf }, unsafe {
+            (*f).nb_extended_buf
+        });
+        for i in 0..n.max(0) as usize {
+            // SAFETY: entry `i < nb_extended_buf` of the frame's extra block.
+            let at = unsafe { ext.add(i) };
+            // SAFETY: as above; the entry is initialised.
+            v.push(unsafe { *at });
         }
+        v
     }
 
     /// Where `p` points among `bufs`.
@@ -2375,7 +2536,7 @@ mod frame_type {
                 continue;
             }
             // SAFETY: a live reference.
-            let (data, size) = unsafe { ((*b).data, (*b).size) };
+            let (data, size) = (unsafe { (*b).data }, unsafe { (*b).size });
             let off = p.addr().wrapping_sub(data.addr());
             if p.addr() >= data.addr() && off < size {
                 return At::In(i, off);
@@ -2390,29 +2551,47 @@ mod frame_type {
     ///
     /// `f` must be a live frame whose buffers hold initialised bytes.
     pub(super) unsafe fn c_seen(f: *const ffi::AVFrame) -> Seen {
-        // SAFETY: the caller's live frame, every pointer of which is NULL or
-        // live.
-        unsafe {
-            let bufs = c_buffers(f);
-            let x = &*f;
-            let separate = x.extended_data.cast_const() != (&raw const (*f).data).cast();
+        // For the unsafe operations below: the caller's live frame, every pointer of which is NULL
+        // or live.
+        {
+            // SAFETY: as the comment above this block states.
+            let bufs = unsafe { c_buffers(f) };
+            // SAFETY: as the comment above this block states.
+            let x = unsafe { &*f };
+            // SAFETY: as the comment above this block states.
+            let separate = unsafe { x.extended_data.cast_const() != (&raw const (*f).data).cast() };
             let extended = separate.then(|| {
                 (0..x.ch_layout.nb_channels.max(0) as usize)
-                    .map(|i| c_at(&bufs, *x.extended_data.add(i)))
+                    .map(|i| {
+                        // SAFETY: as the comment above this block states: a separate
+                        // `extended_data` holds one entry per channel.
+                        let at = unsafe { x.extended_data.add(i) };
+                        // SAFETY: as above; the entry is initialised.
+                        c_at(&bufs, unsafe { *at })
+                    })
                     .collect()
             });
             let side_data = (0..x.nb_side_data.max(0) as usize)
                 .map(|i| {
-                    let e = *x.side_data.add(i);
-                    (
-                        (*e).type_.0,
-                        if (*e).size == 0 {
-                            Vec::new()
-                        } else {
-                            std::slice::from_raw_parts((*e).data, (*e).size).to_vec()
-                        },
-                        c_pairs((*e).metadata),
-                    )
+                    // SAFETY: as the comment above this block states, for entry `i <
+                    // nb_side_data`.
+                    let at = unsafe { x.side_data.add(i) };
+                    // SAFETY: as above; the entry is a live side data entry.
+                    let e = unsafe { *at };
+                    // SAFETY: as above: reads of the entry's fields.
+                    let (kind, data, size, metadata) = (
+                        unsafe { (*e).type_.0 },
+                        unsafe { (*e).data },
+                        unsafe { (*e).size },
+                        unsafe { (*e).metadata },
+                    );
+                    let bytes = if size == 0 {
+                        Vec::new()
+                    } else {
+                        // SAFETY: as above; `size` initialised bytes at `data`.
+                        unsafe { std::slice::from_raw_parts(data, size) }.to_vec()
+                    };
+                    (kind, bytes, c_pairs(metadata))
                 })
                 .collect();
             Seen {
@@ -2590,15 +2769,20 @@ mod frame_type {
         /// The C frame's `extended_data` entries this test may touch, and
         /// whether the array is separate.
         fn extended(&self) -> (*mut *mut u8, usize, bool) {
-            // SAFETY: a live frame.
-            unsafe {
+            // For the unsafe operations below: a live frame.
+            {
                 let f = self.0;
-                let own = (&raw mut (*f).data).cast::<*mut u8>();
-                let ext = (*f).extended_data;
-                if ext == own {
-                    (ext, NUM_DATA_POINTERS, false)
-                } else {
-                    (ext, (*f).ch_layout.nb_channels.max(0) as usize, true)
+                // SAFETY: as the comment above this block states.
+                let own = unsafe { (&raw mut (*f).data).cast::<*mut u8>() };
+                // SAFETY: as the comment above this block states.
+                let ext = unsafe { (*f).extended_data };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    if ext == own {
+                        (ext, NUM_DATA_POINTERS, false)
+                    } else {
+                        (ext, (*f).ch_layout.nb_channels.max(0) as usize, true)
+                    }
                 }
             }
         }
@@ -2610,19 +2794,22 @@ mod frame_type {
             let bufs = self.bufs();
             let counted = !bufs[0].is_null();
             let keep = |p: *mut u8| counted && matches!(c_at(&bufs, p), At::In(..)) || p.is_null();
-            // SAFETY: a live frame and its own `extended_data` entries.
-            unsafe {
-                for i in 0..NUM_DATA_POINTERS {
-                    if !keep((*self.0).data[i]) {
-                        (*self.0).data[i] = ptr::null_mut();
-                    }
+            for i in 0..NUM_DATA_POINTERS {
+                // SAFETY: a live frame: a read of its plane `i`.
+                if !keep(unsafe { (*self.0).data[i] }) {
+                    // SAFETY: as above: the plane pointer is cleared.
+                    unsafe { (*self.0).data[i] = ptr::null_mut() };
                 }
-                let (ext, n, separate) = self.extended();
-                if separate {
-                    for i in 0..n {
-                        if !keep(*ext.add(i)) {
-                            *ext.add(i) = ptr::null_mut();
-                        }
+            }
+            let (ext, n, separate) = self.extended();
+            if separate {
+                for i in 0..n {
+                    // SAFETY: entry `i < n` of the frame's own separate `extended_data`.
+                    let at = unsafe { ext.add(i) };
+                    // SAFETY: as above; the entry is initialised.
+                    if !keep(unsafe { *at }) {
+                        // SAFETY: as above: the entry is cleared.
+                        unsafe { *at = ptr::null_mut() };
                     }
                 }
             }
@@ -2640,7 +2827,7 @@ mod frame_type {
                 return Err(PlaneError::NoBuffer);
             }
             // SAFETY: a live reference.
-            let (data, size) = unsafe { ((*buf).data, (*buf).size) };
+            let (data, size) = (unsafe { (*buf).data }, unsafe { (*buf).size });
             if offset >= size {
                 return Err(PlaneError::OutOfBounds);
             }
@@ -2651,7 +2838,7 @@ mod frame_type {
     impl Drop for CFrame {
         fn drop(&mut self) {
             // SAFETY: frees the frame and everything it holds.
-            unsafe { ffi::av_frame_free(&mut self.0) }
+            unsafe { ffi::av_frame_free(&raw mut self.0) }
         }
     }
 
@@ -2671,11 +2858,15 @@ mod frame_type {
 
     /// A C reference holding `bytes`.
     fn c_buffer(bytes: &[u8]) -> *mut ffi::AVBufferRef {
-        // SAFETY: a fresh reference to `len` bytes, filled from `bytes`.
-        unsafe {
-            let b = ffi::av_buffer_alloc(bytes.len());
+        // For the unsafe operations below: a fresh reference to `len` bytes, filled from `bytes`.
+        {
+            // SAFETY: as the comment above this block states.
+            let b = unsafe { ffi::av_buffer_alloc(bytes.len()) };
             assert!(!b.is_null());
-            ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).data, bytes.len());
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_2 = unsafe { (*b).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data_2, bytes.len()) };
             b
         }
     }
@@ -2687,7 +2878,7 @@ mod frame_type {
             // SAFETY: C copies the strings into `m`.
             let r = unsafe {
                 ffi::av_dict_set(
-                    &mut m,
+                    &raw mut m,
                     k.as_ptr(),
                     v.as_ptr(),
                     ffi::AV_DICT_MULTIKEY as c_int,
@@ -2706,7 +2897,7 @@ mod frame_type {
             self.0 ^= self.0 >> 12;
             self.0 ^= self.0 << 25;
             self.0 ^= self.0 >> 27;
-            self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
         }
 
         fn below(&mut self, n: u64) -> usize {
@@ -2739,12 +2930,10 @@ mod frame_type {
             // video), so only entries the frame holds are asked for.
             for i in 0..rc.as_ref().extended_plane_count().min(NUM_DATA_POINTERS) {
                 // SAFETY: live frames, read only, holding entry `i`.
-                let (x, y) = unsafe {
-                    (
-                        ffi::av_frame_get_plane_buffer(rc.as_c_ptr(), i as c_int),
-                        ffi::av_frame_get_plane_buffer(cc.0, i as c_int),
-                    )
-                };
+                let (x, y) = (
+                    unsafe { ffi::av_frame_get_plane_buffer(rc.as_c_ptr(), i as c_int) },
+                    unsafe { ffi::av_frame_get_plane_buffer(cc.0, i as c_int) },
+                );
                 assert_eq!(x.is_null(), y.is_null(), "{step} (plane buffer {i})");
             }
         }
@@ -2755,7 +2944,7 @@ mod frame_type {
             let view = r.as_ref().extended_plane(i);
             if !pb.is_null() {
                 // SAFETY: the live reference C found.
-                let (data, size) = unsafe { ((*pb).data, (*pb).size) };
+                let (data, size) = (unsafe { (*pb).data }, unsafe { (*pb).size });
                 let v = view.expect("C found the plane's buffer");
                 assert_eq!(
                     v.as_ptr().addr() + v.len(),
@@ -2779,11 +2968,19 @@ mod frame_type {
         let c = CFrame::new();
         assert_eq!(compare(&r, &c, "new"), (0, false));
         assert!(r.as_ref().try_clone().is_none());
-        // SAFETY: both live; C's defaults put `extended_data` at `data`.
-        unsafe {
+        // For the unsafe operations below: both live; C's defaults put `extended_data` at `data`.
+        {
             let (x, y) = (r.as_c_ptr(), c.0);
-            assert_eq!((*x).extended_data, (&raw mut (*x).data).cast());
-            assert_eq!((*y).extended_data, (&raw mut (*y).data).cast());
+            // SAFETY: `x` is to a live object, as the block below relies on, so the
+            // place of its `data` field is in bounds; nothing is accessed here.
+            let data_ptr = unsafe { &raw mut (*x).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*x).extended_data, (data_ptr).cast()) };
+            // SAFETY: `y` is to a live object, as the block below relies on, so the
+            // place of its `data` field is in bounds; nothing is accessed here.
+            let data_ptr = unsafe { &raw mut (*y).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*y).extended_data, (data_ptr).cast()) };
         }
     }
 
@@ -2803,22 +3000,26 @@ mod frame_type {
                 let old = r
                     .as_mut()
                     .replace_buffer(i, (!none).then(|| rust_buffer(&bytes)));
-                // SAFETY: the frame's slot, which takes the new reference;
+                // For the unsafe operations below: the frame's slot, which takes the new reference;
                 // the old one is released after the planes are pruned, as
                 // the Rust side's drop of the reference it returns is.
-                let mut was = unsafe {
-                    let was = (*f).buf[i];
-                    (*f).buf[i] = if none {
-                        ptr::null_mut()
-                    } else {
-                        c_buffer(&bytes)
+                let mut was = {
+                    // SAFETY: as the comment above this block states.
+                    let was = unsafe { (*f).buf[i] };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        (*f).buf[i] = if none {
+                            ptr::null_mut()
+                        } else {
+                            c_buffer(&bytes)
+                        }
                     };
                     was
                 };
                 c.prune();
                 drop(old);
                 // SAFETY: the reference the frame held.
-                unsafe { ffi::av_buffer_unref(&mut was) };
+                unsafe { ffi::av_buffer_unref(&raw mut was) };
                 format!("buffer {i} = {}", if none { 0 } else { len })
             }
             1 | 2 => {
@@ -2856,32 +3057,54 @@ mod frame_type {
                 r.as_mut()
                     .push_extended_buffer(rust_buffer(&bytes))
                     .unwrap();
-                // SAFETY: the frame's extra block, grown by one reference.
-                unsafe {
-                    let n = (*f).nb_extended_buf as usize;
+                // For the unsafe operations below: the frame's extra block, grown by one reference.
+                {
+                    // SAFETY: as the comment above this block states.
+                    let n = unsafe { (*f).nb_extended_buf as usize };
+                    // SAFETY: as the comment above this block states: a read of the block.
+                    let block = unsafe { (*f).extended_buf };
+                    // SAFETY: as the comment above this block states: the block grows by one.
                     let grown =
-                        ffi::av_realloc_array((*f).extended_buf.cast(), n + 1, size_of_ptr());
+                        unsafe { ffi::av_realloc_array(block.cast(), n + 1, size_of_ptr()) };
                     assert!(!grown.is_null());
-                    (*f).extended_buf = grown.cast();
-                    *(*f).extended_buf.add(n) = c_buffer(&bytes);
-                    (*f).nb_extended_buf += 1;
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).extended_buf = grown.cast() };
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let extended_buf_2 = unsafe { (*f).extended_buf };
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let extended_buf_2_add = unsafe { extended_buf_2.add(n) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { *extended_buf_2_add = c_buffer(&bytes) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).nb_extended_buf += 1 };
                 }
                 "push extended".into()
             }
             5 => {
                 let x = r.as_mut().pop_extended_buffer();
-                // SAFETY: the frame's extra block, shrunk by one; the
+                // For the unsafe operations below: the frame's extra block, shrunk by one; the
                 // reference taken out is released after the planes are
                 // pruned, as the Rust side's is.
-                let mut y = unsafe {
-                    let n = (*f).nb_extended_buf as usize;
+                let mut y = {
+                    // SAFETY: as the comment above this block states.
+                    let n = unsafe { (*f).nb_extended_buf as usize };
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `extended_buf` field is in bounds; nothing is accessed here.
+                    let extended_buf_ptr = unsafe { &raw mut (*f).extended_buf };
                     if n == 0 {
                         ptr::null_mut()
                     } else {
-                        let last = *(*f).extended_buf.add(n - 1);
-                        (*f).nb_extended_buf -= 1;
+                        // SAFETY: as the comment above this block states: a read of the block.
+                        let block = unsafe { (*f).extended_buf };
+                        // SAFETY: as above, its last entry, `n - 1 < n`.
+                        let at = unsafe { block.add(n - 1) };
+                        // SAFETY: as above; the entry is initialised.
+                        let last = unsafe { *at };
+                        // SAFETY: as above: the count drops by one.
+                        unsafe { (*f).nb_extended_buf -= 1 };
                         if n == 1 {
-                            ffi::av_freep((&raw mut (*f).extended_buf).cast());
+                            // SAFETY: as above: the emptied block is freed and NULLed.
+                            unsafe { ffi::av_freep(extended_buf_ptr.cast()) };
                         }
                         last
                     }
@@ -2890,43 +3113,50 @@ mod frame_type {
                 assert_eq!(x.is_some(), !y.is_null());
                 drop(x);
                 // SAFETY: the reference taken out, or NULL.
-                unsafe { ffi::av_buffer_unref(&mut y) };
+                unsafe { ffi::av_buffer_unref(&raw mut y) };
                 "pop extended".into()
             }
             6 => {
                 let i = rng.below(4);
                 let bytes = pattern(rng.below(16) + 1, 3);
                 let x = r.as_mut().replace_extended_buffer(i, rust_buffer(&bytes));
-                // SAFETY: entry `i` of the frame's extra block, when present;
-                // the old reference is released after the planes are pruned.
-                let mut y = unsafe {
-                    if i < (*f).nb_extended_buf as usize {
-                        let slot = (*f).extended_buf.add(i);
-                        core::mem::replace(&mut *slot, c_buffer(&bytes))
-                    } else {
-                        ptr::null_mut()
-                    }
+                // SAFETY: a live frame: reads of its extra block and count.
+                let (block, n) = (unsafe { (*f).extended_buf }, unsafe {
+                    (*f).nb_extended_buf
+                });
+                // The old reference is released after the planes are pruned.
+                let mut y = if i < n as usize {
+                    // SAFETY: entry `i < nb_extended_buf` of the frame's extra block.
+                    let slot = unsafe { block.add(i) };
+                    // SAFETY: as above; the entry is initialised, and takes the new reference.
+                    unsafe { slot.replace(c_buffer(&bytes)) }
+                } else {
+                    ptr::null_mut()
                 };
                 c.prune();
                 assert_eq!(x.is_ok(), !y.is_null());
                 drop(x);
                 // SAFETY: the reference taken out, or NULL.
-                unsafe { ffi::av_buffer_unref(&mut y) };
+                unsafe { ffi::av_buffer_unref(&raw mut y) };
                 format!("replace extended {i}")
             }
             7 => {
                 let n = rng.below(12) as i32;
                 let x = r.as_mut().set_channel_layout(ChannelLayout::unspecified(n));
                 let (_, _, separate) = c.extended();
-                // SAFETY: the frame's layout, unspecified order (no map).
-                let y = unsafe {
-                    if separate && n > (*f).ch_layout.nb_channels {
-                        false
-                    } else {
-                        ffi::av_channel_layout_uninit(&raw mut (*f).ch_layout);
-                        (*f).ch_layout.nb_channels = n;
-                        true
-                    }
+                // SAFETY: `f` is to a live object, as the block below relies on, so the
+                // place of its `ch_layout` field is in bounds; nothing is accessed here.
+                let ch_layout_ptr = unsafe { &raw mut (*f).ch_layout };
+                // SAFETY: a read of the live frame's channel count.
+                let channels = unsafe { (*f).ch_layout.nb_channels };
+                let y = if separate && n > channels {
+                    false
+                } else {
+                    // SAFETY: the frame's layout, unspecified order (no map).
+                    unsafe { ffi::av_channel_layout_uninit(ch_layout_ptr) };
+                    // SAFETY: as above, a write of its count.
+                    unsafe { (*f).ch_layout.nb_channels = n };
+                    true
                 };
                 assert_eq!(x.is_ok(), y);
                 format!("layout {n}")
@@ -2934,24 +3164,35 @@ mod frame_type {
             8 => {
                 let x = r.as_mut().alloc_extended_data();
                 let (ext, _, separate) = c.extended();
-                // SAFETY: the frame's layout and `extended_data`, which takes
-                // a fresh block copying `data` when `buf[0]` is set.
-                let y = unsafe {
-                    let n = (*f).ch_layout.nb_channels;
+                // For the unsafe operations below: the frame's layout and `extended_data`, which
+                // takes a fresh block copying `data` when `buf[0]` is set.
+                let y = {
+                    // SAFETY: as the comment above this block states.
+                    let n = unsafe { (*f).ch_layout.nb_channels };
                     if n <= 0 {
                         Err(-(ffi::EINVAL as c_int))
                     } else {
-                        let block = ffi::av_calloc(n as usize, size_of_ptr()).cast::<*mut u8>();
-                        let counted = !(*f).buf[0].is_null();
+                        // SAFETY: as the comment above this block states: a fresh block.
+                        let block =
+                            unsafe { ffi::av_calloc(n as usize, size_of_ptr()) }.cast::<*mut u8>();
+                        // SAFETY: as above: a read of `buf[0]`.
+                        let counted = !unsafe { (*f).buf[0] }.is_null();
                         for i in 0..(n as usize).min(NUM_DATA_POINTERS) {
                             if counted {
-                                *block.add(i) = (*f).data[i];
+                                // SAFETY: as above: entry `i < n` of the fresh block.
+                                let at = unsafe { block.add(i) };
+                                // SAFETY: as above: a read of plane `i` of the frame.
+                                let plane = unsafe { (*f).data[i] };
+                                // SAFETY: as above: the plane, copied in.
+                                unsafe { *at = plane };
                             }
                         }
                         if separate {
-                            ffi::av_free(ext.cast());
+                            // SAFETY: as above: the frame's separate block, which it owns.
+                            unsafe { ffi::av_free(ext.cast()) };
                         }
-                        (*f).extended_data = block;
+                        // SAFETY: as above: the frame takes the fresh block.
+                        unsafe { (*f).extended_data = block };
                         Ok(())
                     }
                 };
@@ -2961,12 +3202,19 @@ mod frame_type {
             9 => {
                 r.as_mut().reset_extended_data();
                 let (ext, _, separate) = c.extended();
-                // SAFETY: the frame's own block, freed, and its `data`.
-                unsafe {
-                    if separate {
-                        ffi::av_free(ext.cast());
+                // For the unsafe operations below: the frame's own block, freed, and its `data`.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        if separate {
+                            ffi::av_free(ext.cast());
+                        }
                     }
-                    (*f).extended_data = (&raw mut (*f).data).cast();
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `data` field is in bounds; nothing is accessed here.
+                    let data_ptr = unsafe { &raw mut (*f).data };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).extended_data = (data_ptr).cast() };
                 }
                 "reset extended data".into()
             }
@@ -2980,8 +3228,10 @@ mod frame_type {
                     Err(PlaneError::NoPlane)
                 } else {
                     c.target(b, off).map(|t| {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let ext_add = unsafe { ext.add(i) };
                         // SAFETY: entry `i < n` of `extended_data`.
-                        unsafe { *ext.add(i) = t };
+                        unsafe { *ext_add = t };
                     })
                 };
                 assert_eq!(x, y);
@@ -3000,17 +3250,27 @@ mod frame_type {
                     )
                     .is_ok();
                 let mut slot = c_buffer(&bytes);
-                // SAFETY: the frame's side data variables and a reference C
-                // takes on success.
-                let y = unsafe {
-                    let e = ffi::av_frame_side_data_add(
-                        &raw mut (*f).side_data,
-                        &raw mut (*f).nb_side_data,
-                        ffi::AVFrameSideDataType(kind),
-                        &mut slot,
-                        0,
-                    );
-                    ffi::av_buffer_unref(&mut slot);
+                // For the unsafe operations below: the frame's side data variables and a reference
+                // C takes on success.
+                let y = {
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `nb_side_data` field is in bounds; nothing is accessed here.
+                    let nb_side_data_ptr = unsafe { &raw mut (*f).nb_side_data };
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `side_data` field is in bounds; nothing is accessed here.
+                    let side_data_ptr = unsafe { &raw mut (*f).side_data };
+                    // SAFETY: as the comment above this block states.
+                    let e = unsafe {
+                        ffi::av_frame_side_data_add(
+                            side_data_ptr,
+                            nb_side_data_ptr,
+                            ffi::AVFrameSideDataType(kind),
+                            &raw mut slot,
+                            0,
+                        )
+                    };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_buffer_unref(&raw mut slot) };
                     !e.is_null()
                 };
                 assert_eq!(x, y);
@@ -3020,10 +3280,15 @@ mod frame_type {
                 let n = rng.below(4);
                 r.as_mut()
                     .set_metadata(Dict::from_entries(PAIRS[..n].iter().copied()).unwrap());
-                // SAFETY: the frame's dictionary, replaced.
-                unsafe {
-                    ffi::av_dict_free(&raw mut (*f).metadata);
-                    (*f).metadata = c_dict(&PAIRS[..n]);
+                // For the unsafe operations below: the frame's dictionary, replaced.
+                {
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `metadata` field is in bounds; nothing is accessed here.
+                    let metadata_ptr = unsafe { &raw mut (*f).metadata };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_dict_free(metadata_ptr) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).metadata = c_dict(&PAIRS[..n]) };
                 }
                 format!("metadata {n}")
             }
@@ -3032,11 +3297,18 @@ mod frame_type {
                 let bytes = pattern(5, 4);
                 r.as_mut()
                     .set_opaque_ref((!none).then(|| rust_buffer(&bytes)));
-                // SAFETY: the frame's user data reference, replaced.
-                unsafe {
-                    ffi::av_buffer_unref(&raw mut (*f).opaque_ref);
-                    if !none {
-                        (*f).opaque_ref = c_buffer(&bytes);
+                // For the unsafe operations below: the frame's user data reference, replaced.
+                {
+                    // SAFETY: `f` is to a live object, as the block below relies on, so the
+                    // place of its `opaque_ref` field is in bounds; nothing is accessed here.
+                    let opaque_ref_ptr = unsafe { &raw mut (*f).opaque_ref };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_buffer_unref(opaque_ref_ptr) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        if !none {
+                            (*f).opaque_ref = c_buffer(&bytes);
+                        }
                     }
                 }
                 format!("opaque_ref {none}")
@@ -3046,19 +3318,23 @@ mod frame_type {
                 let byte = rng.next() as u8;
                 let x = r.as_mut().plane_mut(p).map(|v| v.fill(byte)).is_some();
                 let bufs = c.bufs();
-                // SAFETY: plane `p` of the live frame, written as `plane_mut`
-                // does when its buffer is writable.
-                let y = unsafe {
-                    match c_at(&bufs, (*f).data[p]) {
-                        At::In(b, off)
-                            if !bufs[0].is_null() && ffi::av_buffer_is_writable(bufs[b]) != 0 =>
-                        {
-                            let size = (*bufs[b]).size;
-                            ptr::write_bytes((*f).data[p], byte, size - off);
-                            true
-                        }
-                        _ => false,
+                // SAFETY: a read of plane `p` of the live frame.
+                let plane = unsafe { (*f).data[p] };
+                // The plane is written as `plane_mut` does when its buffer is writable.
+                let y = match c_at(&bufs, plane) {
+                    // SAFETY: `bufs[b]` is a live reference of the frame.
+                    At::In(b, off)
+                        if !bufs[0].is_null()
+                            // SAFETY: as the comment above this statement states.
+                            && unsafe { ffi::av_buffer_is_writable(bufs[b]) } != 0 =>
+                    {
+                        // SAFETY: as above: a read of its size.
+                        let size = unsafe { (*bufs[b]).size };
+                        // SAFETY: the plane lies `off` bytes into the writable reference.
+                        unsafe { ptr::write_bytes(plane, byte, size - off) };
+                        true
                     }
+                    _ => false,
                 };
                 assert_eq!(x, y);
                 format!("write plane {p}")
@@ -3096,7 +3372,7 @@ mod frame_type {
                 m.set_crop_top(v as usize);
                 m.set_crop_bottom(v as usize >> 2);
                 m.set_crop_left(3);
-                m.set_crop_right(v as usize & 0xffff);
+                m.set_crop_right(v as usize & 0xFFFF);
                 m.set_duration(v >> 4);
                 m.set_alpha_mode(AlphaMode::from_raw(ffi::AVAlphaMode(w as u32 % 3)));
                 m.set_linesize(w as usize & 7, w);
@@ -3127,7 +3403,7 @@ mod frame_type {
                     x.crop_top = v as usize;
                     x.crop_bottom = v as usize >> 2;
                     x.crop_left = 3;
-                    x.crop_right = v as usize & 0xffff;
+                    x.crop_right = v as usize & 0xFFFF;
                     x.duration = v >> 4;
                     x.alpha_mode = ffi::AVAlphaMode(w as u32 % 3);
                     x.linesize[w as usize & 7] = w;
@@ -3137,18 +3413,25 @@ mod frame_type {
             }
             16 => {
                 let mut m = r.as_mut();
-                m.set_pixel_format(ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::GRAY8);
+                m.set_pixel_format(
+                    ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat::GRAY8,
+                );
                 m.set_width(4);
                 m.set_height(2);
                 m.set_sample_count(0);
                 m.set_linesize(0, 4);
-                // SAFETY: plain fields of the live frame.
-                unsafe {
-                    (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0;
-                    (*f).width = 4;
-                    (*f).height = 2;
-                    (*f).nb_samples = 0;
-                    (*f).linesize[0] = 4;
+                // For the unsafe operations below: plain fields of the live frame.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0 };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).width = 4 };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).height = 2 };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).nb_samples = 0 };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).linesize[0] = 4 };
                 }
                 "gray 4x2".into()
             }
@@ -3177,7 +3460,7 @@ mod frame_type {
     /// The size of a pointer, which C's arrays of planes and references
     /// hold.
     fn size_of_ptr() -> usize {
-        core::mem::size_of::<*mut u8>()
+        size_of::<*mut u8>()
     }
 
     #[test]
@@ -3187,7 +3470,7 @@ mod frame_type {
         // that the sequences are known to reach both.
         let (mut placed, mut cloned) = (0, 0);
         for seed in 1..=40u64 {
-            let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
+            let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
             let mut r = Frame::new().unwrap();
             let mut c = CFrame::new();
             for n in 0..60 {
@@ -3220,7 +3503,7 @@ mod frame_type {
                     ffi::av_buffer_get_ref_count(y)
                 });
                 // SAFETY: released once.
-                unsafe { ffi::av_buffer_unref(&mut y) };
+                unsafe { ffi::av_buffer_unref(&raw mut y) };
             }
         }
         eprintln!("placed {placed}, cloned {cloned} of 2400 steps");
@@ -3247,13 +3530,18 @@ mod frame_type {
             // SAFETY: the frame holds no buffer; `mem` is the whole plane at
             // stride `w` and outlives both frames; nothing writes it.
             unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
-            // SAFETY: the same fields of the C frame.
-            unsafe {
-                (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0;
-                (*c.0).width = w;
-                (*c.0).height = h;
-                (*c.0).linesize[0] = w;
-                (*c.0).data[0] = mem.as_mut_ptr();
+            // For the unsafe operations below: the same fields of the C frame.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c.0).width = w };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c.0).height = h };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c.0).linesize[0] = w };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c.0).data[0] = mem.as_mut_ptr() };
             }
             let rc = r.as_ref().try_clone().unwrap();
             // SAFETY: a live frame, read only.
@@ -3270,8 +3558,10 @@ mod frame_type {
             for y in 0..h as usize {
                 let w = w as usize;
                 assert_eq!(&plane[y * line..y * line + w], &mem[y * w..(y + 1) * w]);
+                // SAFETY: as the comment below states, for this part of the operation.
+                let c_plane_add = unsafe { c_plane.add(y * line) };
                 // SAFETY: line `y` of the C copy, `w` bytes C wrote.
-                let c_line = unsafe { std::slice::from_raw_parts(c_plane.add(y * line), w) };
+                let c_line = unsafe { std::slice::from_raw_parts(c_plane_add, w) };
                 assert_eq!(c_line, &plane[y * line..y * line + w]);
                 let pad = &plane[y * line + w..(y + 1) * line];
                 assert_eq!(pad, &vec![0; pad.len()][..]);
@@ -3315,20 +3605,32 @@ mod frame_type {
                     // writes it.
                     unsafe { m.set_extended_data_ptr(i, mem.as_mut_ptr()) };
                 }
-                // SAFETY: the same fields of the C frame; its separate array
-                // is C's to free, as `get_audio_buffer` allocates one.
-                unsafe {
+                // For the unsafe operations below: the same fields of the C frame; its separate
+                // array is C's to free, as `get_audio_buffer` allocates one.
+                {
                     let f = c.0;
-                    (*f).format = ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P.0;
-                    (*f).nb_samples = samples as c_int;
-                    (*f).linesize[0] = samples as c_int;
-                    (*f).ch_layout.nb_channels = channels as c_int;
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).format = ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P.0 };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).nb_samples = samples as c_int };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).linesize[0] = samples as c_int };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).ch_layout.nb_channels = channels as c_int };
                     if separate {
-                        (*f).extended_data = ffi::av_calloc(channels, size_of_ptr()).cast();
-                        assert!(!(*f).extended_data.is_null());
+                        // SAFETY: as the comment above this block states: a fresh block.
+                        let block = unsafe { ffi::av_calloc(channels, size_of_ptr()) };
+                        assert!(!block.is_null());
+                        // SAFETY: as above: the frame takes it.
+                        unsafe { (*f).extended_data = block.cast() };
                     }
+                    // SAFETY: as the comment above this block states: a read of the array.
+                    let ext = unsafe { (*f).extended_data };
                     for (i, mem) in mems.iter_mut().enumerate() {
-                        *(*f).extended_data.add(i) = mem.as_mut_ptr();
+                        // SAFETY: as above: entry `i` of one per channel.
+                        let at = unsafe { ext.add(i) };
+                        // SAFETY: as above.
+                        unsafe { *at = mem.as_mut_ptr() };
                     }
                 }
                 let what = format!("{channels} channels of {samples}");
@@ -3340,11 +3642,15 @@ mod frame_type {
                 assert_eq!(shape(rust_seen(&rc)), shape(cc.seen()), "{what}");
                 for (i, mem) in mems.iter().enumerate() {
                     let plane = rc.as_ref().extended_plane(i).unwrap();
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let extended_data_2 = unsafe { (*cc.0).extended_data };
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let extended_data_2_add = unsafe { extended_data_2.add(i) };
+                    // SAFETY: as below, entry `i` of the copy's array, initialised.
+                    let channel = unsafe { *extended_data_2_add };
                     // SAFETY: channel `i` of the C copy, `samples` bytes C
                     // wrote.
-                    let c_plane = unsafe {
-                        std::slice::from_raw_parts(*(*cc.0).extended_data.add(i), samples)
-                    };
+                    let c_plane = unsafe { std::slice::from_raw_parts(channel, samples) };
                     assert_eq!(&plane[..samples], &mem[..], "{what} ({i})");
                     assert_eq!(c_plane, &mem[..], "{what} ({i})");
                     let rest = &plane[samples..];
@@ -3381,11 +3687,12 @@ mod frame_routines {
     use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{CropFlags, Frame, FrameBox, FrameRef, SideDataType};
-    use ffmpeg_bindings::libavutil::libavutil::imgutils;
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        CropFlags, Frame, FrameBox, FrameRef, SideDataType,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::{ffi, imgutils};
 
     use super::frame_type::{At, CFrame, c_at, c_dict, getters, pattern, rust_seen, shape};
 
@@ -3418,11 +3725,14 @@ mod frame_routines {
                 m.set_width(w);
                 m.set_height(h);
             }
-            // SAFETY: the same fields of the live C frame.
-            unsafe {
-                (*p.c.0).format = format.into_raw().0;
-                (*p.c.0).width = w;
-                (*p.c.0).height = h;
+            // For the unsafe operations below: the same fields of the live C frame.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).format = format.into_raw().0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).width = w };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).height = h };
             }
             p
         }
@@ -3436,13 +3746,17 @@ mod frame_routines {
             m.set_sample_count(samples);
             m.set_channel_layout(ChannelLayout::unspecified(channels))
                 .unwrap();
-            // SAFETY: the same fields of the live C frame; an unspecified
+            // For the unsafe operations below: the same fields of the live C frame; an unspecified
             // layout has no map.
-            unsafe {
-                (*p.c.0).format = format.into_raw().0;
-                (*p.c.0).nb_samples = samples;
-                (*p.c.0).ch_layout.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
-                (*p.c.0).ch_layout.nb_channels = channels;
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).format = format.into_raw().0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).nb_samples = samples };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).ch_layout.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p.c.0).ch_layout.nb_channels = channels };
             }
             p.check("audio");
             p
@@ -3478,16 +3792,24 @@ mod frame_routines {
             let bufs = self.c.bufs();
             let (ext, n) = c_extended(&self.c);
             for i in 0..n {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let ext_add = unsafe { ext.add(i) };
                 // SAFETY: entry `i` of the frame's `extended_data`, which
                 // holds `n`.
-                let p = unsafe { *ext.add(i) };
+                let p = unsafe { *ext_add };
                 if let At::In(b, off) = c_at(&bufs, p) {
-                    // SAFETY: a live reference the frame holds alone; `off` is
-                    // inside its window.
-                    unsafe {
-                        let size = (*bufs[b]).size - off;
+                    // For the unsafe operations below: a live reference the frame holds alone;
+                    // `off` is inside its window.
+                    {
+                        // SAFETY: as the comment above this block states.
+                        let size = unsafe { (*bufs[b]).size - off };
                         let bytes = pattern(size, seed.wrapping_add(i as u8));
-                        ptr::copy_nonoverlapping(bytes.as_ptr(), (*bufs[b]).data.add(off), size);
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let data_3 = unsafe { (*bufs[b]).data };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let data_3_add = unsafe { data_3.add(off) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data_3_add, size) };
                     }
                 }
             }
@@ -3503,15 +3825,20 @@ mod frame_routines {
 
     /// The `extended_data` entries of a C frame, and how many it holds.
     fn c_extended(c: &CFrame) -> (*mut *mut u8, usize) {
-        // SAFETY: a live frame.
-        unsafe {
+        // For the unsafe operations below: a live frame.
+        {
             let f = c.0;
-            let own = (&raw mut (*f).data).cast::<*mut u8>();
-            let ext = (*f).extended_data;
-            if ext == own {
-                (ext, ffi::AV_NUM_DATA_POINTERS as usize)
-            } else {
-                (ext, (*f).ch_layout.nb_channels.max(0) as usize)
+            // SAFETY: as the comment above this block states.
+            let own = unsafe { (&raw mut (*f).data).cast::<*mut u8>() };
+            // SAFETY: as the comment above this block states.
+            let ext = unsafe { (*f).extended_data };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                if ext == own {
+                    (ext, ffi::AV_NUM_DATA_POINTERS as usize)
+                } else {
+                    (ext, (*f).ch_layout.nb_channels.max(0) as usize)
+                }
             }
         }
     }
@@ -3519,8 +3846,12 @@ mod frame_routines {
     /// Zeroes every buffer of a C frame.
     fn c_zero(c: &CFrame) {
         for b in c.bufs().into_iter().filter(|b| !b.is_null()) {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_2 = unsafe { (*b).data };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let size_2 = unsafe { (*b).size };
             // SAFETY: a fresh reference the frame holds alone.
-            unsafe { ptr::write_bytes((*b).data, 0, (*b).size) };
+            unsafe { ptr::write_bytes(data_2, 0, size_2) };
         }
     }
 
@@ -3711,26 +4042,60 @@ mod frame_routines {
                 .copy_from_slice(&[k as u8, 1]),
         ));
         let f = p.c.0;
-        // SAFETY: the same fields of the live C frame; its side data entries
-        // are written in full, and the frame takes the dictionary and the
+        // For the unsafe operations below: the same fields of the live C frame; its side data
+        // entries are written in full, and the frame takes the dictionary and the
         // reference.
-        unsafe {
-            (*f).pts = k;
-            (*f).duration = k * 2;
-            (*f).crop_top = k as usize;
-            (*f).quality = k as c_int;
-            ffi::av_dict_free(&mut (*f).metadata);
-            (*f).metadata = c_dict(&pairs);
-            let e = ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1);
-            *(*e).data = k as u8;
-            let e =
-                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN, 20);
-            ptr::copy_nonoverlapping(pattern(20, k as u8).as_ptr(), (*e).data, 20);
-            ffi::av_buffer_unref(&mut (*f).opaque_ref);
-            let b = ffi::av_buffer_alloc(2);
-            *(*b).data = k as u8;
-            *(*b).data.add(1) = 1;
-            (*f).opaque_ref = b;
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).pts = k };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).duration = k * 2 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).crop_top = k as usize };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).quality = k as c_int };
+            // SAFETY: `f` is to a live object, as the block below relies on, so the
+            // place of its `metadata` field is in bounds; nothing is accessed here.
+            let metadata_ptr = unsafe { &raw mut (*f).metadata };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_dict_free(metadata_ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).metadata = c_dict(&pairs) };
+            // SAFETY: as the comment above this block states.
+            let e = unsafe {
+                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1)
+            };
+            // SAFETY: as the comment above this block states: a read of the new entry's
+            // payload pointer.
+            let payload = unsafe { (*e).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { *payload = k as u8 };
+            // SAFETY: as the comment above this block states.
+            let e = unsafe {
+                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN, 20)
+            };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_5 = unsafe { (*e).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::copy_nonoverlapping(pattern(20, k as u8).as_ptr(), data_5, 20) };
+            // SAFETY: `f` is to a live object, as the block below relies on, so the
+            // place of its `opaque_ref` field is in bounds; nothing is accessed here.
+            let opaque_ref_ptr = unsafe { &raw mut (*f).opaque_ref };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_buffer_unref(opaque_ref_ptr) };
+            // SAFETY: as the comment above this block states.
+            let b = unsafe { ffi::av_buffer_alloc(2) };
+            // SAFETY: as the comment above this block states: a read of the new reference's
+            // two-byte window.
+            let data = unsafe { (*b).data };
+            // SAFETY: as above.
+            unsafe { *data = k as u8 };
+            // SAFETY: as above, its second byte.
+            let second = unsafe { data.add(1) };
+            // SAFETY: as above.
+            unsafe { *second = 1 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).opaque_ref = b };
         }
         p.check(&format!("props {k}"));
     }
@@ -3760,18 +4125,31 @@ mod frame_routines {
     /// keeps their count (see `unit_tests::frame_assign_from_a_frame_without
     /// _extra_references_keeps_no_count`).
     fn c_replace(d: &CFrame, s: &CFrame) -> c_int {
-        // SAFETY: two distinct live frames; the released references are
+        // For the unsafe operations below: two distinct live frames; the released references are
         // `d`'s own, and the count follows them.
-        unsafe {
+        {
             let f = d.0;
-            if (*s.0).extended_buf.is_null() && !(*f).extended_buf.is_null() {
-                for i in 0..(*f).nb_extended_buf as usize {
-                    ffi::av_buffer_unref((*f).extended_buf.add(i));
+            // SAFETY: `f` is to a live object, as the block below relies on, so the
+            // place of its `extended_buf` field is in bounds; nothing is accessed here.
+            let extended_buf_ptr = unsafe { &raw mut (*f).extended_buf };
+            // SAFETY: as the comment above this block states: reads of the two extra blocks.
+            let (src_ext, dst_ext) = (unsafe { (*s.0).extended_buf }, unsafe { (*f).extended_buf });
+            if src_ext.is_null() && !dst_ext.is_null() {
+                // SAFETY: as above: a read of `d`'s count.
+                let n = unsafe { (*f).nb_extended_buf } as usize;
+                for i in 0..n {
+                    // SAFETY: as above, entry `i < n` of `d`'s block.
+                    let at = unsafe { dst_ext.add(i) };
+                    // SAFETY: as above; the entry is `d`'s own reference.
+                    unsafe { ffi::av_buffer_unref(at) };
                 }
-                ffi::av_freep((&raw mut (*f).extended_buf).cast());
-                (*f).nb_extended_buf = 0;
+                // SAFETY: as above: the emptied block is freed and NULLed.
+                unsafe { ffi::av_freep(extended_buf_ptr.cast()) };
+                // SAFETY: as above: the count follows the block.
+                unsafe { (*f).nb_extended_buf = 0 };
             }
-            ffi::av_frame_replace(f, s.0)
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_replace(f, s.0) }
         }
     }
 
@@ -3909,19 +4287,26 @@ mod frame_routines {
     fn c_rows_of(c: &CFrame, format: PixelFormat) -> Vec<Vec<u8>> {
         let (_, sub) = format.chroma_subsampling().unwrap();
         let mut out = Vec::new();
-        // SAFETY: a live frame whose planes hold the rows C copied.
-        unsafe {
+        // For the unsafe operations below: a live frame whose planes hold the rows C copied.
+        {
             let f = c.0;
+            // SAFETY: as the comment above this block states: reads of the frame's geometry.
+            let (width, height) = (unsafe { (*f).width }, unsafe { (*f).height } as usize);
             for i in 0..format.plane_count().unwrap() {
-                let len = imgutils::linesize(format, (*f).width, i).unwrap() as usize;
-                let ls = (*f).linesize[i] as usize;
+                let len = imgutils::linesize(format, width, i).unwrap() as usize;
+                // SAFETY: as above: reads of plane `i` and its line size.
+                let (plane, ls) = (unsafe { (*f).data[i] }, unsafe { (*f).linesize[i] }
+                    as usize);
                 let h = if i == 1 || i == 2 {
-                    ((*f).height as usize).div_ceil(1 << sub)
+                    height.div_ceil(1 << sub)
                 } else {
-                    (*f).height as usize
+                    height
                 };
                 for y in 0..h {
-                    let row = std::slice::from_raw_parts((*f).data[i].add(y * ls), len);
+                    // SAFETY: as above: row `y < h` of the plane.
+                    let at = unsafe { plane.add(y * ls) };
+                    // SAFETY: as above: `len` bytes C copied into the row.
+                    let row = unsafe { std::slice::from_raw_parts(at, len) };
                     out.push(row.to_vec());
                 }
             }
@@ -3958,7 +4343,7 @@ mod frame_routines {
             assert_eq!(p.r.as_ref().is_writable(), c != 0);
             drop(keep_r);
             // SAFETY: the clone this test made.
-            unsafe { ffi::av_frame_free(&mut keep_c) };
+            unsafe { ffi::av_frame_free(&raw mut keep_c) };
         }
         // Lent planes are copied alike.
         let mut mem = pattern(5 * 3, 2);
@@ -3969,11 +4354,14 @@ mod frame_routines {
         // outlives both frames and is written by nothing else.
         unsafe { m.set_data_ptr(0, mem.as_mut_ptr()) };
         let r = m.make_writable();
-        // SAFETY: the same fields of the live C frame; `mem` as above.
-        let c = unsafe {
-            (*p.c.0).linesize[0] = 5;
-            (*p.c.0).data[0] = mem.as_mut_ptr();
-            ffi::av_frame_make_writable(p.c.0)
+        // For the unsafe operations below: the same fields of the live C frame; `mem` as above.
+        let c = {
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p.c.0).linesize[0] = 5 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p.c.0).data[0] = mem.as_mut_ptr() };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_make_writable(p.c.0) }
         };
         assert_eq!((r, c), (Ok(()), 0));
         assert_eq!(shape(rust_seen(&p.r)), shape(p.c.seen()));
@@ -4017,13 +4405,20 @@ mod frame_routines {
                     m.set_crop_left(left);
                     m.set_crop_right(right);
                     let r = m.apply_cropping(flags);
-                    // SAFETY: the same fields of the live C frame, whose
+                    // For the unsafe operations below: the same fields of the live C frame, whose
                     // planes stay inside its buffer for these crops.
-                    let c = unsafe {
+                    let c = {
                         let f = p.c.0;
-                        ((*f).crop_top, (*f).crop_bottom) = (top, bottom);
-                        ((*f).crop_left, (*f).crop_right) = (left, right);
-                        ffi::av_frame_apply_cropping(f, flags.bits())
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*f).crop_top = top };
+                        // SAFETY: as the comment above the previous write states.
+                        unsafe { (*f).crop_bottom = bottom };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { (*f).crop_left = left };
+                        // SAFETY: as the comment above the previous write states.
+                        unsafe { (*f).crop_right = right };
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_frame_apply_cropping(f, flags.bits()) }
                     };
                     let what = format!("{format:?} {top} {bottom} {left} {right} {flags:?}");
                     assert_eq!(r.err().unwrap_or(0), c, "{what}");
@@ -4075,7 +4470,7 @@ mod frame_routines {
             assert!(!p.r.as_ref().is_writable() && !c);
             drop(keep);
             // SAFETY: the clone this test made.
-            unsafe { ffi::av_frame_free(&mut keep_c) };
+            unsafe { ffi::av_frame_free(&raw mut keep_c) };
         }
         let bare = Pair::new();
         // SAFETY: a live frame.
@@ -4105,10 +4500,18 @@ mod frame_routines {
             });
             // SAFETY: a live frame; C returns one of its entries, or NULL.
             let e = unsafe { ffi::av_frame_get_side_data(p.c.0, kind.into_raw()) };
-            // SAFETY: as above.
-            let c = (!e.is_null()).then(|| unsafe {
-                (0..(*p.c.0).nb_side_data as usize)
-                    .position(|i| *(*p.c.0).side_data.add(i) == e)
+            let c = (!e.is_null()).then(|| {
+                // SAFETY: as above: reads of the frame's side data list.
+                let (list, n) = (unsafe { (*p.c.0).side_data }, unsafe {
+                    (*p.c.0).nb_side_data
+                });
+                (0..n as usize)
+                    .position(|i| {
+                        // SAFETY: as above, entry `i < nb_side_data`.
+                        let at = unsafe { list.add(i) };
+                        // SAFETY: as above; the entry is initialised.
+                        unsafe { *at == e }
+                    })
                     .unwrap()
             });
             assert_eq!(found, c, "{kind:?}");
@@ -4119,25 +4522,38 @@ mod frame_routines {
                 p.r.as_mut()
                     .alloc_side_data_from_slice(kind, &bytes)
                     .unwrap();
-                // SAFETY: a live frame; the new entry's payload is written in
-                // full.
-                unsafe {
-                    let e = ffi::av_frame_new_side_data(p.c.0, kind.into_raw(), bytes.len());
+                // For the unsafe operations below: a live frame; the new entry's payload is written
+                // in full.
+                {
+                    // SAFETY: as the comment above this block states.
+                    let e =
+                        unsafe { ffi::av_frame_new_side_data(p.c.0, kind.into_raw(), bytes.len()) };
                     assert!(!e.is_null());
-                    ptr::copy_nonoverlapping(bytes.as_ptr(), (*e).data, bytes.len());
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let data_4 = unsafe { (*e).data };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data_4, bytes.len()) };
                 }
             } else {
                 let buf = BufferReference::alloc(bytes.len())
                     .unwrap()
                     .copy_from_slice(&bytes);
                 p.r.as_mut().add_side_data(kind, buf).unwrap();
-                // SAFETY: a live frame, which takes the fresh reference.
-                unsafe {
-                    let b = ffi::av_buffer_alloc(bytes.len());
-                    ptr::copy_nonoverlapping(bytes.as_ptr(), (*b).data, bytes.len());
-                    assert!(
-                        !ffi::av_frame_new_side_data_from_buf(p.c.0, kind.into_raw(), b).is_null()
-                    );
+                // For the unsafe operations below: a live frame, which takes the fresh reference.
+                {
+                    // SAFETY: as the comment above this block states.
+                    let b = unsafe { ffi::av_buffer_alloc(bytes.len()) };
+                    // SAFETY: as the comment below states, for this part of the operation.
+                    let data_3 = unsafe { (*b).data };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data_3, bytes.len()) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        assert!(
+                            !ffi::av_frame_new_side_data_from_buf(p.c.0, kind.into_raw(), b)
+                                .is_null()
+                        );
+                    };
                 }
             }
             p.check(&format!("add {k}"));
@@ -4162,11 +4578,16 @@ mod frame_routines {
         p.r.as_mut()
             .alloc_side_data_zeroed(SideDataType::AFD, 4)
             .unwrap();
-        // SAFETY: as above.
-        unsafe {
-            let e =
-                ffi::av_frame_new_side_data(p.c.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 4);
-            ptr::write_bytes((*e).data, 0, 4);
+        // For the unsafe operations below: as above.
+        {
+            // SAFETY: as the comment above this block states.
+            let e = unsafe {
+                ffi::av_frame_new_side_data(p.c.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 4)
+            };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let data_2 = unsafe { (*e).data };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::write_bytes(data_2, 0, 4) };
         }
         p.check("zeroed");
     }

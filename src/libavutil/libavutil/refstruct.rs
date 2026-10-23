@@ -1,25 +1,25 @@
 //! Safe wrappers over `libavutil/refstruct.h`.
 //!
 //! [`RefStructOpaque`] is `AVRefStructOpaque`, the union of a `void *` and a
-//! `const void *` that carries a user's pointer to the RefStruct callbacks.
+//! `const void *` that carries a user's pointer to the `RefStruct` callbacks.
 //! Both members are one pointer, so it is a plain `Copy` value: a cookie C
 //! stores and hands back, never dereferences and never frees.
 //!
 //! [`RefStructPool`] is the layout type of `AVRefStructPool`, a thread-safe
-//! pool of RefStruct objects whose body is private to `refstruct.c`. The pool
-//! is itself a RefStruct object with a counted reference, so its owner is the
+//! pool of `RefStruct` objects whose body is private to `refstruct.c`. The pool
+//! is itself a `RefStruct` object with a counted reference, so its owner is the
 //! shared [`RefStructPoolArc`]: [`RefStructPool::new`] (`av_refstruct_pool_alloc`)
 //! makes the first reference, `Clone` adds one (`av_refstruct_ref`) and drop
 //! releases one (`av_refstruct_pool_uninit`). Entries handed out by the pool
 //! keep it alive on their own, so C frees it only after the last reference
 //! and the last outstanding entry are both gone. [`TypedRefStructPool<T>`]
 //! is such a reference to a pool whose entries hold a `T`: its `get`
-//! (`av_refstruct_pool_get`) hands out entries as RefStruct objects, and
+//! (`av_refstruct_pool_get`) hands out entries as `RefStruct` objects, and
 //! [`TypedRefStructPool::with_callbacks`] (`av_refstruct_pool_alloc_ext_c`)
 //! drives them with the safe init, reset and entry-freeing callbacks of a
 //! [`PoolCallbacks`].
 //!
-//! A RefStruct object is a payload of any type preceded, in the same
+//! A `RefStruct` object is a payload of any type preceded, in the same
 //! `av_malloc` block, by a hidden header holding an atomic reference count.
 //! C hands out the payload's address as a `void *`, and every reference to
 //! the object is that same pointer: `av_refstruct_ref` increments the count
@@ -31,21 +31,17 @@
 //! released by `av_refstruct_unref`, which follow C's `void *` / `const void *`
 //! split:
 //!
-//! - [`RefStructArc<T>`] ([`RefStructUnref`]) clones through
-//!   `av_refstruct_ref` and hands out `T`'s shared handle always, and its
-//!   exclusive handle (`get_mut`) when `av_refstruct_exclusive` proves the
-//!   reference the only one. It is built zeroed by
-//!   `RefStructArc::<T>::new_zeroed()` (`av_refstruct_allocz`), or as a
-//!   [`RefStructBox<T>`], the sole owner, which `CArc::from` shares and
-//!   `try_into_box` takes back: zeroed (`new_zeroed`), zeroed with a release
-//!   closure ([`alloc_with_release`], `av_refstruct_alloc_ext_c`),
-//!   uninitialised for C to fill (`new_uninit`, its `NO_ZEROING` flag), or
-//!   as a pool entry.
-//! - [`ConstRefStructArc<T>`] ([`ConstRefStructUnref`]) clones through
-//!   `av_refstruct_ref_c` and never hands out the exclusive handle: C's
-//!   `const` reference, through which the holder never writes. It is made
-//!   from a [`RefStructArc`] by [`to_const`] (a new reference) or
-//!   [`into_const`] (the same one).
+//! - [`RefStructArc<T>`] ([`RefStructUnref`]) clones through `av_refstruct_ref` and hands out `T`'s
+//!   shared handle always, and its exclusive handle (`get_mut`) when `av_refstruct_exclusive`
+//!   proves the reference the only one. It is built zeroed by `RefStructArc::<T>::new_zeroed()`
+//!   (`av_refstruct_allocz`), or as a [`RefStructBox<T>`], the sole owner, which `CArc::from`
+//!   shares and `try_into_box` takes back: zeroed (`new_zeroed`), zeroed with a release closure
+//!   ([`alloc_with_release`], `av_refstruct_alloc_ext_c`), uninitialised for C to fill
+//!   (`new_uninit`, its `NO_ZEROING` flag), or as a pool entry.
+//! - [`ConstRefStructArc<T>`] ([`ConstRefStructUnref`]) clones through `av_refstruct_ref_c` and
+//!   never hands out the exclusive handle: C's `const` reference, through which the holder never
+//!   writes. It is made from a [`RefStructArc`] by [`to_const`] (a new reference) or [`into_const`]
+//!   (the same one).
 //!
 //! [`replace`] (`av_refstruct_replace`) points an optional reference at
 //! another object, and [`is_exclusive`] (`av_refstruct_exclusive`) tells
@@ -55,7 +51,7 @@
 //!
 //! C never checks its count for overflow, and safe Rust can leak references
 //! (`mem::forget` of a clone) until a count narrower than 64 bits wraps. On
-//! such targets nothing adds a reference: cloning a RefStruct reference,
+//! such targets nothing adds a reference: cloning a `RefStruct` reference,
 //! [`to_const`] and [`replace`] do not compile, and a pool reference's
 //! `try_clone` returns `None`.
 //!
@@ -73,9 +69,7 @@ use core::mem::{MaybeUninit, align_of, size_of};
 use core::ops::{BitOr, BitOrAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{
-    CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CZeroable, define_ctype,
-};
+use ffibox::{CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CZeroable, define_ctype};
 
 use super::ffi;
 
@@ -159,7 +153,7 @@ impl RefStructOpaque {
     #[inline]
     #[must_use]
     pub const fn from_raw(raw: ffi::AVRefStructOpaque) -> Self {
-        Self(raw, core::marker::PhantomData)
+        Self(raw, PhantomData)
     }
 
     /// The C encoding of this opaque, for passing it to C by value.
@@ -220,12 +214,15 @@ impl RefStructOpaqueRef<'_> {
     #[inline]
     #[must_use]
     pub fn mut_ptr(&self) -> *mut c_void {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nc` field is in bounds; nothing is accessed here.
+        let nc_ptr = unsafe { addr_of!((*self.as_ptr()).nc) };
         // SAFETY: a read of the `nc` member projected through the shared
         // handle's pointer to a live, initialised `AVRefStructOpaque`. Both
         // members span the same 8 bytes and either one's bytes are a valid
         // pointer of the other's type; the pointer is copied, not
         // dereferenced.
-        unsafe { addr_of!((*self.as_ptr()).nc).read() }
+        unsafe { nc_ptr.read() }
     }
 
     /// Field: AVRefStructOpaque.c
@@ -235,11 +232,14 @@ impl RefStructOpaqueRef<'_> {
     #[inline]
     #[must_use]
     pub fn const_ptr(&self) -> *const c_void {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `c` field is in bounds; nothing is accessed here.
+        let c_ptr = unsafe { addr_of!((*self.as_ptr()).c) };
         // SAFETY: a read of the `c` member projected through the shared
         // handle's pointer to a live, initialised `AVRefStructOpaque`; as
         // for `nc`, any bytes of either member are a valid `*const c_void`,
         // copied, not dereferenced.
-        unsafe { addr_of!((*self.as_ptr()).c).read() }
+        unsafe { c_ptr.read() }
     }
 }
 
@@ -253,13 +253,19 @@ impl RefStructOpaqueMut<'_> {
     /// for as long as a callback may receive it is the caller's concern.
     // The lint reads the write of `opaque` as a dereference of it: the
     // pointer is the value stored, through the handle's own pointer.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[expect(
+        clippy::not_unsafe_ptr_arg_deref,
+        reason = "the pointer is an opaque user cookie, stored and never dereferenced"
+    )]
     #[inline]
     pub fn set_mut_ptr(&mut self, opaque: *mut c_void) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nc` field is in bounds; nothing is accessed here.
+        let nc_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).nc) };
         // SAFETY: a write of the `nc` member projected through the exclusive
         // handle's pointer to a live `AVRefStructOpaque`; it covers the whole
         // union, and the old pointer is a cookie nothing frees.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).nc).write(opaque) }
+        unsafe { nc_ptr.write(opaque) }
     }
 
     /// Field: AVRefStructOpaque.c
@@ -269,13 +275,19 @@ impl RefStructOpaqueMut<'_> {
     /// address, as C's `.nc` reads a `.c` write. As for
     /// [`set_mut_ptr`](Self::set_mut_ptr), any address is safe to store.
     // As for `set_mut_ptr`: the pointer is the value stored.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[expect(
+        clippy::not_unsafe_ptr_arg_deref,
+        reason = "the pointer is an opaque user cookie, stored and never dereferenced"
+    )]
     #[inline]
     pub fn set_const_ptr(&mut self, opaque: *const c_void) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `c` field is in bounds; nothing is accessed here.
+        let c_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).c) };
         // SAFETY: a write of the `c` member projected through the exclusive
         // handle's pointer to a live `AVRefStructOpaque`; it covers the whole
         // union, and the old pointer is a cookie nothing frees.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).c).write(opaque) }
+        unsafe { c_ptr.write(opaque) }
     }
 }
 
@@ -353,7 +365,7 @@ pub struct RefStructPoolUnref;
 /// `None`: see [`RefStructPool`].
 pub type RefStructPoolArc = CArc<RefStructPool, RefStructPoolUnref>;
 
-/// Wraps: av_refstruct_pool_uninit
+/// Wraps: `av_refstruct_pool_uninit`
 /// Handwritten
 ///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the pool's
@@ -369,11 +381,11 @@ unsafe impl CDrop<RefStructPool> for RefStructPoolUnref {
         let mut slot = ptr.as_ptr().cast::<ffi::AVRefStructPool>();
         // SAFETY: the caller hands over one counted reference to a live
         // pool; C releases it once and NULLs only our local slot.
-        unsafe { ffi::av_refstruct_pool_uninit(&mut slot) }
+        unsafe { ffi::av_refstruct_pool_uninit(&raw mut slot) }
     }
 }
 
-/// Wraps: av_refstruct_ref
+/// Wraps: `av_refstruct_ref`
 /// Handwritten
 ///
 /// The up-ref returns its argument, which carries no status: it cannot
@@ -402,7 +414,7 @@ unsafe impl CRefClone<RefStructPool> for RefStructPoolUnref {
 }
 
 impl RefStructPool {
-    /// Wraps: av_refstruct_pool_alloc
+    /// Wraps: `av_refstruct_pool_alloc`
     ///
     /// A new pool of entries of `size` bytes, with no callbacks, as the first
     /// counted reference to it; `None` when C runs out of memory or cannot
@@ -432,6 +444,10 @@ impl RefStructPool {
 pub struct PoolFlags(c_uint);
 
 impl PoolFlags {
+    /// `AV_REFSTRUCT_POOL_FLAG_FREE_ON_INIT_ERROR`: when the init callback
+    /// fails, the entry-freeing callback runs on the entry, after the reset
+    /// callback if that runs too; only with both callbacks.
+    pub const FREE_ON_INIT_ERROR: Self = Self(ffi::AV_REFSTRUCT_POOL_FLAG_FREE_ON_INIT_ERROR);
     /// Each entry is zeroed when C first allocates it, before the init
     /// callback runs, and then handed out as the last user left it.
     pub const NONE: Self = Self(0);
@@ -441,10 +457,6 @@ impl PoolFlags {
     /// `AV_REFSTRUCT_POOL_FLAG_RESET_ON_INIT_ERROR`: when the init callback
     /// fails, the reset callback runs on the entry; only with both callbacks.
     pub const RESET_ON_INIT_ERROR: Self = Self(ffi::AV_REFSTRUCT_POOL_FLAG_RESET_ON_INIT_ERROR);
-    /// `AV_REFSTRUCT_POOL_FLAG_FREE_ON_INIT_ERROR`: when the init callback
-    /// fails, the entry-freeing callback runs on the entry, after the reset
-    /// callback if that runs too; only with both callbacks.
-    pub const FREE_ON_INIT_ERROR: Self = Self(ffi::AV_REFSTRUCT_POOL_FLAG_FREE_ON_INIT_ERROR);
     /// `AV_REFSTRUCT_POOL_FLAG_ZERO_EVERY_TIME`: every entry is zeroed each
     /// time it is handed out, after the init or reset callback; it implies
     /// [`NO_ZEROING`](Self::NO_ZEROING) at allocation.
@@ -467,6 +479,7 @@ impl PoolFlags {
 
 impl BitOr for PoolFlags {
     type Output = Self;
+
     #[inline]
     fn bitor(self, rhs: Self) -> Self {
         Self(self.0 | rhs.0)
@@ -480,7 +493,7 @@ impl BitOrAssign for PoolFlags {
     }
 }
 
-/// Alignment of every RefStruct payload: `av_malloc` aligns the block to
+/// Alignment of every `RefStruct` payload: `av_malloc` aligns the block to
 /// `ALIGN` (64, 32 or 16 by the build's SIMD configuration), and the payload
 /// starts `REFCOUNT_OFFSET` bytes in, a multiple of
 /// `FFMAX(ALIGN_64, _Alignof(max_align_t))`; both are at least 16.
@@ -499,7 +512,7 @@ const ALIGN: usize = 16;
 pub(crate) const COUNT_IS_WIDE: bool = usize::BITS >= 64;
 
 /// `av_refstruct_unref` and `av_refstruct_ref`, as the policy of a reference
-/// to a RefStruct object through which the holder may write once it is the
+/// to a `RefStruct` object through which the holder may write once it is the
 /// only one.
 ///
 /// Thread-agnostic: C counts with atomics and frees through `av_free`, so a
@@ -508,13 +521,13 @@ pub(crate) const COUNT_IS_WIDE: bool = usize::BITS >= 64;
 pub struct RefStructUnref;
 
 /// `av_refstruct_unref` and `av_refstruct_ref_c`, as the policy of a `const`
-/// reference to a RefStruct object, through which the holder never writes.
+/// reference to a `RefStruct` object, through which the holder never writes.
 ///
 /// Thread-agnostic, as [`RefStructUnref`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ConstRefStructUnref;
 
-/// One counted reference to a RefStruct object with payload `T`.
+/// One counted reference to a `RefStruct` object with payload `T`.
 ///
 /// `clone` adds a reference to the same object (`av_refstruct_ref`); dropping
 /// the last one frees it. `as_ref` hands out `T`'s shared handle, and
@@ -535,13 +548,13 @@ pub struct ConstRefStructUnref;
 /// ```
 pub type RefStructArc<T> = CArc<T, RefStructUnref>;
 
-/// The only reference to a RefStruct object with payload `T`: `as_mut` hands
+/// The only reference to a `RefStruct` object with payload `T`: `as_mut` hands
 /// out `T`'s exclusive handle unconditionally. Built zeroed by
 /// `RefStructBox::<T>::new_zeroed()`, shared by `RefStructArc::from`, and
 /// recovered from a sole [`RefStructArc`] by `try_into_box`.
 pub type RefStructBox<T> = CBox<T, RefStructUnref>;
 
-/// One counted `const` reference to a RefStruct object with payload `T`.
+/// One counted `const` reference to a `RefStruct` object with payload `T`.
 ///
 /// `clone` adds a `const` reference (`av_refstruct_ref_c`); `as_ref` hands out
 /// `T`'s shared handle, and `get_mut` is always `None`, even for the only
@@ -556,7 +569,7 @@ pub type RefStructBox<T> = CBox<T, RefStructUnref>;
 /// ```
 pub type ConstRefStructArc<T> = CArc<T, ConstRefStructUnref>;
 
-/// The policies of a counted RefStruct reference, [`RefStructUnref`] and
+/// The policies of a counted `RefStruct` reference, [`RefStructUnref`] and
 /// [`ConstRefStructUnref`]; sealed.
 pub trait RefStructPolicy: Default + sealed::Sealed {}
 
@@ -569,7 +582,7 @@ mod sealed {
     impl Sealed for super::ConstRefStructUnref {}
 }
 
-/// Wraps: av_refstruct_unref
+/// Wraps: `av_refstruct_unref`
 /// Handwritten
 ///
 /// A generic policy over every payload type, so no `impl_cdrop!`; C takes the
@@ -596,8 +609,8 @@ unsafe impl<T> CDrop<T> for RefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_ref
-/// Wraps: av_refstruct_exclusive
+/// Wraps: `av_refstruct_ref`
+/// Wraps: `av_refstruct_exclusive`
 /// Handwritten
 ///
 /// A generic policy over every payload type, so no `impl_crefclone!`.
@@ -624,7 +637,7 @@ unsafe impl<T: CCell> CRefClone<T> for RefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_allocz
+/// Wraps: `av_refstruct_allocz`
 /// Handwritten
 ///
 /// A generic allocator over every zeroable payload type. Payloads aligned
@@ -656,7 +669,7 @@ unsafe impl<T: CZeroable> CAllocZeroed<T> for RefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_alloc_ext_c
+/// Wraps: `av_refstruct_alloc_ext_c`
 /// Handwritten
 ///
 /// A generic allocator of uninitialised storage for every payload type:
@@ -691,7 +704,7 @@ unsafe impl<T: CCell> CAlloc<T> for RefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_unref
+/// Wraps: `av_refstruct_unref`
 /// Handwritten
 ///
 /// As for [`RefStructUnref`].
@@ -707,7 +720,7 @@ unsafe impl<T: CCell> CDrop<T> for ConstRefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_ref_c
+/// Wraps: `av_refstruct_ref_c`
 /// Handwritten
 ///
 /// A generic policy over every payload type, so no `impl_crefclone!`. It
@@ -727,9 +740,13 @@ unsafe impl<T: CCell> CRefClone<T> for ConstRefStructUnref {
     }
 }
 
-/// Wraps: av_refstruct_ref_c
+/// Wraps: `av_refstruct_ref_c`
 ///
 /// A new `const` reference to `obj`'s object.
+///
+/// # Panics
+///
+/// Never: the pointer is a live object, which is not NULL.
 pub fn to_const<T: CCell>(obj: &RefStructArc<T>) -> ConstRefStructArc<T> {
     const { assert!(COUNT_IS_WIDE, "a RefStruct count can wrap here") };
     // SAFETY: `obj`'s reference keeps the object live; C increments its count
@@ -741,6 +758,10 @@ pub fn to_const<T: CCell>(obj: &RefStructArc<T>) -> ConstRefStructArc<T> {
 }
 
 /// `obj`'s reference as a `const` reference, with no call into C.
+///
+/// # Panics
+///
+/// Never: the pointer is a live object, which is not NULL.
 pub fn into_const<T: CCell>(obj: RefStructArc<T>) -> ConstRefStructArc<T> {
     let ptr = obj.into_raw();
     // SAFETY: `into_raw` gave up the arc's counted reference to the live
@@ -748,7 +769,7 @@ pub fn into_const<T: CCell>(obj: RefStructArc<T>) -> ConstRefStructArc<T> {
     unsafe { ConstRefStructArc::from_raw(ptr) }.expect("a live object")
 }
 
-/// Wraps: av_refstruct_exclusive
+/// Wraps: `av_refstruct_exclusive`
 ///
 /// Whether `obj` is the only reference to its object; `RefStructArc`'s
 /// `get_mut` asks the same question.
@@ -759,7 +780,7 @@ pub fn is_exclusive<T: CCell, D: RefStructPolicy + CDrop<T>>(obj: &CArc<T, D>) -
     unsafe { ffi::av_refstruct_exclusive(obj.as_ptr().cast_const().cast()) != 0 }
 }
 
-/// Wraps: av_refstruct_replace
+/// Wraps: `av_refstruct_replace`
 ///
 /// Points `dst` at `src`'s object: unless both already refer to the same
 /// object (or are both `None`), `dst`'s reference is released and replaced by
@@ -782,10 +803,10 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
     *dst = unsafe { CArc::from_raw(slot.cast()) };
 }
 
-/// Wraps: av_refstruct_alloc_ext_c
-/// Wraps: av_refstruct_alloc_ext
+/// Wraps: `av_refstruct_alloc_ext_c`
+/// Wraps: `av_refstruct_alloc_ext`
 ///
-/// A new zeroed RefStruct object with payload `T`, as its only reference,
+/// A new zeroed `RefStruct` object with payload `T`, as its only reference,
 /// whose last release hands the payload to `release` before C frees the
 /// block: C's `free_cb`, which disposes of what the payload owns but not the
 /// object itself. `None` when C runs out of memory, and `release` is then
@@ -802,9 +823,10 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// reach one; a payload with no release is `new_zeroed`.
 ///
 /// ```
+/// use std::sync::mpsc;
+///
 /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
 /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{self, RefStructArc};
-/// use std::sync::mpsc;
 ///
 /// let (tx, rx) = mpsc::channel();
 /// let mut obj = refstruct::alloc_with_release::<IntFloat64, _>(move |last| {
@@ -996,7 +1018,7 @@ struct PoolState<T: CCell + 'static, S> {
 /// Handwritten
 ///
 /// One counted reference to a [`RefStructPool`] whose entries hold a `T`:
-/// `get` hands them out as the only reference to a RefStruct object, which
+/// `get` hands them out as the only reference to a `RefStruct` object, which
 /// returns to the pool when its last reference is released.
 ///
 /// [`new`](Self::new) builds a pool without callbacks
@@ -1054,8 +1076,8 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
         })
     }
 
-    /// Wraps: av_refstruct_pool_alloc_ext_c
-    /// Wraps: av_refstruct_pool_alloc_ext
+    /// Wraps: `av_refstruct_pool_alloc_ext_c`
+    /// Wraps: `av_refstruct_pool_alloc_ext`
     ///
     /// A new pool of `T` entries driven by `callbacks`, as the first counted
     /// reference to it; `None` when C runs out of memory or cannot create the
@@ -1074,8 +1096,11 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
     ///
     /// ```
     /// use std::sync::atomic::{AtomicUsize, Ordering};
+    ///
     /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
-    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolCallbacks, PoolFlags, TypedRefStructPool};
+    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{
+    ///     PoolCallbacks, PoolFlags, TypedRefStructPool,
+    /// };
     ///
     /// let callbacks = PoolCallbacks::<IntFloat64, _>::new(AtomicUsize::new(0))
     ///     .init(|made, mut e| {
@@ -1094,19 +1119,21 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
         flags: PoolFlags,
         callbacks: PoolCallbacks<T, S>,
     ) -> Option<Self> {
-        const { assert!(align_of::<T>() <= ALIGN) };
         type EntryCb = unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void);
-        let init = callbacks.init.as_ref().map(|_| {
-            init_with::<T, S> as unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void) -> c_int
-        });
+        type InitCb = unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void) -> c_int;
+        const { assert!(align_of::<T>() <= ALIGN) };
+        let init = callbacks
+            .init
+            .as_ref()
+            .map(|_| -> InitCb { init_with::<T, S> });
         let reset = callbacks
             .reset
             .as_ref()
-            .map(|_| reset_with::<T, S> as EntryCb);
+            .map(|_| -> EntryCb { reset_with::<T, S> });
         let free_entry = callbacks
             .free_entry
             .as_ref()
-            .map(|_| free_entry_with::<T, S> as EntryCb);
+            .map(|_| -> EntryCb { free_entry_with::<T, S> });
         let state = Box::into_raw(Box::new(PoolState {
             callbacks,
             zero_before_init: flags.contains(PoolFlags::ZERO_EVERY_TIME),
@@ -1146,7 +1173,7 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
 }
 
 impl<T: CCell + 'static> TypedRefStructPool<T> {
-    /// Wraps: av_refstruct_pool_get
+    /// Wraps: `av_refstruct_pool_get`
     ///
     /// An entry of the pool, a free one reused or a new one, as the only
     /// reference to it; `None` when C runs out of memory or the init
@@ -1155,7 +1182,9 @@ impl<T: CCell + 'static> TypedRefStructPool<T> {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
-    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolFlags, RefStructArc, TypedRefStructPool};
+    /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{
+    ///     PoolFlags, RefStructArc, TypedRefStructPool,
+    /// };
     ///
     /// let pool = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();
     /// let mut entry = pool.get().unwrap();
@@ -1309,6 +1338,11 @@ unsafe extern "C" fn free_with<T: CCell + 'static, S>(opaque: ffi::AVRefStructOp
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::needless_pass_by_value,
+    clippy::trivially_copy_pass_by_ref,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
     use core::ffi::c_void;
     use core::ptr::{self, NonNull};
@@ -1431,7 +1465,7 @@ mod unit_tests {
     }
 
     /// The policy's up-ref and down-ref on a pool adopted from C: each
-    /// up-ref is one more down-ref owed, and the last one releases it (LSan
+    /// up-ref is one more down-ref owed, and the last one releases it (`LSan`
     /// reports a leak otherwise).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -1482,9 +1516,11 @@ mod unit_tests {
 
         /// A C-allocated zeroed object, adopted by its one reference.
         fn adopted() -> RefStructArc<IntFloat64> {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let refstruct_allocz = unsafe { ffi::av_refstruct_allocz(8) };
             // SAFETY: `av_refstruct_allocz` returns a fresh, zeroed 8-byte object
             // with one counted reference, which the arc takes over.
-            unsafe { RefStructArc::from_raw(ffi::av_refstruct_allocz(8).cast()) }.unwrap()
+            unsafe { RefStructArc::from_raw(refstruct_allocz.cast()) }.unwrap()
         }
 
         fn raw(a: &RefStructArc<IntFloat64>) -> *const c_void {
@@ -1513,17 +1549,25 @@ mod unit_tests {
         fn policies_count_through_the_raw_seam() {
             let a = adopted();
             let p = NonNull::new(a.as_ptr()).unwrap();
-            // SAFETY: `a` keeps the object live; each up_ref owes the `c_drop`
-            // that follows it.
-            unsafe {
-                assert!(RefStructUnref.c_is_sole_owner(p));
-                assert!(ConstRefStructUnref.c_up_ref(p));
-                assert!(!RefStructUnref.c_is_sole_owner(p));
-                CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, p);
-                assert!(RefStructUnref.c_is_sole_owner(p));
-                assert!(RefStructUnref.c_up_ref(p));
-                CDrop::<IntFloat64>::c_drop(&RefStructUnref, p);
-                assert!(RefStructUnref.c_is_sole_owner(p));
+            // For the unsafe operations below: `a` keeps the object live; each up_ref owes the
+            // `c_drop` that follows it.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(RefStructUnref.c_is_sole_owner(p)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(ConstRefStructUnref.c_up_ref(p)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(!RefStructUnref.c_is_sole_owner(p)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, p) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(RefStructUnref.c_is_sole_owner(p)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(RefStructUnref.c_up_ref(p)) };
+                // SAFETY: as the comment above this block states.
+                unsafe { CDrop::<IntFloat64>::c_drop(&RefStructUnref, p) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert!(RefStructUnref.c_is_sole_owner(p)) };
             }
         }
 
@@ -1571,15 +1615,20 @@ mod unit_tests {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn drop_policy_frees_an_object_whose_last_reference_goes() {
-            // SAFETY: a fresh object with one reference plus the one `av_refstruct_ref`
-            // adds, each released once by `c_drop`; ASan reports a leak or double
-            // free otherwise.
-            unsafe {
-                let obj = NonNull::new(ffi::av_refstruct_allocz(64)).unwrap();
-                ffi::av_refstruct_ref(obj.as_ptr());
-                CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, obj.cast());
-                assert_eq!(ffi::av_refstruct_exclusive(obj.as_ptr()), 1);
-                CDrop::<IntFloat64>::c_drop(&RefStructUnref, obj.cast());
+            // For the unsafe operations below: a fresh object with one reference plus the one
+            // `av_refstruct_ref` adds, each released once by `c_drop`; ASan reports a
+            // leak or double free otherwise.
+            {
+                // SAFETY: as the comment above this block states.
+                let obj = unsafe { NonNull::new(ffi::av_refstruct_allocz(64)).unwrap() };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_refstruct_ref(obj.as_ptr()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { CDrop::<IntFloat64>::c_drop(&ConstRefStructUnref, obj.cast()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!(ffi::av_refstruct_exclusive(obj.as_ptr()), 1) };
+                // SAFETY: as the comment above this block states.
+                unsafe { CDrop::<IntFloat64>::c_drop(&RefStructUnref, obj.cast()) };
             }
         }
 
@@ -1598,9 +1647,10 @@ mod unit_tests {
     /// them), the typed pool's flag filter, and `CAlloc`'s uninitialised
     /// storage.
     mod releases_and_typed_pools {
+        use std::sync::{Arc, Mutex};
+
         use super::super::*;
         use crate::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
-        use std::sync::{Arc, Mutex};
 
         type ReleaseFn = unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void);
 
@@ -1624,11 +1674,11 @@ mod unit_tests {
                 log.lock().unwrap().push(last.as_ref().bits());
                 last.set_bits(1);
             });
-            let mut payload = IntFloat64::from_bits(0xfeed);
+            let mut payload = IntFloat64::from_bits(0xFEED);
             // SAFETY: the opaque and trampoline `leaked` paired, called once,
             // on a live payload nothing else reaches during the call.
             unsafe { release(opaque, (&raw mut payload).cast()) };
-            assert_eq!(*seen.lock().unwrap(), [0xfeed]);
+            assert_eq!(*seen.lock().unwrap(), [0xFEED]);
             assert_eq!(payload.as_ref().bits(), 1);
             assert_eq!(Arc::strong_count(&seen), 1, "the closure was dropped");
         }
@@ -1691,30 +1741,39 @@ mod unit_tests {
         fn pool_trampolines_run_each_callback_on_its_entry() {
             let log = Arc::new(Log::default());
             let opaque = pool_opaque(all(&log), false);
-            let mut entry = IntFloat64::from_bits(0xdead);
+            let mut entry = IntFloat64::from_bits(0xDEAD);
             let e = (&raw mut entry).cast::<c_void>();
-            // SAFETY: the opaque `pool_opaque` leaked, live until `free_with`
-            // below, and a live payload nothing else reaches during a call.
-            unsafe {
-                assert_eq!(init_with::<IntFloat64, Arc<Log>>(opaque, e), 0);
+            // For the unsafe operations below: the opaque `pool_opaque` leaked, live until
+            // `free_with` below, and a live payload nothing else reaches during a call.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!(init_with::<IntFloat64, Arc<Log>>(opaque, e), 0) };
                 assert_eq!(entry.as_ref().bits(), 0x1111);
-                reset_with::<IntFloat64, Arc<Log>>(opaque, e);
+                // SAFETY: as the comment above this block states.
+                unsafe { reset_with::<IntFloat64, Arc<Log>>(opaque, e) };
                 assert_eq!(entry.as_ref().bits(), 0x2222);
-                free_entry_with::<IntFloat64, Arc<Log>>(opaque, e);
+                // SAFETY: as the comment above this block states.
+                unsafe { free_entry_with::<IntFloat64, Arc<Log>>(opaque, e) };
                 // NULL entries, which C never passes, run nothing.
-                assert_eq!(
-                    init_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut()),
-                    0
-                );
-                reset_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut());
-                free_entry_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut());
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    assert_eq!(
+                        init_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut()),
+                        0
+                    );
+                };
+                // SAFETY: as the comment above this block states.
+                unsafe { reset_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { free_entry_with::<IntFloat64, Arc<Log>>(opaque, ptr::null_mut()) };
                 assert_eq!(Arc::strong_count(&log), 2);
-                free_with::<IntFloat64, Arc<Log>>(opaque);
+                // SAFETY: as the comment above this block states.
+                unsafe { free_with::<IntFloat64, Arc<Log>>(opaque) };
             }
             assert_eq!(Arc::strong_count(&log), 1, "the state was dropped");
             assert_eq!(
                 *log.lock().unwrap(),
-                [("init", 0xdead), ("reset", 0x1111), ("free_entry", 0x2222)]
+                [("init", 0xDEAD), ("reset", 0x1111), ("free_entry", 0x2222)]
             );
         }
 
@@ -1725,28 +1784,40 @@ mod unit_tests {
                 let opaque =
                     pool_opaque(PoolCallbacks::new(Arc::clone(&log)).init(init_fails), zero);
                 let mut entry = IntFloat64::from_bits(u64::MAX);
-                // SAFETY: as above.
-                unsafe {
-                    let ret = init_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast());
+                // For the unsafe operations below: as above.
+                {
+                    // SAFETY: as the comment above this block states.
+                    let ret = unsafe {
+                        init_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast())
+                    };
                     assert_eq!(ret, EINVAL);
                     // Callbacks left unset run nothing.
-                    reset_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast());
-                    free_entry_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast());
-                    free_with::<IntFloat64, Arc<Log>>(opaque);
+                    // SAFETY: as the comment above this block states.
+                    unsafe { reset_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast()) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe {
+                        free_entry_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast());
+                    };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { free_with::<IntFloat64, Arc<Log>>(opaque) };
                 }
                 let seen = if zero { 0 } else { u64::MAX };
                 assert_eq!(*log.lock().unwrap(), [("init", seen)]);
             }
             let opaque = pool_opaque(PoolCallbacks::new(Arc::new(Log::default())), true);
             let mut entry = IntFloat64::from_bits(5);
-            // SAFETY: as above; with no init callback the entry still starts
-            // zeroed and C is told it is ready.
-            unsafe {
-                assert_eq!(
-                    init_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast()),
-                    0
-                );
-                free_with::<IntFloat64, Arc<Log>>(opaque);
+            // For the unsafe operations below: as above; with no init callback the entry still
+            // starts zeroed and C is told it is ready.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    assert_eq!(
+                        init_with::<IntFloat64, Arc<Log>>(opaque, (&raw mut entry).cast()),
+                        0
+                    );
+                };
+                // SAFETY: as the comment above this block states.
+                unsafe { free_with::<IntFloat64, Arc<Log>>(opaque) };
             }
             assert_eq!(entry.as_ref().bits(), 0);
         }
@@ -1767,7 +1838,7 @@ mod unit_tests {
         }
 
         /// `CAlloc`'s storage, filled in place as C would, promoted, and
-        /// freed; and freed unfilled, without a read of it (LSan and ASan
+        /// freed; and freed unfilled, without a read of it (`LSan` and `ASan`
         /// check both).
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
@@ -1776,10 +1847,10 @@ mod unit_tests {
             assert_eq!(slot.as_c_ptr() as usize % ALIGN, 0);
             // SAFETY: the box's storage is 8 writable bytes nothing else
             // reaches.
-            unsafe { slot.as_c_ptr().cast::<u64>().write(0x5a5a) };
+            unsafe { slot.as_c_ptr().cast::<u64>().write(0x5A5A) };
             // SAFETY: the write above initialised the whole payload.
             let mut obj = RefStructArc::from(unsafe { slot.assume_init() });
-            assert_eq!(obj.as_ref().bits(), 0x5a5a);
+            assert_eq!(obj.as_ref().bits(), 0x5A5A);
             assert!(is_exclusive(&obj));
             obj.get_mut().unwrap().set_bits(1);
             let other = obj.clone();

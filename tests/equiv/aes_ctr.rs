@@ -1,5 +1,11 @@
 //! Observe the private lifecycle state through the unchanged C processing API.
-use ffmpeg_bindings::libavutil::libavutil::{aes_ctr::AesCtr, ffi};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::aes_ctr::AesCtr;
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 struct Reference(*mut ffi::AVAESCTR);
 impl Reference {
@@ -25,9 +31,11 @@ unsafe fn observe(ptr: *mut ffi::AVAESCTR, len: usize) -> (Vec<u8>, [u8; 16]) {
     // SAFETY: caller supplies exclusive initialized context; buffers are valid
     // for len bytes, including a real address on the zero-length path.
     unsafe { ffi::av_aes_ctr_crypt(ptr, output.as_mut_ptr(), input.as_ptr(), len as i32) };
+    // SAFETY: as the comment below states, for this part of the operation.
+    let aes_ctr_get_iv_3 = unsafe { ffi::av_aes_ctr_get_iv(ptr) };
     // SAFETY: get_iv returns the inline, fully initialized counter[16]. Copy it
     // immediately; no reference to C memory survives a subsequent write or free.
-    let iv = unsafe { ffi::av_aes_ctr_get_iv(ptr).cast::<[u8; 16]>().read() };
+    let iv = unsafe { aes_ctr_get_iv_3.cast::<[u8; 16]>().read() };
     output.truncate(len);
     (output, iv)
 }
@@ -56,7 +64,7 @@ fn constructors_and_reset_partial_block_match_c() {
     key.fill(0); // initialization must not retain the key.
     for seed in 0..3 {
         for len in [0, 1, 15, 17, 31, 1] {
-            // SAFETY: both contexts initialized and exclusively observed.
+            // For the unsafe operations below: both contexts initialized and exclusively observed.
             let actual = observe_safe(&mut owner, len);
             // SAFETY: independently owned initialized reference context.
             let expected = unsafe { observe(reference.0, len) };
@@ -69,7 +77,8 @@ fn constructors_and_reset_partial_block_match_c() {
             unsafe { ffi::av_aes_ctr_init(reference.0, [seed; 16].as_ptr()) },
             0
         );
-        // SAFETY: both have just been reinitialized; counters must be zero.
+        // For the unsafe operations below: both have just been reinitialized; counters must be
+        // zero.
         let actual = observe_safe(&mut owner, 0);
         // SAFETY: same initialized reference allocation.
         let expected = unsafe { observe(reference.0, 0) };
@@ -81,8 +90,8 @@ fn constructors_and_reset_partial_block_match_c() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn stream_and_iv_transitions_match_c() {
-    let mut actual = AesCtr::new(&[0xa7; 16]).unwrap();
-    let reference = AesCtr::new(&[0xa7; 16]).unwrap();
+    let mut actual = AesCtr::new(&[0xA7; 16]).unwrap();
+    let reference = AesCtr::new(&[0xA7; 16]).unwrap();
     for mode in 0..4 {
         match mode {
             0 => {
@@ -92,9 +101,9 @@ fn stream_and_iv_transitions_match_c() {
                 unsafe { ffi::av_aes_ctr_set_iv(reference.as_c_ptr(), [0x73; 8].as_ptr()) };
             }
             1 => {
-                actual.as_mut().set_full_iv(&[0xff; 16]);
+                actual.as_mut().set_full_iv(&[0xFF; 16]);
                 // SAFETY: initialized context and a readable full 16-byte counter.
-                unsafe { ffi::av_aes_ctr_set_full_iv(reference.as_c_ptr(), [0xff; 16].as_ptr()) };
+                unsafe { ffi::av_aes_ctr_set_full_iv(reference.as_c_ptr(), [0xFF; 16].as_ptr()) };
             }
             2 => {
                 actual.as_mut().increment_iv();
@@ -111,49 +120,59 @@ fn stream_and_iv_transitions_match_c() {
             }
         }
         for len in [0, 1, 14, 1, 16, 17, 31, 64, 129, 3] {
-            let src = [0x5a; 133];
+            let src = [0x5A; 133];
             let (mut a, mut r) = ([0x99; 133], [0x99; 133]);
             actual
                 .as_mut()
-                .crypt(&mut a[1..1 + len], &src[2..2 + len])
+                .crypt(&mut a[1..=len], &src[2..2 + len])
                 .unwrap();
-            // SAFETY: exclusive independent initialized context; disjoint
+            // For the unsafe operations below: exclusive independent initialized context; disjoint
             // buffers provide len readable/writable bytes, int-sized count.
-            unsafe {
-                ffi::av_aes_ctr_crypt(
-                    reference.as_c_ptr(),
-                    r.as_mut_ptr().add(1),
-                    src.as_ptr().add(2),
-                    len as i32,
-                )
+            {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_mut_ptr_add_2 = unsafe { r.as_mut_ptr().add(1) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_ptr_add = unsafe { src.as_ptr().add(2) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_aes_ctr_crypt(
+                        reference.as_c_ptr(),
+                        as_mut_ptr_add_2,
+                        as_ptr_add,
+                        len as i32,
+                    );
+                };
             };
             assert_eq!(a, r);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let aes_ctr_get_iv_2 = unsafe { ffi::av_aes_ctr_get_iv(reference.as_c_ptr()) };
             // SAFETY: the reference is live and initialized, get_iv returns its
             // inline counter[16]. Snapshot it without retaining a C reference.
-            let iv = unsafe {
-                ffi::av_aes_ctr_get_iv(reference.as_c_ptr())
-                    .cast::<[u8; 16]>()
-                    .read()
-            };
+            let iv = unsafe { aes_ctr_get_iv_2.cast::<[u8; 16]>().read() };
             assert_eq!(actual.as_ref().iv(), iv);
-            actual.as_mut().crypt_in_place(&mut a[1..1 + len]).unwrap();
-            // SAFETY: initialized reference and exact-alias writable len-byte
-            // buffer supported by C; no caller pointer is retained.
-            unsafe {
-                ffi::av_aes_ctr_crypt(
-                    reference.as_c_ptr(),
-                    r.as_mut_ptr().add(1),
-                    r.as_mut_ptr().add(1),
-                    len as i32,
-                )
+            actual.as_mut().crypt_in_place(&mut a[1..=len]).unwrap();
+            // For the unsafe operations below: initialized reference and exact-alias writable
+            // len-byte buffer supported by C; no caller pointer is retained.
+            {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_mut_ptr_add = unsafe { r.as_mut_ptr().add(1) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_mut_ptr_add_2 = unsafe { r.as_mut_ptr().add(1) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_aes_ctr_crypt(
+                        reference.as_c_ptr(),
+                        as_mut_ptr_add,
+                        as_mut_ptr_add_2,
+                        len as i32,
+                    );
+                };
             };
             assert_eq!(a, r);
+            // SAFETY: as the comment below states, for this part of the operation.
+            let aes_ctr_get_iv = unsafe { ffi::av_aes_ctr_get_iv(reference.as_c_ptr()) };
             // SAFETY: same live inline counter, copied before any next mutation.
-            let iv = unsafe {
-                ffi::av_aes_ctr_get_iv(reference.as_c_ptr())
-                    .cast::<[u8; 16]>()
-                    .read()
-            };
+            let iv = unsafe { aes_ctr_get_iv.cast::<[u8; 16]>().read() };
             assert_eq!(actual.as_ref().iv(), iv);
         }
     }

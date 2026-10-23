@@ -1,3 +1,12 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::cast5::{Cast5, InitError};
 
 #[test]
@@ -5,7 +14,7 @@ use ffmpeg_bindings::libavutil::libavutil::cast5::{Cast5, InitError};
 fn keys_are_copied_and_handles_reborrow_exclusively() {
     for initial_len in 5..=16 {
         let mut owner = {
-            let key = vec![0xa5; initial_len];
+            let key = vec![0xA5; initial_len];
             Cast5::new(&key).unwrap()
         }; // No key storage remains alive here.
         let shared = owner.as_ref();
@@ -95,13 +104,13 @@ use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [5, 10, 11, 16] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let mut owner = Cast5::new(&key).unwrap();
             drop(key);
-            let mut source = [0x5a; 8 * 8 + 3];
+            let mut source = [0x5A; 8 * 8 + 3];
             let mut destination = vec![0x99; source.len()];
             for cbc in [false, true] {
-                let mut iv = [0xf3; 8];
+                let mut iv = [0xF3; 8];
                 for blocks in [0, 1, 4, 2, 8] {
                     let len = blocks * 8;
                     let mut outer = owner.as_mut();
@@ -110,7 +119,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                         handle
                             .as_ref()
                             .crypt_cbc(
-                                &mut destination[1..1 + len],
+                                &mut destination[1..=len],
                                 &source[2..2 + len],
                                 cbc.then_some(&mut iv),
                                 direction,
@@ -119,11 +128,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                     }
                     outer
                         .as_ref()
-                        .crypt_cbc_in_place(
-                            &mut source[1..1 + len],
-                            cbc.then_some(&mut iv),
-                            direction,
-                        )
+                        .crypt_cbc_in_place(&mut source[1..=len], cbc.then_some(&mut iv), direction)
                         .unwrap();
                 }
                 owner

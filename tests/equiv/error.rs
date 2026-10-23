@@ -77,11 +77,11 @@ mod make_error_string {
     const CODES: [c_int; 16] = [
         tag(b'E', b'O', b'F', b' '),
         tag(b'I', b'N', b'D', b'A'),
-        tag(0xf8, b'D', b'E', b'C'),
-        tag(0xf8, b'4', b'0', b'4'),
+        tag(0xF8, b'D', b'E', b'C'),
+        tag(0xF8, b'4', b'0', b'4'),
         tag(b'B', b'U', b'G', b'!'),
-        -0x2bb2_afa8,
-        -0x636e_6701,
+        -0x2BB2_AFA8,
+        -0x636E_6701,
         -1,
         -12,
         -22,
@@ -97,13 +97,13 @@ mod make_error_string {
     /// afterwards, and whether it returned the buffer. A size-0 call gets a valid
     /// one-byte buffer it may not write: glibc's `strerror_r` takes no NULL.
     fn c_error_string(len: usize, errnum: c_int) -> (Vec<u8>, bool) {
-        let mut buf = vec![0xa5_u8; len.max(1)];
+        let mut buf = vec![0xA5_u8; len.max(1)];
         let ptr = buf.as_mut_ptr().cast();
         // SAFETY: `ptr` is valid for `len.max(1)` bytes of writes, and C writes
         // at most `len`.
         let ret = unsafe { ffi::av_make_error_string(ptr, len, errnum) };
         if len == 0 {
-            assert_eq!(buf, [0xa5], "C wrote into a size-0 buffer");
+            assert_eq!(buf, [0xA5], "C wrote into a size-0 buffer");
             buf.clear();
         }
         (buf, ret == ptr)
@@ -116,7 +116,7 @@ mod make_error_string {
             for len in (0..=MAX_STRING_SIZE + 8).chain([256]) {
                 let (c, returned_buf) = c_error_string(len, errnum);
                 assert!(returned_buf);
-                let mut rust = vec![0xa5_u8; len];
+                let mut rust = vec![0xA5_u8; len];
                 let s = make_error_string(errnum, &mut rust).to_bytes().to_vec();
                 assert_eq!(rust, c, "buffer, {errnum} in {len}");
                 let c_str = c.split(|&b| b == 0).next().filter(|_| len > 0);

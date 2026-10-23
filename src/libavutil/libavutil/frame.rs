@@ -46,14 +46,13 @@
 //! [`FrameFlags`] and a [`DecodeErrorFlags`].
 
 use core::ffi::{CStr, c_int, c_uint, c_void};
-use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::mem::{ManuallyDrop, MaybeUninit, size_of};
 use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Range, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
-use core::slice;
+use core::{fmt, slice};
 
 use ffibox::{CBox, CNew, CPlainElem, CZeroable, define_ctype, impl_cdrop};
 
@@ -63,18 +62,16 @@ use super::buffer::{
 };
 use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};
-use super::ffi;
 use super::hwcontext::{FramesReferenceBox, FramesReferenceRef};
-use super::imgutils;
 use super::pixdesc::{PixelFormatDescriptorRef, PixelFormatFlags};
 use super::pixfmt::{
     AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer, PixelFormat,
 };
 use super::rational::{Rational, RationalMut, RationalRef};
-use super::refstruct;
 use super::samplefmt::{self, SampleFormat};
+use super::{ffi, imgutils, refstruct};
 
-/// Wraps: AVFrameSideDataType
+/// Wraps: `AVFrameSideDataType`
 /// Handwritten
 ///
 /// The kind of side data attached to a frame, which decides how its payload
@@ -113,125 +110,127 @@ use super::samplefmt::{self, SampleFormat};
 pub struct SideDataType(ffi::AVFrameSideDataType);
 
 impl SideDataType {
-    /// The `AVPanScan` struct defined in libavcodec.
-    pub const PAN_SCAN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN);
     /// ATSC A53 Part 4 closed captions: the CC bitstream as bytes.
     pub const A53_CC: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_A53_CC);
-    /// Stereoscopic 3D metadata, an `AVStereo3D` (`libavutil/stereo3d.h`).
-    pub const STEREO_3D: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_STEREO3D);
-    /// An `AVMatrixEncoding` value
-    /// ([`MatrixEncoding`](super::channel_layout::MatrixEncoding)).
-    pub const MATRIX_ENCODING: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MATRIXENCODING);
-    /// Metadata for a downmix procedure, an `AVDownmixInfo`
-    /// (`libavutil/downmix_info.h`).
-    pub const DOWNMIX_INFO: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_INFO);
-    /// ReplayGain information, an `AVReplayGain`.
-    pub const REPLAY_GAIN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REPLAYGAIN);
-    /// A 3x3 affine transformation matrix to apply for correct presentation
-    /// (`libavutil/display.h`).
-    pub const DISPLAY_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DISPLAYMATRIX);
     /// Active Format Description: one byte holding an
     /// `AVActiveFormatDescription`, as ETSI TS 101 154 specifies.
     pub const AFD: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD);
-    /// Motion vectors exported by some codecs, `AVMotionVector`s
-    /// (`libavutil/motion_vector.h`).
-    pub const MOTION_VECTORS: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MOTION_VECTORS);
-    /// The number of samples to skip from the start and end of the frame,
-    /// laid out as `AV_PKT_DATA_SKIP_SAMPLES`.
-    pub const SKIP_SAMPLES: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SKIP_SAMPLES);
+    /// Ambient viewing environment metadata, as H.274 defines it.
+    pub const AMBIENT_VIEWING_ENVIRONMENT: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT);
     /// An audio frame's `AVAudioServiceType` (`libavcodec/avcodec.h`).
     pub const AUDIO_SERVICE_TYPE: Self =
         Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AUDIO_SERVICE_TYPE);
-    /// Mastering display color volume, an `AVMasteringDisplayMetadata`.
-    pub const MASTERING_DISPLAY_METADATA: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
-    /// The GOP timecode in 25-bit timecode format, as a 64-bit integer.
-    pub const GOP_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_GOP_TIMECODE);
-    /// An `AVSphericalMapping` (`libavutil/spherical.h`).
-    pub const SPHERICAL: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SPHERICAL);
     /// Content light level (CTA-861.3), an `AVContentLightMetadata`.
     pub const CONTENT_LIGHT_LEVEL: Self =
         Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
-    /// An ICC profile (ISO 15076-1) as opaque bytes, optionally named by the
-    /// side data's `name` metadata entry.
-    pub const ICC_PROFILE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_ICC_PROFILE);
-    /// SMPTE ST 12-1 timecodes: four `u32`, the first counting how many (1-3)
-    /// of the others are used.
-    pub const S12M_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_S12M_TIMECODE);
-    /// HDR10+ dynamic metadata (SMPTE 2094-40), an `AVDynamicHDRPlus`.
-    pub const DYNAMIC_HDR_PLUS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
-    /// Regions of interest, an array of `AVRegionOfInterest` whose length is
-    /// the payload size over the first element's `self_size`.
-    pub const REGIONS_OF_INTEREST: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REGIONS_OF_INTEREST);
-    /// Encoding parameters of a video frame, an `AVVideoEncParams`.
-    pub const VIDEO_ENC_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_ENC_PARAMS);
-    /// An H.264 or H.265 user data unregistered SEI message: a 16-byte UUID
-    /// followed by the payload bytes.
-    pub const SEI_UNREGISTERED: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SEI_UNREGISTERED);
-    /// Film grain parameters, an `AVFilmGrainParams`; a frame may carry
-    /// several alternative sets.
-    pub const FILM_GRAIN_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_FILM_GRAIN_PARAMS);
     /// Object detection and classification bounding boxes, an
     /// `AVDetectionBBoxHeader`.
     pub const DETECTION_BBOXES: Self =
         Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DETECTION_BBOXES);
-    /// Raw Dolby Vision RPU bytes, NAL emulation bytes intact.
-    pub const DOVI_RPU_BUFFER: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOVI_RPU_BUFFER);
+    /// A 3x3 affine transformation matrix to apply for correct presentation
+    /// (`libavutil/display.h`).
+    pub const DISPLAY_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DISPLAYMATRIX);
     /// Parsed Dolby Vision metadata, an `AVDOVIMetadata`
     /// (`libavutil/dovi_meta.h`).
     pub const DOVI_METADATA: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOVI_METADATA);
+    /// Raw Dolby Vision RPU bytes, NAL emulation bytes intact.
+    pub const DOVI_RPU_BUFFER: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOVI_RPU_BUFFER);
+    /// Metadata for a downmix procedure, an `AVDownmixInfo`
+    /// (`libavutil/downmix_info.h`).
+    pub const DOWNMIX_INFO: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_INFO);
+    /// A downmix remixing matrix, an `AVDownmixMatrix`
+    /// (`libavutil/downmix_info.h`).
+    pub const DOWNMIX_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX);
+    /// HDR10+ dynamic metadata (SMPTE 2094-40), an `AVDynamicHDRPlus`.
+    pub const DYNAMIC_HDR_PLUS: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
+    /// HDR dynamic metadata (SMPTE 2094-50), an `AVDynamicHDRSmpte2094App5`.
+    pub const DYNAMIC_HDR_SMPTE_2094_APP5: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5);
     /// HDR Vivid dynamic metadata (CUVA 005.1-2021), an `AVDynamicHDRVivid`.
     pub const DYNAMIC_HDR_VIVID: Self =
         Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_VIVID);
-    /// Ambient viewing environment metadata, as H.274 defines it.
-    pub const AMBIENT_VIEWING_ENVIRONMENT: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT);
-    /// Encoder hints about the changed and unchanged parts of a frame.
-    pub const VIDEO_HINT: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_HINT);
+    /// EXIF metadata bytes, starting with a TIFF header's byte-order mark.
+    pub const EXIF: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_EXIF);
+    /// Film grain parameters, an `AVFilmGrainParams`; a frame may carry
+    /// several alternative sets.
+    pub const FILM_GRAIN_PARAMS: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_FILM_GRAIN_PARAMS);
+    /// The GOP timecode in 25-bit timecode format, as a 64-bit integer.
+    pub const GOP_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_GOP_TIMECODE);
+    /// IAMF demixing info parameter data, an `AVIAMFParamDefinition`.
+    pub const IAMF_DEMIXING_INFO_PARAM: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM);
+    /// IAMF mix gain parameter data, an `AVIAMFParamDefinition`.
+    pub const IAMF_MIX_GAIN_PARAM: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM);
+    /// IAMF recon gain info parameter data, an `AVIAMFParamDefinition`.
+    pub const IAMF_RECON_GAIN_INFO_PARAM: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM);
+    /// An ICC profile (ISO 15076-1) as opaque bytes, optionally named by the
+    /// side data's `name` metadata entry.
+    pub const ICC_PROFILE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_ICC_PROFILE);
     /// Raw LCEVC payload bytes, NAL emulation bytes intact.
     pub const LCEVC: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_LCEVC);
-    /// The view ID of a multi-view video frame, as an `int`.
-    pub const VIEW_ID: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIEW_ID);
+    /// Mastering display color volume, an `AVMasteringDisplayMetadata`.
+    pub const MASTERING_DISPLAY_METADATA: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+    /// An `AVMatrixEncoding` value
+    /// ([`MatrixEncoding`](super::channel_layout::MatrixEncoding)).
+    pub const MATRIX_ENCODING: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MATRIXENCODING);
+    /// Motion vectors exported by some codecs, `AVMotionVector`s
+    /// (`libavutil/motion_vector.h`).
+    pub const MOTION_VECTORS: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MOTION_VECTORS);
+    /// The `AVPanScan` struct defined in libavcodec.
+    pub const PAN_SCAN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN);
+    /// Color information from a RAW camera codec, an `AVRawColorParams`
+    /// (`libavutil/raw_color_params.h`).
+    pub const RAW_COLOR_PARAMS: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_RAW_COLOR_PARAMS);
     /// 3D reference display widths, viewing distances and stereo pairs, an
     /// `AV3DReferenceDisplaysInfo` (`libavutil/tdrdi.h`;
     /// `AV_FRAME_DATA_3D_REFERENCE_DISPLAYS`).
     pub const REFERENCE_DISPLAYS_3D: Self =
         Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_3D_REFERENCE_DISPLAYS);
-    /// EXIF metadata bytes, starting with a TIFF header's byte-order mark.
-    pub const EXIF: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_EXIF);
-    /// HDR dynamic metadata (SMPTE 2094-50), an `AVDynamicHDRSmpte2094App5`.
-    pub const DYNAMIC_HDR_SMPTE_2094_APP5: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5);
-    /// IAMF mix gain parameter data, an `AVIAMFParamDefinition`.
-    pub const IAMF_MIX_GAIN_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM);
-    /// IAMF demixing info parameter data, an `AVIAMFParamDefinition`.
-    pub const IAMF_DEMIXING_INFO_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM);
-    /// IAMF recon gain info parameter data, an `AVIAMFParamDefinition`.
-    pub const IAMF_RECON_GAIN_INFO_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM);
-    /// Color information from a RAW camera codec, an `AVRawColorParams`
-    /// (`libavutil/raw_color_params.h`).
-    pub const RAW_COLOR_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_RAW_COLOR_PARAMS);
-    /// A downmix remixing matrix, an `AVDownmixMatrix`
-    /// (`libavutil/downmix_info.h`).
-    pub const DOWNMIX_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX);
+    /// Regions of interest, an array of `AVRegionOfInterest` whose length is
+    /// the payload size over the first element's `self_size`.
+    pub const REGIONS_OF_INTEREST: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REGIONS_OF_INTEREST);
+    /// `ReplayGain` information, an `AVReplayGain`.
+    pub const REPLAY_GAIN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REPLAYGAIN);
+    /// SMPTE ST 12-1 timecodes: four `u32`, the first counting how many (1-3)
+    /// of the others are used.
+    pub const S12M_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_S12M_TIMECODE);
+    /// An H.264 or H.265 user data unregistered SEI message: a 16-byte UUID
+    /// followed by the payload bytes.
+    pub const SEI_UNREGISTERED: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SEI_UNREGISTERED);
+    /// The number of samples to skip from the start and end of the frame,
+    /// laid out as `AV_PKT_DATA_SKIP_SAMPLES`.
+    pub const SKIP_SAMPLES: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SKIP_SAMPLES);
+    /// An `AVSphericalMapping` (`libavutil/spherical.h`).
+    pub const SPHERICAL: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SPHERICAL);
+    /// Stereoscopic 3D metadata, an `AVStereo3D` (`libavutil/stereo3d.h`).
+    pub const STEREO_3D: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_STEREO3D);
+    /// Encoding parameters of a video frame, an `AVVideoEncParams`.
+    pub const VIDEO_ENC_PARAMS: Self =
+        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_ENC_PARAMS);
+    /// Encoder hints about the changed and unchanged parts of a frame.
+    pub const VIDEO_HINT: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_HINT);
+    /// The view ID of a multi-view video frame, as an `int`.
+    pub const VIEW_ID: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIEW_ID);
 
     /// The side data type C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVFrameSideDataType) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this side data type.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVFrameSideDataType {
         self.0
     }
@@ -311,7 +310,7 @@ impl From<SideDataType> for ffi::AVFrameSideDataType {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for SideDataType {}
 
-/// Wraps: AVActiveFormatDescription
+/// Wraps: `AVActiveFormatDescription`
 /// Handwritten
 ///
 /// An Active Format Description (ETSI TS 101 154): which part of a coded
@@ -347,32 +346,34 @@ unsafe impl CPlainElem for SideDataType {}
 pub struct ActiveFormatDescription(ffi::AVActiveFormatDescription);
 
 impl ActiveFormatDescription {
-    /// The image fills the coded frame (code `1000`).
-    pub const SAME: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SAME);
-    /// A 4:3 image, centred in the coded frame (code `1001`).
-    pub const ASPECT_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3);
-    /// A 16:9 image, centred in the coded frame (code `1010`).
-    pub const ASPECT_16_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9);
     /// A 14:9 image, centred in the coded frame (code `1011`).
     pub const ASPECT_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_14_9);
-    /// A 4:3 image whose centred 14:9 part is safe to show alone (code
-    /// `1101`).
-    pub const ASPECT_4_3_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3_SP_14_9);
+    /// A 16:9 image, centred in the coded frame (code `1010`).
+    pub const ASPECT_16_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9);
     /// A 16:9 image whose centred 14:9 part is safe to show alone (code
     /// `1110`).
     pub const ASPECT_16_9_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9_SP_14_9);
+    /// A 4:3 image, centred in the coded frame (code `1001`).
+    pub const ASPECT_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3);
+    /// A 4:3 image whose centred 14:9 part is safe to show alone (code
+    /// `1101`).
+    pub const ASPECT_4_3_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3_SP_14_9);
+    /// The image fills the coded frame (code `1000`).
+    pub const SAME: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SAME);
     /// A 16:9 image whose centred 4:3 part is safe to show alone (code
     /// `1111`).
     pub const SP_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SP_4_3);
 
     /// The description C encodes as `raw`, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_raw(raw: ffi::AVActiveFormatDescription) -> Self {
         Self(raw)
     }
 
     /// The C encoding of this description.
     #[inline]
+    #[must_use]
     pub const fn into_raw(self) -> ffi::AVActiveFormatDescription {
         self.0
     }
@@ -380,6 +381,7 @@ impl ActiveFormatDescription {
     /// The description stored as `byte`, the payload of `AV_FRAME_DATA_AFD`
     /// and `AV_PKT_DATA_AFD` side data, whatever its value.
     #[inline]
+    #[must_use]
     pub const fn from_byte(byte: u8) -> Self {
         Self(ffi::AVActiveFormatDescription(byte as _))
     }
@@ -387,6 +389,11 @@ impl ActiveFormatDescription {
     /// This description as a side-data payload byte, or `None` for a value
     /// above 255 that no byte holds.
     #[inline]
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "checked to fit a byte just above"
+    )]
     pub const fn to_byte(self) -> Option<u8> {
         if self.0.0 <= u8::MAX as _ {
             Some(self.0.0 as u8)
@@ -449,7 +456,7 @@ impl From<u8> for ActiveFormatDescription {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ActiveFormatDescription {}
 
-/// Wraps: AVSideDataProps
+/// Wraps: `AVSideDataProps`
 /// Handwritten
 ///
 /// A set of `AVSideDataProps` bits: what a side data type's payload depends
@@ -469,24 +476,17 @@ unsafe impl CPlainElem for ActiveFormatDescription {}
 pub struct SideDataProps(ffi::AVSideDataProps);
 
 impl SideDataProps {
-    /// The side data type can be used in stream-global structures; types
-    /// without it are only meaningful per frame.
-    pub const GLOBAL: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL);
-    /// Several entries of the side data type can meaningfully be present in
-    /// one side data array.
-    pub const MULTI: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_MULTI);
-    /// The side data depends on the video dimensions, and loses its meaning
-    /// when the image is rescaled or cropped unless recomputed or adjusted.
-    pub const SIZE_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
-    /// The side data depends on the video color space, and loses its meaning
-    /// when the color encoding changes (other primaries or transfer
-    /// characteristics).
-    pub const COLOR_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_COLOR_DEPENDENT);
     /// The side data depends on the channel layout, and loses its meaning
     /// when the audio is downmixed or upmixed unless recomputed or adjusted.
     pub const CHANNEL_DEPENDENT: Self =
         Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT);
-
+    /// The side data depends on the video color space, and loses its meaning
+    /// when the color encoding changes (other primaries or transfer
+    /// characteristics).
+    pub const COLOR_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_COLOR_DEPENDENT);
+    /// The side data type can be used in stream-global structures; types
+    /// without it are only meaningful per frame.
+    pub const GLOBAL: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL);
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 5] = [
         (Self::GLOBAL, "GLOBAL"),
@@ -495,14 +495,22 @@ impl SideDataProps {
         (Self::COLOR_DEPENDENT, "COLOR_DEPENDENT"),
         (Self::CHANNEL_DEPENDENT, "CHANNEL_DEPENDENT"),
     ];
+    /// Several entries of the side data type can meaningfully be present in
+    /// one side data array.
+    pub const MULTI: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_MULTI);
+    /// The side data depends on the video dimensions, and loses its meaning
+    /// when the image is rescaled or cropped unless recomputed or adjusted.
+    pub const SIZE_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
 
     /// The set with no flag.
     #[inline]
+    #[must_use]
     pub const fn empty() -> Self {
         Self::from_bits_retain(0)
     }
 
     /// The set of every named flag.
+    #[must_use]
     pub const fn all() -> Self {
         let mut bits = 0;
         let mut i = 0;
@@ -515,18 +523,21 @@ impl SideDataProps {
 
     /// The set's raw bits, as C stores them.
     #[inline]
+    #[must_use]
     pub const fn bits(self) -> c_uint {
         self.0.0
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
+    #[must_use]
     pub const fn from_bits_retain(bits: c_uint) -> Self {
         Self(ffi::AVSideDataProps(bits))
     }
 
     /// The set with `bits`, or `None` when a bit has no constant.
     #[inline]
+    #[must_use]
     pub const fn from_bits(bits: c_uint) -> Option<Self> {
         if bits & !Self::all().bits() == 0 {
             Some(Self::from_bits_retain(bits))
@@ -537,18 +548,21 @@ impl SideDataProps {
 
     /// The named flags among `bits`, the others dropped.
     #[inline]
+    #[must_use]
     pub const fn from_bits_truncate(bits: c_uint) -> Self {
         Self::from_bits_retain(bits & Self::all().bits())
     }
 
     /// Whether no bit is set.
     #[inline]
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.bits() == 0
     }
 
     /// Whether every bit of `other` is set in `self`.
     #[inline]
+    #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.bits() & other.bits() == other.bits()
     }
@@ -556,6 +570,7 @@ impl SideDataProps {
     /// Whether `self` and `other` share a bit, the test C applies when it
     /// filters side data by properties.
     #[inline]
+    #[must_use]
     pub const fn intersects(self, other: Self) -> bool {
         self.bits() & other.bits() != 0
     }
@@ -576,9 +591,9 @@ impl SideDataProps {
     #[inline]
     pub fn set(&mut self, other: Self, value: bool) {
         if value {
-            self.insert(other)
+            self.insert(other);
         } else {
-            self.remove(other)
+            self.remove(other);
         }
     }
 }
@@ -750,7 +765,7 @@ impl SideDataDescriptor {
                 name: name.as_ptr(),
                 props: props.bits(),
             },
-            core::marker::PhantomData,
+            PhantomData,
         )
     }
 
@@ -764,7 +779,7 @@ impl SideDataDescriptor {
     #[inline]
     #[must_use]
     pub const unsafe fn from_raw(raw: ffi::AVSideDataDescriptor) -> Self {
-        Self(raw, core::marker::PhantomData)
+        Self(raw, PhantomData)
     }
 
     /// The C encoding of this descriptor, for storing it in a C struct by
@@ -821,6 +836,10 @@ impl fmt::Debug for SideDataDescriptorRef<'_> {
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl SideDataDescriptorRef<'_> {
     /// Field: AVSideDataDescriptor.name
     ///
@@ -829,9 +848,12 @@ impl SideDataDescriptorRef<'_> {
     /// all-zero descriptor. Every descriptor in C's table has one.
     #[must_use]
     pub fn name(&self) -> Option<&'static CStr> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `name` field is in bounds; nothing is accessed here.
+        let name_ptr = unsafe { addr_of!((*self.as_ptr()).name) };
         // SAFETY: a read of the `name` pointer projected through the shared
         // handle's pointer to a live, initialised `AVSideDataDescriptor`.
-        let p = unsafe { addr_of!((*self.as_ptr()).name).read() };
+        let p = unsafe { name_ptr.read() };
         // SAFETY: by the type's invariant, a non-null `name` addresses a
         // NUL-terminated string that is never freed or written for the rest
         // of the program.
@@ -843,10 +865,13 @@ impl SideDataDescriptorRef<'_> {
     /// The side data type's [`SideDataProps`], unnamed bits included.
     #[must_use]
     pub fn props(&self) -> SideDataProps {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `props` field is in bounds; nothing is accessed here.
+        let props_ptr = unsafe { addr_of!((*self.as_ptr()).props) };
         // SAFETY: a read of the `props` field projected through the shared
         // handle's pointer to a live, initialised `AVSideDataDescriptor`;
         // every bit pattern is a valid `unsigned`.
-        SideDataProps::from_bits_retain(unsafe { addr_of!((*self.as_ptr()).props).read() })
+        SideDataProps::from_bits_retain(unsafe { props_ptr.read() })
     }
 
     /// The fields in declaration order, the name by content, for comparison
@@ -863,7 +888,7 @@ impl SideDataDescriptorRef<'_> {
         // `AVSideDataDescriptor` through the shared handle's pointer; it is
         // plain data, and its name pointer keeps the type's invariant in the
         // copy, since the string lives, unwritten, for the whole program.
-        SideDataDescriptor(unsafe { self.as_ptr().read() }, core::marker::PhantomData)
+        SideDataDescriptor(unsafe { self.as_ptr().read() }, PhantomData)
     }
 }
 
@@ -875,11 +900,14 @@ impl SideDataDescriptorMut<'_> {
     /// whole program, as C's own names are.
     pub fn set_name(&mut self, name: Option<&'static CStr>) {
         let p = name.map_or(ptr::null(), CStr::as_ptr);
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `name` field is in bounds; nothing is accessed here.
+        let name_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).name) };
         // SAFETY: a write of the `name` pointer projected through the
         // exclusive handle's pointer to a live `AVSideDataDescriptor`; `p` is
         // NULL or a `'static` string, never written, which keeps the type's
         // invariant, and the old value is borrowed, so nothing leaks.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).name).write(p) }
+        unsafe { name_ptr.write(p) }
     }
 
     /// Field: AVSideDataDescriptor.props
@@ -887,10 +915,13 @@ impl SideDataDescriptorMut<'_> {
     /// Sets the side data type's properties, unnamed bits included, leaving
     /// the name as it is.
     pub fn set_props(&mut self, props: SideDataProps) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `props` field is in bounds; nothing is accessed here.
+        let props_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).props) };
         // SAFETY: a write of the `props` field projected through the
         // exclusive handle's pointer to a live `AVSideDataDescriptor`; the
         // old value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).props).write(props.bits()) }
+        unsafe { props_ptr.write(props.bits()) }
     }
 
     /// Overwrites both fields with `d`'s.
@@ -903,7 +934,7 @@ impl SideDataDescriptorMut<'_> {
 }
 
 impl SideDataType {
-    /// Wraps: av_frame_side_data_desc
+    /// Wraps: `av_frame_side_data_desc`
     ///
     /// This side data type's descriptor in C's table, borrowed for the whole
     /// program: the table is static and never written, and its names are
@@ -928,18 +959,20 @@ impl SideDataType {
     /// ```
     #[must_use]
     pub fn descriptor(self) -> Option<SideDataDescriptorRef<'static>> {
-        // SAFETY: `av_frame_side_data_desc` takes the enum by value, checks
-        // it against the bounds of its static `const` table, and returns NULL
+        // For the unsafe operations below: `av_frame_side_data_desc` takes the enum by value,
+        // checks it against the bounds of its static `const` table, and returns NULL
         // or the address of a named entry, which lives, unwritten, for the
         // whole program; its `name` is a string literal, the descriptor's
         // invariant, and a shared `'static` handle only reads it.
-        unsafe {
-            let p = ffi::av_frame_side_data_desc(self.into_raw());
-            SideDataDescriptorRef::from_ptr(p.cast_mut())
+        {
+            // SAFETY: as the comment above this block states.
+            let p = unsafe { ffi::av_frame_side_data_desc(self.into_raw()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { SideDataDescriptorRef::from_ptr(p.cast_mut()) }
         }
     }
 
-    /// Wraps: av_frame_side_data_name
+    /// Wraps: `av_frame_side_data_name`
     ///
     /// This side data type's human-readable name, the
     /// [`name`](SideDataDescriptorRef::name) of its
@@ -1045,6 +1078,10 @@ unsafe impl Sync for RegionOfInterestMut<'_> {}
 impl RegionOfInterest {
     /// The `self_size` C requires of every element: the size of
     /// `AVRegionOfInterest` in bytes.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the struct is a few dozen bytes"
+    )]
     pub const SELF_SIZE: u32 = size_of::<ffi::AVRegionOfInterest>() as u32;
 
     /// The region whose edges lie `top`, `bottom`, `left` and `right` pixels
@@ -1067,7 +1104,7 @@ impl RegionOfInterest {
     #[inline]
     #[must_use]
     pub const fn from_raw(raw: ffi::AVRegionOfInterest) -> Self {
-        Self(raw, core::marker::PhantomData)
+        Self(raw, PhantomData)
     }
 
     /// The C encoding of this region, for storing it in side data.
@@ -1135,17 +1172,24 @@ impl fmt::Debug for RegionOfInterestRef<'_> {
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl<'a> RegionOfInterestRef<'a> {
-    /// Field: AVRegionOfInterest.self_size
+    /// Field: `AVRegionOfInterest.self_size`
     ///
     /// The size this element claims, which readers of a side data array take
     /// as its stride.
     #[must_use]
     pub fn self_size(&self) -> u32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `self_size` field is in bounds; nothing is accessed here.
+        let self_size_ptr = unsafe { addr_of!((*self.as_ptr()).self_size) };
         // SAFETY: a read of the `self_size` field projected through the
         // shared handle's pointer to a live, initialised
         // `AVRegionOfInterest`.
-        unsafe { addr_of!((*self.as_ptr()).self_size).read() }
+        unsafe { self_size_ptr.read() }
     }
 
     /// Field: AVRegionOfInterest.top
@@ -1153,8 +1197,11 @@ impl<'a> RegionOfInterestRef<'a> {
     /// The distance in pixels from the frame's top edge to the region's.
     #[must_use]
     pub fn top(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `top` field is in bounds; nothing is accessed here.
+        let top_ptr = unsafe { addr_of!((*self.as_ptr()).top) };
         // SAFETY: as in `self_size`, for the `top` field.
-        unsafe { addr_of!((*self.as_ptr()).top).read() }
+        unsafe { top_ptr.read() }
     }
 
     /// Field: AVRegionOfInterest.bottom
@@ -1163,8 +1210,11 @@ impl<'a> RegionOfInterestRef<'a> {
     /// bottom edge.
     #[must_use]
     pub fn bottom(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `bottom` field is in bounds; nothing is accessed here.
+        let bottom_ptr = unsafe { addr_of!((*self.as_ptr()).bottom) };
         // SAFETY: as in `self_size`, for the `bottom` field.
-        unsafe { addr_of!((*self.as_ptr()).bottom).read() }
+        unsafe { bottom_ptr.read() }
     }
 
     /// Field: AVRegionOfInterest.left
@@ -1172,8 +1222,11 @@ impl<'a> RegionOfInterestRef<'a> {
     /// The distance in pixels from the frame's left edge to the region's.
     #[must_use]
     pub fn left(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `left` field is in bounds; nothing is accessed here.
+        let left_ptr = unsafe { addr_of!((*self.as_ptr()).left) };
         // SAFETY: as in `self_size`, for the `left` field.
-        unsafe { addr_of!((*self.as_ptr()).left).read() }
+        unsafe { left_ptr.read() }
     }
 
     /// Field: AVRegionOfInterest.right
@@ -1182,21 +1235,31 @@ impl<'a> RegionOfInterestRef<'a> {
     /// right edge.
     #[must_use]
     pub fn right(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `right` field is in bounds; nothing is accessed here.
+        let right_ptr = unsafe { addr_of!((*self.as_ptr()).right) };
         // SAFETY: as in `self_size`, for the `right` field.
-        unsafe { addr_of!((*self.as_ptr()).right).read() }
+        unsafe { right_ptr.read() }
     }
 
     /// Field: AVRegionOfInterest.qoffset
     ///
     /// The quantisation offset, as a handle over it that lives as long as
     /// this one.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn qoffset(&self) -> RationalRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `qoffset` field is in bounds; nothing is accessed here.
+        let qoffset_ptr = unsafe { addr_of!((*self.as_ptr()).qoffset) };
         // SAFETY: `qoffset` is projected through the shared handle's pointer
         // to a live, initialised `AVRegionOfInterest`, so it is non-NULL,
         // aligned and initialised; the struct stays live and unwritten for
         // `'a`, which the returned getter-only handle cannot outlive.
-        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).qoffset).cast_mut()) }
+        unsafe { RationalRef::from_ptr(qoffset_ptr.cast_mut()) }
             .expect("a field of a live struct is not NULL")
     }
 
@@ -1222,24 +1285,30 @@ impl<'a> RegionOfInterestRef<'a> {
 }
 
 impl RegionOfInterestMut<'_> {
-    /// Field: AVRegionOfInterest.self_size
+    /// Field: `AVRegionOfInterest.self_size`
     ///
     /// Sets the size this element claims; C requires
     /// [`RegionOfInterest::SELF_SIZE`], and its readers read past the side
     /// data payload for a smaller nonzero size (see [`RegionOfInterest`]).
     pub fn set_self_size(&mut self, self_size: u32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `self_size` field is in bounds; nothing is accessed here.
+        let self_size_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).self_size) };
         // SAFETY: a write of the `self_size` field projected through the
         // exclusive handle's pointer to a live `AVRegionOfInterest`; the old
         // value owns nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).self_size).write(self_size) }
+        unsafe { self_size_ptr.write(self_size) }
     }
 
     /// Field: AVRegionOfInterest.top
     ///
     /// Sets the distance from the frame's top edge to the region's.
     pub fn set_top(&mut self, top: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `top` field is in bounds; nothing is accessed here.
+        let top_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).top) };
         // SAFETY: as in `set_self_size`, for the `top` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).top).write(top) }
+        unsafe { top_ptr.write(top) }
     }
 
     /// Field: AVRegionOfInterest.bottom
@@ -1247,16 +1316,22 @@ impl RegionOfInterestMut<'_> {
     /// Sets the distance from the frame's top edge to the region's bottom
     /// edge.
     pub fn set_bottom(&mut self, bottom: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `bottom` field is in bounds; nothing is accessed here.
+        let bottom_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).bottom) };
         // SAFETY: as in `set_self_size`, for the `bottom` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).bottom).write(bottom) }
+        unsafe { bottom_ptr.write(bottom) }
     }
 
     /// Field: AVRegionOfInterest.left
     ///
     /// Sets the distance from the frame's left edge to the region's.
     pub fn set_left(&mut self, left: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `left` field is in bounds; nothing is accessed here.
+        let left_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).left) };
         // SAFETY: as in `set_self_size`, for the `left` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).left).write(left) }
+        unsafe { left_ptr.write(left) }
     }
 
     /// Field: AVRegionOfInterest.right
@@ -1264,30 +1339,42 @@ impl RegionOfInterestMut<'_> {
     /// Sets the distance from the frame's left edge to the region's right
     /// edge.
     pub fn set_right(&mut self, right: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `right` field is in bounds; nothing is accessed here.
+        let right_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).right) };
         // SAFETY: as in `set_self_size`, for the `right` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).right).write(right) }
+        unsafe { right_ptr.write(right) }
     }
 
     /// Field: AVRegionOfInterest.qoffset
     ///
     /// An exclusive handle over the quantisation offset, for writing its
     /// parts; this handle is frozen while it lives.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn qoffset_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `qoffset` field is in bounds; nothing is accessed here.
+        let qoffset_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).qoffset) };
         // SAFETY: `qoffset` is projected through the exclusive handle's
         // pointer to a live `AVRegionOfInterest`, so it is non-NULL, aligned
         // and initialised; the result borrows `self` exclusively, so it is
         // the only access to the field while it lives.
-        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).qoffset)) }
-            .expect("a field of a live struct is not NULL")
+        unsafe { RationalMut::from_ptr(qoffset_ptr) }.expect("a field of a live struct is not NULL")
     }
 
     /// Field: AVRegionOfInterest.qoffset
     ///
     /// Sets the quantisation offset.
     pub fn set_qoffset(&mut self, qoffset: Rational) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `qoffset` field is in bounds; nothing is accessed here.
+        let qoffset_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).qoffset) };
         // SAFETY: as in `set_self_size`, for the `qoffset` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).qoffset).write(qoffset.into_raw()) }
+        unsafe { qoffset_ptr.write(qoffset.into_raw()) }
     }
 
     /// Overwrites every field with `roi`'s.
@@ -1303,9 +1390,10 @@ define_ctype!(
     /// Wraps: AVFrameSideData
     ///
     /// One piece of side data: a payload of bytes whose layout its
-    /// [`kind`](SideDataRef::kind) decides, the [`BufferReference`](super::buffer::BufferReference) that holds
-    /// them, and a metadata [`Dict`]. Its getters are on [`SideDataRef`]
-    /// (`as_ref()`), its setters on [`SideDataMut`] (`as_mut()`).
+    /// [`kind`](SideDataRef::kind) decides, the
+    /// [`BufferReference`](super::buffer::BufferReference) that holds them, and a metadata
+    /// [`Dict`]. Its getters are on [`SideDataRef`] (`as_ref()`), its setters on
+    /// [`SideDataMut`] (`as_mut()`).
     ///
     /// An entry lives in a side data array, a [`SideDataArray`] or a frame's
     /// own list, which owns it: C allocates and frees entries only inside the
@@ -1394,23 +1482,27 @@ impl<'a> SideDataRef<'a> {
     /// payload is laid out.
     #[must_use]
     pub fn kind(&self) -> SideDataType {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `type_` field is in bounds; nothing is accessed here.
+        let type_ptr = unsafe { addr_of!((*self.as_ptr()).type_) };
         // SAFETY: a read of the `type` field projected through the shared
         // handle's pointer to a live, initialised `AVFrameSideData`; every
         // `unsigned` is a valid `SideDataType`.
-        SideDataType::from_raw(unsafe { addr_of!((*self.as_ptr()).type_).read() })
+        SideDataType::from_raw(unsafe { type_ptr.read() })
     }
 
     /// The `data` and `size` fields, an empty payload as a dangling pointer
     /// and 0, so that every pair addresses a valid run.
     fn parts(&self) -> (NonNull<u8>, usize) {
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*self.as_ptr()).data };
+        // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*self.as_ptr()).size };
         // SAFETY: reads of two fields projected through the shared handle's
         // pointer to a live, initialised `AVFrameSideData`.
-        let (data, len) = unsafe {
-            (
-                addr_of!((*self.as_ptr()).data).read(),
-                addr_of!((*self.as_ptr()).size).read(),
-            )
-        };
+        let (data, len) = (unsafe { data_ptr.read() }, unsafe { size_ptr.read() });
         match NonNull::new(data) {
             Some(data) if len > 0 => (data, len),
             _ => (NonNull::dangling(), 0),
@@ -1452,11 +1544,18 @@ impl<'a> SideDataRef<'a> {
     /// entry. Its own window may differ from the payload's only where C code
     /// moved one of them; its [`try_clone`](BufferReferenceRef::try_clone)
     /// shares the bytes, which makes neither copy writable while both live.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an entry holds a buffer reference.
     #[must_use]
     pub fn buffer(&self) -> BufferReferenceRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { addr_of!((*self.as_ptr()).buf) };
         // SAFETY: a read of the `buf` pointer projected through the shared
         // handle's pointer to a live `AVFrameSideData`.
-        let buf = unsafe { addr_of!((*self.as_ptr()).buf).read() };
+        let buf = unsafe { buf_ptr.read() };
         // SAFETY: by the type's invariant, `buf` is a live reference the entry
         // owns, which nothing releases or replaces while it is borrowed.
         unsafe { BufferReferenceRef::from_ptr(buf) }.expect("an entry holds a buffer reference")
@@ -1467,9 +1566,12 @@ impl<'a> SideDataRef<'a> {
     /// The entry's metadata, borrowed from it; `None` when it has none.
     #[must_use]
     pub fn metadata(&self) -> Option<DictionaryRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `metadata` field is in bounds; nothing is accessed here.
+        let metadata_ptr = unsafe { addr_of!((*self.as_ptr()).metadata) };
         // SAFETY: a read of the `metadata` pointer projected through the
         // shared handle's pointer to a live `AVFrameSideData`.
-        let dict = unsafe { addr_of!((*self.as_ptr()).metadata).read() };
+        let dict = unsafe { metadata_ptr.read() };
         // SAFETY: by the type's invariant, `dict` is NULL or a non-empty
         // dictionary the entry owns, which nothing frees or writes while the
         // entry is borrowed.
@@ -1505,10 +1607,13 @@ impl SideDataMut<'_> {
     /// lookups return the first entry of a kind, and the removals take them
     /// all.
     pub fn set_kind(&mut self, kind: SideDataType) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `type_` field is in bounds; nothing is accessed here.
+        let type_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).type_) };
         // SAFETY: a write of the `type` field projected through the exclusive
         // handle's pointer to a live `AVFrameSideData`; the old value owns
         // nothing to leak.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).type_).write(kind.into_raw()) }
+        unsafe { type_ptr.write(kind.into_raw()) }
     }
 
     /// Field: AVFrameSideData.data
@@ -1537,23 +1642,46 @@ impl SideDataMut<'_> {
     /// Makes `with` the entry's buffer reference and its window the payload,
     /// as C does when it replaces an entry's buffer, and returns the
     /// reference the entry held, as an owner. The metadata and kind stay.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an entry holds a buffer reference.
     #[must_use = "dropping the old reference releases it; use `set_buffer` for that"]
     pub fn replace_buffer(&mut self, with: BufferReferenceBox) -> BufferReferenceBox {
         let new = with.into_c();
+        // SAFETY: `new` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*new).data };
+        // SAFETY: `new` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*new).size };
         // SAFETY: reads of two fields of the live reference `new`, which this
         // function now owns.
-        let (data, size) = unsafe { (addr_of!((*new).data).read(), addr_of!((*new).size).read()) };
+        let (data, size) = (unsafe { data_ptr.read() }, unsafe { size_ptr.read() });
         let p = self.as_mut_ptr();
-        // SAFETY: a read and three writes of fields projected through the
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { &raw mut (*p).buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw mut (*p).size };
+        // For the unsafe operations below: a read and three writes of fields projected through the
         // exclusive handle's pointer to a live `AVFrameSideData`. The entry
         // takes `new`'s one reference, and `data`/`size` are that
         // reference's own window, initialised bytes of its buffer by
         // `BufferReference`'s invariant, so the entry keeps its own.
-        let old = unsafe {
-            let old = addr_of!((*p).buf).read();
-            addr_of_mut!((*p).buf).write(new);
-            addr_of_mut!((*p).data).write(data);
-            addr_of_mut!((*p).size).write(size);
+        let old = {
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { buf_ptr.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { buf_ptr.write(new) };
+            // SAFETY: as the comment above this block states.
+            unsafe { data_ptr.write(data) };
+            // SAFETY: as the comment above this block states.
+            unsafe { size_ptr.write(size) };
             old
         };
         // SAFETY: by the type's invariant, `old` was the entry's own
@@ -1578,13 +1706,18 @@ impl SideDataMut<'_> {
     pub fn replace_metadata(&mut self, with: Dict) -> Dict {
         let new = Option::<DictionaryBox>::from(with).map_or(ptr::null_mut(), CBox::into_c);
         let p = self.as_mut_ptr();
-        // SAFETY: a read and a write of the `metadata` pointer projected
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `metadata` field is in bounds; nothing is accessed here.
+        let metadata_ptr = unsafe { &raw mut (*p).metadata };
+        // For the unsafe operations below: a read and a write of the `metadata` pointer projected
         // through the exclusive handle's pointer to a live `AVFrameSideData`;
         // `new` is NULL or a non-empty dictionary nothing else owns, which
         // keeps the type's invariant.
-        let old = unsafe {
-            let old = addr_of!((*p).metadata).read();
-            addr_of_mut!((*p).metadata).write(new);
+        let old = {
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { metadata_ptr.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { metadata_ptr.write(new) };
             old
         };
         // SAFETY: by the type's invariant, `old` is NULL or a non-empty
@@ -1609,7 +1742,7 @@ impl SideDataMut<'_> {
     }
 }
 
-/// Wraps: av_frame_side_data_free
+/// Wraps: `av_frame_side_data_free`
 /// Handwritten
 ///
 /// An owned array of side data: C's `AVFrameSideData **sd` and `int nb_sd`
@@ -1740,18 +1873,26 @@ impl fmt::Debug for SideDataArray {
     }
 }
 
+#[expect(
+    clippy::into_iter_without_iter,
+    reason = "the borrowed array is iterated through `IntoIterator`; `get` reaches single entries"
+)]
 impl<'a> IntoIterator for &'a SideDataArray {
-    type Item = SideDataRef<'a>;
     type IntoIter = SideDataIter<'a>;
+    type Item = SideDataRef<'a>;
 
     fn into_iter(self) -> SideDataIter<'a> {
         self.as_ref().into_iter()
     }
 }
 
+#[expect(
+    clippy::into_iter_without_iter,
+    reason = "the borrowed array is iterated through `IntoIterator`; `get` reaches single entries"
+)]
 impl<'a> IntoIterator for &'a mut SideDataArray {
-    type Item = SideDataMut<'a>;
     type IntoIter = SideDataIterMut<'a>;
+    type Item = SideDataMut<'a>;
 
     fn into_iter(self) -> SideDataIterMut<'a> {
         self.as_mut().into_iter()
@@ -1799,9 +1940,12 @@ impl<'a> SideDataArrayRef<'a> {
     /// The pointer to entry `i`, which is in bounds.
     fn entry(&self, i: usize) -> *mut ffi::AVFrameSideData {
         debug_assert!(i < self.len);
+        // SAFETY: `i` is within the block `self.entries` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let entries_at = unsafe { self.entries.add(i) };
         // SAFETY: `i < len`, so the read is inside the live pointer block,
         // which nothing writes for `'a`.
-        unsafe { self.entries.add(i).read() }
+        unsafe { entries_at.read() }
     }
 
     /// The number of entries.
@@ -1819,6 +1963,10 @@ impl<'a> SideDataArrayRef<'a> {
     }
 
     /// Entry `i`; `None` past the end.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an array entry is not NULL.
     #[must_use]
     pub fn get(&self, i: usize) -> Option<SideDataRef<'a>> {
         (i < self.len).then(|| {
@@ -1829,6 +1977,10 @@ impl<'a> SideDataArrayRef<'a> {
 
     /// The entries, in array order.
     #[must_use]
+    #[expect(
+        clippy::iter_without_into_iter,
+        reason = "the handle is `Copy` and iterated through `iter`"
+    )]
     pub fn iter(&self) -> SideDataIter<'a> {
         SideDataIter {
             array: *self,
@@ -1844,8 +1996,8 @@ impl fmt::Debug for SideDataArrayRef<'_> {
 }
 
 impl<'a> IntoIterator for SideDataArrayRef<'a> {
-    type Item = SideDataRef<'a>;
     type IntoIter = SideDataIter<'a>;
+    type Item = SideDataRef<'a>;
 
     fn into_iter(self) -> SideDataIter<'a> {
         self.iter()
@@ -1894,14 +2046,18 @@ unsafe impl Send for SideDataArrayMut<'_> {}
 // shared handle, `Sync` per `Sync for SideDataArrayRef`.
 unsafe impl Sync for SideDataArrayMut<'_> {}
 
-impl<'a> SideDataArrayMut<'a> {
+impl SideDataArrayMut<'_> {
     /// A shared handle to the array, borrowing this one.
     #[must_use]
     pub fn as_ref(&self) -> SideDataArrayRef<'_> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let entries_read = unsafe { self.entries.read() };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let len_read = unsafe { self.len.read() };
         // SAFETY: reads of the two variables, live and exclusively borrowed
         // for `'a`; the array they hold stays unchanged while `self` is
         // borrowed shared.
-        unsafe { SideDataArrayRef::from_raw_parts(self.entries.read(), self.len.read()) }
+        unsafe { SideDataArrayRef::from_raw_parts(entries_read, len_read) }
     }
 
     /// An exclusive handle to the array, borrowing this one.
@@ -1927,6 +2083,10 @@ impl<'a> SideDataArrayMut<'a> {
     }
 
     /// Entry `i`, writable; `None` past the end.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an array entry is not NULL.
     #[must_use]
     pub fn get_mut(&mut self, i: usize) -> Option<SideDataMut<'_>> {
         let array = self.as_ref();
@@ -1939,6 +2099,10 @@ impl<'a> SideDataArrayMut<'a> {
 
     /// The entries, writable, in array order.
     #[must_use]
+    #[expect(
+        clippy::iter_without_into_iter,
+        reason = "the handle is `Copy` and iterated through `iter`"
+    )]
     pub fn iter_mut(&mut self) -> SideDataIterMut<'_> {
         self.as_mut().into_iter()
     }
@@ -1957,12 +2121,12 @@ pub struct SideDataFlags(c_uint);
 impl SideDataFlags {
     /// No flag: append, unless the kind is not `MULTI` and already present.
     pub const NONE: Self = Self(0);
-    /// Remove every entry of the kind first.
-    pub const UNIQUE: Self = Self(ffi::AV_FRAME_SIDE_DATA_FLAG_UNIQUE);
     /// For a kind that is not `MULTI`, replace the buffer of the entry of the
     /// kind already present, if any, freeing its metadata, rather than
     /// refuse.
     pub const REPLACE: Self = Self(ffi::AV_FRAME_SIDE_DATA_FLAG_REPLACE);
+    /// Remove every entry of the kind first.
+    pub const UNIQUE: Self = Self(ffi::AV_FRAME_SIDE_DATA_FLAG_UNIQUE);
 
     /// The flags as C's `unsigned` mask.
     #[inline]
@@ -1996,7 +2160,7 @@ impl BitOrAssign for SideDataFlags {
 }
 
 impl SideDataArrayMut<'_> {
-    /// Wraps: av_frame_side_data_add
+    /// Wraps: `av_frame_side_data_add`
     ///
     /// Adds side data of `kind` whose payload is `buf`'s bytes, and returns
     /// the entry holding it; the entry takes `buf` over. `buf` comes back
@@ -2012,18 +2176,31 @@ impl SideDataArrayMut<'_> {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
-    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{
+    ///     SideDataArray, SideDataFlags, SideDataType,
+    /// };
     /// let mut array = SideDataArray::new();
     /// let mut entries = array.as_mut();
     /// let afd = BufferReference::alloc(1).unwrap().fill(8);
-    /// let entry = entries.add(SideDataType::AFD, afd, SideDataFlags::NONE).unwrap();
+    /// let entry = entries
+    ///     .add(SideDataType::AFD, afd, SideDataFlags::NONE)
+    ///     .unwrap();
     /// assert_eq!(entry.as_ref().data(), [8]);
     /// let again = BufferReference::alloc(1).unwrap().fill(9);
-    /// let again = entries.add(SideDataType::AFD, again, SideDataFlags::NONE).unwrap_err();
-    /// let entry = entries.add(SideDataType::AFD, again, SideDataFlags::REPLACE).unwrap();
+    /// let again = entries
+    ///     .add(SideDataType::AFD, again, SideDataFlags::NONE)
+    ///     .unwrap_err();
+    /// let entry = entries
+    ///     .add(SideDataType::AFD, again, SideDataFlags::REPLACE)
+    ///     .unwrap();
     /// assert_eq!(entry.as_ref().data(), [9]);
     /// assert_eq!(array.len(), 1);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// With [`UNIQUE`](SideDataFlags::UNIQUE), C first removes every entry of `kind`, even when it
+    /// then fails to add.
     pub fn add(
         &mut self,
         kind: SideDataType,
@@ -2056,7 +2233,7 @@ impl<'a> SideDataArrayMut<'a> {
                 self.entries.as_ptr(),
                 self.len.as_ptr(),
                 kind.into_raw(),
-                &mut slot,
+                &raw mut slot,
                 flags.bits(),
             )
         };
@@ -2077,6 +2254,10 @@ impl SideDataArray {
     /// Adds side data of `kind` whose payload is `buf`'s bytes, and returns
     /// the entry holding it, as [`SideDataArrayMut::add`] does, borrowing
     /// the array.
+    ///
+    /// # Errors
+    ///
+    /// As [`SideDataArrayMut::add`].
     pub fn add(
         &mut self,
         kind: SideDataType,
@@ -2094,15 +2275,19 @@ impl fmt::Debug for SideDataArrayMut<'_> {
 }
 
 impl<'a> IntoIterator for SideDataArrayMut<'a> {
-    type Item = SideDataMut<'a>;
     type IntoIter = SideDataIterMut<'a>;
+    type Item = SideDataMut<'a>;
 
     fn into_iter(self) -> SideDataIterMut<'a> {
         let (entries, len) = (self.entries, self.len);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let entries_read_2 = unsafe { entries.read() };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let len_read_2 = unsafe { len.read() };
         // SAFETY: reads of the two variables, live and exclusively borrowed
         // for `'a`, which `self`, consumed, no longer reaches; the array
         // stays unchanged for `'a`.
-        let array = unsafe { SideDataArrayRef::from_raw_parts(entries.read(), len.read()) };
+        let array = unsafe { SideDataArrayRef::from_raw_parts(entries_read_2, len_read_2) };
         SideDataIterMut {
             range: 0..array.len(),
             array,
@@ -2190,9 +2375,13 @@ impl ExactSizeIterator for SideDataIterMut<'_> {}
 impl FusedIterator for SideDataIterMut<'_> {}
 
 impl<'a> SideDataArrayRef<'a> {
-    /// Wraps: av_frame_side_data_get_c
+    /// Wraps: `av_frame_side_data_get_c`
     ///
     /// The first entry of `kind`, in array order; `None` when there is none.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an array counts entries in an int.
     #[must_use]
     pub fn find(&self, kind: SideDataType) -> Option<SideDataRef<'a>> {
         // The count came from a `c_int`, so it converts back.
@@ -2230,19 +2419,26 @@ impl SideDataMut<'_> {
     /// was, and the partial copy, which C's own code leaks, is freed.
     fn assign_clone(&mut self, src: SideDataRef<'_>) -> Result<(), c_int> {
         let s = src.as_ptr();
+        // SAFETY: `s` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*s).data };
+        // SAFETY: `s` is to a live object, as the block below relies on, so the
+        // place of its `metadata` field is in bounds; nothing is accessed here.
+        let metadata_ptr = unsafe { &raw const (*s).metadata };
+        // SAFETY: `s` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*s).size };
         // SAFETY: reads of three fields projected through the shared
         // handle's pointer to a live `AVFrameSideData`.
-        let (metadata, data, size) = unsafe {
-            (
-                addr_of!((*s).metadata).read(),
-                addr_of!((*s).data).read(),
-                addr_of!((*s).size).read(),
-            )
-        };
+        let (metadata, data, size) = (
+            unsafe { metadata_ptr.read() },
+            unsafe { data_ptr.read() },
+            unsafe { size_ptr.read() },
+        );
         let mut copy = ptr::null_mut();
         // SAFETY: `metadata` is NULL or `src`'s live dictionary, which C only
         // reads, into a local slot.
-        let ret = unsafe { ffi::av_dict_copy(&mut copy, metadata, 0) };
+        let ret = unsafe { ffi::av_dict_copy(&raw mut copy, metadata, 0) };
         // SAFETY: NULL, or the non-empty copy C built (in part, on failure),
         // ours alone: an `av_dict_set` that leaves no entry frees it.
         let copy = Dict::from(unsafe { DictionaryBox::from_c(copy) });
@@ -2250,20 +2446,31 @@ impl SideDataMut<'_> {
             return Err(ret);
         }
         let (p, from) = (self.as_mut_ptr(), src.buffer().as_ptr());
+        // SAFETY: `p` is to a live object, as the operation below relies on,
+        // so the place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { addr_of_mut!((*p).buf) };
         // SAFETY: the entry's own reference slot, exclusively borrowed, and
         // `src`'s live reference, a distinct struct as `src` is another
         // entry: C keeps the slot, or replaces its reference with a new one
         // to `src`'s buffer, and leaves it alone on failure.
-        let ret = unsafe { ffi::av_buffer_replace(addr_of_mut!((*p).buf), from) };
+        let ret = unsafe { ffi::av_buffer_replace(buf_ptr, from) };
         if ret < 0 {
             return Err(ret);
         }
-        // SAFETY: writes of two fields projected through the exclusive
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw mut (*p).size };
+        // For the unsafe operations below: writes of two fields projected through the exclusive
         // handle's pointer: `src`'s window, initialised bytes of the buffer
         // the entry now references too, by `SideData`'s invariant.
-        unsafe {
-            addr_of_mut!((*p).data).write(data);
-            addr_of_mut!((*p).size).write(size);
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { data_ptr.write(data) };
+            // SAFETY: as the comment above this block states.
+            unsafe { size_ptr.write(size) };
         }
         self.set_metadata(copy);
         Ok(())
@@ -2271,7 +2478,7 @@ impl SideDataMut<'_> {
 }
 
 impl SideDataArrayMut<'_> {
-    /// Wraps: av_frame_side_data_get
+    /// Wraps: `av_frame_side_data_get`
     ///
     /// The first entry of `kind`, in array order, writable; `None` when
     /// there is none.
@@ -2280,7 +2487,7 @@ impl SideDataArrayMut<'_> {
         self.as_mut().into_found(kind)
     }
 
-    /// Wraps: av_frame_side_data_remove
+    /// Wraps: `av_frame_side_data_remove`
     ///
     /// Removes every entry of `kind`, freeing each with its buffer reference
     /// and metadata. C moves the array's last entry into each freed slot, so
@@ -2294,11 +2501,11 @@ impl SideDataArrayMut<'_> {
                 self.entries.as_ptr(),
                 self.len.as_ptr(),
                 kind.into_raw(),
-            )
+            );
         }
     }
 
-    /// Wraps: av_frame_side_data_remove_by_props
+    /// Wraps: `av_frame_side_data_remove_by_props`
     ///
     /// Removes every entry whose kind has properties in common with `props`
     /// ([`SideDataProps::intersects`] its
@@ -2308,14 +2515,18 @@ impl SideDataArrayMut<'_> {
     pub fn remove_by_props(&mut self, props: SideDataProps) {
         // C's `int` filter, the bits as they are (C ANDs it with an unsigned
         // `props`, which converts it back).
-        let props = props.bits() as c_int;
+        let props = props.bits().cast_signed();
         // SAFETY: as in `remove`.
         unsafe {
-            ffi::av_frame_side_data_remove_by_props(self.entries.as_ptr(), self.len.as_ptr(), props)
+            ffi::av_frame_side_data_remove_by_props(
+                self.entries.as_ptr(),
+                self.len.as_ptr(),
+                props,
+            );
         }
     }
 
-    /// Wraps: av_frame_side_data_clone
+    /// Wraps: `av_frame_side_data_clone`
     ///
     /// Adds a copy of `src`, an entry of another array: one that shares its
     /// buffer, through a new reference (so neither payload is writable while
@@ -2331,10 +2542,13 @@ impl SideDataArrayMut<'_> {
     ///
     /// ```
     /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
-    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{
+    ///     SideDataArray, SideDataFlags, SideDataType,
+    /// };
     /// let mut src = SideDataArray::new();
     /// let afd = BufferReference::alloc(1).unwrap().fill(8);
-    /// src.add(SideDataType::AFD, afd, SideDataFlags::NONE).unwrap();
+    /// src.add(SideDataType::AFD, afd, SideDataFlags::NONE)
+    ///     .unwrap();
     /// let mut dst = SideDataArray::new();
     /// let entry = src.as_ref().get(0).unwrap();
     /// dst.as_mut().add_clone(entry, SideDataFlags::NONE).unwrap();
@@ -2348,6 +2562,10 @@ impl SideDataArrayMut<'_> {
     /// `AVERROR(ENOMEM)` when C cannot allocate, or `src`'s buffer counts so
     /// many references that another could near wrapping its count. The array
     /// is then as `UNIQUE` left it.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an entry of the kind is present.
     pub fn add_clone(&mut self, src: SideDataRef<'_>, flags: SideDataFlags) -> Result<(), c_int> {
         if !may_add_reference(src.buffer().ref_count()) {
             return Err(ENOMEM);
@@ -2377,7 +2595,7 @@ impl SideDataArrayMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_frame_side_data_new
+    /// Wraps: `av_frame_side_data_new`
     ///
     /// Adds side data of `kind` with a new payload of `size` zeroed bytes,
     /// and returns the entry holding it, as [`add`](Self::add) does with a
@@ -2389,9 +2607,13 @@ impl SideDataArrayMut<'_> {
     /// entry of `kind` first, even then.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::frame::{SideDataArray, SideDataFlags, SideDataType};
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{
+    ///     SideDataArray, SideDataFlags, SideDataType,
+    /// };
     /// let mut array = SideDataArray::new();
-    /// let mut entry = array.alloc_zeroed(SideDataType::AFD, 1, SideDataFlags::NONE).unwrap();
+    /// let mut entry = array
+    ///     .alloc_zeroed(SideDataType::AFD, 1, SideDataFlags::NONE)
+    ///     .unwrap();
     /// entry.data_mut().unwrap()[0] = 10;
     /// assert_eq!(array.as_ref().find(SideDataType::AFD).unwrap().data(), [10]);
     /// ```
@@ -2404,7 +2626,7 @@ impl SideDataArrayMut<'_> {
         self.as_mut().into_new_entry(kind, size, flags, zero_into)
     }
 
-    /// Wraps: av_frame_side_data_new
+    /// Wraps: `av_frame_side_data_new`
     ///
     /// Adds side data of `kind` with a new payload copied from `bytes`, and
     /// returns the entry holding it, as [`alloc_zeroed`](Self::alloc_zeroed)
@@ -2424,12 +2646,14 @@ impl<'a> SideDataArrayMut<'a> {
     /// [`find_mut`](Self::find_mut), lending the entry for the array's
     /// whole borrow.
     fn into_found(self, kind: SideDataType) -> Option<SideDataMut<'a>> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let entries_read = unsafe { self.entries.read() };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let len_read = unsafe { self.len.read() };
         // SAFETY: reads of the two variables, which hold an array of live
         // entries; C only reads it, and returns one of its entry pointers
         // (const only for C's const-correctness), or NULL.
-        let entry = unsafe {
-            ffi::av_frame_side_data_get(self.entries.read(), self.len.read(), kind.into_raw())
-        };
+        let entry = unsafe { ffi::av_frame_side_data_get(entries_read, len_read, kind.into_raw()) };
         // SAFETY: NULL, or an entry of the array, live and exclusively
         // borrowed with it for `'a`, which `self`, consumed, no longer
         // reaches.
@@ -2476,14 +2700,15 @@ impl<'a> SideDataArrayMut<'a> {
         if entry.is_null() {
             return None;
         }
+        // SAFETY: `entry` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*entry).data };
+        // SAFETY: `entry` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*entry).size };
         // SAFETY: reads of the new entry's window, `size` bytes of a buffer
         // the entry alone references, which nothing has read or lent yet.
-        let run = unsafe {
-            (
-                addr_of!((*entry).data).read(),
-                addr_of!((*entry).size).read(),
-            )
-        };
+        let run = (unsafe { data_ptr.read() }, unsafe { size_ptr.read() });
         let run = match NonNull::new(run.0) {
             Some(data) if run.1 > 0 => (data, run.1),
             _ => (NonNull::dangling(), 0),
@@ -2555,7 +2780,7 @@ impl SideDataArray {
 }
 
 /// `AVERROR(EINVAL)`.
-const EINVAL: c_int = -(ffi::EINVAL as c_int);
+const EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
 /// The number of plane pointers, line sizes and buffer references a frame
 /// holds inline (`AV_NUM_DATA_POINTERS`).
@@ -2576,7 +2801,7 @@ macro_rules! int_flags {
         pub struct $name(c_int);
 
         impl $name {
-            $($(#[$fattr])* pub const $flag: Self = Self($bits as c_int);)+
+            $($(#[$fattr])* pub const $flag: Self = Self(($bits).cast_signed());)+
 
             /// Every named flag with its constant's name, in declaration
             /// order.
@@ -2778,30 +3003,25 @@ define_ctype!(
     ///
     /// Every frame a handle reaches owns what its pointers hold:
     ///
-    /// - each non-NULL `buf[i]`, `hw_frames_ctx` and `opaque_ref` is a
-    ///   reference satisfying [`BufferReference`](super::buffer::BufferReference)'s invariant, and
-    ///   `hw_frames_ctx` one satisfying [`FramesReference`](super::hwcontext::FramesReference)'s,
-    ///   to an initialised hardware frames context (which says nothing of
-    ///   the frame's buffers: they need not be its surfaces);
-    /// - `extended_buf` is NULL with a zero `nb_extended_buf`, or an
-    ///   `av_malloc`-family block of `nb_extended_buf` such references,
-    ///   none NULL;
-    /// - `side_data` and `nb_side_data` are a side data array as
-    ///   [`SideDataArray`] holds one;
+    /// - each non-NULL `buf[i]`, `hw_frames_ctx` and `opaque_ref` is a reference satisfying
+    ///   [`BufferReference`](super::buffer::BufferReference)'s invariant, and `hw_frames_ctx` one
+    ///   satisfying [`FramesReference`](super::hwcontext::FramesReference)'s, to an initialised
+    ///   hardware frames context (which says nothing of the frame's buffers: they need not be its
+    ///   surfaces);
+    /// - `extended_buf` is NULL with a zero `nb_extended_buf`, or an `av_malloc`-family block of
+    ///   `nb_extended_buf` such references, none NULL;
+    /// - `side_data` and `nb_side_data` are a side data array as [`SideDataArray`] holds one;
     /// - `metadata` is NULL or a non-empty dictionary;
-    /// - `private_ref` is NULL or a RefStruct reference, which only the
-    ///   FFmpeg library holding the frame sets;
+    /// - `private_ref` is NULL or a RefStruct reference, which only the FFmpeg library holding the
+    ///   frame sets;
     /// - `ch_layout` satisfies [`ChannelLayout`]'s invariant;
-    /// - `extended_data` is the frame's own `data` array, or an
-    ///   `av_malloc`-family block of at least `ch_layout.nb_channels`
-    ///   plane pointers;
-    /// - while `buf[0]` holds a reference, every non-NULL plane pointer
-    ///   (`data`, and the first `nb_channels` of a separate `extended_data`)
-    ///   points inside the bytes of one of `buf` and `extended_buf`; while it
-    ///   holds none, which C reads as a frame whose data is not reference
-    ///   counted, every plane pointer is NULL unless the caller of
-    ///   [`FrameMut::set_data_ptr`] or [`FrameMut::set_extended_data_ptr`]
-    ///   vouched for it.
+    /// - `extended_data` is the frame's own `data` array, or an `av_malloc`-family block of at
+    ///   least `ch_layout.nb_channels` plane pointers;
+    /// - while `buf[0]` holds a reference, every non-NULL plane pointer (`data`, and the first
+    ///   `nb_channels` of a separate `extended_data`) points inside the bytes of one of `buf` and
+    ///   `extended_buf`; while it holds none, which C reads as a frame whose data is not reference
+    ///   counted, every plane pointer is NULL unless the caller of [`FrameMut::set_data_ptr`] or
+    ///   [`FrameMut::set_extended_data_ptr`] vouched for it.
     ///
     /// Nothing else is part of it: in particular, the format, dimensions,
     /// sample count, line sizes and cropping are plain values, which the
@@ -2901,10 +3121,10 @@ unsafe fn frame_free(frame: *mut ffi::AVFrame) {
     // SAFETY: the caller hands over its sole claim on a live frame; C
     // releases what it holds (`av_frame_unref`), frees the struct and NULLs
     // only the local slot.
-    unsafe { ffi::av_frame_free(&mut slot) }
+    unsafe { ffi::av_frame_free(&raw mut slot) }
 }
 
-/// Wraps: av_frame_free
+/// Wraps: `av_frame_free`
 ///
 /// The release policy of a [`FrameBox`]: `av_frame_free` releases every
 /// buffer reference, side data entry, dictionary and array the frame holds
@@ -2954,7 +3174,7 @@ unsafe impl CNew<Frame> for FrameFree {
 pub type FrameBox = CBox<Frame, FrameFree>;
 
 impl Frame {
-    /// Wraps: av_frame_alloc
+    /// Wraps: `av_frame_alloc`
     ///
     /// A new frame with C's defaults: no data, buffer, side data or
     /// metadata, an unknown format (-1), no timestamps
@@ -2974,55 +3194,112 @@ impl Frame {
     ///
     /// `a` and `b` must be distinct live frames nothing else reaches.
     unsafe fn swap_planes(a: *mut ffi::AVFrame, b: *mut ffi::AVFrame) {
-        // SAFETY: two distinct live frames, by the caller's contract; each field
-        // is read and written whole through raw places.
-        unsafe {
-            let own_a = (*a).extended_data == addr_of_mut!((*a).data).cast();
-            let own_b = (*b).extended_data == addr_of_mut!((*b).data).cast();
-            ptr::swap(addr_of_mut!((*a).buf), addr_of_mut!((*b).buf));
-            ptr::swap(
-                addr_of_mut!((*a).extended_buf),
-                addr_of_mut!((*b).extended_buf),
-            );
-            ptr::swap(
-                addr_of_mut!((*a).nb_extended_buf),
-                addr_of_mut!((*b).nb_extended_buf),
-            );
-            ptr::swap(addr_of_mut!((*a).data), addr_of_mut!((*b).data));
-            ptr::swap(addr_of_mut!((*a).linesize), addr_of_mut!((*b).linesize));
-            ptr::swap(
-                addr_of_mut!((*a).extended_data),
-                addr_of_mut!((*b).extended_data),
-            );
-            if own_b {
-                (*a).extended_data = addr_of_mut!((*a).data).cast();
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let a_buf_ptr = unsafe { &raw mut (*a).buf };
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let a_data_ptr = unsafe { &raw mut (*a).data };
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let a_extended_buf_ptr = unsafe { &raw mut (*a).extended_buf };
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let a_extended_data_ptr = unsafe { &raw mut (*a).extended_data };
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `linesize` field is in bounds; nothing is accessed here.
+        let a_linesize_ptr = unsafe { &raw mut (*a).linesize };
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let a_nb_extended_buf_ptr = unsafe { &raw mut (*a).nb_extended_buf };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let b_buf_ptr = unsafe { &raw mut (*b).buf };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let b_data_ptr = unsafe { &raw mut (*b).data };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let b_extended_buf_ptr = unsafe { &raw mut (*b).extended_buf };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let b_extended_data_ptr = unsafe { &raw mut (*b).extended_data };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `linesize` field is in bounds; nothing is accessed here.
+        let b_linesize_ptr = unsafe { &raw mut (*b).linesize };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let b_nb_extended_buf_ptr = unsafe { &raw mut (*b).nb_extended_buf };
+        // For the unsafe operations below: two distinct live frames, by the caller's contract; each
+        // field is read and written whole through raw places.
+        {
+            // SAFETY: as the comment above this block states.
+            let own_a = unsafe { (*a).extended_data == a_data_ptr.cast() };
+            // SAFETY: as the comment above this block states.
+            let own_b = unsafe { (*b).extended_data == b_data_ptr.cast() };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::swap(a_buf_ptr, b_buf_ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ptr::swap(a_extended_buf_ptr, b_extended_buf_ptr);
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ptr::swap(a_nb_extended_buf_ptr, b_nb_extended_buf_ptr);
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::swap(a_data_ptr, b_data_ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::swap(a_linesize_ptr, b_linesize_ptr) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ptr::swap(a_extended_data_ptr, b_extended_data_ptr);
+            };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                if own_b {
+                    (*a).extended_data = a_data_ptr.cast();
+                }
             }
-            if own_a {
-                (*b).extended_data = addr_of_mut!((*b).data).cast();
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                if own_a {
+                    (*b).extended_data = b_data_ptr.cast();
+                }
             }
         }
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl<'a> FrameRef<'a> {
     /// The `buf` array, copied out.
     fn buffer_ptrs(&self) -> [*mut ffi::AVBufferRef; NUM_DATA_POINTERS] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { addr_of!((*self.as_ptr()).buf) };
         // SAFETY: a read of the `buf` array projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).buf).read() }
+        unsafe { buf_ptr.read() }
     }
 
     /// The `extended_buf` pointer and its count, 0 for a NULL array.
     fn extended_buffer_parts(&self) -> (*mut *mut ffi::AVBufferRef, usize) {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let extended_buf_ptr = unsafe { &raw const (*p).extended_buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let nb_extended_buf_ptr = unsafe { &raw const (*p).nb_extended_buf };
         // SAFETY: reads of two fields projected through the shared handle's
         // pointer to a live, initialised `AVFrame`.
-        let (bufs, count) = unsafe {
-            (
-                addr_of!((*p).extended_buf).read(),
-                addr_of!((*p).nb_extended_buf).read(),
-            )
-        };
+        let (bufs, count) = (unsafe { extended_buf_ptr.read() }, unsafe {
+            nb_extended_buf_ptr.read()
+        });
         if bufs.is_null() {
             (bufs, 0)
         } else {
@@ -3032,9 +3309,12 @@ impl<'a> FrameRef<'a> {
 
     /// The `data` array, copied out.
     pub(crate) fn data_ptrs(&self) -> [*mut u8; NUM_DATA_POINTERS] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of!((*self.as_ptr()).data) };
         // SAFETY: a read of the `data` array projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).data).read() }
+        unsafe { data_ptr.read() }
     }
 
     /// The `extended_data` pointer and the number of entries Rust reads
@@ -3042,10 +3322,16 @@ impl<'a> FrameRef<'a> {
     /// channel count (the invariant's minimum).
     fn extended_parts(&self) -> (*mut *mut u8, usize) {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let extended_data_ptr = unsafe { &raw const (*p).extended_data };
         // SAFETY: a read of the `extended_data` field projected through the
         // shared handle's pointer to a live, initialised `AVFrame`; the
         // address of its `data` field, projected without a read.
-        let (ext, own) = unsafe { (addr_of!((*p).extended_data).read(), addr_of!((*p).data)) };
+        let (ext, own) = unsafe { (extended_data_ptr.read(), data_ptr) };
         if ext.cast_const() == own.cast() {
             (ext, NUM_DATA_POINTERS)
         } else {
@@ -3058,8 +3344,14 @@ impl<'a> FrameRef<'a> {
     /// own `data`.
     fn has_extended_array(&self) -> bool {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let extended_data_ptr = unsafe { &raw const (*p).extended_data };
         // SAFETY: as in `extended_parts`.
-        let (ext, own) = unsafe { (addr_of!((*p).extended_data).read(), addr_of!((*p).data)) };
+        let (ext, own) = unsafe { (extended_data_ptr.read(), data_ptr) };
         ext.cast_const() != own.cast()
     }
 
@@ -3121,7 +3413,7 @@ impl<'a> FrameRef<'a> {
         self.view(*self.data_ptrs().get(i)?)
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Plane or channel `i`'s bytes through `extended_data`, as
     /// [`plane`](Self::plane) reads `data`: where it points to the end of the
@@ -3139,13 +3431,16 @@ impl<'a> FrameRef<'a> {
         if i >= count {
             return None;
         }
+        // SAFETY: `i` is within the block `ext` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let ext_at = unsafe { ext.add(i) };
         // SAFETY: `ext` is the frame's `data` array of `NUM_DATA_POINTERS`
         // entries or, by the type's invariant, an array of at least the
         // channel count's; `i` is below the matching count.
-        self.view(unsafe { ext.add(i).read() })
+        self.view(unsafe { ext_at.read() })
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// The number of entries [`extended_plane`](Self::extended_plane) reads:
     /// [`NUM_DATA_POINTERS`] while `extended_data` is the frame's own `data`,
@@ -3170,9 +3465,12 @@ impl<'a> FrameRef<'a> {
     /// `[0]` alone.
     #[must_use]
     pub fn linesizes(&self) -> [i32; NUM_DATA_POINTERS] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `linesize` field is in bounds; nothing is accessed here.
+        let linesize_ptr = unsafe { addr_of!((*self.as_ptr()).linesize) };
         // SAFETY: a read of the `linesize` array projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).linesize).read() }
+        unsafe { linesize_ptr.read() }
     }
 
     /// Field: AVFrame.width
@@ -3180,9 +3478,12 @@ impl<'a> FrameRef<'a> {
     /// The coded width of a video frame, in pixels.
     #[must_use]
     pub fn width(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `width` field is in bounds; nothing is accessed here.
+        let width_ptr = unsafe { addr_of!((*self.as_ptr()).width) };
         // SAFETY: a read of an `int` field projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).width).read() }
+        unsafe { width_ptr.read() }
     }
 
     /// Field: AVFrame.height
@@ -3190,17 +3491,23 @@ impl<'a> FrameRef<'a> {
     /// The coded height of a video frame, in pixels.
     #[must_use]
     pub fn height(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `height` field is in bounds; nothing is accessed here.
+        let height_ptr = unsafe { addr_of!((*self.as_ptr()).height) };
         // SAFETY: as in `width`, for the `height` field.
-        unsafe { addr_of!((*self.as_ptr()).height).read() }
+        unsafe { height_ptr.read() }
     }
 
-    /// Field: AVFrame.nb_samples
+    /// Field: `AVFrame.nb_samples`
     ///
     /// The number of audio samples per channel.
     #[must_use]
     pub fn sample_count(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nb_samples` field is in bounds; nothing is accessed here.
+        let nb_samples_ptr = unsafe { addr_of!((*self.as_ptr()).nb_samples) };
         // SAFETY: as in `width`, for the `nb_samples` field.
-        unsafe { addr_of!((*self.as_ptr()).nb_samples).read() }
+        unsafe { nb_samples_ptr.read() }
     }
 
     /// Field: AVFrame.format
@@ -3209,8 +3516,11 @@ impl<'a> FrameRef<'a> {
     /// [`SampleFormat`] for audio, -1 when unknown.
     #[must_use]
     pub fn format(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `format` field is in bounds; nothing is accessed here.
+        let format_ptr = unsafe { addr_of!((*self.as_ptr()).format) };
         // SAFETY: as in `width`, for the `format` field.
-        unsafe { addr_of!((*self.as_ptr()).format).read() }
+        unsafe { format_ptr.read() }
     }
 
     /// The format read as a video frame's pixel format;
@@ -3227,28 +3537,38 @@ impl<'a> FrameRef<'a> {
         SampleFormat::from_raw(ffi::AVSampleFormat(self.format()))
     }
 
-    /// Field: AVFrame.pict_type
+    /// Field: `AVFrame.pict_type`
     ///
     /// The picture type of a video frame.
     #[must_use]
     pub fn picture_type(&self) -> PictureType {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pict_type` field is in bounds; nothing is accessed here.
+        let pict_type_ptr = unsafe { addr_of!((*self.as_ptr()).pict_type) };
         // SAFETY: a read of an enum field projected through the shared
         // handle's pointer to a live, initialised `AVFrame`; every value of
         // the C enum's integer is a valid `PictureType`.
-        PictureType::from_raw(unsafe { addr_of!((*self.as_ptr()).pict_type).read() })
+        PictureType::from_raw(unsafe { pict_type_ptr.read() })
     }
 
-    /// Field: AVFrame.sample_aspect_ratio
+    /// Field: `AVFrame.sample_aspect_ratio`
     ///
     /// The sample aspect ratio of a video frame, 0/1 when unknown, as a
     /// handle over it that lives as long as this one.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn sample_aspect_ratio(&self) -> RationalRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `sample_aspect_ratio` field is in bounds; nothing is accessed here.
+        let sample_aspect_ratio_ptr = unsafe { addr_of!((*self.as_ptr()).sample_aspect_ratio) };
         // SAFETY: the field is projected through the shared handle's pointer
         // to a live, initialised `AVFrame`, so it is non-NULL, aligned and
         // initialised; the frame stays live and unwritten for `'a`, which
         // the returned getter-only handle cannot outlive.
-        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).sample_aspect_ratio).cast_mut()) }
+        unsafe { RationalRef::from_ptr(sample_aspect_ratio_ptr.cast_mut()) }
             .expect("a field of a live struct is not NULL")
     }
 
@@ -3258,29 +3578,42 @@ impl<'a> FrameRef<'a> {
     /// `AV_NOPTS_VALUE` when unknown.
     #[must_use]
     pub fn pts(&self) -> i64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pts` field is in bounds; nothing is accessed here.
+        let pts_ptr = unsafe { addr_of!((*self.as_ptr()).pts) };
         // SAFETY: a read of an `int64_t` field projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).pts).read() }
+        unsafe { pts_ptr.read() }
     }
 
-    /// Field: AVFrame.pkt_dts
+    /// Field: `AVFrame.pkt_dts`
     ///
     /// The decoding timestamp of the packet the frame was decoded from;
     /// `AV_NOPTS_VALUE` when unknown.
     #[must_use]
     pub fn packet_dts(&self) -> i64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pkt_dts` field is in bounds; nothing is accessed here.
+        let pkt_dts_ptr = unsafe { addr_of!((*self.as_ptr()).pkt_dts) };
         // SAFETY: as in `pts`, for the `pkt_dts` field.
-        unsafe { addr_of!((*self.as_ptr()).pkt_dts).read() }
+        unsafe { pkt_dts_ptr.read() }
     }
 
-    /// Field: AVFrame.time_base
+    /// Field: `AVFrame.time_base`
     ///
     /// The time base of the frame's timestamps, as a handle over it that
     /// lives as long as this one.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn time_base(&self) -> RationalRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `time_base` field is in bounds; nothing is accessed here.
+        let time_base_ptr = unsafe { addr_of!((*self.as_ptr()).time_base) };
         // SAFETY: as in `sample_aspect_ratio`, for the `time_base` field.
-        unsafe { RationalRef::from_ptr(addr_of!((*self.as_ptr()).time_base).cast_mut()) }
+        unsafe { RationalRef::from_ptr(time_base_ptr.cast_mut()) }
             .expect("a field of a live struct is not NULL")
     }
 
@@ -3289,8 +3622,11 @@ impl<'a> FrameRef<'a> {
     /// The quality, from 1 (good) to `FF_LAMBDA_MAX` (bad).
     #[must_use]
     pub fn quality(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `quality` field is in bounds; nothing is accessed here.
+        let quality_ptr = unsafe { addr_of!((*self.as_ptr()).quality) };
         // SAFETY: as in `width`, for the `quality` field.
-        unsafe { addr_of!((*self.as_ptr()).quality).read() }
+        unsafe { quality_ptr.read() }
     }
 
     /// Field: AVFrame.opaque
@@ -3301,29 +3637,38 @@ impl<'a> FrameRef<'a> {
     /// setter's business.
     #[must_use]
     pub fn opaque(&self) -> *mut c_void {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of!((*self.as_ptr()).opaque) };
         // SAFETY: a read of the `opaque` field projected through the shared
         // handle's pointer to a live, initialised `AVFrame`; the pointer is
         // copied, not dereferenced.
-        unsafe { addr_of!((*self.as_ptr()).opaque).read() }
+        unsafe { opaque_ptr.read() }
     }
 
-    /// Field: AVFrame.repeat_pict
+    /// Field: `AVFrame.repeat_pict`
     ///
     /// The number of fields to repeat: the frame lasts `repeat_pict + 2`
     /// field durations.
     #[must_use]
     pub fn repeat_pict(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `repeat_pict` field is in bounds; nothing is accessed here.
+        let repeat_pict_ptr = unsafe { addr_of!((*self.as_ptr()).repeat_pict) };
         // SAFETY: as in `width`, for the `repeat_pict` field.
-        unsafe { addr_of!((*self.as_ptr()).repeat_pict).read() }
+        unsafe { repeat_pict_ptr.read() }
     }
 
-    /// Field: AVFrame.sample_rate
+    /// Field: `AVFrame.sample_rate`
     ///
     /// The sample rate of the audio, in Hz.
     #[must_use]
     pub fn sample_rate(&self) -> i32 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `sample_rate` field is in bounds; nothing is accessed here.
+        let sample_rate_ptr = unsafe { addr_of!((*self.as_ptr()).sample_rate) };
         // SAFETY: as in `width`, for the `sample_rate` field.
-        unsafe { addr_of!((*self.as_ptr()).sample_rate).read() }
+        unsafe { sample_rate_ptr.read() }
     }
 
     /// Field: AVFrame.buf
@@ -3342,7 +3687,7 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: AVFrame.extended_buf
+    /// Field: `AVFrame.extended_buf`
     ///
     /// Extra buffer reference `i`, for the planes of audio with more
     /// planes than [`NUM_DATA_POINTERS`], borrowed from the frame; `None`
@@ -3353,16 +3698,19 @@ impl<'a> FrameRef<'a> {
         if i >= count {
             return None;
         }
+        // SAFETY: `i` is within the block `bufs` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let bufs_at = unsafe { bufs.add(i) };
         // SAFETY: by the type's invariant, `bufs` is a block of `count`
         // references, and `i < count`.
-        let buf = unsafe { bufs.add(i).read() };
+        let buf = unsafe { bufs_at.read() };
         // SAFETY: by the type's invariant, a live reference the frame owns,
         // which nothing releases or replaces while the frame is borrowed
         // shared.
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: AVFrame.nb_extended_buf
+    /// Field: `AVFrame.nb_extended_buf`
     ///
     /// The number of extra buffer references.
     #[must_use]
@@ -3370,21 +3718,24 @@ impl<'a> FrameRef<'a> {
         self.extended_buffer_parts().1
     }
 
-    /// Field: AVFrame.side_data
-    /// Field: AVFrame.nb_side_data
+    /// Field: `AVFrame.side_data`
+    /// Field: `AVFrame.nb_side_data`
     ///
     /// The frame's side data, borrowed from it.
     #[must_use]
     pub fn side_data(&self) -> SideDataArrayRef<'a> {
         let p = self.as_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_side_data` field is in bounds; nothing is accessed here.
+        let nb_side_data_ptr = unsafe { &raw const (*p).nb_side_data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `side_data` field is in bounds; nothing is accessed here.
+        let side_data_ptr = unsafe { &raw const (*p).side_data };
         // SAFETY: reads of two fields projected through the shared handle's
         // pointer to a live, initialised `AVFrame`.
-        let (entries, len) = unsafe {
-            (
-                addr_of!((*p).side_data).read(),
-                addr_of!((*p).nb_side_data).read(),
-            )
-        };
+        let (entries, len) = (unsafe { side_data_ptr.read() }, unsafe {
+            nb_side_data_ptr.read()
+        });
         // SAFETY: by the type's invariant, a side data array of live entries
         // the frame owns, which nothing changes or frees while the frame is
         // borrowed shared.
@@ -3396,35 +3747,47 @@ impl<'a> FrameRef<'a> {
     /// The frame's flags.
     #[must_use]
     pub fn flags(&self) -> FrameFlags {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `flags` field is in bounds; nothing is accessed here.
+        let flags_ptr = unsafe { addr_of!((*self.as_ptr()).flags) };
         // SAFETY: as in `width`, for the `flags` field.
-        FrameFlags::from_bits_retain(unsafe { addr_of!((*self.as_ptr()).flags).read() })
+        FrameFlags::from_bits_retain(unsafe { flags_ptr.read() })
     }
 
-    /// Field: AVFrame.color_range
+    /// Field: `AVFrame.color_range`
     ///
     /// The color range, MPEG or JPEG.
     #[must_use]
     pub fn color_range(&self) -> ColorRange {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_range` field is in bounds; nothing is accessed here.
+        let color_range_ptr = unsafe { addr_of!((*self.as_ptr()).color_range) };
         // SAFETY: as in `picture_type`, for the `color_range` field.
-        ColorRange::from_raw(unsafe { addr_of!((*self.as_ptr()).color_range).read() })
+        ColorRange::from_raw(unsafe { color_range_ptr.read() })
     }
 
-    /// Field: AVFrame.color_primaries
+    /// Field: `AVFrame.color_primaries`
     ///
     /// The color primaries.
     #[must_use]
     pub fn color_primaries(&self) -> ColorPrimaries {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_primaries` field is in bounds; nothing is accessed here.
+        let color_primaries_ptr = unsafe { addr_of!((*self.as_ptr()).color_primaries) };
         // SAFETY: as in `picture_type`, for the `color_primaries` field.
-        ColorPrimaries::from_raw(unsafe { addr_of!((*self.as_ptr()).color_primaries).read() })
+        ColorPrimaries::from_raw(unsafe { color_primaries_ptr.read() })
     }
 
-    /// Field: AVFrame.color_trc
+    /// Field: `AVFrame.color_trc`
     ///
     /// The color transfer characteristic.
     #[must_use]
     pub fn color_transfer(&self) -> ColorTransfer {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_trc` field is in bounds; nothing is accessed here.
+        let color_trc_ptr = unsafe { addr_of!((*self.as_ptr()).color_trc) };
         // SAFETY: as in `picture_type`, for the `color_trc` field.
-        ColorTransfer::from_raw(unsafe { addr_of!((*self.as_ptr()).color_trc).read() })
+        ColorTransfer::from_raw(unsafe { color_trc_ptr.read() })
     }
 
     /// Field: AVFrame.colorspace
@@ -3432,27 +3795,36 @@ impl<'a> FrameRef<'a> {
     /// The YUV color space.
     #[must_use]
     pub fn color_space(&self) -> ColorSpace {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `colorspace` field is in bounds; nothing is accessed here.
+        let colorspace_ptr = unsafe { addr_of!((*self.as_ptr()).colorspace) };
         // SAFETY: as in `picture_type`, for the `colorspace` field.
-        ColorSpace::from_raw(unsafe { addr_of!((*self.as_ptr()).colorspace).read() })
+        ColorSpace::from_raw(unsafe { colorspace_ptr.read() })
     }
 
-    /// Field: AVFrame.chroma_location
+    /// Field: `AVFrame.chroma_location`
     ///
     /// The location of the chroma samples.
     #[must_use]
     pub fn chroma_location(&self) -> ChromaLocation {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `chroma_location` field is in bounds; nothing is accessed here.
+        let chroma_location_ptr = unsafe { addr_of!((*self.as_ptr()).chroma_location) };
         // SAFETY: as in `picture_type`, for the `chroma_location` field.
-        ChromaLocation::from_raw(unsafe { addr_of!((*self.as_ptr()).chroma_location).read() })
+        ChromaLocation::from_raw(unsafe { chroma_location_ptr.read() })
     }
 
-    /// Field: AVFrame.best_effort_timestamp
+    /// Field: `AVFrame.best_effort_timestamp`
     ///
     /// The timestamp a decoder estimated by heuristics, in stream time base;
     /// `AV_NOPTS_VALUE` when unknown.
     #[must_use]
     pub fn best_effort_timestamp(&self) -> i64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `best_effort_timestamp` field is in bounds; nothing is accessed here.
+        let best_effort_timestamp_ptr = unsafe { addr_of!((*self.as_ptr()).best_effort_timestamp) };
         // SAFETY: as in `pts`, for the `best_effort_timestamp` field.
-        unsafe { addr_of!((*self.as_ptr()).best_effort_timestamp).read() }
+        unsafe { best_effort_timestamp_ptr.read() }
     }
 
     /// Field: AVFrame.metadata
@@ -3460,27 +3832,31 @@ impl<'a> FrameRef<'a> {
     /// The frame's metadata, borrowed from it; `None` when it has none.
     #[must_use]
     pub fn metadata(&self) -> Option<DictionaryRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `metadata` field is in bounds; nothing is accessed here.
+        let metadata_ptr = unsafe { addr_of!((*self.as_ptr()).metadata) };
         // SAFETY: a read of the `metadata` pointer projected through the
         // shared handle's pointer to a live, initialised `AVFrame`.
-        let dict = unsafe { addr_of!((*self.as_ptr()).metadata).read() };
+        let dict = unsafe { metadata_ptr.read() };
         // SAFETY: by the type's invariant, `dict` is NULL or a non-empty
         // dictionary the frame owns, which nothing frees or writes while the
         // frame is borrowed shared.
         unsafe { DictionaryRef::from_ptr(dict) }
     }
 
-    /// Field: AVFrame.decode_error_flags
+    /// Field: `AVFrame.decode_error_flags`
     ///
     /// The errors the decoder met while producing the frame.
     #[must_use]
     pub fn decode_error_flags(&self) -> DecodeErrorFlags {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `decode_error_flags` field is in bounds; nothing is accessed here.
+        let decode_error_flags_ptr = unsafe { addr_of!((*self.as_ptr()).decode_error_flags) };
         // SAFETY: as in `width`, for the `decode_error_flags` field.
-        DecodeErrorFlags::from_bits_retain(unsafe {
-            addr_of!((*self.as_ptr()).decode_error_flags).read()
-        })
+        DecodeErrorFlags::from_bits_retain(unsafe { decode_error_flags_ptr.read() })
     }
 
-    /// Field: AVFrame.hw_frames_ctx
+    /// Field: `AVFrame.hw_frames_ctx`
     ///
     /// The hardware frames context of a hardware frame, through the
     /// reference the frame owns, borrowed from the frame; `None` for a
@@ -3492,9 +3868,12 @@ impl<'a> FrameRef<'a> {
     /// [`FrameMut::replace_hw_frames_context`].
     #[must_use]
     pub fn hw_frames_context(&self) -> Option<FramesReferenceRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx) };
         // SAFETY: a read of the `hw_frames_ctx` pointer projected through the
         // shared handle's pointer to a live, initialised `AVFrame`.
-        let buf = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx).read() };
+        let buf = unsafe { hw_frames_ctx_ptr.read() };
         // SAFETY: by the type's invariant, NULL or a live reference the frame
         // owns to an initialised hardware frames context, which nothing
         // releases or replaces while the frame is borrowed shared.
@@ -3504,91 +3883,119 @@ impl<'a> FrameRef<'a> {
     /// The frame's hardware frames context reference as the buffer
     /// reference it also is, for its count.
     fn hw_frames_buffer(&self) -> Option<BufferReferenceRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx) };
         // SAFETY: as in `hw_frames_context`.
-        let buf = unsafe { addr_of!((*self.as_ptr()).hw_frames_ctx).read() };
+        let buf = unsafe { hw_frames_ctx_ptr.read() };
         // SAFETY: as in `hw_frames_context`; the reference also satisfies
         // `BufferReference`'s invariant, and the view is only counted.
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: AVFrame.opaque_ref
+    /// Field: `AVFrame.opaque_ref`
     ///
     /// The owner's reference-counted user data, borrowed from the frame;
     /// `None` when it has none. FFmpeg only shares it with the frame's
     /// copies, and to and from packets when asked.
     #[must_use]
     pub fn opaque_ref(&self) -> Option<BufferReferenceRef<'a>> {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque_ref` field is in bounds; nothing is accessed here.
+        let opaque_ref_ptr = unsafe { addr_of!((*self.as_ptr()).opaque_ref) };
         // SAFETY: a read of the `opaque_ref` pointer projected through the
         // shared handle's pointer to a live, initialised `AVFrame`.
-        let buf = unsafe { addr_of!((*self.as_ptr()).opaque_ref).read() };
+        let buf = unsafe { opaque_ref_ptr.read() };
         // SAFETY: as in `hw_frames_context`.
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: AVFrame.crop_top
+    /// Field: `AVFrame.crop_top`
     ///
     /// The number of pixel rows to discard from the top of a video frame for
     /// presentation.
     #[must_use]
     pub fn crop_top(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_top` field is in bounds; nothing is accessed here.
+        let crop_top_ptr = unsafe { addr_of!((*self.as_ptr()).crop_top) };
         // SAFETY: a read of a `size_t` field projected through the shared
         // handle's pointer to a live, initialised `AVFrame`.
-        unsafe { addr_of!((*self.as_ptr()).crop_top).read() }
+        unsafe { crop_top_ptr.read() }
     }
 
-    /// Field: AVFrame.crop_bottom
+    /// Field: `AVFrame.crop_bottom`
     ///
     /// The number of pixel rows to discard from the bottom.
     #[must_use]
     pub fn crop_bottom(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_bottom` field is in bounds; nothing is accessed here.
+        let crop_bottom_ptr = unsafe { addr_of!((*self.as_ptr()).crop_bottom) };
         // SAFETY: as in `crop_top`, for the `crop_bottom` field.
-        unsafe { addr_of!((*self.as_ptr()).crop_bottom).read() }
+        unsafe { crop_bottom_ptr.read() }
     }
 
-    /// Field: AVFrame.crop_left
+    /// Field: `AVFrame.crop_left`
     ///
     /// The number of pixel columns to discard from the left.
     #[must_use]
     pub fn crop_left(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_left` field is in bounds; nothing is accessed here.
+        let crop_left_ptr = unsafe { addr_of!((*self.as_ptr()).crop_left) };
         // SAFETY: as in `crop_top`, for the `crop_left` field.
-        unsafe { addr_of!((*self.as_ptr()).crop_left).read() }
+        unsafe { crop_left_ptr.read() }
     }
 
-    /// Field: AVFrame.crop_right
+    /// Field: `AVFrame.crop_right`
     ///
     /// The number of pixel columns to discard from the right.
     #[must_use]
     pub fn crop_right(&self) -> usize {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_right` field is in bounds; nothing is accessed here.
+        let crop_right_ptr = unsafe { addr_of!((*self.as_ptr()).crop_right) };
         // SAFETY: as in `crop_top`, for the `crop_right` field.
-        unsafe { addr_of!((*self.as_ptr()).crop_right).read() }
+        unsafe { crop_right_ptr.read() }
     }
 
-    /// Field: AVFrame.private_ref
+    /// Field: `AVFrame.private_ref`
     ///
     /// Whether the FFmpeg library holding the frame keeps a private
-    /// RefStruct reference in it. That reference is the library's alone,
+    /// `RefStruct` reference in it. That reference is the library's alone,
     /// which C clears before the frame leaves it, so a frame Rust receives
     /// has none, and nothing here sets one; [`FrameMut::reset`] and the
     /// frame's drop release it and [`try_clone`](Self::try_clone) shares it.
     #[must_use]
     pub fn has_private_ref(&self) -> bool {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `private_ref` field is in bounds; nothing is accessed here.
+        let private_ref_ptr = unsafe { addr_of!((*self.as_ptr()).private_ref) };
         // SAFETY: a read of the `private_ref` pointer projected through the
         // shared handle's pointer to a live, initialised `AVFrame`; it is
         // compared, not dereferenced.
-        !unsafe { addr_of!((*self.as_ptr()).private_ref).read() }.is_null()
+        !unsafe { private_ref_ptr.read() }.is_null()
     }
 
-    /// Field: AVFrame.ch_layout
+    /// Field: `AVFrame.ch_layout`
     ///
     /// The channel layout of the audio, as a handle over it that lives as
     /// long as this one.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn channel_layout(&self) -> ChannelLayoutRef<'a> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `ch_layout` field is in bounds; nothing is accessed here.
+        let ch_layout_ptr = unsafe { addr_of!((*self.as_ptr()).ch_layout) };
         // SAFETY: the field is projected through the shared handle's pointer
         // to a live, initialised `AVFrame`, so it is non-NULL and aligned,
         // and it satisfies `ChannelLayout`'s invariant by the type's; the
         // frame stays live and unwritten for `'a`.
-        unsafe { ChannelLayoutRef::from_ptr(addr_of!((*self.as_ptr()).ch_layout).cast_mut()) }
+        unsafe { ChannelLayoutRef::from_ptr(ch_layout_ptr.cast_mut()) }
             .expect("a field of a live struct is not NULL")
     }
 
@@ -3598,22 +4005,28 @@ impl<'a> FrameRef<'a> {
     /// when unknown.
     #[must_use]
     pub fn duration(&self) -> i64 {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `duration` field is in bounds; nothing is accessed here.
+        let duration_ptr = unsafe { addr_of!((*self.as_ptr()).duration) };
         // SAFETY: as in `pts`, for the `duration` field.
-        unsafe { addr_of!((*self.as_ptr()).duration).read() }
+        unsafe { duration_ptr.read() }
     }
 
-    /// Field: AVFrame.alpha_mode
+    /// Field: `AVFrame.alpha_mode`
     ///
     /// How the alpha channel of the video is to be handled.
     #[must_use]
     pub fn alpha_mode(&self) -> AlphaMode {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `alpha_mode` field is in bounds; nothing is accessed here.
+        let alpha_mode_ptr = unsafe { addr_of!((*self.as_ptr()).alpha_mode) };
         // SAFETY: as in `picture_type`, for the `alpha_mode` field.
-        AlphaMode::from_raw(unsafe { addr_of!((*self.as_ptr()).alpha_mode).read() })
+        AlphaMode::from_raw(unsafe { alpha_mode_ptr.read() })
     }
 
     /// Whether every reference `av_frame_clone` would add stays below the
     /// counts C could wrap: one per buffer reference (planes, side data,
-    /// hardware context, user data) and one to the private RefStruct
+    /// hardware context, user data) and one to the private `RefStruct`
     /// object.
     fn may_clone(&self) -> bool {
         let wide = !self.has_private_ref() || refstruct::COUNT_IS_WIDE;
@@ -3658,7 +4071,7 @@ impl<'a> FrameRef<'a> {
         (self.copy_reads_past_extended_data() || self.sample_rounding_overflows()).then_some(EINVAL)
     }
 
-    /// Wraps: av_frame_clone
+    /// Wraps: `av_frame_clone`
     ///
     /// A new frame describing the same data: the same properties, side data
     /// (sharing each payload's buffer), metadata (copied) and channel
@@ -3705,16 +4118,18 @@ impl<'a> FrameRef<'a> {
             let Ok(zeroed) = self.copy_into_zeroed_buffers() else {
                 // SAFETY: the copy C made, which nothing else reaches; its
                 // release reads none of its bytes.
-                unsafe { ffi::av_frame_free(&mut copy) };
+                unsafe { ffi::av_frame_free(&raw mut copy) };
                 return None;
             };
             let mut zeroed = zeroed.as_ptr();
-            // SAFETY: two live frames C built, which nothing else reaches;
+            // For the unsafe operations below: two live frames C built, which nothing else reaches;
             // `zeroed` then holds the copy's buffers, which its release frees
             // without reading their bytes.
-            unsafe {
-                Frame::swap_planes(copy, zeroed);
-                ffi::av_frame_free(&mut zeroed);
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { Frame::swap_planes(copy, zeroed) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_frame_free(&raw mut zeroed) };
             }
         }
         // SAFETY: NULL, or a fresh frame C built by the invariant's rules,
@@ -3743,32 +4158,59 @@ impl<'a> FrameRef<'a> {
             return Err(ENOMEM);
         }
         let src = self.as_ptr();
-        // SAFETY: `f` is a fresh frame nothing else reaches and `src` a live
-        // one, read only. C copies the layout (by the invariant, one C
-        // accepts) and allocates buffers for the geometry, rounding its
-        // sample count only where that stays in range (the line size above),
-        // whose bytes are zeroed over each reference's window, which makes
-        // `f` a frame satisfying the invariant.
-        let mut ret = unsafe {
-            (*f).format = (*src).format;
-            (*f).width = (*src).width;
-            (*f).height = (*src).height;
-            (*f).nb_samples = (*src).nb_samples;
-            (*f).linesize[0] = linesize;
-            let mut ret =
-                ffi::av_channel_layout_copy(&raw mut (*f).ch_layout, &raw const (*src).ch_layout);
-            if ret >= 0 {
-                ret = ffi::av_frame_get_buffer(f, 0);
+        // SAFETY: `f` is to a live object, as the block below relies on, so the
+        // place of its `ch_layout` field is in bounds; nothing is accessed here.
+        let f_ch_layout_ptr = unsafe { &raw mut (*f).ch_layout };
+        // SAFETY: `src` is to a live object, as the block below relies on, so the
+        // place of its `ch_layout` field is in bounds; nothing is accessed here.
+        let src_ch_layout_ptr = unsafe { &raw const (*src).ch_layout };
+        // SAFETY: reads of plain integer fields of `src`, a live, initialised frame, read
+        // only.
+        let (format, width, height, nb_samples) = (
+            unsafe { (*src).format },
+            unsafe { (*src).width },
+            unsafe { (*src).height },
+            unsafe { (*src).nb_samples },
+        );
+        // SAFETY: `f` is a fresh frame nothing else reaches; a write of its `format`.
+        unsafe { (*f).format = format };
+        // SAFETY: as above, for its `width`.
+        unsafe { (*f).width = width };
+        // SAFETY: as above, for its `height`.
+        unsafe { (*f).height = height };
+        // SAFETY: as above, for its `nb_samples`.
+        unsafe { (*f).nb_samples = nb_samples };
+        // SAFETY: as above, for the first entry of its `linesize`.
+        unsafe { (*f).linesize[0] = linesize };
+        // SAFETY: C copies `src`'s layout, by the invariant one C accepts, into the fresh
+        // frame's.
+        let mut ret = unsafe { ffi::av_channel_layout_copy(f_ch_layout_ptr, src_ch_layout_ptr) };
+        if ret >= 0 {
+            // SAFETY: C allocates buffers for the fresh frame's geometry, rounding its sample
+            // count only where that stays in range (the line size above).
+            ret = unsafe { ffi::av_frame_get_buffer(f, 0) };
+        }
+        if ret >= 0 {
+            // SAFETY: a read of the fresh frame's `nb_extended_buf`.
+            let extra = usize::try_from(unsafe { (*f).nb_extended_buf }).unwrap_or(0);
+            // SAFETY: a read of the fresh frame's `extended_buf` pointer.
+            let ext = unsafe { (*f).extended_buf };
+            // SAFETY: a copy of the fresh frame's `buf` array of references.
+            let bufs = unsafe { (*f).buf };
+            let extra = (0..extra).map(|i| {
+                // SAFETY: `extended_buf` holds `nb_extended_buf` entries, and `i` is below it.
+                let at = unsafe { ext.add(i) };
+                // SAFETY: as above; the entry is initialised.
+                unsafe { at.read() }
+            });
+            for buf in bufs.into_iter().chain(extra).filter(|b| !b.is_null()) {
+                // SAFETY: `buf` is a live reference C just allocated: reads of its window.
+                let (data, size) = (unsafe { (*buf).data }, unsafe { (*buf).size });
+                // SAFETY: the window's bytes are writable and nothing reads them yet; zeroing
+                // them makes `f` a frame satisfying the invariant.
+                unsafe { ptr::write_bytes(data, 0, size) };
             }
-            if ret >= 0 {
-                let extra = usize::try_from((*f).nb_extended_buf).unwrap_or(0);
-                let extra = (0..extra).map(|i| (*f).extended_buf.add(i).read());
-                for buf in (*f).buf.into_iter().chain(extra).filter(|b| !b.is_null()) {
-                    ptr::write_bytes((*buf).data, 0, (*buf).size);
-                }
-            }
-            ret
-        };
+        }
         if ret >= 0 {
             // SAFETY: `f`, live and satisfying the invariant, read only while
             // the check runs.
@@ -3788,7 +4230,7 @@ impl<'a> FrameRef<'a> {
             _ => {
                 // SAFETY: `f`, nothing else's; its release reads none of its
                 // bytes.
-                unsafe { ffi::av_frame_free(&mut f) };
+                unsafe { ffi::av_frame_free(&raw mut f) };
                 Err(ret)
             }
         }
@@ -3842,10 +4284,13 @@ impl FrameMut<'_> {
             }
         }
         let entry = |i: usize| {
+            // SAFETY: `i` is within the block `ext` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let ext_at = unsafe { ext.add(i) };
             // SAFETY: by the type's invariant, a separate `extended_data`
             // holds at least `count`, the channel count, entries, and `i` is
             // below it.
-            unsafe { ext.add(i).read() }
+            unsafe { ext_at.read() }
         };
         let stale: Vec<usize> = if separate {
             (0..count).filter(|&i| !keep(entry(i))).collect()
@@ -3853,13 +4298,19 @@ impl FrameMut<'_> {
             Vec::new()
         };
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the access below relies on,
+        // so the place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { addr_of_mut!((*p).data) };
         // SAFETY: a write of the `data` array projected through the exclusive
         // handle's pointer to a live `AVFrame`; its pointers own nothing.
-        unsafe { addr_of_mut!((*p).data).write(data) };
+        unsafe { data_ptr.write(data) };
         for i in stale {
+            // SAFETY: `i` is within the block `ext` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let ext_at = unsafe { ext.add(i) };
             // SAFETY: as above, entry `i < count` of the separate
             // `extended_data` array the frame owns.
-            unsafe { ext.add(i).write(ptr::null_mut()) };
+            unsafe { ext_at.write(ptr::null_mut()) };
         }
     }
 
@@ -3897,13 +4348,16 @@ impl FrameMut<'_> {
             return None;
         }
         let (start, len) = buf.parts();
+        // SAFETY: `offset` is within the block `start.as_ptr()` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let elem = unsafe { start.as_ptr().add(offset) };
         // SAFETY: `start + offset` is `p`, `offset < len` bytes into the
         // initialised bytes of a reference the frame owns, which are
         // writable: the buffer is not read-only and the frame holds its only
         // reference (the acquire load ordered every released one before us).
         // The exclusive borrow of `self` stops the frame being cloned, or the
         // reference released, while the slice lives.
-        Some(unsafe { slice::from_raw_parts_mut(start.as_ptr().add(offset), len - offset) })
+        Some(unsafe { slice::from_raw_parts_mut(elem, len - offset) })
     }
 
     /// Field: AVFrame.data
@@ -3941,15 +4395,20 @@ impl FrameMut<'_> {
         }
         let target = self.plane_target(buffer, offset)?;
         let p = self.as_mut_ptr();
-        // SAFETY: a write of entry `plane < NUM_DATA_POINTERS` of the `data`
-        // array projected through the exclusive handle's pointer to a live
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // For the unsafe operations below: a write of entry `plane < NUM_DATA_POINTERS` of the
+        // `data` array projected through the exclusive handle's pointer to a live
         // `AVFrame`; `target` points inside one of its references, as the
         // invariant asks of a reference-counted frame.
-        unsafe {
-            addr_of_mut!((*p).data)
-                .cast::<*mut u8>()
-                .add(plane)
-                .write(target)
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v_3 = unsafe { data_ptr.cast::<*mut u8>().add(plane) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                v_3.write(target);
+            };
         };
         Ok(())
     }
@@ -3961,12 +4420,17 @@ impl FrameMut<'_> {
     pub fn clear_plane(&mut self, i: usize) {
         if i < NUM_DATA_POINTERS {
             let p = self.as_mut_ptr();
-            // SAFETY: as in `set_plane`; NULL is always allowed.
-            unsafe {
-                addr_of_mut!((*p).data)
-                    .cast::<*mut u8>()
-                    .add(i)
-                    .write(ptr::null_mut())
+            // SAFETY: `p` is to a live object, as the block below relies on, so the
+            // place of its `data` field is in bounds; nothing is accessed here.
+            let data_ptr = unsafe { &raw mut (*p).data };
+            // For the unsafe operations below: as in `set_plane`; NULL is always allowed.
+            {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let v_2 = unsafe { data_ptr.cast::<*mut u8>().add(i) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    v_2.write(ptr::null_mut());
+                };
             };
         }
     }
@@ -3990,13 +4454,12 @@ impl FrameMut<'_> {
     /// there, point at memory that, until the plane is cleared or replaced
     /// or the frame reset or dropped:
     ///
-    /// - is valid for reads (and for writes, where C writes the frame) of the
-    ///   whole plane as C reads it through the frame's format, dimensions or
-    ///   sample count, channel layout, line sizes and `extended_data` at each
-    ///   call that reads the frame's data (`av_frame_clone`'s copy among
-    ///   them), whatever setter changed those since;
-    /// - is not written through any other path while the frame or a C copy
-    ///   of the pointer may read it.
+    /// - is valid for reads (and for writes, where C writes the frame) of the whole plane as C
+    ///   reads it through the frame's format, dimensions or sample count, channel layout, line
+    ///   sizes and `extended_data` at each call that reads the frame's data (`av_frame_clone`'s
+    ///   copy among them), whatever setter changed those since;
+    /// - is not written through any other path while the frame or a C copy of the pointer may read
+    ///   it.
     ///
     /// A buffer reference added later at index 0 clears every plane outside
     /// it, this one included, and
@@ -4004,12 +4467,17 @@ impl FrameMut<'_> {
     pub unsafe fn set_data_ptr(&mut self, i: usize, data: *mut u8) {
         assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v = unsafe { data_ptr.cast::<*mut u8>().add(i) };
         // SAFETY: as in `set_plane`; the caller vouches for the pointer, which
         // the invariant then admits.
-        unsafe { addr_of_mut!((*p).data).cast::<*mut u8>().add(i).write(data) };
+        unsafe { v.write(data) };
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Entry `i` of `extended_data`'s bytes, writable, as
     /// [`FrameRef::extended_plane`] reads them, when the buffer holding them
@@ -4020,12 +4488,15 @@ impl FrameMut<'_> {
         if i >= count {
             return None;
         }
+        // SAFETY: `i` is within the block `ext` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let ext_at = unsafe { ext.add(i) };
         // SAFETY: as in `FrameRef::extended_plane`.
-        let p = unsafe { ext.add(i).read() };
+        let p = unsafe { ext_at.read() };
         self.view_mut(p)
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Points entry `i` of `extended_data` `offset` bytes into buffer
     /// reference `buffer`, as [`set_plane`](Self::set_plane) does for
@@ -4047,26 +4518,32 @@ impl FrameMut<'_> {
             return Err(PlaneError::NoPlane);
         }
         let target = self.plane_target(buffer, offset)?;
+        // SAFETY: `i` is within the block `ext` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let ext_at = unsafe { ext.add(i) };
         // SAFETY: entry `i` below the count the invariant guarantees of the
         // frame's own `data` array or separate block, reached through the
         // exclusive handle; `target` points inside one of its references.
-        unsafe { ext.add(i).write(target) };
+        unsafe { ext_at.write(target) };
         Ok(())
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Makes entry `i` of `extended_data` NULL; does nothing for an index of
     /// [`FrameRef::extended_plane_count`] or more.
     pub fn clear_extended_plane(&mut self, i: usize) {
         let (ext, count) = self.as_ref().extended_parts();
         if i < count {
+            // SAFETY: `i` is within the block `ext` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let ext_at = unsafe { ext.add(i) };
             // SAFETY: as in `set_extended_plane`; NULL is always allowed.
-            unsafe { ext.add(i).write(ptr::null_mut()) };
+            unsafe { ext_at.write(ptr::null_mut()) };
         }
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Stores `data` as entry `i` of `extended_data`, unchecked, as
     /// [`set_data_ptr`](Self::set_data_ptr) does for `data`. While
@@ -4085,12 +4562,15 @@ impl FrameMut<'_> {
     pub unsafe fn set_extended_data_ptr(&mut self, i: usize, data: *mut u8) {
         let (ext, count) = self.as_ref().extended_parts();
         assert!(i < count, "extended plane {i} out of range");
+        // SAFETY: `i` is within the block `ext` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let ext_at = unsafe { ext.add(i) };
         // SAFETY: as in `set_extended_plane`; the caller vouches for the
         // pointer, which the invariant then admits.
-        unsafe { ext.add(i).write(data) };
+        unsafe { ext_at.write(data) };
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Gives the frame an `extended_data` array of its own, of one entry per
     /// channel of its layout, as C allocates for planar audio with more
@@ -4129,14 +4609,17 @@ impl FrameMut<'_> {
             return Err(ENOMEM);
         }
         for (i, &plane) in data.iter().enumerate().take(count) {
+            // SAFETY: `i` is within the block `block` points to, as the operation below
+            // relies on, so the offset stays in bounds; nothing is accessed here.
+            let block_at = unsafe { block.add(i) };
             // SAFETY: `i < count`, inside the fresh block.
-            unsafe { block.add(i).write(plane) };
+            unsafe { block_at.write(plane) };
         }
         self.replace_extended_array(block);
         Ok(())
     }
 
-    /// Field: AVFrame.extended_data
+    /// Field: `AVFrame.extended_data`
     ///
     /// Frees the frame's own `extended_data` array, if any, and points
     /// `extended_data` back at `data`, as C's defaults have it.
@@ -4152,14 +4635,19 @@ impl FrameMut<'_> {
     fn replace_extended_array(&mut self, with: *mut *mut u8) {
         let separate = self.as_ref().has_extended_array();
         let p = self.as_mut_ptr();
-        // SAFETY: a read and a write of the `extended_data` pointer projected
-        // through the exclusive handle's pointer to a live `AVFrame`. `with`
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let extended_data_ptr = unsafe { &raw mut (*p).extended_data };
+        // For the unsafe operations below: a read and a write of the `extended_data` pointer
+        // projected through the exclusive handle's pointer to a live `AVFrame`. `with`
         // is the frame's own `data` array or a block of at least the channel
         // count's entries the frame now owns, each NULL or copied from `data`,
         // as the invariant asks.
-        let old = unsafe {
-            let old = addr_of!((*p).extended_data).read();
-            addr_of_mut!((*p).extended_data).write(with);
+        let old = {
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { extended_data_ptr.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { extended_data_ptr.write(with) };
             old
         };
         if separate && old != with {
@@ -4179,14 +4667,19 @@ impl FrameMut<'_> {
     pub fn set_linesize(&mut self, i: usize, linesize: i32) {
         assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
         let p = self.as_mut_ptr();
-        // SAFETY: a write of entry `i < NUM_DATA_POINTERS` of the `linesize`
-        // array projected through the exclusive handle's pointer to a live
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `linesize` field is in bounds; nothing is accessed here.
+        let linesize_ptr = unsafe { &raw mut (*p).linesize };
+        // For the unsafe operations below: a write of entry `i < NUM_DATA_POINTERS` of the
+        // `linesize` array projected through the exclusive handle's pointer to a live
         // `AVFrame`; Rust reads no plane through it.
-        unsafe {
-            addr_of_mut!((*p).linesize)
-                .cast::<c_int>()
-                .add(i)
-                .write(linesize)
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let v = unsafe { linesize_ptr.cast::<c_int>().add(i) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                v.write(linesize);
+            };
         };
     }
 
@@ -4194,8 +4687,11 @@ impl FrameMut<'_> {
     ///
     /// Sets every plane's line size.
     pub fn set_linesizes(&mut self, linesizes: [i32; NUM_DATA_POINTERS]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `linesize` field is in bounds; nothing is accessed here.
+        let linesize_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).linesize) };
         // SAFETY: as in `set_linesize`, for the whole array.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).linesize).write(linesizes) };
+        unsafe { linesize_ptr.write(linesizes) };
     }
 
     /// Field: AVFrame.width
@@ -4203,9 +4699,12 @@ impl FrameMut<'_> {
     /// Sets the coded width. Rust reads no plane through it; C routines that
     /// do (copies, allocations, cropping) check it as their wrappers say.
     pub fn set_width(&mut self, width: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `width` field is in bounds; nothing is accessed here.
+        let width_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).width) };
         // SAFETY: a write of an `int` field projected through the exclusive
         // handle's pointer to a live `AVFrame`; not part of the invariant.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).width).write(width) }
+        unsafe { width_ptr.write(width) }
     }
 
     /// Field: AVFrame.height
@@ -4213,17 +4712,23 @@ impl FrameMut<'_> {
     /// Sets the coded height, as [`set_width`](Self::set_width) does the
     /// width.
     pub fn set_height(&mut self, height: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `height` field is in bounds; nothing is accessed here.
+        let height_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).height) };
         // SAFETY: as in `set_width`, for the `height` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).height).write(height) }
+        unsafe { height_ptr.write(height) }
     }
 
-    /// Field: AVFrame.nb_samples
+    /// Field: `AVFrame.nb_samples`
     ///
     /// Sets the number of audio samples per channel, as
     /// [`set_width`](Self::set_width) does the width.
     pub fn set_sample_count(&mut self, count: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `nb_samples` field is in bounds; nothing is accessed here.
+        let nb_samples_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_samples) };
         // SAFETY: as in `set_width`, for the `nb_samples` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).nb_samples).write(count) }
+        unsafe { nb_samples_ptr.write(count) }
     }
 
     /// Field: AVFrame.format
@@ -4231,8 +4736,11 @@ impl FrameMut<'_> {
     /// Sets the format as C stores it, -1 for unknown, as
     /// [`set_width`](Self::set_width) does the width.
     pub fn set_format(&mut self, format: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `format` field is in bounds; nothing is accessed here.
+        let format_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).format) };
         // SAFETY: as in `set_width`, for the `format` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).format).write(format) }
+        unsafe { format_ptr.write(format) }
     }
 
     /// Sets the format to a video frame's pixel format.
@@ -4245,80 +4753,114 @@ impl FrameMut<'_> {
         self.set_format(format.into_raw().0);
     }
 
-    /// Field: AVFrame.pict_type
+    /// Field: `AVFrame.pict_type`
     ///
     /// Sets the picture type.
     pub fn set_picture_type(&mut self, kind: PictureType) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pict_type` field is in bounds; nothing is accessed here.
+        let pict_type_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).pict_type) };
         // SAFETY: a write of an enum field projected through the exclusive
         // handle's pointer to a live `AVFrame`; the old value owns nothing.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).pict_type).write(kind.into_raw()) }
+        unsafe { pict_type_ptr.write(kind.into_raw()) }
     }
 
-    /// Field: AVFrame.sample_aspect_ratio
+    /// Field: `AVFrame.sample_aspect_ratio`
     ///
     /// An exclusive handle over the sample aspect ratio, for writing its
     /// parts; this handle is frozen while it lives.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn sample_aspect_ratio_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `sample_aspect_ratio` field is in bounds; nothing is accessed here.
+        let sample_aspect_ratio_ptr =
+            unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio) };
         // SAFETY: the field is projected through the exclusive handle's
         // pointer to a live `AVFrame`, so it is non-NULL, aligned and
         // initialised; the result borrows `self` exclusively, so it is the
         // only access to the field while it lives.
-        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio)) }
+        unsafe { RationalMut::from_ptr(sample_aspect_ratio_ptr) }
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVFrame.sample_aspect_ratio
+    /// Field: `AVFrame.sample_aspect_ratio`
     ///
     /// Sets the sample aspect ratio.
     pub fn set_sample_aspect_ratio(&mut self, ratio: Rational) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `sample_aspect_ratio` field is in bounds; nothing is accessed here.
+        let sample_aspect_ratio_ptr =
+            unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio) };
         // SAFETY: as in `set_picture_type`, for the `sample_aspect_ratio`
         // field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_aspect_ratio).write(ratio.into_raw()) }
+        unsafe { sample_aspect_ratio_ptr.write(ratio.into_raw()) }
     }
 
     /// Field: AVFrame.pts
     ///
     /// Sets the presentation timestamp.
     pub fn set_pts(&mut self, pts: i64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pts` field is in bounds; nothing is accessed here.
+        let pts_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).pts) };
         // SAFETY: a write of an `int64_t` field projected through the
         // exclusive handle's pointer to a live `AVFrame`.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).pts).write(pts) }
+        unsafe { pts_ptr.write(pts) }
     }
 
-    /// Field: AVFrame.pkt_dts
+    /// Field: `AVFrame.pkt_dts`
     ///
     /// Sets the decoding timestamp of the frame's packet.
     pub fn set_packet_dts(&mut self, dts: i64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `pkt_dts` field is in bounds; nothing is accessed here.
+        let pkt_dts_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).pkt_dts) };
         // SAFETY: as in `set_pts`, for the `pkt_dts` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).pkt_dts).write(dts) }
+        unsafe { pkt_dts_ptr.write(dts) }
     }
 
-    /// Field: AVFrame.time_base
+    /// Field: `AVFrame.time_base`
     ///
     /// An exclusive handle over the time base, for writing its parts; this
     /// handle is frozen while it lives.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn time_base_mut(&mut self) -> RationalMut<'_> {
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `time_base` field is in bounds; nothing is accessed here.
+        let time_base_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).time_base) };
         // SAFETY: as in `sample_aspect_ratio_mut`, for the `time_base` field.
-        unsafe { RationalMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).time_base)) }
+        unsafe { RationalMut::from_ptr(time_base_ptr) }
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVFrame.time_base
+    /// Field: `AVFrame.time_base`
     ///
     /// Sets the time base.
     pub fn set_time_base(&mut self, time_base: Rational) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `time_base` field is in bounds; nothing is accessed here.
+        let time_base_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).time_base) };
         // SAFETY: as in `set_picture_type`, for the `time_base` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).time_base).write(time_base.into_raw()) }
+        unsafe { time_base_ptr.write(time_base.into_raw()) }
     }
 
     /// Field: AVFrame.quality
     ///
     /// Sets the quality.
     pub fn set_quality(&mut self, quality: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `quality` field is in bounds; nothing is accessed here.
+        let quality_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).quality) };
         // SAFETY: as in `set_width`, for the `quality` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).quality).write(quality) }
+        unsafe { quality_ptr.write(quality) }
     }
 
     /// Field: AVFrame.opaque
@@ -4327,28 +4869,40 @@ impl FrameMut<'_> {
     /// this crate dereferences or frees it, so any address is safe to store:
     /// keeping what it points at alive for as long as the caller means to
     /// read it back is the caller's concern.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)] // stored, never dereferenced
+    #[expect(
+        clippy::not_unsafe_ptr_arg_deref,
+        reason = "stored, never dereferenced"
+    )]
     pub fn set_opaque(&mut self, opaque: *mut c_void) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `opaque` field is in bounds; nothing is accessed here.
+        let opaque_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque) };
         // SAFETY: a write of the `opaque` field projected through the
         // exclusive handle's pointer to a live `AVFrame`; the pointer is
         // stored, not dereferenced, and the old one owned nothing.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).opaque).write(opaque) }
+        unsafe { opaque_ptr.write(opaque) }
     }
 
-    /// Field: AVFrame.repeat_pict
+    /// Field: `AVFrame.repeat_pict`
     ///
     /// Sets the number of fields to repeat.
     pub fn set_repeat_pict(&mut self, repeat: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `repeat_pict` field is in bounds; nothing is accessed here.
+        let repeat_pict_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).repeat_pict) };
         // SAFETY: as in `set_width`, for the `repeat_pict` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).repeat_pict).write(repeat) }
+        unsafe { repeat_pict_ptr.write(repeat) }
     }
 
-    /// Field: AVFrame.sample_rate
+    /// Field: `AVFrame.sample_rate`
     ///
     /// Sets the sample rate.
     pub fn set_sample_rate(&mut self, rate: i32) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `sample_rate` field is in bounds; nothing is accessed here.
+        let sample_rate_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_rate) };
         // SAFETY: as in `set_width`, for the `sample_rate` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).sample_rate).write(rate) }
+        unsafe { sample_rate_ptr.write(rate) }
     }
 
     /// Field: AVFrame.buf
@@ -4375,17 +4929,21 @@ impl FrameMut<'_> {
         assert!(i < NUM_DATA_POINTERS, "buffer {i} out of range");
         let new = with.map_or(ptr::null_mut(), BufferReferenceBox::into_c);
         let p = self.as_mut_ptr();
-        // SAFETY: a read and a write of entry `i < NUM_DATA_POINTERS` of the
-        // `buf` array projected through the exclusive handle's pointer to a
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { &raw mut (*p).buf };
+        // For the unsafe operations below: a read and a write of entry `i < NUM_DATA_POINTERS` of
+        // the `buf` array projected through the exclusive handle's pointer to a
         // live `AVFrame`; `new` is NULL or a reference nothing else owns,
         // which keeps the invariant's first point, and `prune_planes`
         // restores its last.
-        let old = unsafe {
-            let slot = addr_of_mut!((*p).buf)
-                .cast::<*mut ffi::AVBufferRef>()
-                .add(i);
-            let old = slot.read();
-            slot.write(new);
+        let old = {
+            // SAFETY: as the comment above this block states.
+            let slot = unsafe { buf_ptr.cast::<*mut ffi::AVBufferRef>().add(i) };
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { slot.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { slot.write(new) };
             old
         };
         self.prune_planes();
@@ -4419,13 +4977,21 @@ impl FrameMut<'_> {
         self.replace_buffer(i, None)
     }
 
-    /// Field: AVFrame.extended_buf
+    /// Field: `AVFrame.extended_buf`
     ///
     /// Makes `with` extra buffer reference `i` and returns the one the frame
     /// held there, clearing the plane pointers left pointing inside no
     /// reference as [`replace_buffer`](Self::replace_buffer) does; `with`
     /// comes back as the error past the
     /// [`extended_buffer_count`](FrameRef::extended_buffer_count).
+    ///
+    /// # Errors
+    ///
+    /// Returns `with` when `i` is past the extended buffer count.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an extra buffer reference is not NULL.
     pub fn replace_extended_buffer(
         &mut self,
         i: usize,
@@ -4435,13 +5001,19 @@ impl FrameMut<'_> {
         if i >= count {
             return Err(with);
         }
-        // SAFETY: entry `i < count` of the `extended_buf` block the frame
+        // For the unsafe operations below: entry `i < count` of the `extended_buf` block the frame
         // owns, reached through the exclusive handle; the new reference is
         // nothing else's and never NULL, as the invariant asks, and
         // `prune_planes` restores its last point.
-        let old = unsafe {
-            let old = bufs.add(i).read();
-            bufs.add(i).write(with.into_c());
+        let old = {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let bufs_add_3 = unsafe { bufs.add(i) };
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { bufs_add_3.read() };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let bufs_add_2 = unsafe { bufs.add(i) };
+            // SAFETY: as the comment above this block states.
+            unsafe { bufs_add_2.write(with.into_c()) };
             old
         };
         self.prune_planes();
@@ -4451,10 +5023,14 @@ impl FrameMut<'_> {
             .expect("an extra buffer reference is not NULL"))
     }
 
-    /// Field: AVFrame.extended_buf
+    /// Field: `AVFrame.extended_buf`
     ///
     /// Appends `with` to the extra buffer references, growing their array;
     /// `with` comes back when C cannot.
+    ///
+    /// # Errors
+    ///
+    /// Returns `with` when C cannot grow the array.
     pub fn push_extended_buffer(
         &mut self,
         with: BufferReferenceBox,
@@ -4474,42 +5050,69 @@ impl FrameMut<'_> {
             return Err(with);
         }
         let p = self.as_mut_ptr();
-        // SAFETY: entry `count` of the grown block, and writes of the two
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let extended_buf_ptr = unsafe { &raw mut (*p).extended_buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let nb_extended_buf_ptr = unsafe { &raw mut (*p).nb_extended_buf };
+        // For the unsafe operations below: entry `count` of the grown block, and writes of the two
         // fields projected through the exclusive handle's pointer to a live
         // `AVFrame`, which keep the invariant: `count + 1` non-NULL
         // references the frame owns.
-        unsafe {
-            grown.add(count).write(with.into_c());
-            addr_of_mut!((*p).extended_buf).write(grown);
-            addr_of_mut!((*p).nb_extended_buf).write(new_count);
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let grown_add = unsafe { grown.add(count) };
+            // SAFETY: as the comment above this block states.
+            unsafe { grown_add.write(with.into_c()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { extended_buf_ptr.write(grown) };
+            // SAFETY: as the comment above this block states.
+            unsafe { nb_extended_buf_ptr.write(new_count) };
         }
         Ok(())
     }
 
-    /// Field: AVFrame.extended_buf
+    /// Field: `AVFrame.extended_buf`
     ///
     /// Takes the last extra buffer reference out, freeing their array with
     /// the last one, and clears the plane pointers left pointing inside no
     /// reference as [`replace_buffer`](Self::replace_buffer) does; `None`
     /// when the frame holds none.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that an extra buffer reference is not NULL.
     #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "`last` is below the count C stores as an `int`"
+    )]
     pub fn pop_extended_buffer(&mut self) -> Option<BufferReferenceBox> {
         let (bufs, count) = self.as_ref().extended_buffer_parts();
         let last = count.checked_sub(1)?;
         let p = self.as_mut_ptr();
-        // SAFETY: entry `last < count` of the frame's `extended_buf` block,
-        // and writes of the two fields projected through the exclusive
-        // handle's pointer to a live `AVFrame`: the count drops to `last`,
-        // and an emptied block is freed and NULLed, as the invariant asks.
-        let old = unsafe {
-            let old = bufs.add(last).read();
-            if last == 0 {
-                ffi::av_free(bufs.cast());
-                addr_of_mut!((*p).extended_buf).write(ptr::null_mut());
-            }
-            addr_of_mut!((*p).nb_extended_buf).write(last as c_int);
-            old
-        };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let extended_buf_ptr = unsafe { &raw mut (*p).extended_buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let nb_extended_buf_ptr = unsafe { &raw mut (*p).nb_extended_buf };
+        // SAFETY: entry `last < count` of the frame's `extended_buf` block.
+        let at = unsafe { bufs.add(last) };
+        // SAFETY: as above; the entry is a reference the frame owns.
+        let old = unsafe { at.read() };
+        // The count drops to `last`, and an emptied block is freed and NULLed, as the invariant
+        // asks.
+        if last == 0 {
+            // SAFETY: the frame's `extended_buf` block, which it owns, freed once.
+            unsafe { ffi::av_free(bufs.cast()) };
+            // SAFETY: a write of the field projected through the exclusive handle's pointer.
+            unsafe { extended_buf_ptr.write(ptr::null_mut()) };
+        }
+        // SAFETY: as above.
+        unsafe { nb_extended_buf_ptr.write(last as c_int) };
         self.prune_planes();
         // SAFETY: by the type's invariant, a reference the frame owned, which
         // no longer reaches the frame.
@@ -4517,21 +5120,22 @@ impl FrameMut<'_> {
         Some(old.expect("an extra buffer reference is not NULL"))
     }
 
-    /// Field: AVFrame.side_data
-    /// Field: AVFrame.nb_side_data
+    /// Field: `AVFrame.side_data`
+    /// Field: `AVFrame.nb_side_data`
     ///
     /// The frame's side data, writable, borrowed exclusively from it.
+    ///
+    /// # Panics
+    ///
+    /// Never: the place of a field of a live struct is not NULL.
     #[must_use]
     pub fn side_data_mut(&mut self) -> SideDataArrayMut<'_> {
         let p = self.as_mut_ptr();
         // SAFETY: projections of two fields through the exclusive handle's
         // pointer to a live `AVFrame`, without a read.
-        let (entries, len) = unsafe {
-            (
-                addr_of_mut!((*p).side_data),
-                addr_of_mut!((*p).nb_side_data),
-            )
-        };
+        let (entries, len) = (unsafe { &raw mut (*p).side_data }, unsafe {
+            &raw mut (*p).nb_side_data
+        });
         // The frame's two side data variables, which hold an array as
         // `SideDataArrayRef::from_raw_parts` requires by the type's
         // invariant, exclusively borrowed with the frame.
@@ -4546,56 +5150,78 @@ impl FrameMut<'_> {
     ///
     /// Sets the frame's flags.
     pub fn set_flags(&mut self, flags: FrameFlags) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `flags` field is in bounds; nothing is accessed here.
+        let flags_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).flags) };
         // SAFETY: as in `set_width`, for the `flags` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).flags).write(flags.bits()) }
+        unsafe { flags_ptr.write(flags.bits()) }
     }
 
-    /// Field: AVFrame.color_range
+    /// Field: `AVFrame.color_range`
     ///
     /// Sets the color range.
     pub fn set_color_range(&mut self, range: ColorRange) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_range` field is in bounds; nothing is accessed here.
+        let color_range_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).color_range) };
         // SAFETY: as in `set_picture_type`, for the `color_range` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_range).write(range.into_raw()) }
+        unsafe { color_range_ptr.write(range.into_raw()) }
     }
 
-    /// Field: AVFrame.color_primaries
+    /// Field: `AVFrame.color_primaries`
     ///
     /// Sets the color primaries.
     pub fn set_color_primaries(&mut self, primaries: ColorPrimaries) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_primaries` field is in bounds; nothing is accessed here.
+        let color_primaries_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).color_primaries) };
         // SAFETY: as in `set_picture_type`, for the `color_primaries` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_primaries).write(primaries.into_raw()) }
+        unsafe { color_primaries_ptr.write(primaries.into_raw()) }
     }
 
-    /// Field: AVFrame.color_trc
+    /// Field: `AVFrame.color_trc`
     ///
     /// Sets the color transfer characteristic.
     pub fn set_color_transfer(&mut self, transfer: ColorTransfer) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `color_trc` field is in bounds; nothing is accessed here.
+        let color_trc_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).color_trc) };
         // SAFETY: as in `set_picture_type`, for the `color_trc` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).color_trc).write(transfer.into_raw()) }
+        unsafe { color_trc_ptr.write(transfer.into_raw()) }
     }
 
     /// Field: AVFrame.colorspace
     ///
     /// Sets the YUV color space.
     pub fn set_color_space(&mut self, space: ColorSpace) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `colorspace` field is in bounds; nothing is accessed here.
+        let colorspace_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).colorspace) };
         // SAFETY: as in `set_picture_type`, for the `colorspace` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).colorspace).write(space.into_raw()) }
+        unsafe { colorspace_ptr.write(space.into_raw()) }
     }
 
-    /// Field: AVFrame.chroma_location
+    /// Field: `AVFrame.chroma_location`
     ///
     /// Sets the location of the chroma samples.
     pub fn set_chroma_location(&mut self, location: ChromaLocation) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `chroma_location` field is in bounds; nothing is accessed here.
+        let chroma_location_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).chroma_location) };
         // SAFETY: as in `set_picture_type`, for the `chroma_location` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).chroma_location).write(location.into_raw()) }
+        unsafe { chroma_location_ptr.write(location.into_raw()) }
     }
 
-    /// Field: AVFrame.best_effort_timestamp
+    /// Field: `AVFrame.best_effort_timestamp`
     ///
     /// Sets the estimated timestamp.
     pub fn set_best_effort_timestamp(&mut self, timestamp: i64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `best_effort_timestamp` field is in bounds; nothing is accessed here.
+        let best_effort_timestamp_ptr =
+            unsafe { addr_of_mut!((*self.as_mut_ptr()).best_effort_timestamp) };
         // SAFETY: as in `set_pts`, for the `best_effort_timestamp` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).best_effort_timestamp).write(timestamp) }
+        unsafe { best_effort_timestamp_ptr.write(timestamp) }
     }
 
     /// Field: AVFrame.metadata
@@ -4606,13 +5232,18 @@ impl FrameMut<'_> {
     pub fn replace_metadata(&mut self, with: Dict) -> Dict {
         let new = Option::<DictionaryBox>::from(with).map_or(ptr::null_mut(), CBox::into_c);
         let p = self.as_mut_ptr();
-        // SAFETY: a read and a write of the `metadata` pointer projected
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `metadata` field is in bounds; nothing is accessed here.
+        let metadata_ptr = unsafe { &raw mut (*p).metadata };
+        // For the unsafe operations below: a read and a write of the `metadata` pointer projected
         // through the exclusive handle's pointer to a live `AVFrame`; `new`
         // is NULL or a non-empty dictionary nothing else owns, which keeps
         // the type's invariant.
-        let old = unsafe {
-            let old = addr_of!((*p).metadata).read();
-            addr_of_mut!((*p).metadata).write(new);
+        let old = {
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { metadata_ptr.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { metadata_ptr.write(new) };
             old
         };
         // SAFETY: by the type's invariant, `old` is NULL or a non-empty
@@ -4636,12 +5267,16 @@ impl FrameMut<'_> {
         self.replace_metadata(Dict::new())
     }
 
-    /// Field: AVFrame.decode_error_flags
+    /// Field: `AVFrame.decode_error_flags`
     ///
     /// Sets the decode error flags.
     pub fn set_decode_error_flags(&mut self, flags: DecodeErrorFlags) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `decode_error_flags` field is in bounds; nothing is accessed here.
+        let decode_error_flags_ptr =
+            unsafe { addr_of_mut!((*self.as_mut_ptr()).decode_error_flags) };
         // SAFETY: as in `set_width`, for the `decode_error_flags` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).decode_error_flags).write(flags.bits()) }
+        unsafe { decode_error_flags_ptr.write(flags.bits()) }
     }
 
     /// Makes `with` the frame's reference in `field` (none for `None`), and
@@ -4656,13 +5291,19 @@ impl FrameMut<'_> {
     ) -> Option<BufferReferenceBox> {
         let new = with.map_or(ptr::null_mut(), BufferReferenceBox::into_c);
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+        let hw_frames_ctx_ptr = unsafe { &raw mut (*p).hw_frames_ctx };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `opaque_ref` field is in bounds; nothing is accessed here.
+        let opaque_ref_ptr = unsafe { &raw mut (*p).opaque_ref };
         // SAFETY: a read and a write of one reference field projected through
         // the exclusive handle's pointer to a live `AVFrame`; `new` is NULL or
         // a reference nothing else owns, of the kind the field takes.
         let old = unsafe {
             let slot = match field {
-                ReferenceField::HwFramesContext => addr_of_mut!((*p).hw_frames_ctx),
-                ReferenceField::OpaqueRef => addr_of_mut!((*p).opaque_ref),
+                ReferenceField::HwFramesContext => hw_frames_ctx_ptr,
+                ReferenceField::OpaqueRef => opaque_ref_ptr,
             };
             slot.replace(new)
         };
@@ -4671,7 +5312,7 @@ impl FrameMut<'_> {
         unsafe { BufferReferenceBox::from_c(old) }
     }
 
-    /// Field: AVFrame.hw_frames_ctx
+    /// Field: `AVFrame.hw_frames_ctx`
     ///
     /// Makes `with` the frame's hardware frames context reference (none for
     /// `None`) and returns the one it held.
@@ -4690,6 +5331,10 @@ impl FrameMut<'_> {
     /// it as no software frame; [`HardwareFrame`](super::hwcontext::HardwareFrame)
     /// holds the hardware frames C makes. A reference counted frame holding
     /// a reference to a context is copied with a new reference to it.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a frames context reference is not NULL.
     #[must_use = "dropping the old reference releases it"]
     pub fn replace_hw_frames_context(
         &mut self,
@@ -4708,7 +5353,7 @@ impl FrameMut<'_> {
         unsafe { FramesReferenceBox::from_c(old.into_c()) }
     }
 
-    /// Field: AVFrame.hw_frames_ctx
+    /// Field: `AVFrame.hw_frames_ctx`
     ///
     /// Takes the frame's hardware frames context reference out, leaving it
     /// none; `None` when it held none.
@@ -4717,7 +5362,7 @@ impl FrameMut<'_> {
         self.replace_hw_frames_context(None)
     }
 
-    /// Field: AVFrame.opaque_ref
+    /// Field: `AVFrame.opaque_ref`
     ///
     /// Makes `with` the owner's reference-counted user data (none for
     /// `None`) and returns the reference the frame held.
@@ -4731,7 +5376,7 @@ impl FrameMut<'_> {
         self.replace_reference(ReferenceField::OpaqueRef, with)
     }
 
-    /// Field: AVFrame.opaque_ref
+    /// Field: `AVFrame.opaque_ref`
     ///
     /// Makes `with` the owner's reference-counted user data and releases the
     /// reference the frame held, as
@@ -4740,42 +5385,54 @@ impl FrameMut<'_> {
         drop(self.replace_opaque_ref(with));
     }
 
-    /// Field: AVFrame.crop_top
+    /// Field: `AVFrame.crop_top`
     ///
     /// Sets the number of rows to discard from the top. Rust reads no plane
     /// through it; `av_frame_apply_cropping` checks it against the
     /// dimensions.
     pub fn set_crop_top(&mut self, rows: usize) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_top` field is in bounds; nothing is accessed here.
+        let crop_top_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_top) };
         // SAFETY: a write of a `size_t` field projected through the exclusive
         // handle's pointer to a live `AVFrame`; not part of the invariant.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_top).write(rows) }
+        unsafe { crop_top_ptr.write(rows) }
     }
 
-    /// Field: AVFrame.crop_bottom
+    /// Field: `AVFrame.crop_bottom`
     ///
     /// Sets the number of rows to discard from the bottom.
     pub fn set_crop_bottom(&mut self, rows: usize) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_bottom` field is in bounds; nothing is accessed here.
+        let crop_bottom_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_bottom) };
         // SAFETY: as in `set_crop_top`, for the `crop_bottom` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_bottom).write(rows) }
+        unsafe { crop_bottom_ptr.write(rows) }
     }
 
-    /// Field: AVFrame.crop_left
+    /// Field: `AVFrame.crop_left`
     ///
     /// Sets the number of columns to discard from the left.
     pub fn set_crop_left(&mut self, columns: usize) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_left` field is in bounds; nothing is accessed here.
+        let crop_left_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_left) };
         // SAFETY: as in `set_crop_top`, for the `crop_left` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_left).write(columns) }
+        unsafe { crop_left_ptr.write(columns) }
     }
 
-    /// Field: AVFrame.crop_right
+    /// Field: `AVFrame.crop_right`
     ///
     /// Sets the number of columns to discard from the right.
     pub fn set_crop_right(&mut self, columns: usize) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `crop_right` field is in bounds; nothing is accessed here.
+        let crop_right_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_right) };
         // SAFETY: as in `set_crop_top`, for the `crop_right` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).crop_right).write(columns) }
+        unsafe { crop_right_ptr.write(columns) }
     }
 
-    /// Field: AVFrame.ch_layout
+    /// Field: `AVFrame.ch_layout`
     ///
     /// An exclusive handle over the channel layout, for changing it in
     /// place; `None` while `extended_data` is an array of the frame's own
@@ -4787,20 +5444,28 @@ impl FrameMut<'_> {
         if self.as_ref().has_extended_array() {
             return None;
         }
+        // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
+        // so the place of its `ch_layout` field is in bounds; nothing is accessed here.
+        let ch_layout_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).ch_layout) };
         // SAFETY: the field is projected through the exclusive handle's
         // pointer to a live `AVFrame`, so it is non-NULL and aligned, and it
         // satisfies `ChannelLayout`'s invariant; the result borrows `self`
         // exclusively. With `extended_data` the frame's own `data`, the
         // channel count bounds nothing the invariant reads.
-        unsafe { ChannelLayoutMut::from_ptr(addr_of_mut!((*self.as_mut_ptr()).ch_layout)) }
+        unsafe { ChannelLayoutMut::from_ptr(ch_layout_ptr) }
     }
 
-    /// Field: AVFrame.ch_layout
+    /// Field: `AVFrame.ch_layout`
     ///
     /// Makes `with` the frame's channel layout and returns the layout it
     /// held. While `extended_data` is an array of the frame's own, a layout
     /// of more channels than the current one would overrun it, so `with`
     /// comes back as the error instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns `with` when `extended_data` is the frame's own array and `with` has more channels
+    /// than the current layout.
     pub fn replace_channel_layout(
         &mut self,
         with: ChannelLayoutVal,
@@ -4813,26 +5478,29 @@ impl FrameMut<'_> {
         }
         let new = with.into_inner();
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the operation below relies on,
+        // so the place of its `ch_layout` field is in bounds; nothing is accessed here.
+        let ch_layout_ptr = unsafe { addr_of_mut!((*p).ch_layout) };
         // SAFETY: a read and a write of the `ch_layout` field projected
         // through the exclusive handle's pointer to a live frame; `new` satisfies
         // `ChannelLayout`'s invariant and is nothing else's, and its count
         // keeps a separate `extended_data` long enough. The old value moves
         // out whole, so its map has one owner still.
-        let old = unsafe {
-            addr_of_mut!((*p).ch_layout)
-                .cast::<ChannelLayout>()
-                .replace(new)
-        };
+        let old = unsafe { ch_layout_ptr.cast::<ChannelLayout>().replace(new) };
         // SAFETY: `old` moved out of the frame whole, so it is the sole owner of
         // the map the frame held, if any.
         Ok(unsafe { ChannelLayoutVal::new(old) })
     }
 
-    /// Field: AVFrame.ch_layout
+    /// Field: `AVFrame.ch_layout`
     ///
     /// Makes `with` the frame's channel layout and disposes of the layout it
     /// held, as [`replace_channel_layout`](Self::replace_channel_layout) and
     /// a drop; `with` comes back as the error where that refuses it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `with` where [`replace_channel_layout`](Self::replace_channel_layout) refuses it.
     pub fn set_channel_layout(&mut self, with: ChannelLayoutVal) -> Result<(), ChannelLayoutVal> {
         self.replace_channel_layout(with).map(drop)
     }
@@ -4841,19 +5509,25 @@ impl FrameMut<'_> {
     ///
     /// Sets the duration.
     pub fn set_duration(&mut self, duration: i64) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `duration` field is in bounds; nothing is accessed here.
+        let duration_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).duration) };
         // SAFETY: as in `set_pts`, for the `duration` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).duration).write(duration) }
+        unsafe { duration_ptr.write(duration) }
     }
 
-    /// Field: AVFrame.alpha_mode
+    /// Field: `AVFrame.alpha_mode`
     ///
     /// Sets how the alpha channel is to be handled.
     pub fn set_alpha_mode(&mut self, mode: AlphaMode) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `alpha_mode` field is in bounds; nothing is accessed here.
+        let alpha_mode_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).alpha_mode) };
         // SAFETY: as in `set_picture_type`, for the `alpha_mode` field.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).alpha_mode).write(mode.into_raw()) }
+        unsafe { alpha_mode_ptr.write(mode.into_raw()) }
     }
 
-    /// Wraps: av_frame_unref
+    /// Wraps: `av_frame_unref`
     ///
     /// Releases everything the frame holds (buffer references, side data,
     /// metadata, `extended_data` and `extended_buf` arrays, the hardware
@@ -4871,7 +5545,7 @@ impl FrameMut<'_> {
 }
 
 /// `AVERROR(ENOSYS)`.
-const ENOSYS: c_int = -(ffi::ENOSYS as c_int);
+const ENOSYS: c_int = -(ffi::ENOSYS.cast_signed());
 
 /// The largest `align` [`FrameMut::alloc_buffers`] hands C: C sums four
 /// plane paddings and four alignments of the largest of 64 and `align` in an
@@ -4900,6 +5574,10 @@ int_flags! {
 /// `len` bytes, `linesize` bytes apart (rows before the pointer for a
 /// negative one).
 #[derive(Clone, Copy, Debug)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "the field names follow the C struct"
+)]
 pub(crate) struct Rows {
     pub(crate) len: usize,
     pub(crate) rows: usize,
@@ -4951,6 +5629,10 @@ pub(crate) struct ImageReach {
 /// copies as a `size_t` (palettized formats), a row width overflowing `int`
 /// ([`imgutils::linesize_overflows`]) or a chroma height of `INT_MIN`, which
 /// `AV_CEIL_RSHIFT` negates.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "mirrors C's `int` to `size_t` conversions of sizes checked non-negative above"
+)]
 pub(crate) fn image_reach(format: PixelFormat, width: c_int, height: c_int) -> Option<ImageReach> {
     let mut reach = ImageReach::default();
     let Some(desc) = format.descriptor() else {
@@ -5064,6 +5746,10 @@ fn video_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
 
 /// [`copy_is_sound`] for `frame_copy_audio`, which reads one
 /// `extended_data` entry per plane of the destination's layout.
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "mirrors C's `int` to `size_t` conversions of sizes checked non-negative above"
+)]
 fn audio_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
     let format = dst.sample_format();
     let channels = dst.channel_layout().channel_count();
@@ -5081,8 +5767,11 @@ fn audio_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
     }
     let ((de, _), (se, _)) = (dst.extended_parts(), src.extended_parts());
     let entry = |ext: *mut *mut u8, i: usize| {
+        // SAFETY: `i` is within the block `ext` points to, as the operation below
+        // relies on, so the offset stays in bounds; nothing is accessed here.
+        let ext_at = unsafe { ext.add(i) };
         // SAFETY: `i < planes`, at most the entries the frame holds there.
-        unsafe { ext.add(i).read() }
+        unsafe { ext_at.read() }
     };
     if (0..planes).any(|i| entry(de, i).is_null() || entry(se, i).is_null()) {
         return true;
@@ -5104,11 +5793,19 @@ fn audio_copy_is_sound(dst: FrameRef<'_>, src: FrameRef<'_>) -> bool {
 
 /// `ff_ctz` of `v` as C takes it, converted to `unsigned int`; `None` where
 /// that is zero, for which `__builtin_ctz` is undefined.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "mirrors C's conversion of the value to `unsigned int`"
+)]
 fn c_ctz(v: usize) -> Option<u32> {
     let v = v as c_uint;
     (v != 0).then(|| v.trailing_zeros())
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
+)]
 impl<'a> FrameRef<'a> {
     /// Whether `av_frame_get_buffer(_, 0)`, given a frame of this frame's
     /// geometry without a line size, overflows an `int`: for audio (as C
@@ -5174,9 +5871,12 @@ impl<'a> FrameRef<'a> {
         let resized = self.width() != width || self.height() != height;
         let copied = |e: &SideDataRef<'_>| !(resized && e.kind() == SideDataType::PAN_SCAN);
         let null = |e: SideDataRef<'_>| {
+            // SAFETY: `e.as_ptr()` is to a live object, as the access below relies on,
+            // so the place of its `data` field is in bounds; nothing is accessed here.
+            let data_ptr = unsafe { addr_of!((*e.as_ptr()).data) };
             // SAFETY: a read of the `data` field projected through the shared
             // handle's pointer to a live `AVFrameSideData`.
-            unsafe { addr_of!((*e.as_ptr()).data).read() }.is_null()
+            unsafe { data_ptr.read() }.is_null()
         };
         self.side_data()
             .iter()
@@ -5213,10 +5913,11 @@ impl<'a> FrameRef<'a> {
                 .components()
                 .iter()
                 .take(count)
-                .find(|c| c.plane() as usize == i)?;
+                .find(|c| c.plane().unsigned_abs() as usize == i)?;
             // C computes in `size_t`, `int`s converted to it.
-            let rows = (self.crop_top() >> shift_y).wrapping_mul(linesizes[i] as isize as usize);
-            let columns = (left >> shift_x).wrapping_mul(comp.step() as isize as usize);
+            let rows =
+                (self.crop_top() >> shift_y).wrapping_mul((linesizes[i] as isize).cast_unsigned());
+            let columns = (left >> shift_x).wrapping_mul((comp.step() as isize).cast_unsigned());
             offsets[i] = rows.wrapping_add(columns);
         }
         Some(offsets)
@@ -5226,6 +5927,10 @@ impl<'a> FrameRef<'a> {
     /// leaves every plane pointer inside the buffer reference it pointed
     /// into: it mirrors C's checks and offset arithmetic. Cropping C refuses
     /// before moving a plane passes: C reports it.
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "mirrors C's range checks in `size_t`, of non-negative dimensions"
+    )]
     fn crop_is_sound(&self, flags: CropFlags) -> bool {
         let (width, height) = (self.width(), self.height());
         if width <= 0 || height <= 0 {
@@ -5294,7 +5999,7 @@ impl<'a> FrameRef<'a> {
                 if shift > 30 {
                     return false;
                 }
-                let mask = !((1 << shift) - 1) as isize as usize;
+                let mask = (!((1 << shift) - 1) as isize).cast_unsigned();
                 match self.crop_offsets(desc, planes, left & mask) {
                     Some(o) => offsets = o,
                     None => return true,
@@ -5315,7 +6020,7 @@ impl<'a> FrameRef<'a> {
         })
     }
 
-    /// Wraps: av_frame_is_writable
+    /// Wraps: `av_frame_is_writable`
     ///
     /// Whether every plane of the frame is this frame's alone to write: it is
     /// reference counted, and none of its buffer references has another
@@ -5331,7 +6036,7 @@ impl<'a> FrameRef<'a> {
         unsafe { ffi::av_frame_is_writable(self.as_ptr().cast_mut()) != 0 }
     }
 
-    /// Wraps: av_frame_get_plane_buffer
+    /// Wraps: `av_frame_get_plane_buffer`
     ///
     /// The buffer reference holding plane or channel `plane` (an
     /// [`extended_plane`](Self::extended_plane) index), borrowed from the
@@ -5356,7 +6061,7 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Wraps: av_frame_get_side_data
+    /// Wraps: `av_frame_get_side_data`
     ///
     /// The frame's first side data entry of `kind`, borrowed from it; `None`
     /// when it has none.
@@ -5379,37 +6084,57 @@ impl FrameMut<'_> {
     /// NULL.
     fn release_planes(&mut self) {
         let p = self.as_mut_ptr();
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `buf` field is in bounds; nothing is accessed here.
+        let buf_ptr = unsafe { &raw mut (*p).buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_buf` field is in bounds; nothing is accessed here.
+        let extended_buf_ptr = unsafe { &raw mut (*p).extended_buf };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `extended_data` field is in bounds; nothing is accessed here.
+        let extended_data_ptr = unsafe { &raw mut (*p).extended_data };
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `nb_extended_buf` field is in bounds; nothing is accessed here.
+        let nb_extended_buf_ptr = unsafe { &raw mut (*p).nb_extended_buf };
         // Every field is read and written through raw places; what is left
         // is a frame that holds no plane, as the invariant allows.
-        // SAFETY: a live frame, reached through the exclusive handle: `buf`
-        // and `extended_buf` entries are NULL or references the frame owns
-        // (`av_buffer_unref` takes either), `extended_buf` and a separate
-        // `extended_data` are NULL or blocks it owns.
-        unsafe {
-            let own = addr_of_mut!((*p).data).cast::<*mut u8>();
-            let ext = addr_of!((*p).extended_data).read();
-            if ext != own {
-                ffi::av_free(ext.cast());
-            }
-            addr_of_mut!((*p).extended_data).write(own);
-            for i in 0..NUM_DATA_POINTERS {
-                ffi::av_buffer_unref(
-                    addr_of_mut!((*p).buf)
-                        .cast::<*mut ffi::AVBufferRef>()
-                        .add(i),
-                );
-            }
-            let bufs = addr_of!((*p).extended_buf).read();
-            let count = usize::try_from(addr_of!((*p).nb_extended_buf).read()).unwrap_or(0);
-            if !bufs.is_null() {
-                for i in 0..count {
-                    ffi::av_buffer_unref(bufs.add(i));
-                }
-            }
-            ffi::av_freep(addr_of_mut!((*p).extended_buf).cast());
-            addr_of_mut!((*p).nb_extended_buf).write(0);
-            addr_of_mut!((*p).data).write([ptr::null_mut(); NUM_DATA_POINTERS]);
+        let own = data_ptr.cast::<*mut u8>();
+        // SAFETY: a read of `extended_data` of the live frame the exclusive handle reaches.
+        let ext = unsafe { extended_data_ptr.read() };
+        if ext != own {
+            // SAFETY: a separate `extended_data` is NULL or a block the frame owns.
+            unsafe { ffi::av_free(ext.cast()) };
         }
+        // SAFETY: a write of `extended_data`, which points at the frame's own `data` from here.
+        unsafe { extended_data_ptr.write(own) };
+        for i in 0..NUM_DATA_POINTERS {
+            // SAFETY: entry `i < NUM_DATA_POINTERS` of the frame's `buf` array.
+            let slot = unsafe { buf_ptr.cast::<*mut ffi::AVBufferRef>().add(i) };
+            // SAFETY: the entry is NULL or a reference the frame owns, which
+            // `av_buffer_unref` takes either way and leaves NULL.
+            unsafe { ffi::av_buffer_unref(slot) };
+        }
+        // SAFETY: a read of `extended_buf`, NULL or a block the frame owns.
+        let bufs = unsafe { extended_buf_ptr.read() };
+        // SAFETY: a read of `nb_extended_buf`, the block's entry count.
+        let count = usize::try_from(unsafe { nb_extended_buf_ptr.read() }).unwrap_or(0);
+        if !bufs.is_null() {
+            for i in 0..count {
+                // SAFETY: entry `i < count` of the `extended_buf` block.
+                let slot = unsafe { bufs.add(i) };
+                // SAFETY: the entry is NULL or a reference the frame owns.
+                unsafe { ffi::av_buffer_unref(slot) };
+            }
+        }
+        // SAFETY: frees the `extended_buf` block the frame owns, and NULLs the field.
+        unsafe { ffi::av_freep(extended_buf_ptr.cast()) };
+        // SAFETY: a write of `nb_extended_buf`, matching the NULL block.
+        unsafe { nb_extended_buf_ptr.write(0) };
+        // SAFETY: a write of the `data` array, whose planes no reference holds any more.
+        unsafe { data_ptr.write([ptr::null_mut(); NUM_DATA_POINTERS]) };
     }
 
     /// Trades the buffers C's copy of `src`'s data gave the frame, whose
@@ -5421,13 +6146,15 @@ impl FrameMut<'_> {
         match src.copy_into_zeroed_buffers() {
             Ok(zeroed) => {
                 let mut zeroed = zeroed.as_ptr();
-                // SAFETY: the frame, reached through the exclusive handle, and
-                // a fresh frame C built, distinct and live; `zeroed` then
+                // For the unsafe operations below: the frame, reached through the exclusive handle,
+                // and a fresh frame C built, distinct and live; `zeroed` then
                 // holds the copy's buffers, which its release frees without
                 // reading their bytes.
-                unsafe {
-                    Frame::swap_planes(p, zeroed);
-                    ffi::av_frame_free(&mut zeroed);
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { Frame::swap_planes(p, zeroed) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_frame_free(&raw mut zeroed) };
                 }
                 Ok(())
             }
@@ -5440,7 +6167,7 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Wraps: av_frame_ref
+    /// Wraps: `av_frame_ref`
     ///
     /// Makes this frame a new reference to `src`'s data, as
     /// [`FrameRef::try_clone`] makes a new frame: first reset, it takes
@@ -5465,7 +6192,8 @@ impl FrameMut<'_> {
     /// use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
     /// use ffmpeg_bindings::libavutil::libavutil::frame::Frame;
     /// let mut src = Frame::new().unwrap();
-    /// src.as_mut().set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
+    /// src.as_mut()
+    ///     .set_buffer(0, Some(BufferReference::alloc_zeroed(8).unwrap()));
     /// src.as_mut().set_pts(7);
     /// let mut dst = Frame::new().unwrap();
     /// dst.as_mut().try_clone_from(src.as_ref()).unwrap();
@@ -5494,7 +6222,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: av_frame_replace
+    /// Wraps: `av_frame_replace`
     ///
     /// Makes this frame describe the same data as `src`, as
     /// [`try_clone_from`](Self::try_clone_from) does, but keeping what it
@@ -5560,7 +6288,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: av_frame_move_ref
+    /// Wraps: `av_frame_move_ref`
     ///
     /// Resets this frame and moves everything `src` holds into it, leaving
     /// `src` as [`Frame::new`] makes a frame: no data is copied and no
@@ -5575,7 +6303,7 @@ impl FrameMut<'_> {
         unsafe { ffi::av_frame_move_ref(self.as_mut_ptr(), src.as_mut_ptr()) }
     }
 
-    /// Wraps: av_frame_move_ref
+    /// Wraps: `av_frame_move_ref`
     ///
     /// Moves everything this frame holds into a new frame, leaving this one
     /// as [`Frame::new`] makes a frame; `None`, with this frame untouched,
@@ -5596,7 +6324,7 @@ impl FrameMut<'_> {
         Some(moved)
     }
 
-    /// Wraps: av_frame_copy
+    /// Wraps: `av_frame_copy`
     ///
     /// Copies `src`'s planes into this frame's own, which must already
     /// describe the same image or samples: the same format; for video
@@ -5641,7 +6369,7 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_frame_copy_props
+    /// Wraps: `av_frame_copy_props`
     ///
     /// Copies `src`'s properties into this frame: every field but the
     /// planes, buffers, format, dimensions, sample count, channel layout and
@@ -5680,7 +6408,7 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_frame_get_buffer
+    /// Wraps: `av_frame_get_buffer`
     ///
     /// Gives the frame new planes, in buffers C allocates for its format and
     /// dimensions (video: a positive width and height) or for its sample
@@ -5717,6 +6445,11 @@ impl FrameMut<'_> {
     /// when C cannot allocate. The frame then has no planes; when an
     /// allocation fails, C resets it whole (properties and side data
     /// included).
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "`align` is 0 or a power of two the checks above keep within `int`"
+    )]
     pub fn alloc_buffers(&mut self, align: usize) -> Result<(), c_int> {
         if align != 0 && !(align.is_power_of_two() && align <= MAX_BUFFER_ALIGN) {
             return Err(EINVAL);
@@ -5752,7 +6485,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: av_frame_make_writable
+    /// Wraps: `av_frame_make_writable`
     ///
     /// Makes every plane of the frame its own to write
     /// ([`FrameRef::is_writable`]): when one of its buffers is shared or
@@ -5813,23 +6546,26 @@ impl FrameMut<'_> {
         let ret = unsafe { ffi::av_frame_copy_props(copy, p) };
         if ret < 0 {
             // SAFETY: the copy, nothing else's.
-            unsafe { ffi::av_frame_free(&mut copy) };
+            unsafe { ffi::av_frame_free(&raw mut copy) };
             return Err(ret);
         }
-        // SAFETY: the frame, reached through the exclusive handle, and the
+        // For the unsafe operations below: the frame, reached through the exclusive handle, and the
         // copy, distinct and live: C releases everything the frame holds,
         // moves the copy whole into it (`extended_data` re-pointed at its own
         // `data` where it was the copy's), and the copy, left with its
         // defaults, is freed.
-        unsafe {
-            ffi::av_frame_unref(p);
-            ffi::av_frame_move_ref(p, copy);
-            ffi::av_frame_free(&mut copy);
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_unref(p) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_move_ref(p, copy) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_frame_free(&raw mut copy) };
         }
         Ok(())
     }
 
-    /// Wraps: av_frame_apply_cropping
+    /// Wraps: `av_frame_apply_cropping`
     ///
     /// Crops the frame by its [`crop_top`](FrameRef::crop_top),
     /// `crop_bottom`, `crop_left` and `crop_right`: its plane pointers move
@@ -5884,7 +6620,7 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_frame_get_side_data
+    /// Wraps: `av_frame_get_side_data`
     ///
     /// The frame's first side data entry of `kind`, writable; `None` when it
     /// has none.
@@ -5898,7 +6634,7 @@ impl FrameMut<'_> {
         unsafe { SideDataMut::from_ptr(entry) }
     }
 
-    /// Wraps: av_frame_new_side_data
+    /// Wraps: `av_frame_new_side_data`
     ///
     /// Appends side data of `kind` with a new payload of `size` zeroed bytes,
     /// and returns the entry holding it, writable
@@ -5912,10 +6648,20 @@ impl FrameMut<'_> {
     /// use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, SideDataType};
     /// let mut frame = Frame::new().unwrap();
     /// let mut m = frame.as_mut();
-    /// m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap().data_mut().unwrap()[0] = 8;
+    /// m.alloc_side_data_zeroed(SideDataType::AFD, 1)
+    ///     .unwrap()
+    ///     .data_mut()
+    ///     .unwrap()[0] = 8;
     /// m.alloc_side_data_zeroed(SideDataType::AFD, 1).unwrap();
     /// assert_eq!(frame.as_ref().side_data().len(), 2);
-    /// assert_eq!(frame.as_ref().find_side_data(SideDataType::AFD).unwrap().data(), [8]);
+    /// assert_eq!(
+    ///     frame
+    ///         .as_ref()
+    ///         .find_side_data(SideDataType::AFD)
+    ///         .unwrap()
+    ///         .data(),
+    ///     [8]
+    /// );
     /// ```
     pub fn alloc_side_data_zeroed(
         &mut self,
@@ -5925,7 +6671,7 @@ impl FrameMut<'_> {
         self.new_side_data(kind, size, zero_into)
     }
 
-    /// Wraps: av_frame_new_side_data
+    /// Wraps: `av_frame_new_side_data`
     ///
     /// Appends side data of `kind` with a new payload copied from `bytes`,
     /// and returns the entry holding it, as
@@ -5956,14 +6702,15 @@ impl FrameMut<'_> {
         if entry.is_null() {
             return None;
         }
+        // SAFETY: `entry` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw const (*entry).data };
+        // SAFETY: `entry` is to a live object, as the block below relies on, so the
+        // place of its `size` field is in bounds; nothing is accessed here.
+        let size_ptr = unsafe { &raw const (*entry).size };
         // SAFETY: reads of the new entry's window, `size` bytes of a buffer
         // the entry alone references, which nothing has read or lent yet.
-        let run = unsafe {
-            (
-                addr_of!((*entry).data).read(),
-                addr_of!((*entry).size).read(),
-            )
-        };
+        let run = (unsafe { data_ptr.read() }, unsafe { size_ptr.read() });
         let run = match NonNull::new(run.0) {
             Some(data) if run.1 > 0 => (data, run.1),
             _ => (NonNull::dangling(), 0),
@@ -5979,13 +6726,21 @@ impl FrameMut<'_> {
         unsafe { SideDataMut::from_ptr(entry) }
     }
 
-    /// Wraps: av_frame_new_side_data_from_buf
+    /// Wraps: `av_frame_new_side_data_from_buf`
     ///
     /// Appends side data of `kind` whose payload is `buf`'s bytes, and returns
     /// the entry holding it; the entry takes `buf` over. Unlike
     /// [`SideDataArrayMut::add`], it appends even when an entry of `kind` is
     /// present and `kind` is not `MULTI`. `buf` comes back when C cannot
     /// allocate the entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns `buf` when C cannot allocate the entry.
+    ///
+    /// # Panics
+    ///
+    /// Only if C takes over a reference it did not add to the frame.
     pub fn add_side_data(
         &mut self,
         kind: SideDataType,
@@ -6007,7 +6762,7 @@ impl FrameMut<'_> {
         Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
     }
 
-    /// Wraps: av_frame_remove_side_data
+    /// Wraps: `av_frame_remove_side_data`
     ///
     /// Removes every side data entry of `kind`, freeing each with its buffer
     /// reference and metadata, as [`SideDataArrayMut::remove`] does.
@@ -6020,14 +6775,30 @@ impl FrameMut<'_> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#[expect(
+    clippy::items_after_statements,
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::{CStr, c_uint};
     use core::hash::BuildHasher;
     use core::mem::{align_of, offset_of, size_of};
     use core::ptr;
     use std::collections::hash_map::RandomState;
 
+    use super::*;
     use crate::libavutil::libavutil::mem::HeapVec;
     use crate::libavutil::libavutil::opt::AVERROR_BUG;
 
@@ -6126,7 +6897,16 @@ mod unit_tests {
 
     #[test]
     fn raw_conversions_round_trip_every_value() {
-        for raw in [0, 1, 37, 38, 39, i32::MAX as u32, i32::MIN as u32, u32::MAX] {
+        for raw in [
+            0,
+            1,
+            37,
+            38,
+            39,
+            i32::MAX as u32,
+            i32::MIN.cast_unsigned(),
+            u32::MAX,
+        ] {
             let c = ffi::AVFrameSideDataType(raw);
             assert_eq!(SideDataType::from(c).into_raw(), c);
             assert_eq!(ffi::AVFrameSideDataType::from(SideDataType::from_raw(c)), c);
@@ -6280,7 +7060,7 @@ mod unit_tests {
     fn props_constants_carry_the_c_values() {
         let bits: Vec<c_uint> = SideDataProps::KNOWN.iter().map(|(p, _)| p.bits()).collect();
         assert_eq!(bits, [1, 2, 4, 8, 16]);
-        assert_eq!(SideDataProps::all().bits(), 0x1f);
+        assert_eq!(SideDataProps::all().bits(), 0x1F);
         assert_eq!(
             SideDataProps::GLOBAL.bits(),
             ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL.0
@@ -6296,7 +7076,7 @@ mod unit_tests {
         assert_eq!(SideDataProps::default(), SideDataProps::empty());
         assert!(SideDataProps::empty().is_empty());
         assert!(!SideDataProps::MULTI.is_empty());
-        assert_eq!(SideDataProps::from_bits(0x1f), Some(SideDataProps::all()));
+        assert_eq!(SideDataProps::from_bits(0x1F), Some(SideDataProps::all()));
         assert_eq!(SideDataProps::from_bits(0), Some(SideDataProps::empty()));
         assert_eq!(SideDataProps::from_bits(0x20), None);
         assert_eq!(SideDataProps::from_bits(c_uint::MAX), None);
@@ -6623,9 +7403,7 @@ mod unit_tests {
     fn side_data_array(payloads: &[&[u8]]) -> SideDataArray {
         let mut a = SideDataArray::new();
         for p in payloads {
-            let buf = crate::libavutil::libavutil::buffer::BufferReference::alloc(p.len())
-                .unwrap()
-                .copy_from_slice(p);
+            let buf = BufferReference::alloc(p.len()).unwrap().copy_from_slice(p);
             let added = a.add(SideDataType::SEI_UNREGISTERED, buf, SideDataFlags::NONE);
             assert!(added.is_ok());
         }
@@ -6685,7 +7463,7 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn side_data_takes_the_window_of_its_new_reference() {
         let mut a = side_data_array(&[b"old"]);
-        let mut buf = crate::libavutil::libavutil::buffer::BufferReference::alloc(8)
+        let mut buf = BufferReference::alloc(8)
             .unwrap()
             .copy_from_slice(b"01234567");
         buf.as_mut().advance(2);
@@ -6798,7 +7576,7 @@ mod unit_tests {
             SideDataFlags::REPLACE.bits(),
             ffi::AV_FRAME_SIDE_DATA_FLAG_REPLACE
         );
-        assert!(SideDataFlags::default() == SideDataFlags::NONE);
+        assert_eq!(SideDataFlags::default(), SideDataFlags::NONE);
     }
 
     /// `alloc_zeroed` replacing an entry, when its allocation fails, returns
@@ -6913,7 +7691,7 @@ mod unit_tests {
 
     #[test]
     fn side_data_payload_initialisers_write_every_byte() {
-        let mut run = [MaybeUninit::new(0xa5u8); 9];
+        let mut run = [MaybeUninit::new(0xA5u8); 9];
         zero_into(&mut run);
         // SAFETY: every byte is initialised, before and after.
         assert_eq!(unsafe { run.map(|b| b.assume_init()) }, [0; 9]);
@@ -6948,12 +7726,17 @@ mod unit_tests {
     fn frame_set_count(buf: BufferReferenceRef<'_>, count: c_uint) -> c_uint {
         assert_eq!(size_of::<FrameBufferBody>(), 48);
         let body = buf.buffer().as_ptr().cast_mut().cast::<FrameBufferBody>();
-        // SAFETY: `body` is the live 48-byte body `buf` counts, which this
+        // SAFETY: `body` is to a live object, as the block below relies on, so the
+        // place of its `refcount` field is in bounds; nothing is accessed here.
+        let refcount_ptr = unsafe { &raw mut (*body).refcount };
+        // For the unsafe operations below: `body` is the live 48-byte body `buf` counts, which this
         // single-threaded test alone reaches; the caller restores the true
         // count before any reference is released.
-        unsafe {
-            let old = addr_of!((*body).refcount).read();
-            addr_of_mut!((*body).refcount).write(count);
+        {
+            // SAFETY: as the comment above this block states.
+            let old = unsafe { refcount_ptr.read() };
+            // SAFETY: as the comment above this block states.
+            unsafe { refcount_ptr.write(count) };
             old
         }
     }
@@ -6985,7 +7768,7 @@ mod unit_tests {
             (FrameFlags::LOSSLESS, ffi::AV_FRAME_FLAG_LOSSLESS),
         ];
         for (flag, bits) in all {
-            assert_eq!(flag.bits(), bits as c_int);
+            assert_eq!(flag.bits(), bits.cast_signed());
         }
         let errors = [
             (
@@ -7006,7 +7789,7 @@ mod unit_tests {
             ),
         ];
         for (flag, bits) in errors {
-            assert_eq!(flag.bits(), bits as c_int);
+            assert_eq!(flag.bits(), bits.cast_signed());
         }
         assert_eq!(NUM_DATA_POINTERS, 8);
     }
@@ -7146,8 +7929,14 @@ mod unit_tests {
         let (ext, _) = f.as_ref().extended_parts();
         f.as_mut()
             .set_buffer(0, Some(BufferReference::alloc_zeroed(4).unwrap()));
-        // SAFETY: the frame's own extended array of 10 entries.
-        let entries: Vec<_> = (0..10).map(|i| unsafe { ext.add(i).read() }).collect();
+        let entries: Vec<_> = (0..10)
+            .map(|i| {
+                // SAFETY: entry `i < 10` of the frame's own extended array of 10 entries.
+                let at = unsafe { ext.add(i) };
+                // SAFETY: as above; the entry is initialised.
+                unsafe { at.read() }
+            })
+            .collect();
         assert!(entries.iter().all(|p| p.is_null()));
         f.as_mut().set_extended_plane(9, 0, 3).unwrap();
         f.as_mut().reset_extended_data();
@@ -7325,7 +8114,7 @@ mod unit_tests {
         }
     }
 
-    /// A private RefStruct reference, which only C code sets, is shared by a
+    /// A private `RefStruct` reference, which only C code sets, is shared by a
     /// clone and released by `reset` and by the frame's drop.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -7337,7 +8126,7 @@ mod unit_tests {
         assert!(!f.as_ref().has_private_ref());
         // SAFETY: the frame takes over the caller's one reference, as a
         // library's private_ref; nothing else reaches the field.
-        unsafe { addr_of_mut!((*f.as_mut().as_mut_ptr()).private_ref).write(obj) };
+        unsafe { (*f.as_mut().as_mut_ptr()).private_ref = obj };
         assert!(f.as_ref().has_private_ref());
         // SAFETY: `obj` is live while the frame holds it.
         let exclusive = || unsafe { ffi::av_refstruct_exclusive(obj) != 0 };
@@ -7353,7 +8142,7 @@ mod unit_tests {
     }
 
     /// `reset` frees a separate `extended_data` and every extra buffer, and
-    /// writes the defaults back over everything (ASan and LSan check the
+    /// writes the defaults back over everything (`ASan` and `LSan` check the
     /// release).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -7409,17 +8198,22 @@ mod unit_tests {
             .collect();
         let frames = [(); 2].map(|()| Box::into_raw(Box::new(ffi::AVFrame::default())));
         for &f in &frames {
+            // SAFETY: `f` is to a live object, as the operation below relies on,
+            // so the place of its `data` field is in bounds; nothing is accessed here.
+            let data_ptr = unsafe { addr_of_mut!((*f).data) };
             // SAFETY: a zeroed Rust-held frame; `extended_data` at its own
             // `data`, as C's defaults have it.
-            unsafe { (*f).extended_data = addr_of_mut!((*f).data).cast() };
+            unsafe { (*f).extended_data = data_ptr.cast() };
         }
         let [a, b] = frames;
         // SAFETY: the Rust-held frame `a`, reached only through this handle
         // until the end of the test, holding references to live Rust bytes.
         let mut m = unsafe { FrameMut::from_ptr(a) }.unwrap();
         assert_eq!(m.set_plane(0, 0, 0), Err(PlaneError::NoBuffer));
-        // SAFETY: as above; the frame takes the two references.
-        unsafe { ((*a).buf[0], (*a).buf[1]) = (bufs[0], bufs[1]) };
+        // SAFETY: as above; the frame takes the first reference.
+        unsafe { (*a).buf[0] = bufs[0] };
+        // SAFETY: as above; the frame takes the second reference.
+        unsafe { (*a).buf[1] = bufs[1] };
         m.set_plane(0, 0, 3).unwrap();
         m.set_plane(1, 1, 7).unwrap();
         assert_eq!(m.set_plane(2, 1, 8), Err(PlaneError::OutOfBounds));
@@ -7446,12 +8240,24 @@ mod unit_tests {
         // its own.
         // SAFETY: two distinct Rust-held frames nothing else reaches.
         unsafe { Frame::swap_planes(a, b) };
-        // SAFETY: as above.
-        unsafe {
-            assert!((*a).buf[0].is_null() && (*a).data[2].is_null());
-            assert_eq!((*b).buf[0], bufs[1]);
-            assert_eq!((*b).extended_data, addr_of_mut!((*b).data).cast());
-            assert_eq!((*a).extended_data, addr_of_mut!((*a).data).cast());
+        // SAFETY: `a` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let a_data_ptr = unsafe { &raw mut (*a).data };
+        // SAFETY: `b` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let b_data_ptr = unsafe { &raw mut (*b).data };
+        // For the unsafe operations below: as above.
+        {
+            // SAFETY: as the comment above this block states.
+            assert!(unsafe { (*a).buf[0] }.is_null());
+            // SAFETY: as the comment above this block states.
+            assert!(unsafe { (*a).data[2] }.is_null());
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*b).buf[0], bufs[1]) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*b).extended_data, b_data_ptr.cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*a).extended_data, a_data_ptr.cast()) };
         }
         // SAFETY: the Rust-held frame `b`, as `a` above.
         let r = unsafe { FrameRef::from_ptr(b) }.unwrap();
@@ -7487,7 +8293,7 @@ mod unit_tests {
     /// limits, and in the data copy's buffers; the others are
     /// `frame_clone_failures_one_allocation_at_a_time`'s),
     /// `alloc_extended_data` and `push_extended_buffer` fail cleanly:
-    /// nothing leaks (LSan), and the frames keep what they held.
+    /// nothing leaks (`LSan`), and the frames keep what they held.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn frame_allocation_failures_leave_frames_whole() {
@@ -7559,7 +8365,7 @@ mod unit_tests {
     }
 
     /// Each of `av_frame_clone`'s allocations above a 600-byte limit fails
-    /// `try_clone` cleanly (LSan) on its own, with no side data to fail
+    /// `try_clone` cleanly (`LSan`) on its own, with no side data to fail
     /// first: `av_frame_ref`'s channel layout copy, extra block and
     /// `extended_data` copy, and, for a frame that is not reference
     /// counted, `get_audio_buffer`'s array and plane buffer.
@@ -7622,7 +8428,10 @@ mod unit_tests {
         // SAFETY: as above.
         unsafe { ffi::av_max_alloc(c_int::MAX as usize) };
         for f in [&custom, &extra, &channels] {
-            assert!(f.as_ref().try_clone().is_none() == f.as_ref().buffer(0).is_none());
+            assert_eq!(
+                f.as_ref().try_clone().is_none(),
+                f.as_ref().buffer(0).is_none()
+            );
         }
         let copy = copied_plane.as_ref().try_clone().unwrap();
         assert_eq!(copy.as_ref().plane(0).unwrap()[..4096], lent[..]);
@@ -7928,11 +8737,19 @@ mod unit_tests {
         // then refuses the line size.
         let ret = unsafe { ffi::av_frame_get_buffer(p, 0) };
         assert_eq!(ret, EINVAL);
-        // SAFETY: reads of the live frame's fields.
-        unsafe {
-            assert_eq!((*p).nb_extended_buf, 2);
-            assert!((*(*p).extended_buf).is_null());
-            assert_ne!((*p).extended_data, addr_of_mut!((*p).data).cast());
+        // SAFETY: `p` is to a live object, as the block below relies on, so the
+        // place of its `data` field is in bounds; nothing is accessed here.
+        let data_ptr = unsafe { &raw mut (*p).data };
+        // For the unsafe operations below: reads of the live frame's fields.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*p).nb_extended_buf, 2) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let extended_buf_2 = unsafe { (*p).extended_buf };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert!((*extended_buf_2).is_null()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_ne!((*p).extended_data, data_ptr.cast()) };
         }
         m.release_planes();
         assert_eq!(m.as_ref().extended_buffer_count(), 0);
@@ -8068,7 +8885,7 @@ mod unit_tests {
 
     /// Under allocation limits, `alloc_buffers` (the `extended_data`
     /// allocation that leaves it NULL included), `make_writable` and
-    /// `try_clone_from` fail cleanly: nothing leaks (LSan), and the frames
+    /// `try_clone_from` fail cleanly: nothing leaks (`LSan`), and the frames
     /// keep their invariant.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -8176,23 +8993,28 @@ mod unit_tests {
         // SAFETY: two distinct live frames.
         let ret = unsafe { ffi::av_frame_replace(p, src.as_ref().as_ptr()) };
         assert_eq!(ret, 0);
-        // SAFETY: reads of the live frame's fields; the count is repaired
+        // For the unsafe operations below: reads of the live frame's fields; the count is repaired
         // before the frame is used or dropped, as `av_frame_unref` would
         // walk it.
-        unsafe {
-            assert!((*p).extended_buf.is_null());
-            assert_eq!((*p).nb_extended_buf, 2);
-            (*p).nb_extended_buf = 0;
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { assert!((*p).extended_buf.is_null()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*p).nb_extended_buf, 2) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*p).nb_extended_buf = 0 };
         }
         // The wrapper keeps none.
         let mut r = wide();
         let extra = r.as_ref().extended_buffer(1).unwrap().try_clone().unwrap();
         r.as_mut().assign(src.as_ref()).unwrap();
-        // SAFETY: reads of the live frame's fields.
-        unsafe {
+        // For the unsafe operations below: reads of the live frame's fields.
+        {
             let p = r.as_ref().as_ptr();
-            assert!((*p).extended_buf.is_null());
-            assert_eq!((*p).nb_extended_buf, 0);
+            // SAFETY: as the comment above this block states.
+            unsafe { assert!((*p).extended_buf.is_null()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!((*p).nb_extended_buf, 0) };
         }
         assert_eq!(extra.as_ref().ref_count(), 1);
         assert_eq!(r.as_ref().plane(0).unwrap(), src.as_ref().plane(0).unwrap());
@@ -8259,7 +9081,7 @@ mod unit_tests {
 
     /// Under allocation limits, `assign`, `try_clone_from`,
     /// `copy_props_from` and `alloc_side_data_zeroed` fail cleanly through
-    /// C's failure paths: nothing leaks (LSan), failed replacements and
+    /// C's failure paths: nothing leaks (`LSan`), failed replacements and
     /// references leave the frame reset, and a failed property copy leaves
     /// it without side data, as documented.
     #[test]

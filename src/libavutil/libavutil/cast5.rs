@@ -3,7 +3,8 @@
 //! C allocates and frees the context; its private round keys are not public
 //! fields. A successful constructor always returns a key-initialized owner.
 
-use core::{fmt, ptr::NonNull};
+use core::fmt;
+use core::ptr::NonNull;
 
 use ffibox::{CBox, CDrop, define_ctype};
 
@@ -57,7 +58,7 @@ define_ctype!(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cast5Free;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: av_cast5_alloc returns sole-owned av_mallocz storage with no
 // sub-allocations; av_free releases it without reading the context.
 unsafe impl CDrop<Cast5> for Cast5Free {
@@ -98,33 +99,46 @@ fn key_bits(key: &[u8]) -> Result<i32, InitError> {
     if !(5..=16).contains(&key.len()) {
         return Err(InitError::InvalidKeyLength);
     }
-    Ok((key.len() * 8) as i32)
+    i32::try_from(key.len() * 8).map_err(|_| InitError::InvalidKeyLength)
 }
 
 impl Cast5 {
-    /// Wraps: av_cast5_alloc
+    /// Wraps: `av_cast5_alloc`
     ///
     /// Allocates and initializes a context using a 5–16 byte key. C copies
     /// the key during initialization, so the returned owner does not borrow
     /// it. Invalid lengths are rejected before allocation or FFI.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key outside 5 to 16 bytes,
+    /// [`InitError::AllocationFailed`] when C cannot allocate the context, and [`InitError::C`]
+    /// with C's code when `av_cast5_init` fails.
     pub fn new(key: &[u8]) -> Result<Cast5Box, InitError> {
         key_bits(key)?;
+        // SAFETY: as the comment below states, for this part of the operation.
+        let cast5_alloc = unsafe { ffi::av_cast5_alloc() };
         // SAFETY: av_cast5_alloc has no preconditions and returns NULL or a
         // fresh zero-filled context from av_mallocz, paired with Cast5Free.
         // The opaque representation is valid immediately; only this local
         // owner can access it until init establishes the round keys.
-        let mut owner = unsafe { Cast5Box::from_c(ffi::av_cast5_alloc()) }
-            .ok_or(InitError::AllocationFailed)?;
+        let mut owner =
+            unsafe { Cast5Box::from_c(cast5_alloc) }.ok_or(InitError::AllocationFailed)?;
         owner.as_mut().init(key)?;
         Ok(owner)
     }
 }
 
 impl Cast5Mut<'_> {
-    /// Wraps: av_cast5_init
+    /// Wraps: `av_cast5_init`
     ///
     /// Replaces the round keys using a 5–16 byte key. C does not retain the
     /// key. Invalid lengths leave the existing state unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for a key outside 5 to 16 bytes, and
+    /// [`InitError::C`] with C's code when `av_cast5_init` fails.
     pub fn init(&mut self, key: &[u8]) -> Result<(), InitError> {
         let bits = key_bits(key)?;
         // SAFETY: this exclusive handle addresses a full C-allocated context,
@@ -139,9 +153,10 @@ impl Cast5Mut<'_> {
     }
 }
 
-/// Wraps: av_cast5_size
+/// Wraps: `av_cast5_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -149,10 +164,15 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl Cast5Ref<'_> {
-    /// Wraps: av_cast5_crypt
+    /// Wraps: `av_cast5_crypt`
     ///
     /// Encrypt or decrypt whole blocks in ECB mode.
     /// Buffers must have equal lengths; errors leave all state unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -174,12 +194,17 @@ impl Cast5Ref<'_> {
                 src.as_ptr(),
                 count,
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 
     /// In-place form of [`Self::crypt`], with the same modes and validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt_in_place(&self, data: &mut [u8], direction: Direction) -> Result<(), CryptError> {
         let count = buffer_count(data.len(), data.len(), 8)?;
         if count == 0 {
@@ -198,18 +223,23 @@ impl Cast5Ref<'_> {
                 ptr,
                 count,
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 }
 
 impl Cast5Ref<'_> {
-    /// Wraps: av_cast5_crypt2
+    /// Wraps: `av_cast5_crypt2`
     ///
     /// Encrypt or decrypt whole blocks.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
     /// Buffers must have equal lengths; errors leave all state unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_cbc(
         &self,
         dst: &mut [u8],
@@ -233,12 +263,17 @@ impl Cast5Ref<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 
     /// In-place form of [`Self::crypt_cbc`], with the same modes and validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_cbc_in_place(
         &self,
         data: &mut [u8],
@@ -263,7 +298,7 @@ impl Cast5Ref<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
@@ -349,6 +384,6 @@ mod unit_tests {
         let mut exclusive = owner.as_mut();
         assert_eq!(exclusive.as_mut_ptr(), ptr);
         assert_eq!(exclusive.as_ref().as_ptr(), ptr);
-        exclusive.as_mut().init(&[0xff; 16]).unwrap();
+        exclusive.as_mut().init(&[0xFF; 16]).unwrap();
     }
 }

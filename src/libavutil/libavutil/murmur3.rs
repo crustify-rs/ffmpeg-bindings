@@ -1,9 +1,10 @@
 //! Safe ownership and borrowing of `libavutil/murmur3.h`'s opaque context.
 //!
-//! Implements C's 128-bit MurmurHash3 variant for 64-bit platforms. This is a
+//! Implements C's 128-bit `MurmurHash3` variant for 64-bit platforms. This is a
 //! non-cryptographic hash. Context storage and private layout remain C-owned.
 
 use core::ptr::NonNull;
+
 use ffibox::{CBox, CDrop, CNew, define_ctype};
 
 use super::ffi;
@@ -12,14 +13,17 @@ define_ctype!(
     /// Wraps: AVMurMur3
     ///
     /// Opaque MurmurHash3 context. No private fields are exposed by C's API.
-    Murmur3, Murmur3Ref, Murmur3Mut, ffi::AVMurMur3
+    Murmur3,
+    Murmur3Ref,
+    Murmur3Mut,
+    ffi::AVMurMur3
 );
 
-/// Allocation and release policy for an initialized MurmurHash3 context.
+/// Allocation and release policy for an initialized `MurmurHash3` context.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Murmur3Free;
 
-/// Sole owner of a MurmurHash3 context, released through `av_free`.
+/// Sole owner of a `MurmurHash3` context, released through `av_free`.
 ///
 /// The opaque layout has no Rust size, so there is no Rust-sized allocation:
 ///
@@ -29,7 +33,7 @@ pub struct Murmur3Free;
 /// ```
 pub type Murmur3Box = CBox<Murmur3, Murmur3Free>;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: the owner hands this policy one uniquely owned av_malloc-family
 // context allocation. The context has no child resources; av_free releases
 // the whole allocation without reading its state.
@@ -41,7 +45,7 @@ unsafe impl CDrop<Murmur3> for Murmur3Free {
     }
 }
 
-/// Wraps: av_murmur3_alloc
+/// Wraps: `av_murmur3_alloc`
 // SAFETY: allocation uses C's full private size, init establishes all state
 // invariants, and the paired release policy calls av_free exactly once.
 unsafe impl CNew<Murmur3> for Murmur3Free {
@@ -57,11 +61,13 @@ unsafe impl CNew<Murmur3> for Murmur3Free {
 
 impl Murmur3 {
     /// Allocate and initialize with C's fixed seed, or `None` on allocation failure.
+    #[must_use]
     pub fn new() -> Option<Murmur3Box> {
         Murmur3Box::new()
     }
 
     /// Allocate and initialize with a caller-selected seed.
+    #[must_use]
     pub fn with_seed(seed: u64) -> Option<Murmur3Box> {
         let mut context = Self::new()?;
         context.as_mut().reset_seeded(seed);
@@ -70,7 +76,7 @@ impl Murmur3 {
 }
 
 impl Murmur3Mut<'_> {
-    /// Wraps: av_murmur3_init
+    /// Wraps: `av_murmur3_init`
     ///
     /// Restart hashing with C's fixed seed, discarding all previous state.
     pub fn reset(&mut self) {
@@ -79,7 +85,7 @@ impl Murmur3Mut<'_> {
         unsafe { ffi::av_murmur3_init(self.as_mut_ptr()) }
     }
 
-    /// Wraps: av_murmur3_init_seeded
+    /// Wraps: `av_murmur3_init_seeded`
     ///
     /// Restart hashing with the given seed, discarding all previous state.
     pub fn reset_seeded(&mut self, seed: u64) {
@@ -88,7 +94,7 @@ impl Murmur3Mut<'_> {
         unsafe { ffi::av_murmur3_init_seeded(self.as_mut_ptr(), seed) }
     }
 
-    /// Wraps: av_murmur3_update
+    /// Wraps: `av_murmur3_update`
     ///
     /// Append bytes, borrowed only for the duration of the C call.
     pub fn update(&mut self, data: &[u8]) {
@@ -97,7 +103,7 @@ impl Murmur3Mut<'_> {
         unsafe { ffi::av_murmur3_update(self.as_mut_ptr(), data.as_ptr(), data.len()) }
     }
 
-    /// Wraps: av_murmur3_final
+    /// Wraps: `av_murmur3_final`
     ///
     /// Output the 16 digest bytes in C's little-endian order. This zero-pads
     /// the partial block as C does; use [`Self::reset`] or [`Self::reset_seeded`]

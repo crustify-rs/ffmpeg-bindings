@@ -1,4 +1,9 @@
 //! Public ownership and borrow paths; no foreign memory is referenced in Rust.
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::hash::HashContext;
 

@@ -5,6 +5,18 @@
 //!
 //! Buffers are requested through the pool's safe `get` and
 //! `get_with_opaque` (buffer-frame wave 2), then held as raw references.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::c_void;
 use core::mem::MaybeUninit;
@@ -13,7 +25,9 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 
-use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference, UninitBuffer};
+use ffmpeg_bindings::libavutil::libavutil::buffer::{
+    BufferPool, BufferPoolBox, BufferReference, UninitBuffer,
+};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Counts the drops of the allocator state it is moved into.
@@ -45,16 +59,18 @@ impl Owned {
     }
 
     /// Writes and reads back every byte the reference describes, with whole
-    /// slice operations (one BSan retag, not one per byte).
+    /// slice operations (one `BSan` retag, not one per byte).
     fn fill(&self, byte: u8) {
         let size = self.size();
-        // SAFETY: a live pool reference describes `size` writable bytes, and
-        // this is its only user while the view lives.
-        let bytes = unsafe {
-            ptr::write_bytes(self.data(), byte, size);
-            core::slice::from_raw_parts(self.data(), size)
+        // For the unsafe operations below: a live pool reference describes `size` writable bytes,
+        // and this is its only user while the view lives.
+        let bytes = {
+            // SAFETY: as the comment above this block states.
+            unsafe { ptr::write_bytes(self.data(), byte, size) };
+            // SAFETY: as the comment above this block states.
+            unsafe { core::slice::from_raw_parts(self.data(), size) }
         };
-        assert!(bytes == vec![byte; size].as_slice());
+        assert_eq!(bytes, vec![byte; size].as_slice());
     }
 
     fn size(&self) -> usize {
@@ -71,7 +87,7 @@ impl Owned {
 impl Drop for Owned {
     fn drop(&mut self) {
         // SAFETY: this owner's reference, released once.
-        unsafe { ffi::av_buffer_unref(&mut self.0) };
+        unsafe { ffi::av_buffer_unref(&raw mut self.0) };
     }
 }
 
@@ -117,7 +133,7 @@ fn allocator_state_outlives_the_owner_until_the_last_buffer_returns() {
             let mut held = held;
             while let Some(buf) = held.pop() {
                 assert_eq!(drops.load(Ordering::SeqCst), 0);
-                buf.fill(0xee);
+                buf.fill(0xEE);
                 drop(buf);
             }
             assert_eq!(drops.load(Ordering::SeqCst), 1);
@@ -397,24 +413,24 @@ fn resizable_allocator_buffers_resize_by_copy() {
         first.resize(len).unwrap();
         assert_eq!(first.len(), len);
         assert_ne!(first.as_slice().as_ptr(), at);
-        assert!(first.fill(1).as_ref().data() == vec![1; len].as_slice());
+        assert_eq!(first.fill(1).as_ref().data(), vec![1; len].as_slice());
         let again = pool.as_ref().get().unwrap();
         assert_eq!(again.as_slice().as_ptr(), at);
         let mut filled = again.fill(3);
         filled.as_mut().resize(len, 4).unwrap();
         let mut want = vec![3; len.min(16)];
         want.resize(len, 4);
-        assert!(filled.as_ref().data() == want.as_slice());
+        assert_eq!(filled.as_ref().data(), want.as_slice());
     }
     let last = pool.as_ref().get().unwrap();
     drop(pool);
-    assert!(last.fill(5).as_ref().data() == [5; 16].as_slice());
+    assert_eq!(last.fill(5).as_ref().data(), [5; 16].as_slice());
 }
 
 /// Buffer-frame wave 1, batch 0: `UninitBuffer::assume_init`, each call
 /// after every byte was written: through `as_mut_slice` whole or in pieces,
 /// vacuously for an empty buffer, and by an earlier initialised owner the
-/// buffer was converted from; then the bytes read back exactly (ASan sees a
+/// buffer was converted from; then the bytes read back exactly (`ASan` sees a
 /// read past them) and the result used as any reference.
 mod uninit_assume_init {
     use core::mem::MaybeUninit;
@@ -441,10 +457,10 @@ mod uninit_assume_init {
             unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr().cast(), size) };
             // SAFETY: every byte was written just above.
             let mut buf = unsafe { u.assume_init() };
-            assert!(buf.as_ref().data() == src.as_slice());
+            assert_eq!(buf.as_ref().data(), src.as_slice());
             assert!(buf.as_mut().data_mut().is_some());
             let copy = buf.clone();
-            thread::spawn(move || assert!(copy.as_ref().data() == src.as_slice()))
+            thread::spawn(move || assert_eq!(copy.as_ref().data(), src.as_slice()))
                 .join()
                 .unwrap();
         }
@@ -457,21 +473,24 @@ mod uninit_assume_init {
             let mut u = BufferReference::alloc(size).unwrap();
             let (a, b) = u.as_mut_slice().split_at_mut(size / 3);
             let (b, c) = b.split_at_mut(b.len() / 2);
-            // SAFETY: each piece is written whole, one operation each (one
+            // For the unsafe operations below: each piece is written whole, one operation each (one
             // BSan retag, not one per byte).
-            unsafe {
-                ptr::write_bytes(a.as_mut_ptr(), 0x11, a.len());
-                ptr::write_bytes(c.as_mut_ptr(), 0x33, c.len());
-                ptr::write_bytes(b.as_mut_ptr(), 0x22, b.len());
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { ptr::write_bytes(a.as_mut_ptr(), 0x11, a.len()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ptr::write_bytes(c.as_mut_ptr(), 0x33, c.len()) };
+                // SAFETY: as the comment above this block states.
+                unsafe { ptr::write_bytes(b.as_mut_ptr(), 0x22, b.len()) };
             }
             // SAFETY: the three pieces cover the whole run.
             let buf = unsafe { u.assume_init() };
             let data = buf.as_ref().data();
             assert_eq!(data.len(), size);
             let (x, y) = (size / 3, size / 3 + (size - size / 3) / 2);
-            assert!(data[..x] == vec![0x11; x][..]);
-            assert!(data[x..y] == vec![0x22; y - x][..]);
-            assert!(data[y..] == vec![0x33; size - y][..]);
+            assert_eq!(data[..x], vec![0x11; x][..]);
+            assert_eq!(data[x..y], vec![0x22; y - x][..]);
+            assert_eq!(data[y..], vec![0x33; size - y][..]);
         }
     }
 
@@ -490,7 +509,7 @@ mod uninit_assume_init {
     #[cfg_attr(miri, ignore = "calls C")]
     fn after_an_initialised_owner_wrote_them() {
         for size in SIZES {
-            let bytes = vec![0x7e; size];
+            let bytes = vec![0x7E; size];
             for buf in [
                 BufferReference::alloc_zeroed(size).unwrap(),
                 BufferReference::from_heap_vec(HeapVec::from_slice(&bytes).unwrap()).unwrap(),
@@ -500,7 +519,7 @@ mod uninit_assume_init {
                 // SAFETY: the owner it was converted from held initialised
                 // bytes, and nothing wrote them since.
                 let buf = unsafe { u.assume_init() };
-                assert!(buf.as_ref().data() == want.as_slice());
+                assert_eq!(buf.as_ref().data(), want.as_slice());
             }
         }
     }
@@ -511,11 +530,11 @@ mod uninit_assume_init {
     #[cfg_attr(miri, ignore = "calls C")]
     fn after_a_rust_owner_initialised_them() {
         for size in SIZES {
-            let u = UninitBuffer::from_owner(vec![MaybeUninit::new(0x5d); size]).unwrap();
+            let u = UninitBuffer::from_owner(vec![MaybeUninit::new(0x5D); size]).unwrap();
             // SAFETY: the owner's every byte was initialised, and nothing
             // wrote them since.
             let buf = unsafe { u.assume_init() };
-            assert!(buf.as_ref().data() == vec![0x5d; size].as_slice());
+            assert_eq!(buf.as_ref().data(), vec![0x5D; size].as_slice());
             assert!(!buf.as_ref().opaque().is_null());
         }
     }

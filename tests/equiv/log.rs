@@ -2,6 +2,25 @@
 //! raw C enums, as C reads them back from independently owned `AVClass`
 //! contexts, and of the logging functions and callback records with the C
 //! functions they wrap.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    trivial_numeric_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
+#![expect(
+    clippy::decimal_bitwise_operands,
+    reason = "constants as the C sources and specifications spell them"
+)]
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::mem::offset_of;
@@ -65,7 +84,14 @@ fn c_category(class: &ffi::AVClass) -> ffi::AVClassCategory {
 fn c_set_value(ctx: &mut Ctx, value: i64) -> (c_int, c_int) {
     // SAFETY: `ctx` is a live context whose class, options and state flags
     // outlive the call; C writes only `ctx.value`, at the option's offset.
-    let ret = unsafe { ffi::av_opt_set_int((ctx as *mut Ctx).cast(), c"value".as_ptr(), value, 0) };
+    let ret = unsafe {
+        ffi::av_opt_set_int(
+            ptr::from_mut::<Ctx>(ctx).cast(),
+            c"value".as_ptr(),
+            value,
+            0,
+        )
+    };
     (ret, ctx.value)
 }
 
@@ -185,12 +211,12 @@ fn state_flags_gate_non_runtime_options_as_in_c() {
     let class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
     let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
     let mut c = Ctx {
-        class: &class,
+        class: &raw const class,
         state_flags: 0,
         value: 0,
     };
     let mut rust = Ctx {
-        class: &class,
+        class: &raw const class,
         state_flags: 0,
         value: 0,
     };
@@ -311,14 +337,14 @@ fn c_set_child_value(parent: &mut Parent, value: i64) -> (c_int, c_int) {
     // writes only the child's `value`, at the option's offset.
     let ret = unsafe {
         ffi::av_opt_set_int(
-            (parent as *mut Parent).cast(),
+            ptr::from_mut::<Parent>(parent).cast(),
             c"value".as_ptr(),
             value,
             ffi::AV_OPT_SEARCH_CHILDREN as c_int,
         )
     };
     // SAFETY: `parent.child` addresses a live `Child` for the whole test.
-    (ret, unsafe { (&raw const (*parent.child).value).read() })
+    (ret, unsafe { (*parent.child).value })
 }
 
 /// One parent/child pair of contexts for [`c_set_child_value`]. The child
@@ -346,12 +372,12 @@ impl Family {
     /// The child's `value` member.
     fn child_value(&self) -> c_int {
         // SAFETY: `child` is the live `Child` `new` leaked, freed only by `drop`.
-        unsafe { (&raw const (*self.parent.child).value).read() }
+        unsafe { (*self.parent.child).value }
     }
 
     fn set_child_value(&mut self, value: c_int) {
         // SAFETY: as for `child_value`.
-        unsafe { (&raw mut (*self.parent.child).value).write(value) }
+        unsafe { (*self.parent.child).value = value }
     }
 }
 
@@ -379,7 +405,10 @@ fn state_flags_of_the_parent_gate_a_child_option_as_in_c() {
     let steps: [(Step, c_uint); 5] = [
         (|_| {}, 0),
         (|f| f.insert(ClassStateFlags::INITIALIZED), initialized),
-        (|f| *f |= ClassStateFlags::from_bits_retain(0x80), initialized | 0x80),
+        (
+            |f| *f |= ClassStateFlags::from_bits_retain(0x80),
+            initialized | 0x80,
+        ),
         (|f| f.remove(ClassStateFlags::INITIALIZED), 0x80),
         (|f| *f = ClassStateFlags::all(), initialized),
     ];
@@ -471,12 +500,12 @@ fn without_state_flags_nothing_gates_an_option_as_in_c() {
     let mut class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
     class.state_flags_offset = 0;
     let mut c = Ctx {
-        class: &class,
+        class: &raw const class,
         state_flags: 0,
         value: 0,
     };
     let mut rust = Ctx {
-        class: &class,
+        class: &raw const class,
         state_flags: 0,
         value: 0,
     };
@@ -519,12 +548,10 @@ fn device_predicates_match_the_c_macros() {
     for v in named.chain(DEVICE_EDGES) {
         let raw = ffi::AVClassCategory(v);
         // SAFETY: the macro shims compare a value; every category is valid.
-        let (c_input, c_output) = unsafe {
-            (
-                ffi::crustify_AV_IS_INPUT_DEVICE(raw) != 0,
-                ffi::crustify_AV_IS_OUTPUT_DEVICE(raw) != 0,
-            )
-        };
+        let (c_input, c_output) = (
+            unsafe { ffi::crustify_AV_IS_INPUT_DEVICE(raw) } != 0,
+            unsafe { ffi::crustify_AV_IS_OUTPUT_DEVICE(raw) } != 0,
+        );
         let category = ClassCategory::from_value(v);
         assert_eq!(category.is_input_device(), c_input, "{category:?}");
         assert_eq!(category.is_output_device(), c_output, "{category:?}");
@@ -575,7 +602,7 @@ mod vlog {
                 vl,
                 line.as_mut_ptr(),
                 line.len() as c_int,
-                &mut print_prefix,
+                &raw mut print_prefix,
             )
         };
         // SAFETY: `av_log_format_line2` NUL-terminates `line`.
@@ -588,7 +615,13 @@ mod vlog {
 
     /// [`capture`] installed until drop, which restores the default callback;
     /// it holds the [`LogState`] lock every test of the log callback takes.
-    struct Installed(#[allow(dead_code)] LogState);
+    struct Installed(
+        #[expect(
+            dead_code,
+            reason = "held only for its drop, which serialises the process-wide log callback"
+        )]
+        LogState,
+    );
 
     impl Installed {
         fn new() -> Self {
@@ -603,6 +636,10 @@ mod vlog {
         }
 
         /// The entries captured since the last call.
+        #[expect(
+            clippy::unused_self,
+            reason = "the method keeps the shape of its siblings"
+        )]
         fn take(&self) -> Vec<Entry> {
             core::mem::take(&mut *CAPTURED.lock().unwrap_or_else(PoisonError::into_inner))
         }
@@ -670,8 +707,10 @@ mod vlog {
 
     /// The class's name, as `av_default_item_name` would give it.
     unsafe extern "C" fn item_name(ctx: *mut c_void) -> *const c_char {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v = unsafe { ctx.cast::<*const ffi::AVClass>().read() };
         // SAFETY: C passes a live context, whose first member is its class.
-        unsafe { (*ctx.cast::<*const ffi::AVClass>().read()).class_name }
+        unsafe { (*v).class_name }
     }
 
     /// `bytes` with every occurrence of `from` replaced by `to`.
@@ -713,7 +752,7 @@ mod vlog {
     #[cfg_attr(miri, ignore = "calls C")]
     fn context_log_reaches_the_callback_as_av_log() {
         let parent_class = class(0, false, false);
-        let mut parent: *const ffi::AVClass = &parent_class;
+        let mut parent: *const ffi::AVClass = &raw const parent_class;
         let current = (61 << 16) | (6 << 8) | 100;
         let classes = [
             class(current, true, true),
@@ -728,12 +767,12 @@ mod vlog {
                 let mut mine = Ctx {
                     class: cls,
                     level_offset: offset,
-                    parent: &mut parent,
+                    parent: &raw mut parent,
                 };
                 let mut theirs = Ctx {
                     class: cls,
                     level_offset: offset,
-                    parent: &mut parent,
+                    parent: &raw mut parent,
                 };
                 for level in LEVELS {
                     for message in MESSAGES {
@@ -790,7 +829,7 @@ mod item_name {
 
     /// Both sides' readings of `obj`'s item name.
     fn both(obj: &Obj) -> (*const core::ffi::c_char, Option<&'static CStr>) {
-        let ctx: *const c_void = (obj as *const Obj).cast();
+        let ctx: *const c_void = std::ptr::from_ref::<Obj>(obj).cast();
         // SAFETY: `obj` starts with a non-NULL class pointer to a live class,
         // which `av_default_item_name` only reads.
         let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
@@ -810,7 +849,7 @@ mod item_name {
             class(Some(c"second-class")),
         ];
         let mut obj = Obj {
-            class: &classes[0],
+            class: &raw const classes[0],
             payload: [1, 2, 3],
         };
         // The same object, switched between classes, compared after each.
@@ -837,10 +876,10 @@ mod item_name {
             ..Default::default()
         });
         let obj = Box::new(Obj {
-            class: &*cls,
+            class: &raw const *cls,
             payload: [0; 3],
         });
-        let ctx: *const c_void = (&*obj as *const Obj).cast();
+        let ctx: *const c_void = (&raw const *obj).cast();
         // SAFETY: `ctx` addresses a live object whose class pointer reaches
         // `cls`, which `av_default_item_name` only reads.
         let c = unsafe { ffi::av_default_item_name(ctx.cast_mut()) };
@@ -854,7 +893,13 @@ mod item_name {
 
 /// Serializes the tests here (and in `imgutils`) that touch the process-wide log callback, level
 /// or flags; restores the defaults when dropped.
-pub(crate) struct LogState(#[allow(dead_code)] MutexGuard<'static, ()>);
+pub(crate) struct LogState(
+    #[expect(
+        dead_code,
+        reason = "held only for its drop, which serialises the process-wide log callback"
+    )]
+    MutexGuard<'static, ()>,
+);
 
 impl LogState {
     pub(crate) fn lock() -> Self {
@@ -924,7 +969,7 @@ impl Callback for RustCapture {
         let measured = SIZES
             .iter()
             .map(|&n| {
-                let mut buf = vec![0xa5; n];
+                let mut buf = vec![0xA5; n];
                 let mut p = prefix;
                 (record.format_line(&mut buf, &mut p), buf)
             })
@@ -932,7 +977,7 @@ impl Callback for RustCapture {
         let written = SIZES
             .iter()
             .map(|&n| {
-                let mut buf = vec![0xa5; n];
+                let mut buf = vec![0xA5; n];
                 let mut p = prefix;
                 let line = record.write_line(&mut buf, &mut p).to_bytes().to_vec();
                 assert_eq!(
@@ -991,7 +1036,7 @@ unsafe extern "C" fn c_capture(
     let measured = SIZES
         .iter()
         .map(|&n| {
-            let mut buf = vec![0xa5; n];
+            let mut buf = vec![0xA5; n];
             let mut p = c_int::from(prefix);
             let mut a = copy();
             // SAFETY: the callback's own arguments, a private `va_list` copy,
@@ -1001,10 +1046,10 @@ unsafe extern "C" fn c_capture(
                     context,
                     level,
                     format,
-                    &mut a,
+                    &raw mut a,
                     ptr_of(&mut buf),
                     n as c_int,
-                    &mut p,
+                    &raw mut p,
                 )
             };
             (usize::try_from(ret).ok(), buf)
@@ -1013,7 +1058,7 @@ unsafe extern "C" fn c_capture(
     let written = SIZES
         .iter()
         .map(|&n| {
-            let mut buf = vec![0xa5; n];
+            let mut buf = vec![0xA5; n];
             let mut p = c_int::from(prefix);
             let mut a = copy();
             // SAFETY: as above.
@@ -1022,11 +1067,11 @@ unsafe extern "C" fn c_capture(
                     context,
                     level,
                     format,
-                    &mut a,
+                    &raw mut a,
                     ptr_of(&mut buf),
                     n as c_int,
-                    &mut p,
-                )
+                    &raw mut p,
+                );
             };
             buf
         })
@@ -1040,10 +1085,10 @@ unsafe extern "C" fn c_capture(
             context,
             level,
             format,
-            &mut a,
+            &raw mut a,
             big.as_mut_ptr().cast(),
             8192,
-            &mut p,
+            &raw mut p,
         )
     };
     capture_push(Line {
@@ -1069,7 +1114,7 @@ fn capture(via: Via, f: impl FnOnce()) -> Vec<Line> {
         *c.borrow_mut() = Some(Capture {
             prefix: true,
             lines: Vec::new(),
-        })
+        });
     });
     match via {
         Via::Rust => log::set_callback::<RustCapture>(),
@@ -1186,23 +1231,30 @@ fn log_fmt_formats_as_c_printf_and_stops_at_nul() {
                         c"cd".as_ptr(),
                         f64::from(i) / 7.0,
                         (i * 255) as c_uint,
-                    )
+                    );
                 };
             }
-            // SAFETY: the general log; `"%s"` consumes the one live string.
-            unsafe {
-                ffi::av_log(
-                    ptr::null_mut(),
-                    Level::ERROR.raw(),
-                    c"%s".as_ptr(),
-                    c"before".as_ptr(),
-                );
-                ffi::av_log(
-                    ptr::null_mut(),
-                    Level::ERROR.raw(),
-                    c"%s".as_ptr(),
-                    c"".as_ptr(),
-                );
+            // For the unsafe operations below: the general log; `"%s"` consumes the one live
+            // string.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_log(
+                        ptr::null_mut(),
+                        Level::ERROR.raw(),
+                        c"%s".as_ptr(),
+                        c"before".as_ptr(),
+                    );
+                };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    ffi::av_log(
+                        ptr::null_mut(),
+                        Level::ERROR.raw(),
+                        c"%s".as_ptr(),
+                        c"".as_ptr(),
+                    );
+                };
             }
         });
         assert_eq!(rust.len(), 14, "{via:?}");
@@ -1214,17 +1266,21 @@ fn log_fmt_formats_as_c_printf_and_stops_at_nul() {
 fn log_formats() {
     let levels = LEVELS.iter().copied().cycle();
     for (i, level) in (0..20).zip(levels) {
-        // SAFETY: each format's conversions match the arguments passed: an
+        // For the unsafe operations below: each format's conversions match the arguments passed: an
         // `int`, a live string and a `double`, or a string alone.
-        unsafe {
-            if i % 3 == 2 {
+        if i % 3 == 2 {
+            // SAFETY: as the comment above this statement states.
+            unsafe {
                 ffi::av_log(
                     ptr::null_mut(),
                     level,
                     c"only %s".as_ptr(),
                     c"text".as_ptr(),
                 );
-            } else {
+            };
+        } else {
+            // SAFETY: as the comment at the head of this block states.
+            unsafe {
                 ffi::av_log(
                     ptr::null_mut(),
                     level,
@@ -1237,7 +1293,7 @@ fn log_formats() {
                     } else {
                         c"".as_ptr()
                     },
-                )
+                );
             };
         }
     }
@@ -1309,10 +1365,10 @@ fn log_once_moves_state_and_level_like_av_log_once() {
                             ptr::null_mut(),
                             initial.raw(),
                             subsequent.raw(),
-                            &mut state,
+                            &raw mut state,
                             c"%s".as_ptr(),
                             msg.as_ptr(),
-                        )
+                        );
                     };
                     c_states.push(state != 0);
                 }
@@ -1358,17 +1414,17 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
     let child_class = log_class(c"child");
     let parent_class = log_class(c"parent");
     let mut parent = LogCtx {
-        class: &parent_class,
+        class: &raw const parent_class,
         level_offset: 0,
         parent: ptr::null_mut(),
     };
     let mut ctx = LogCtx {
-        class: &child_class,
+        class: &raw const child_class,
         level_offset: 8,
         parent: (&raw mut parent).cast(),
     };
     let mut orphan = LogCtx {
-        class: &child_class,
+        class: &raw const child_class,
         level_offset: -16,
         parent: ptr::null_mut(),
     };
@@ -1393,17 +1449,16 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
                         // options, an `int` at its level offset far from
                         // overflow and a NULL or valid parent context;
                         // nothing writes them.
-                        match unsafe { ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr(cx) } {
-                            Some(o) => {
-                                log::log_with_context(o, level, msg);
-                                log::log_fmt_with_context(o, level, format_args!("{text}"));
-                                log::log_once_with_context(o, level, Level::TRACE, &mut once, msg);
-                            }
-                            None => {
-                                log::log(level, msg);
-                                log::log_fmt(level, format_args!("{text}"));
-                                log::log_once(level, Level::TRACE, &mut once, msg);
-                            }
+                        if let Some(o) = unsafe {
+                            ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr(cx)
+                        } {
+                            log::log_with_context(o, level, msg);
+                            log::log_fmt_with_context(o, level, format_args!("{text}"));
+                            log::log_once_with_context(o, level, Level::TRACE, &mut once, msg);
+                        } else {
+                            log::log(level, msg);
+                            log::log_fmt(level, format_args!("{text}"));
+                            log::log_once(level, Level::TRACE, &mut once, msg);
                         }
                         states.0.push(once);
                     }
@@ -1415,19 +1470,24 @@ fn contexts_shift_levels_and_prefix_lines_like_c() {
                 for level in [Level::QUIET, Level::PANIC, Level::FATAL, Level::INFO] {
                     let mut once: c_int = 0;
                     for msg in msgs {
-                        // SAFETY: as above; `"%s"` consumes the one live string
-                        // passed, and `once` is a writable `int`.
-                        unsafe {
-                            ffi::av_log(cx, level.raw(), c"%s".as_ptr(), msg.as_ptr());
-                            ffi::av_log(cx, level.raw(), c"%s".as_ptr(), msg.as_ptr());
-                            ffi::av_log_once(
-                                cx,
-                                level.raw(),
-                                Level::TRACE.raw(),
-                                &mut once,
-                                c"%s".as_ptr(),
-                                msg.as_ptr(),
-                            );
+                        // For the unsafe operations below: as above; `"%s"` consumes the one live
+                        // string passed, and `once` is a writable `int`.
+                        {
+                            // SAFETY: as the comment above this block states.
+                            unsafe { ffi::av_log(cx, level.raw(), c"%s".as_ptr(), msg.as_ptr()) };
+                            // SAFETY: as the comment above this block states.
+                            unsafe { ffi::av_log(cx, level.raw(), c"%s".as_ptr(), msg.as_ptr()) };
+                            // SAFETY: as the comment above this block states.
+                            unsafe {
+                                ffi::av_log_once(
+                                    cx,
+                                    level.raw(),
+                                    Level::TRACE.raw(),
+                                    &raw mut once,
+                                    c"%s".as_ptr(),
+                                    msg.as_ptr(),
+                                );
+                            };
                         }
                         states.1.push(once != 0);
                     }
@@ -1637,7 +1697,7 @@ mod class {
         let mut out = Vec::new();
         loop {
             // SAFETY: a well-formed class and its own iteration state.
-            let child = unsafe { ffi::av_opt_child_class_iterate(class, &mut iter) };
+            let child = unsafe { ffi::av_opt_child_class_iterate(class, &raw mut iter) };
             if child.is_null() {
                 return out;
             }
@@ -1772,9 +1832,9 @@ mod class {
             child_next: Some(next_child),
             ..Default::default()
         };
-        let mut kids = [Fake(&child_class), Fake(&child_class)];
+        let mut kids = [Fake(&raw const child_class), Fake(&raw const child_class)];
         let mut parent = Parent {
-            class: &parent_class,
+            class: &raw const parent_class,
             children: [kids[0].obj(), kids[1].obj()],
         };
         let p = (&raw mut parent).cast::<c_void>();
@@ -1783,9 +1843,10 @@ mod class {
         // SAFETY: `p` starts with a pointer to `parent_class`, whose
         // `child_next` accepts it and NULL or a child it returned.
         while let Some(next) = NonNull::new(unsafe { ffi::av_opt_child_next(p, prev) }) {
-            // SAFETY: a child, led by a pointer to `child_class`, whose name
-            // is a literal.
-            c_children.push(unsafe { (**next.as_ptr().cast::<*const ffi::AVClass>()).class_name });
+            // SAFETY: a child, led by a pointer to `child_class`.
+            let class = unsafe { *next.as_ptr().cast::<*const ffi::AVClass>() };
+            // SAFETY: as above; the class's name is a literal.
+            c_children.push(unsafe { (*class).class_name });
             prev = next.as_ptr();
         }
         // SAFETY: as above; the parent and its children are named classes
@@ -1807,24 +1868,39 @@ mod class {
     );
 
     fn list(p: *const ffi::AVOptionRanges) -> List {
-        // SAFETY: `p` is a live list whose `range` array holds
+        // For the unsafe operations below: `p` is a live list whose `range` array holds
         // `nb_ranges * nb_components` pointers, each NULL or a live range.
-        unsafe {
-            let n = ((*p).nb_ranges * (*p).nb_components).max(0) as usize;
+        {
+            // SAFETY: as the comment above this block states.
+            let n = (unsafe { (*p).nb_ranges } * unsafe { (*p).nb_components }).max(0) as usize;
+            // SAFETY: as the comment above this block states: a read of the array.
+            let array = unsafe { (*p).range };
             let ranges = (0..n)
                 .map(|i| {
-                    let r = *(*p).range.add(i);
+                    // SAFETY: as the comment above this block states, entry `i < n`.
+                    let at = unsafe { array.add(i) };
+                    // SAFETY: as above, initialised.
+                    let r = unsafe { *at };
                     (!r.is_null()).then(|| {
-                        let r = &*r;
+                        // SAFETY: as above, NULL or a live range: a copy of its fields.
+                        let r = unsafe { r.read() };
                         (
-                            (!r.str_.is_null()).then(|| CStr::from_ptr(r.str_).to_owned()),
+                            // SAFETY: as above: NULL or a NUL-terminated string.
+                            (!r.str_.is_null())
+                                // SAFETY: as the comment above this statement states.
+                                .then(|| unsafe { CStr::from_ptr(r.str_) }.to_owned()),
                             [r.value_min, r.value_max, r.component_min, r.component_max],
                             r.is_range,
                         )
                     })
                 })
                 .collect();
-            ((*p).nb_ranges, (*p).nb_components, ranges)
+            // SAFETY: as the comment above this block states.
+            (
+                unsafe { (*p).nb_ranges },
+                unsafe { (*p).nb_components },
+                ranges,
+            )
         }
     }
 
@@ -1835,38 +1911,42 @@ mod class {
         let fake = ffi::AV_OPT_SEARCH_FAKE_OBJ as c_int;
         let multi = ffi::AV_OPT_MULTI_COMPONENT_RANGE as c_int;
         let obj = CB_FAKE.as_obj();
-        // SAFETY: `obj` is a `const AVClass *` to the fixture's class, whose
-        // callback honours `av_opt_query_ranges`' contract and accepts the
-        // fake object with `AV_OPT_SEARCH_FAKE_OBJ`.
-        unsafe {
-            with_class(obj, |c| {
-                let class = c.unwrap();
-                assert!(class.query_ranges().is_some());
-                let keys = CB_KEYS
-                    .iter()
-                    .chain(&RANGED)
-                    .chain(&UNRANGED)
-                    .chain(&UNKNOWN);
-                for (flags, rflags) in [
-                    (fake, RangeFlags::NONE),
-                    (fake | multi, RangeFlags::MULTI_COMPONENT),
-                ] {
-                    for key in keys.clone() {
-                        let rust = class.option_ranges(key, rflags);
-                        let mut out = ptr::null_mut();
-                        let ret = ffi::av_opt_query_ranges(&mut out, obj, key.as_ptr(), flags);
-                        match rust {
-                            Ok(r) => {
-                                assert!(ret >= 0, "{key:?}");
-                                assert_eq!(list(r.as_c_ptr()), list(out), "{key:?} {flags}");
-                                ffi::av_opt_freep_ranges(&mut out);
-                            }
-                            Err(e) => assert_eq!(e, ret, "{key:?} {flags}"),
+        // `obj` is a `const AVClass *` to the fixture's class, whose callback honours
+        // `av_opt_query_ranges`' contract and accepts the fake object with
+        // `AV_OPT_SEARCH_FAKE_OBJ`.
+        let check = |c: Option<ClassRef<'_>>| {
+            let class = c.unwrap();
+            assert!(class.query_ranges().is_some());
+            let keys = CB_KEYS
+                .iter()
+                .chain(&RANGED)
+                .chain(&UNRANGED)
+                .chain(&UNKNOWN);
+            for (flags, rflags) in [
+                (fake, RangeFlags::NONE),
+                (fake | multi, RangeFlags::MULTI_COMPONENT),
+            ] {
+                for key in keys.clone() {
+                    let rust = class.option_ranges(key, rflags);
+                    let mut out = ptr::null_mut();
+                    // SAFETY: as stated before `check`: the fixture's class accepts the fake
+                    // object; `out` is a writable slot.
+                    let ret =
+                        unsafe { ffi::av_opt_query_ranges(&raw mut out, obj, key.as_ptr(), flags) };
+                    match rust {
+                        Ok(r) => {
+                            assert!(ret >= 0, "{key:?}");
+                            assert_eq!(list(r.as_c_ptr()), list(out), "{key:?} {flags}");
+                            // SAFETY: the list C just returned, freed once.
+                            unsafe { ffi::av_opt_freep_ranges(&raw mut out) };
                         }
+                        Err(e) => assert_eq!(e, ret, "{key:?} {flags}"),
                     }
                 }
-            });
-        }
+            }
+        };
+        // SAFETY: as above, `obj` leads with a pointer to a live class.
+        unsafe { with_class(obj, check) };
     }
 }
 
@@ -1890,7 +1970,9 @@ mod default_category {
         // whose options address `ctx`'s members; nothing writes either during
         // the call.
         let obj = unsafe {
-            ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr((&raw const ctx).cast_mut().cast())
+            ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef::from_ptr(
+                (&raw const ctx).cast_mut().cast(),
+            )
         };
         default_category(obj.unwrap())
     }

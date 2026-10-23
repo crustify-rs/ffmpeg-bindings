@@ -13,6 +13,3 @@ error[E0597]: `v` does not live long enough
   |
 note: requirement that the value outlives `'static` introduced here
  --> $RUST/std/src/thread/functions.rs
-  |
-  |     F: Send + 'static,
-  |               ^^^^^^^

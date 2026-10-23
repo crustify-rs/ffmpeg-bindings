@@ -1,12 +1,13 @@
 //! Safe wrappers over `libavutil/base64.h`.
 
-use super::ffi;
 use core::ffi::CStr;
+
+use super::ffi;
 
 fn encoded_size(input_len: usize) -> Result<usize, i32> {
     // C rejects this bound before evaluating its signed-int size expression.
     if input_len >= (u32::MAX / 4) as usize {
-        return Err(-(ffi::EINVAL as i32));
+        return Err(-(ffi::EINVAL.cast_signed()));
     }
     Ok(input_len.div_ceil(3) * 4 + 1)
 }
@@ -24,28 +25,39 @@ fn c_capacity(output_len: usize) -> i32 {
 /// `AV_BASE64_DECODE_SIZE`, six bits per character in whole bytes.
 fn decode_capacity(output_len: usize, input_len: impl FnOnce() -> usize) -> Result<i32, i32> {
     let capacity = c_capacity(output_len);
-    if output_len > capacity as usize {
+    if output_len > capacity.unsigned_abs() as usize {
         let len = input_len();
-        if len / 4 * 3 + len % 4 * 3 / 4 > capacity as usize {
-            return Err(-(ffi::EINVAL as i32));
+        if len / 4 * 3 + len % 4 * 3 / 4 > capacity.unsigned_abs() as usize {
+            return Err(-(ffi::EINVAL.cast_signed()));
         }
     }
     Ok(capacity)
 }
 
-/// Wraps: av_base64_encode
+/// Wraps: `av_base64_encode`
 ///
 /// Encode into `output`, including a terminating NUL. Return a view tied to
 /// its exclusive borrow. Insufficient space or an input too long for C's
 /// `int` size arithmetic returns `-EINVAL` without writing anything.
+///
+/// # Errors
+///
+/// Insufficient space or an input too long for C's `int` size arithmetic returns `-EINVAL` without
+/// writing anything.
+///
+/// # Panics
+///
+/// Only if C's base64 encoder leaves the output without its NUL.
 pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
     let needed = encoded_size(input.len())?;
     // `needed` stays below `INT_MAX`, so a buffer of at least `needed` bytes
     // offers C at least `needed`.
     let capacity = c_capacity(output.len());
     if output.len() < needed {
-        return Err(-(ffi::EINVAL as i32));
+        return Err(-(ffi::EINVAL.cast_signed()));
     }
+    // Below `needed`, which `encoded_size` keeps under `INT_MAX`.
+    let input_len = i32::try_from(input.len()).map_err(|_| -(ffi::EINVAL.cast_signed()))?;
     // SAFETY: lengths fit C's int arithmetic and output includes `needed`
     // bytes for the encoded data and NUL. The two borrows cannot overlap;
     // C retains neither pointer and returns the output pointer on success.
@@ -54,16 +66,16 @@ pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
             output.as_mut_ptr().cast(),
             capacity,
             input.as_ptr(),
-            input.len() as i32,
+            input_len,
         )
     };
     if ptr.is_null() {
-        return Err(-(ffi::EINVAL as i32));
+        return Err(-(ffi::EINVAL.cast_signed()));
     }
     Ok(CStr::from_bytes_with_nul(&output[..needed]).expect("C base64 encoder terminates ASCII"))
 }
 
-/// Wraps: av_base64_decode
+/// Wraps: `av_base64_decode`
 ///
 /// Decode into `output`. Like the C implementation, a short destination
 /// truncates the decoded bytes but still checks the rest of the input.
@@ -72,6 +84,12 @@ pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
 /// An output longer than `INT_MAX` bytes is offered to C as `INT_MAX` bytes;
 /// if the input could decode to more than that, `-EINVAL` is returned
 /// without writing anything, since C could not report such a length.
+///
+/// # Errors
+///
+/// Invalid data returns C's negative error; earlier bytes may be written. An output longer than
+/// `INT_MAX` bytes is offered to C as `INT_MAX` bytes; if the input could decode to more than that,
+/// `-EINVAL` is returned without writing anything, since C could not report such a length.
 pub fn decode(input: &CStr, output: &mut [u8]) -> Result<usize, i32> {
     let capacity = decode_capacity(output.len(), || input.count_bytes())?;
     let mut empty = 0u8;
@@ -85,12 +103,16 @@ pub fn decode(input: &CStr, output: &mut [u8]) -> Result<usize, i32> {
     // only when more than 3 bytes remain. A live byte represents empty output.
     // Both buffers are borrowed only for the call and cannot overlap.
     let ret = unsafe { ffi::av_base64_decode(dst, input.as_ptr(), capacity) };
-    if ret < 0 { Err(ret) } else { Ok(ret as usize) }
+    usize::try_from(ret).map_err(|_| ret)
 }
 
-/// Wraps: av_base64_decode
+/// Wraps: `av_base64_decode`
 ///
 /// Check C's accepted base64 syntax without producing decoded data.
+///
+/// # Errors
+///
+/// Returns the negative `AVERROR` code `av_base64_decode` returns when it fails.
 pub fn validate(input: &CStr) -> Result<(), i32> {
     // SAFETY: a null output selects C's validity-only path; the readable
     // NUL-terminated input bounds every read and C retains no pointer.
@@ -99,6 +121,11 @@ pub fn validate(input: &CStr) -> Result<(), i32> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 mod unit_tests {
     use super::*;
 
@@ -139,8 +166,8 @@ mod unit_tests {
             (0, Ok(i32::MAX)),
             (fits, Ok(i32::MAX)),
             (fits + 1, Ok(i32::MAX)),
-            (fits + 2, Err(-(ffi::EINVAL as i32))),
-            (usize::MAX, Err(-(ffi::EINVAL as i32))),
+            (fits + 2, Err(-(ffi::EINVAL.cast_signed()))),
+            (usize::MAX, Err(-(ffi::EINVAL.cast_signed()))),
         ] {
             assert_eq!(
                 decode_capacity(max + 1, || input_len),

@@ -1,4 +1,12 @@
 //! Public safe layout, initialization, ownership, and reborrow tests.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
@@ -31,7 +39,7 @@ fn ffi_free_inline_shared_and_exclusive_reborrows() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn initialization_and_foreign_writes_across_reborrows() {
     let mut value = Xtea::new(&KEY);
-    let expected_be = [0x00010203, 0x04050607, 0x80fffefd, 0xfcfbfaf9];
+    let expected_be = [0x00010203, 0x04050607, 0x80FFFEFD, 0xFCFBFAF9];
     assert_eq!(value.as_ref().key()[..4], expected_be);
     assert_eq!(Xtea::new_le(&KEY).as_ref().key()[0], 0x03020100);
     value.as_mut().set_key([u32::MAX; 16]);
@@ -95,14 +103,14 @@ fn exercise_cipher(view: ffmpeg_bindings::libavutil::libavutil::xtea::XteaRef<'_
             for blocks in [0, 1, 2, 33] {
                 let len = blocks * 8;
                 let input: Vec<u8> = (0..len + 2).map(|i| (i as u8).wrapping_mul(137)).collect();
-                let mut output = vec![0xa5; len + 2];
-                let initial_iv = [0xff; 8];
+                let mut output = vec![0xA5; len + 2];
+                let initial_iv = [0xFF; 8];
                 let mut iv = initial_iv;
                 let iv_arg = cbc.then_some(&mut iv);
                 if le {
-                    shared.crypt_le(&mut output[1..len + 1], &input[1..len + 1], iv_arg, Encrypt)
+                    shared.crypt_le(&mut output[1..=len], &input[1..=len], iv_arg, Encrypt)
                 } else {
-                    shared.crypt(&mut output[1..len + 1], &input[1..len + 1], iv_arg, Encrypt)
+                    shared.crypt(&mut output[1..=len], &input[1..=len], iv_arg, Encrypt)
                 }
                 .unwrap();
                 assert_eq!(shared.key(), snapshot);
@@ -110,18 +118,18 @@ fn exercise_cipher(view: ffmpeg_bindings::libavutil::libavutil::xtea::XteaRef<'_
                 iv = initial_iv;
                 let iv_arg = cbc.then_some(&mut iv);
                 if le {
-                    view.crypt_le_in_place(&mut output[1..len + 1], iv_arg, Decrypt)
+                    view.crypt_le_in_place(&mut output[1..=len], iv_arg, Decrypt)
                 } else {
-                    view.crypt_in_place(&mut output[1..len + 1], iv_arg, Decrypt)
+                    view.crypt_in_place(&mut output[1..=len], iv_arg, Decrypt)
                 }
                 .unwrap();
-                assert_eq!(&output[1..len + 1], &input[1..len + 1]);
-                assert_eq!(output[0], 0xa5);
-                assert_eq!(output[len + 1], 0xa5);
+                assert_eq!(&output[1..=len], &input[1..=len]);
+                assert_eq!(output[0], 0xA5);
+                assert_eq!(output[len + 1], 0xA5);
                 assert_eq!(
                     iv,
                     if cbc && len > 0 {
-                        encrypted[len - 7..len + 1].try_into().unwrap()
+                        encrypted[(len - 7)..=len].try_into().unwrap()
                     } else {
                         initial_iv
                     }
@@ -132,9 +140,9 @@ fn exercise_cipher(view: ffmpeg_bindings::libavutil::libavutil::xtea::XteaRef<'_
                 iv.fill(0x40);
                 let iv_arg = cbc.then_some(&mut iv);
                 if le {
-                    view.crypt_le_in_place(&mut output[1..len + 1], iv_arg, Encrypt)
+                    view.crypt_le_in_place(&mut output[1..=len], iv_arg, Encrypt)
                 } else {
-                    view.crypt_in_place(&mut output[1..len + 1], iv_arg, Encrypt)
+                    view.crypt_in_place(&mut output[1..=len], iv_arg, Encrypt)
                 }
                 .unwrap();
                 assert_eq!(output[0], 0x80);
@@ -149,7 +157,7 @@ fn exercise_cipher(view: ffmpeg_bindings::libavutil::libavutil::xtea::XteaRef<'_
 fn cipher_inline_shared_handles_and_foreign_buffer_reborrows() {
     let mut inline = Xtea::new(&KEY);
     exercise_cipher(inline.as_ref());
-    inline.as_mut().init_le(&[0xff; 16]);
+    inline.as_mut().init_le(&[0xFF; 16]);
     exercise_cipher(inline.as_mut().as_ref());
 }
 

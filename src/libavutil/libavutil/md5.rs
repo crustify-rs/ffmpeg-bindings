@@ -5,6 +5,7 @@
 //! MD5 is unsuitable for security-sensitive hashing.
 
 use core::ptr::NonNull;
+
 use ffibox::{CBox, CDrop, CNew, define_ctype};
 
 use super::ffi;
@@ -14,7 +15,10 @@ define_ctype!(
     ///
     /// Opaque MD5 context, owned by [`Md5Box`] and accessed through handles.
     /// The private fields are not part of the public C API.
-    Md5, Md5Ref, Md5Mut, ffi::AVMD5
+    Md5,
+    Md5Ref,
+    Md5Mut,
+    ffi::AVMD5
 );
 
 /// Allocation and release policy for an initialized MD5 context.
@@ -31,7 +35,7 @@ pub struct Md5Free;
 /// ```
 pub type Md5Box = CBox<Md5, Md5Free>;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: the owner hands this policy one uniquely owned av_malloc-family
 // context allocation. The context has no child resources; av_free releases
 // the whole allocation without reading its state.
@@ -43,7 +47,7 @@ unsafe impl CDrop<Md5> for Md5Free {
     }
 }
 
-/// Wraps: av_md5_alloc
+/// Wraps: `av_md5_alloc`
 // SAFETY: allocation uses C's actual private size, and init establishes every
 // state invariant used by update/final. The paired policy releases via av_free.
 unsafe impl CNew<Md5> for Md5Free {
@@ -59,13 +63,14 @@ unsafe impl CNew<Md5> for Md5Free {
 
 impl Md5 {
     /// Allocate and initialize a context, or return `None` on allocation failure.
+    #[must_use]
     pub fn new() -> Option<Md5Box> {
         Md5Box::new()
     }
 }
 
 impl Md5Mut<'_> {
-    /// Wraps: av_md5_init
+    /// Wraps: `av_md5_init`
     ///
     /// Restart hashing, discarding the previous state.
     pub fn reset(&mut self) {
@@ -74,7 +79,7 @@ impl Md5Mut<'_> {
         unsafe { ffi::av_md5_init(self.as_mut_ptr()) }
     }
 
-    /// Wraps: av_md5_update
+    /// Wraps: `av_md5_update`
     ///
     /// Append bytes. C reads them only during the call and retains no pointer.
     pub fn update(&mut self, data: &[u8]) {
@@ -89,7 +94,7 @@ impl Md5Mut<'_> {
         unsafe { ffi::av_md5_update(self.as_mut_ptr(), data.as_ptr(), data.len()) }
     }
 
-    /// Wraps: av_md5_final
+    /// Wraps: `av_md5_final`
     ///
     /// Output the digest, mutating the context as C does. Call [`Self::reset`]
     /// before starting a new message. Repeated finalization is memory-safe but
@@ -103,18 +108,20 @@ impl Md5Mut<'_> {
     }
 }
 
-/// Wraps: av_md5_size
+/// Wraps: `av_md5_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
     unsafe { &ffi::av_md5_size }
 }
 
-/// Wraps: av_md5_sum
+/// Wraps: `av_md5_sum`
 ///
 /// Compute the 16-byte MD5 digest (not suitable for cryptographic security).
+#[must_use]
 pub fn sum(input: &[u8]) -> [u8; 16] {
     let mut digest = [0; 16];
     let empty = 0u8;
@@ -180,8 +187,8 @@ mod unit_tests {
         assert_eq!(
             owner.as_mut().finalize(),
             [
-                0x90, 0x01, 0x50, 0x98, 0x3c, 0xd2, 0x4f, 0xb0, 0xd6, 0x96, 0x3f, 0x7d, 0x28, 0xe1,
-                0x7f, 0x72
+                0x90, 0x01, 0x50, 0x98, 0x3C, 0xD2, 0x4F, 0xB0, 0xD6, 0x96, 0x3F, 0x7D, 0x28, 0xE1,
+                0x7F, 0x72
             ]
         );
         // SAFETY: NULL is rejected and transfers no ownership.
@@ -205,8 +212,8 @@ mod unit_tests {
         assert_eq!(
             borrowed.finalize(),
             [
-                0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8,
-                0x42, 0x7e
+                0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, 0x98, 0xEC, 0xF8,
+                0x42, 0x7E
             ]
         );
     }

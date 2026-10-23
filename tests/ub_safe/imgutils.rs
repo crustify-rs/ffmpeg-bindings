@@ -1,9 +1,19 @@
 //! UB tests for `libavutil/imgutils.h`'s safe size check and plane copies:
-//! exactly sized heap planes (so a row past either end is an ASan report),
+//! exactly sized heap planes (so a row past either end is an `ASan` report),
 //! bottom-up and overlapping-row layouts, empty and degenerate planes,
 //! oversized arguments, the uncacheable copy's SSE4 path with aligned,
 //! misaligned and short planes (on which C itself faults), and copies on
 //! several threads at once.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 use std::thread;
 
@@ -31,7 +41,7 @@ fn span(linesize: isize, w: usize, h: usize) -> usize {
 /// A heap allocation ending exactly at the plane's end, where the plane of
 /// `len` bytes starts `offset` past a 64-byte boundary: the buffer and the
 /// plane's start. The allocator's placement is found by trial; should it keep
-/// moving, the plane is placed in slack (still sound, less sharp for ASan).
+/// moving, the plane is placed in slack (still sound, less sharp for `ASan`).
 fn placed(len: usize, offset: usize, seed: u8) -> (Box<[u8]>, usize) {
     let fill = |pad: usize| {
         let mut v = vec![0u8; pad + len].into_boxed_slice();
@@ -328,10 +338,10 @@ fn planes_copy_on_many_threads() {
 
 /// UB tests for the image layout, allocation, copy and fill wrappers: every
 /// pixel format's planes in exactly sized heap allocations (so a row past
-/// either end of a plane is an ASan report), one byte short, bottom-up and
+/// either end of a plane is an `ASan` report), one byte short, bottom-up and
 /// misaligned; the inputs on which C overflows `int`, divides by zero,
 /// indexes past its arrays or reads past its descriptor table (each refused
-/// before C, so no UBSan report); and images allocated, filled, copied and
+/// before C, so no `UBSan` report); and images allocated, filled, copied and
 /// dropped on several threads.
 mod images {
     use std::thread;
@@ -357,7 +367,7 @@ mod images {
     }
 
     /// The formats an every-format sweep runs over: all of them, or, under
-    /// BorrowSanitizer (whose cost per retag and allocation turns such a
+    /// `BorrowSanitizer` (whose cost per retag and allocation turns such a
     /// sweep into hours), one of each layout class the image routines
     /// distinguish: packed and planar YUV, chroma subsampled both ways,
     /// semi-planar, RGB in both byte orders, a palette, a bitstream, float,
@@ -430,14 +440,14 @@ mod images {
         (bufs, linesizes)
     }
 
-    fn view<'a>(bufs: &'a [Vec<u8>; 4], linesizes: [isize; 4]) -> Planes<'a> {
+    fn view(bufs: &[Vec<u8>; 4], linesizes: [isize; 4]) -> Planes<'_> {
         Planes {
             data: bufs.each_ref().map(|b| &b[..]),
             linesizes,
         }
     }
 
-    fn view_mut<'a>(bufs: &'a mut [Vec<u8>; 4], linesizes: [isize; 4]) -> PlanesMut<'a> {
+    fn view_mut(bufs: &mut [Vec<u8>; 4], linesizes: [isize; 4]) -> PlanesMut<'_> {
         PlanesMut {
             data: bufs.each_mut().map(|b| &mut b[..]),
             linesizes,
@@ -769,7 +779,7 @@ mod images {
             let mut buf = plane(size, 0);
             let planes = fill_pointers_mut(&mut buf, format, 7, ls).unwrap();
             for d in planes.data {
-                d.fill(0xee);
+                d.fill(0xEE);
             }
             assert!(fill_pointers(&buf[..size - 1], format, 7, ls).is_err());
         }
@@ -853,7 +863,7 @@ mod images {
 
 /// `max_pixel_steps`: C's table, and Rust-built descriptors with every slot's
 /// plane at the edges of C's four-plane arrays, which live on the wrapper's
-/// stack (so an index past them is an ASan report).
+/// stack (so an index past them is an `ASan` report).
 mod pixel_steps {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
@@ -912,7 +922,9 @@ mod with_context {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::imgutils::{check_size_max_pixels_with_context, check_size_with_context};
+    use ffmpeg_bindings::libavutil::libavutil::imgutils::{
+        check_size_max_pixels_with_context, check_size_with_context,
+    };
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
     use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef};
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
@@ -927,8 +939,15 @@ mod with_context {
         for offset in [c_int::MIN, -8, 0, 8, max] {
             assert_eq!(check_size_with_context(64, 48, offset, ctx), Ok(()));
             assert_eq!(check_size_with_context(0, 48, offset, ctx), Err(EINVAL));
-            assert_eq!(check_size_with_context(u32::MAX, u32::MAX, offset, ctx), Err(EINVAL));
-            for f in [PixelFormat::YUV420P, PixelFormat::MONOBLACK, PixelFormat::NONE] {
+            assert_eq!(
+                check_size_with_context(u32::MAX, u32::MAX, offset, ctx),
+                Err(EINVAL)
+            );
+            for f in [
+                PixelFormat::YUV420P,
+                PixelFormat::MONOBLACK,
+                PixelFormat::NONE,
+            ] {
                 let check = |w, h, px| check_size_max_pixels_with_context(w, h, px, f, offset, ctx);
                 assert_eq!(check(64, 48, 64 * 48), Ok(()));
                 assert_eq!(check(64, 48, 64 * 48 - 1), Err(EINVAL));
@@ -939,7 +958,10 @@ mod with_context {
             // Rejected before C runs.
             assert_eq!(check_size_with_context(0, 0, offset, ctx), Err(EINVAL));
             let f = PixelFormat::YUV420P;
-            assert_eq!(check_size_max_pixels_with_context(0, 0, 1, f, offset, ctx), Err(EINVAL));
+            assert_eq!(
+                check_size_max_pixels_with_context(0, 0, 1, f, offset, ctx),
+                Err(EINVAL)
+            );
         }
     }
 

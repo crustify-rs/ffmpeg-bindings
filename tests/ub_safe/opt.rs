@@ -1,4 +1,13 @@
 //! UB tests for `libavutil/opt.h`'s safe public API.
+#![expect(
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// `OptionType`: an open value type, whose every operation is defined for
 /// every `c_uint`, crossing threads by value.
@@ -69,7 +78,7 @@ mod option_type {
     }
 
     /// Types are plain values: copies are read on several threads at once
-    /// and sent back (ThreadSanitizer reports any race).
+    /// and sent back (`ThreadSanitizer` reports any race).
     #[test]
     fn types_cross_threads() {
         let types: Vec<OptionType> = values().map(OptionType::from_value).collect();
@@ -95,7 +104,9 @@ mod array_def {
     use std::ffi::CStr;
     use std::num::NonZeroU32;
 
-    use ffmpeg_bindings::libavutil::libavutil::opt::{InvalidSeparator, OptionArrayDef, OptionArrayDefRef};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        InvalidSeparator, OptionArrayDef, OptionArrayDefRef,
+    };
 
     #[test]
     fn edits_through_every_handle() {
@@ -121,7 +132,7 @@ mod array_def {
             m.as_mut().set_size_min(min / 2);
             assert_eq!(m.as_ref().size_min(), min / 2);
         }
-        for sep in [b'a', b'Z', b'5', b'\\', b'\n', b'\t', 0x7f, 0x80, 0xff] {
+        for sep in [b'a', b'Z', b'5', b'\\', b'\n', b'\t', 0x7F, 0x80, 0xFF] {
             assert_eq!(m.set_separator(sep), Err(InvalidSeparator(sep)));
             assert_eq!(m.as_ref().separator(), b'~');
         }
@@ -196,7 +207,9 @@ mod objects {
     use std::ffi::CString;
 
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
-    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, SearchFlags, SerializeFlags, parse_key_value};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        BareObject, SearchFlags, SerializeFlags, parse_key_value,
+    };
 
     static CLASS: Class = Class::new(c"crustify-opt-ub", ClassCategory::NA);
 
@@ -346,7 +359,9 @@ mod getters {
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapString;
-    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, ObjectRef, PotentialChildren, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        BareObject, ObjectRef, PotentialChildren, SearchFlags,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
@@ -607,8 +622,12 @@ mod lookups {
     use std::cell::{Cell, RefCell};
 
     use ffmpeg_bindings::libavutil::libavutil::cpu;
-    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Class, ClassCategory, ClassRef, Record};
-    use ffmpeg_bindings::libavutil::libavutil::opt::{BareObject, EvalContext, RangeFlags, SearchFlags};
+    use ffmpeg_bindings::libavutil::libavutil::log::{
+        self, Callback, Class, ClassCategory, ClassRef, Record,
+    };
+    use ffmpeg_bindings::libavutil::libavutil::opt::{
+        BareObject, EvalContext, RangeFlags, SearchFlags,
+    };
 
     use crate::log::{LogState, isolated};
 

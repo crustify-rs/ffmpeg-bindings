@@ -1,3 +1,8 @@
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 use ffmpeg_bindings::libavutil::libavutil::base64::{decode, encode, validate};
 
 #[test]
@@ -5,7 +10,7 @@ use ffmpeg_bindings::libavutil::libavutil::base64::{decode, encode, validate};
 fn batch10_roundtrips_truncation_and_reused_buffers() {
     let input: Vec<_> = (0..2048).map(|i| (i * 53) as u8).collect();
     for len in 0..80 {
-        let bytes = &input[1..1 + len];
+        let bytes = &input[1..=len];
         let mut encoded = vec![0xAA; len.div_ceil(3) * 4 + 1];
         let text = encode(bytes, &mut encoded).unwrap();
         validate(text).unwrap();

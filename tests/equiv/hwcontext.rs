@@ -11,15 +11,36 @@
 //! The campaign builds compile no hwcontext backend, so C can make no
 //! hardware frames context; the transfers (`transfer`) run on the fake one
 //! of `tests/common/hwframes.rs`.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::needless_pass_by_value,
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_uint, c_void};
 use core::mem::size_of;
 
+use ffi::AVHWDeviceType as C;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceType, TransferDirection};
 use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
-
-use ffi::AVHWDeviceType as C;
 
 /// Every named constant beside its C enumerator and the name C gives it.
 const NAMED: [(DeviceType, C, Option<&str>); 15] = [
@@ -199,14 +220,18 @@ impl CTypes {
 
     fn get(&self, i: usize) -> C {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_2 = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live, initialised block.
-        unsafe { self.0.add(i).read() }
+        unsafe { v_0_add_2.read() }
     }
 
     fn set(&mut self, i: usize, t: C) {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live block, which we own.
-        unsafe { self.0.add(i).write(t) }
+        unsafe { v_0_add.write(t) }
     }
 }
 
@@ -221,10 +246,13 @@ impl Drop for CTypes {
 fn rust_as_c(a: &HeapVec<DeviceType>) -> Vec<C> {
     let ptr = a.as_ptr().cast::<C>();
     (0..a.len())
-        // SAFETY: `DeviceType` is `#[repr(transparent)]` over
-        // `ffi::AVHWDeviceType`, and `i` is in bounds of the live,
-        // initialised array `a` borrows.
-        .map(|i| unsafe { ptr.add(i).read() })
+        .map(|i| {
+            // SAFETY: `i` is in bounds of the live array `a` borrows.
+            let at = unsafe { ptr.add(i) };
+            // SAFETY: as above, initialised; `DeviceType` is `#[repr(transparent)]` over
+            // `ffi::AVHWDeviceType`.
+            unsafe { at.read() }
+        })
         .collect()
 }
 
@@ -282,6 +310,10 @@ fn transfer_directions_are_the_c_enumerators() {
 
 /// The fake hardware frames context backend the transfer comparisons run
 /// on.
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwframes.rs"]
 mod hwframes;
 
@@ -296,6 +328,7 @@ mod transfer {
     use core::ffi::c_int;
     use core::ptr;
 
+    use ffi::AVPixelFormat as Fmt;
     use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReferenceBox;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox};
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::TransferDirection;
@@ -307,8 +340,6 @@ mod transfer {
         YUV, pattern,
     };
 
-    use ffi::AVPixelFormat as Fmt;
-
     const W: c_int = 16;
     const H: c_int = 8;
 
@@ -318,7 +349,7 @@ mod transfer {
     impl Drop for CFrame {
         fn drop(&mut self) {
             // SAFETY: a frame this test owns.
-            unsafe { ffi::av_frame_free(&mut self.0) };
+            unsafe { ffi::av_frame_free(&raw mut self.0) };
         }
     }
 
@@ -328,7 +359,7 @@ mod transfer {
     impl Drop for CBuf {
         fn drop(&mut self) {
             // SAFETY: a reference this test owns.
-            unsafe { ffi::av_buffer_unref(&mut self.0) };
+            unsafe { ffi::av_buffer_unref(&raw mut self.0) };
         }
     }
 
@@ -363,12 +394,16 @@ mod transfer {
     /// A hardware frame of each side's context, its surface holding
     /// `pattern(seed)`.
     fn hw_frames(ctx: &(CBuf, BufferReferenceBox), seed: u8) -> (CFrame, FrameBox) {
-        // SAFETY: live fake contexts; the Rust frame is adopted fresh, and
+        // For the unsafe operations below: live fake contexts; the Rust frame is adopted fresh, and
         // satisfies `Frame`'s invariant: its context reference is one, and
         // `data[3]` is the start of `buf[0]`'s window.
-        unsafe {
-            let c = CFrame(fx::new_hw_frame(ctx.0.0, pattern(seed)));
-            let r = FrameBox::from_c(fx::new_hw_frame(ctx.1.as_c_ptr(), pattern(seed))).unwrap();
+        {
+            // SAFETY: as the comment above this block states.
+            let c = unsafe { CFrame(fx::new_hw_frame(ctx.0.0, pattern(seed))) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let new_hw_frame_2 = unsafe { fx::new_hw_frame(ctx.1.as_c_ptr(), pattern(seed)) };
+            // SAFETY: as the comment above this block states.
+            let r = unsafe { FrameBox::from_c(new_hw_frame_2).unwrap() };
             assert!(!c.0.is_null());
             (c, r)
         }
@@ -413,18 +448,17 @@ mod transfer {
     fn images(f: &(CFrame, FrameBox), format: Fmt, w: c_int, h: c_int) -> (Vec<u8>, Vec<u8>) {
         // SAFETY: callers pass frames whose planes (surfaces) hold that
         // image, initialised.
-        unsafe {
-            (
-                fx::image(f.0.0, format, w, h),
-                fx::image(f.1.as_c_ptr(), format, w, h),
-            )
-        }
+        (unsafe { fx::image(f.0.0, format, w, h) }, unsafe {
+            fx::image(f.1.as_c_ptr(), format, w, h)
+        })
     }
 
     /// Both sides' whole surface images.
     fn surfaces(f: &(CFrame, FrameBox)) -> (Vec<u8>, Vec<u8>) {
         // SAFETY: hardware frames of fake contexts.
-        unsafe { (fx::surface_image(f.0.0), fx::surface_image(f.1.as_c_ptr())) }
+        (unsafe { fx::surface_image(f.0.0) }, unsafe {
+            fx::surface_image(f.1.as_c_ptr())
+        })
     }
 
     /// A frame's format, width, height and line sizes.
@@ -433,14 +467,12 @@ mod transfer {
     /// The [`Shape`] of each side.
     fn shapes(f: &(CFrame, FrameBox)) -> (Shape, Shape) {
         // SAFETY: a live frame this test owns.
-        let c = unsafe {
-            (
-                (*f.0.0).format,
-                (*f.0.0).width,
-                (*f.0.0).height,
-                (*f.0.0).linesize,
-            )
-        };
+        let c = (
+            unsafe { (*f.0.0).format },
+            unsafe { (*f.0.0).width },
+            unsafe { (*f.0.0).height },
+            unsafe { (*f.0.0).linesize },
+        );
         let r = f.1.as_ref();
         (c, (r.format(), r.width(), r.height(), r.linesizes()))
     }
@@ -474,20 +506,24 @@ mod transfer {
         let mut list = ptr::null_mut();
         let (raw, dir) = (ctx.0, dir.into_raw());
         // SAFETY: a live fake context and a writable slot.
-        let ret = unsafe { ffi::av_hwframe_transfer_get_formats(raw, dir, &mut list, 0) };
+        let ret = unsafe { ffi::av_hwframe_transfer_get_formats(raw, dir, &raw mut list, 0) };
         if ret < 0 {
             return Err(ret);
         }
         let mut out = Vec::new();
-        // SAFETY: a terminated list C handed over, read to its terminator
+        // For the unsafe operations below: a terminated list C handed over, read to its terminator
         // and freed.
-        unsafe {
+        {
             let mut p = list;
-            while *p != Fmt::AV_PIX_FMT_NONE {
-                out.push(PixelFormat::from_raw(*p));
-                p = p.add(1);
+            // SAFETY: as the comment above this block states.
+            while unsafe { *p } != Fmt::AV_PIX_FMT_NONE {
+                // SAFETY: as the comment above this statement states.
+                out.push(PixelFormat::from_raw(unsafe { *p }));
+                // SAFETY: as the comment at the head of this block states.
+                p = unsafe { p.add(1) };
             }
-            ffi::av_free(list.cast());
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_free(list.cast()) };
         }
         Ok(out)
     }
@@ -530,10 +566,16 @@ mod transfer {
             let ctx = contexts(&YUV, W, H);
             let mut src = hw_frames(&ctx, 1);
             let mut dst = sw_frames(format, W, H, 0);
-            // SAFETY: frames this test owns.
-            unsafe {
-                ((*src.0.0).width, (*src.0.0).height) = (w, h);
-                ((*dst.0.0).width, (*dst.0.0).height) = (w, h);
+            // For the unsafe operations below: frames this test owns.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { (*src.0.0).width = w };
+                // SAFETY: as the comment above the previous write states.
+                unsafe { (*src.0.0).height = h };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*dst.0.0).width = w };
+                // SAFETY: as the comment above the previous write states.
+                unsafe { (*dst.0.0).height = h };
             }
             for f in [&mut src.1, &mut dst.1] {
                 f.as_mut().set_width(w);
@@ -554,8 +596,10 @@ mod transfer {
             let ctx = contexts(&YUV, W, H);
             let mut dst = hw_frames(&ctx, 0);
             let mut src = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 2);
-            // SAFETY: frames this test owns.
-            unsafe { ((*src.0.0).width, (*src.0.0).height) = (w, h) };
+            // SAFETY: frames this test owns; a write of its `width`.
+            unsafe { (*src.0.0).width = w };
+            // SAFETY: frames this test owns; a write of its `height`.
+            unsafe { (*src.0.0).height = h };
             src.1.as_mut().set_width(w);
             src.1.as_mut().set_height(h);
             assert_eq!(transfer_both(&mut dst, &src), 0);
@@ -578,13 +622,23 @@ mod transfer {
         let offsets = [0, (W * H) as usize, (W * H + W * H / 4) as usize];
         let c = CFrame(
             // SAFETY: a fresh frame lent `mem`'s planes, which outlive it.
-            unsafe {
-                let f = ffi::av_frame_alloc();
-                (*f).format = Fmt::AV_PIX_FMT_YUV420P.0;
-                ((*f).width, (*f).height) = (W, H);
+            {
+                // SAFETY: as the comment above this block states.
+                let f = unsafe { ffi::av_frame_alloc() };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*f).format = Fmt::AV_PIX_FMT_YUV420P.0 };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*f).width = W };
+                // SAFETY: as the comment above the previous write states.
+                unsafe { (*f).height = H };
                 for (i, off) in offsets.into_iter().enumerate() {
-                    (*f).data[i] = base.add(off);
-                    (*f).linesize[i] = if i == 0 { W } else { W / 2 };
+                    // SAFETY: as the comment above this block states: plane `i`'s offset into
+                    // the block.
+                    let plane = unsafe { base.add(off) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).data[i] = plane };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*f).linesize[i] = if i == 0 { W } else { W / 2 } };
                 }
                 f
             },
@@ -596,9 +650,11 @@ mod transfer {
         m.set_height(H);
         m.set_linesizes([W, W / 2, W / 2, 0, 0, 0, 0, 0]);
         for (i, off) in offsets.into_iter().enumerate() {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let base_add = unsafe { base.add(off) };
             // SAFETY: `mem` outlives the frame and holds each plane; nothing
             // writes it meanwhile.
-            unsafe { m.set_data_ptr(i, base.add(off)) };
+            unsafe { m.set_data_ptr(i, base_add) };
         }
         let src = (c, r);
         assert_eq!(transfer_both(&mut dst, &src), 0);
@@ -634,10 +690,12 @@ mod transfer {
             let (sc, dc) = (contexts(&YUV, W, H), contexts(&YUV, W, H));
             let source = contexts(&YUV, W, H);
             let target = if derived_side == 0 { &sc } else { &dc };
-            // SAFETY: live references to fake contexts.
-            unsafe {
-                fx::derive(target.0.0, source.0.0);
-                fx::derive(target.1.as_c_ptr(), source.1.as_c_ptr());
+            // For the unsafe operations below: live references to fake contexts.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::derive(target.0.0, source.0.0) };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::derive(target.1.as_c_ptr(), source.1.as_c_ptr()) };
             }
             let src = hw_frames(&sc, 5);
             let mut dst = hw_frames(&dc, 6);
@@ -663,15 +721,19 @@ mod transfer {
         ] {
             let ctx = contexts(behaviour, W, H);
             let mut src = hw_frames(&ctx, 7);
-            // SAFETY: a frame this test owns.
-            unsafe { ((*src.0.0).width, (*src.0.0).height) = (w, h) };
+            // SAFETY: a frame this test owns; a write of its `width`.
+            unsafe { (*src.0.0).width = w };
+            // SAFETY: a frame this test owns; a write of its `height`.
+            unsafe { (*src.0.0).height = h };
             src.1.as_mut().set_width(w);
             src.1.as_mut().set_height(h);
             // Fresh frames hold nothing C would leak.
-            // SAFETY: a fresh frame, given a format.
-            let c = CFrame(unsafe {
-                let f = ffi::av_frame_alloc();
-                (*f).format = format.0;
+            // For the unsafe operations below: a fresh frame, given a format.
+            let c = CFrame({
+                // SAFETY: as the comment above this block states.
+                let f = unsafe { ffi::av_frame_alloc() };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*f).format = format.0 };
                 f
             });
             let mut r = Frame::new().unwrap();
@@ -746,9 +808,15 @@ mod transfer {
         // Edit one byte of each plane on each side.
         let lines = down.1.as_ref().linesizes();
         for (i, &line) in lines.iter().enumerate().take(3) {
-            // SAFETY: plane `i` of a frame C gave buffers, row 1 inside it.
-            unsafe { *(*down.0.0).data[i].add((*down.0.0).linesize[i] as usize + 1) ^= 0xff };
-            down.1.as_mut().plane_mut(i).unwrap()[line as usize + 1] ^= 0xff;
+            // SAFETY: a frame C gave buffers: reads of plane `i` and its line size.
+            let (plane, ls) = (unsafe { (*down.0.0).data[i] }, unsafe {
+                (*down.0.0).linesize[i]
+            });
+            // SAFETY: as above: byte 1 of row 1 lies inside the plane.
+            let at = unsafe { plane.add(ls as usize + 1) };
+            // SAFETY: as above.
+            unsafe { *at ^= 0xFF };
+            down.1.as_mut().plane_mut(i).unwrap()[line as usize + 1] ^= 0xFF;
         }
         assert_eq!(transfer_both(&mut ha, &down), 0);
         let (c, r) = surfaces(&ha);
@@ -767,6 +835,10 @@ mod transfer {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwbackend.rs"]
 mod backend;
 
@@ -821,10 +893,13 @@ mod contexts {
         pool: c_int,
         hwctx: FramesHwctx,
     ) {
-        // SAFETY: callers pass a fresh, uninitialised context they alone hold.
-        unsafe {
-            fx::fill_frames(ctx, kind, size.0, size.1, pool);
-            fx::set_frames_hwctx(ctx, hwctx);
+        // For the unsafe operations below: callers pass a fresh, uninitialised context they alone
+        // hold.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::fill_frames(ctx, kind, size.0, size.1, pool) };
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::set_frames_hwctx(ctx, hwctx) };
         }
     }
 
@@ -876,15 +951,21 @@ mod contexts {
 
     /// C: a hardware frame of `frames`, or C's error.
     fn c_get_buffer(frames: *mut ffi::AVBufferRef) -> Result<*mut ffi::AVFrame, c_int> {
-        // SAFETY: allocation, then a live frames context and a fresh frame.
-        unsafe {
-            let mut frame = ffi::av_frame_alloc();
-            let ret = ffi::av_hwframe_get_buffer(frames, frame, 0);
-            if ret < 0 {
-                ffi::av_frame_free(&mut frame);
-                Err(ret)
-            } else {
-                Ok(frame)
+        // For the unsafe operations below: allocation, then a live frames context and a fresh
+        // frame.
+        {
+            // SAFETY: as the comment above this block states.
+            let mut frame = unsafe { ffi::av_frame_alloc() };
+            // SAFETY: as the comment above this block states.
+            let ret = unsafe { ffi::av_hwframe_get_buffer(frames, frame, 0) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                if ret < 0 {
+                    ffi::av_frame_free(&raw mut frame);
+                    Err(ret)
+                } else {
+                    Ok(frame)
+                }
             }
         }
     }
@@ -897,17 +978,25 @@ mod contexts {
         frames: *mut ffi::AVBufferRef,
         flags: MapFlags,
     ) -> Result<*mut ffi::AVFrame, c_int> {
-        // SAFETY: allocation, then a live source frame and a fresh one with
-        // a format and, when given, a new reference to a frames context.
-        unsafe {
-            let mut dst = ffi::av_frame_alloc();
-            (*dst).format = format;
+        // For the unsafe operations below: allocation, then a live source frame and a fresh one
+        // with a format and, when given, a new reference to a frames context.
+        {
+            // SAFETY: as the comment above this block states.
+            let mut dst = unsafe { ffi::av_frame_alloc() };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*dst).format = format };
             if !frames.is_null() {
-                (*dst).hw_frames_ctx = ffi::av_buffer_ref(frames);
+                // SAFETY: as the comment above this block states: a live reference, to which C
+                // adds one.
+                let frames = unsafe { ffi::av_buffer_ref(frames) };
+                // SAFETY: as the comment above this block states: the frame takes it.
+                unsafe { (*dst).hw_frames_ctx = frames };
             }
-            let ret = ffi::av_hwframe_map(dst, src, flags.bits());
+            // SAFETY: as the comment above this block states.
+            let ret = unsafe { ffi::av_hwframe_map(dst, src, flags.bits()) };
             if ret < 0 {
-                ffi::av_frame_free(&mut dst);
+                // SAFETY: as the comment above this block states, released once.
+                unsafe { ffi::av_frame_free(&raw mut dst) };
                 Err(ret)
             } else {
                 Ok(dst)
@@ -917,7 +1006,7 @@ mod contexts {
 
     fn free_frame(mut frame: *mut ffi::AVFrame) {
         // SAFETY: callers pass a frame they own.
-        unsafe { ffi::av_frame_free(&mut frame) }
+        unsafe { ffi::av_frame_free(&raw mut frame) }
     }
 
     /// The format, width and height of a C frame.
@@ -933,8 +1022,10 @@ mod contexts {
 
     /// The frames context a C frame holds.
     fn c_frames_of(frame: *const ffi::AVFrame) -> *const u8 {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hw_frames_ctx_2 = unsafe { (*frame).hw_frames_ctx };
         // SAFETY: callers pass a live frame with a frames context.
-        unsafe { (*(*frame).hw_frames_ctx).data.cast_const() }
+        unsafe { (*hw_frames_ctx_2).data.cast_const() }
     }
 
     fn data(buf: *const ffi::AVBufferRef) -> *const u8 {
@@ -1000,7 +1091,7 @@ mod contexts {
                         let mut d = null_mut();
                         let (k, v) = (c"connect".as_ptr(), c"1".as_ptr());
                         // SAFETY: a fresh dictionary slot and live strings.
-                        let ret = unsafe { ffi::av_dict_set(&mut d, k, v, 0) };
+                        let ret = unsafe { ffi::av_dict_set(&raw mut d, k, v, 0) };
                         assert_eq!(ret, 0);
                         d
                     });
@@ -1008,7 +1099,7 @@ mod contexts {
                     // dictionary freed below.
                     let ret = unsafe {
                         ffi::av_hwdevice_ctx_create(
-                            &mut out,
+                            &raw mut out,
                             t.into_raw(),
                             device.map_or(ptr::null(), CStr::as_ptr),
                             raw_opts,
@@ -1017,7 +1108,7 @@ mod contexts {
                     };
                     let mut raw_opts = raw_opts;
                     // SAFETY: the dictionary built above.
-                    unsafe { ffi::av_dict_free(&mut raw_opts) };
+                    unsafe { ffi::av_dict_free(&raw mut raw_opts) };
                     assert!(out.is_null());
                     let rust = DeviceReference::create(t, device, opts);
                     assert_eq!(rust.err(), Some(ret), "{t:?} {device:?}");
@@ -1040,10 +1131,12 @@ mod contexts {
         let options = Dict::from_entries([(c"k", c"v")]).unwrap();
         let (ca, cb) = (c_device(Kind::A), c_device(Kind::B));
         let (ra, rb) = (rust_device(Kind::A), rust_device(Kind::B));
-        // SAFETY: live test devices, not derived yet.
-        unsafe {
-            fx::set_source_device(cb, ca);
-            fx::set_source_device(rb.as_c_ptr(), ra.as_c_ptr());
+        // For the unsafe operations below: live test devices, not derived yet.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::set_source_device(cb, ca) };
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::set_source_device(rb.as_c_ptr(), ra.as_c_ptr()) };
         }
         let c_chain = [data(ca), data(cb)];
         let r_chain = [data(ra.as_c_ptr()), data(rb.as_c_ptr())];
@@ -1060,22 +1153,28 @@ mod contexts {
                 let with_options = step % 3 == 1;
                 let c_src = [ca, cb][src];
                 let mut out = null_mut();
-                // SAFETY: a local slot and a live device reference.
-                let ret = unsafe {
-                    if with_options {
-                        let mut d = null_mut();
-                        ffi::av_dict_set(&mut d, c"k".as_ptr(), c"v".as_ptr(), 0);
-                        let ret = ffi::av_hwdevice_ctx_create_derived_opts(
-                            &mut out,
+                // For the unsafe operations below: a local slot and a live device reference.
+                let ret = if with_options {
+                    let mut d = null_mut();
+                    // SAFETY: as the comment at the head of this block states.
+                    unsafe { ffi::av_dict_set(&raw mut d, c"k".as_ptr(), c"v".as_ptr(), 0) };
+                    // SAFETY: as the comment at the head of this block states.
+                    let ret = unsafe {
+                        ffi::av_hwdevice_ctx_create_derived_opts(
+                            &raw mut out,
                             t.into_raw(),
                             c_src,
                             d,
                             0,
-                        );
-                        ffi::av_dict_free(&mut d);
-                        ret
-                    } else {
-                        ffi::av_hwdevice_ctx_create_derived(&mut out, t.into_raw(), c_src, 0)
+                        )
+                    };
+                    // SAFETY: as the comment at the head of this block states.
+                    unsafe { ffi::av_dict_free(&raw mut d) };
+                    ret
+                } else {
+                    // SAFETY: as the comment at the head of this block states.
+                    unsafe {
+                        ffi::av_hwdevice_ctx_create_derived(&raw mut out, t.into_raw(), c_src, 0)
                     }
                 };
                 let r_src = [&ra, &rb][src].as_ref();
@@ -1116,10 +1215,12 @@ mod contexts {
             [count(ca), count(cb)],
             [count(ra.as_c_ptr()), count(rb.as_c_ptr())]
         );
-        // SAFETY: the test's own references.
-        unsafe {
-            fx::unref(cb);
-            fx::unref(ca);
+        // For the unsafe operations below: the test's own references.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::unref(cb) };
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::unref(ca) };
         }
         let c_events = fx::take_events();
         drop((rb, ra));
@@ -1135,8 +1236,10 @@ mod contexts {
         let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
         let rust = r_dev.as_ref().alloc_frames().unwrap();
         assert_eq!(count(c_dev), count(r_dev.as_c_ptr()));
+        // SAFETY: as the comment below states, for this part of the operation.
+        let frames_ctx_2 = unsafe { fx::frames_ctx(c) };
         // SAFETY: the fresh context's public struct.
-        let cc = unsafe { *fx::frames_ctx(c) };
+        let cc = unsafe { *frames_ctx_2 };
         let rc = rust.context();
         assert_eq!(
             (cc.format, cc.sw_format),
@@ -1295,7 +1398,7 @@ mod contexts {
                             r_maps.push(r);
                         }
                         (c, rust) => {
-                            assert_eq!(c.err(), rust.err(), "{format:?} {flags:?} {map_ret}")
+                            assert_eq!(c.err(), rust.err(), "{format:?} {flags:?} {map_ret}");
                         }
                     }
                     assert_eq!(count(cf), count(rf.as_c_ptr()));
@@ -1381,7 +1484,13 @@ mod contexts {
             let mut cd = null_mut();
             // SAFETY: a local slot and live references.
             let ret = unsafe {
-                ffi::av_hwframe_ctx_create_derived(&mut cd, Kind::B.format(), cb, cfa, flags.bits())
+                ffi::av_hwframe_ctx_create_derived(
+                    &raw mut cd,
+                    Kind::B.format(),
+                    cb,
+                    cfa,
+                    flags.bits(),
+                )
             };
             let c_events = fx::take_events();
             let rd = rfa
@@ -1413,7 +1522,13 @@ mod contexts {
                     let mut cback = null_mut();
                     // SAFETY: a local slot and live references.
                     let ret = unsafe {
-                        ffi::av_hwframe_ctx_create_derived(&mut cback, Kind::A.format(), ca, cd, 0)
+                        ffi::av_hwframe_ctx_create_derived(
+                            &raw mut cback,
+                            Kind::A.format(),
+                            ca,
+                            cd,
+                            0,
+                        )
                     };
                     let rback = rd
                         .as_ref()
@@ -1438,11 +1553,16 @@ mod contexts {
                 free_frame(c);
             }
             free_frame(cs);
-            // SAFETY: NULL or the references C returned, and the test's own.
-            unsafe {
-                fx::unref(cd);
-                for buf in [cfb, cfa, cb, ca] {
-                    fx::unref(buf);
+            // For the unsafe operations below: NULL or the references C returned, and the test's
+            // own.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(cd) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    for buf in [cfb, cfa, cb, ca] {
+                        fx::unref(buf);
+                    }
                 }
             }
             let c_events = fx::take_events();
@@ -1475,10 +1595,12 @@ mod contexts {
         for f in [c, cs] {
             free_frame(f);
         }
-        // SAFETY: the test's own references.
-        unsafe {
-            fx::unref(cf);
-            fx::unref(ca);
+        // For the unsafe operations below: the test's own references.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::unref(cf) };
+            // SAFETY: as the comment above this block states.
+            unsafe { fx::unref(ca) };
         }
         fx::take_events();
         drop((rs, rf, ra));
@@ -1498,12 +1620,10 @@ mod contexts {
             if let Some(r) = &rust {
                 assert_eq!(r.device_type().into_raw(), kind.device_type());
                 // SAFETY: two blocks of the backend's configuration size.
-                let (cb, rb) = unsafe {
-                    (
-                        core::slice::from_raw_parts(c.cast::<u8>(), HWCONFIG_SIZE),
-                        core::slice::from_raw_parts(r.as_ptr().cast::<u8>(), HWCONFIG_SIZE),
-                    )
-                };
+                let (cb, rb) = (
+                    unsafe { core::slice::from_raw_parts(c.cast::<u8>(), HWCONFIG_SIZE) },
+                    unsafe { core::slice::from_raw_parts(r.as_ptr().cast::<u8>(), HWCONFIG_SIZE) },
+                );
                 assert_eq!(cb, rb);
             }
             // SAFETY: NULL or the block C returned.
@@ -1563,14 +1683,22 @@ mod hardware_frame_transfers {
             let c_dev = fx::device(kind);
             // SAFETY: the only reference to an initialised test device.
             let r_dev = unsafe { DeviceReferenceBox::from_c(fx::device(kind)) }.unwrap();
-            // SAFETY: a live device; then the fresh frames context it made,
-            // filled and initialised.
-            let c = unsafe {
-                let c = ffi::av_hwframe_ctx_alloc(c_dev);
+            // For the unsafe operations below: a live device; then the fresh frames context it
+            // made, filled and initialised.
+            let c = {
+                // SAFETY: as the comment above this block states.
+                let c = unsafe { ffi::av_hwframe_ctx_alloc(c_dev) };
                 assert!(!c.is_null());
-                fx::fill_frames(fx::frames_ctx(c), kind, W, H, 0);
-                fx::set_frames_hwctx(fx::frames_ctx(c), hwctx);
-                assert_eq!(ffi::av_hwframe_ctx_init(c), 0);
+                // SAFETY: as the comment below states, for this part of the operation.
+                let frames_ctx_3 = unsafe { fx::frames_ctx(c) };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::fill_frames(frames_ctx_3, kind, W, H, 0) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let frames_ctx_2 = unsafe { fx::frames_ctx(c) };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::set_frames_hwctx(frames_ctx_2, hwctx) };
+                // SAFETY: as the comment above this block states.
+                unsafe { assert_eq!(ffi::av_hwframe_ctx_init(c), 0) };
                 c
             };
             let mut r = r_dev.as_ref().alloc_frames().unwrap();
@@ -1603,10 +1731,12 @@ mod hardware_frame_transfers {
 
     impl Drop for Contexts {
         fn drop(&mut self) {
-            // SAFETY: the test's own references.
-            unsafe {
-                fx::unref(self.c);
-                fx::unref(self.c_dev);
+            // For the unsafe operations below: the test's own references.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(self.c) };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(self.c_dev) };
             }
         }
     }
@@ -1626,7 +1756,7 @@ mod hardware_frame_transfers {
     impl Drop for CFrame {
         fn drop(&mut self) {
             // SAFETY: a frame this test owns.
-            unsafe { ffi::av_frame_free(&mut self.0) };
+            unsafe { ffi::av_frame_free(&raw mut self.0) };
         }
     }
 
@@ -1648,18 +1778,29 @@ mod hardware_frame_transfers {
     /// [`alloc_buffers`]: ffmpeg_bindings::libavutil::libavutil::frame::FrameMut::alloc_buffers
     fn software(w: c_int, h: c_int, seed: u8) -> (CFrame, FrameBox) {
         let c = CFrame::alloc();
-        // SAFETY: a fresh frame given a format, size and buffers, whose image
-        // rows are then written inside its planes.
-        unsafe {
-            (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0;
-            (*c.0).width = w;
-            (*c.0).height = h;
-            assert_eq!(ffi::av_frame_get_buffer(c.0, 0), 0);
+        // For the unsafe operations below: a fresh frame given a format, size and buffers, whose
+        // image rows are then written inside its planes.
+        {
+            // SAFETY: as the comment above this block states.
+            unsafe { (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*c.0).width = w };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*c.0).height = h };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_frame_get_buffer(c.0, 0), 0) };
             for (i, rows) in planes(h) {
+                // SAFETY: as the comment above this block states: reads of plane `i` and its
+                // line size.
+                let (plane, ls) = (unsafe { (*c.0).data[i] }, unsafe { (*c.0).linesize[i] });
                 for r in 0..rows {
-                    let row = (*c.0).data[i].offset(r as isize * (*c.0).linesize[i] as isize);
+                    // SAFETY: as above: row `r` of the plane.
+                    let row = unsafe { plane.offset(r as isize * ls as isize) };
                     for x in 0..w as usize {
-                        row.add(x).write(byte(seed, i, r, x));
+                        // SAFETY: as above: byte `x` of the row.
+                        let at = unsafe { row.add(x) };
+                        // SAFETY: as above.
+                        unsafe { at.write(byte(seed, i, r, x)) };
                     }
                 }
             }
@@ -1686,13 +1827,14 @@ mod hardware_frame_transfers {
     /// The `W` x `H` NV12 image of each side's software frame.
     fn images(c: &CFrame, r: &FrameBox) -> (Vec<u8>, Vec<u8>) {
         let mut ci = Vec::new();
-        // SAFETY: a live frame whose planes hold the image, initialised.
-        unsafe {
-            for (i, rows) in planes(H) {
-                for row in 0..rows {
-                    let p = (*c.0).data[i].offset(row as isize * (*c.0).linesize[i] as isize);
-                    ci.extend_from_slice(core::slice::from_raw_parts(p, W as usize));
-                }
+        for (i, rows) in planes(H) {
+            // SAFETY: a live frame: reads of plane `i` and its line size.
+            let (plane, ls) = (unsafe { (*c.0).data[i] }, unsafe { (*c.0).linesize[i] });
+            for row in 0..rows {
+                // SAFETY: as above: row `row` of the plane.
+                let p = unsafe { plane.offset(row as isize * ls as isize) };
+                // SAFETY: as above: the plane holds the image, initialised.
+                ci.extend_from_slice(unsafe { core::slice::from_raw_parts(p, W as usize) });
             }
         }
         let f = r.as_ref();
@@ -1709,7 +1851,9 @@ mod hardware_frame_transfers {
     /// The format, width and height of each side's frame.
     fn dims(c: &CFrame, r: &FrameBox) -> ((c_int, c_int, c_int), (c_int, c_int, c_int)) {
         // SAFETY: a live frame.
-        let cd = unsafe { ((*c.0).format, (*c.0).width, (*c.0).height) };
+        let cd = (unsafe { (*c.0).format }, unsafe { (*c.0).width }, unsafe {
+            (*c.0).height
+        });
         let f = r.as_ref();
         (cd, (f.format(), f.width(), f.height()))
     }
@@ -1740,19 +1884,23 @@ mod hardware_frame_transfers {
                 let mut list = ptr::null_mut();
                 // SAFETY: a live frames context and a writable slot.
                 let ret = unsafe {
-                    ffi::av_hwframe_transfer_get_formats(ctx.c, dir.into_raw(), &mut list, 0)
+                    ffi::av_hwframe_transfer_get_formats(ctx.c, dir.into_raw(), &raw mut list, 0)
                 };
                 let c = (ret >= 0).then(|| {
-                    // SAFETY: the terminated list C handed over, read to its
-                    // terminator and freed.
-                    unsafe {
+                    // For the unsafe operations below: the terminated list C handed over, read to
+                    // its terminator and freed.
+                    {
                         let mut out = Vec::new();
                         let mut p = list;
-                        while *p != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
-                            out.push(PixelFormat::from_raw(*p));
-                            p = p.add(1);
+                        // SAFETY: as the comment above this block states.
+                        while unsafe { *p } != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                            // SAFETY: as the comment above this statement states.
+                            out.push(PixelFormat::from_raw(unsafe { *p }));
+                            // SAFETY: as the comment at the head of this block states.
+                            p = unsafe { p.add(1) };
                         }
-                        ffi::av_free(list.cast());
+                        // SAFETY: as the comment above this block states.
+                        unsafe { ffi::av_free(list.cast()) };
                         out
                     }
                 });
@@ -1852,7 +2000,13 @@ mod hardware_frame_transfers {
         let mut c_derived = ptr::null_mut();
         // SAFETY: live device and frames contexts and a writable slot.
         let ret = unsafe {
-            ffi::av_hwframe_ctx_create_derived(&mut c_derived, fmt, ok.c_dev, ok.c, flags.bits())
+            ffi::av_hwframe_ctx_create_derived(
+                &raw mut c_derived,
+                fmt,
+                ok.c_dev,
+                ok.c,
+                flags.bits(),
+            )
         };
         assert_eq!(ret, 0);
         let source = ok.r.as_ref();
@@ -1896,6 +2050,10 @@ mod hardware_frame_transfers {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "a helper shared by several test crates; this one uses only some of it"
+)]
 #[path = "../common/hwdevice.rs"]
 mod hwdevice;
 
@@ -1914,7 +2072,9 @@ mod device_context {
     use std::sync::{Arc, Mutex};
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceContextMut, DeviceContextRef, UninitDevice};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+        DeviceContextMut, DeviceContextRef, UninitDevice,
+    };
 
     use super::hwdevice::{self, BARE_TYPE, Events, FakeHw};
 
@@ -1922,13 +2082,17 @@ mod device_context {
     /// written by hand, counting into `events`.
     fn c_device(events: &Arc<Events>, value: i64, init_ret: c_int) -> *mut ffi::AVBufferRef {
         let raw = hwdevice::fake_device();
-        // SAFETY: the only reference to a fresh fake context; the events
+        // For the unsafe operations below: the only reference to a fresh fake context; the events
         // outlive it.
-        unsafe {
-            let hw = hwdevice::hwctx(raw);
-            (*hw).events = Arc::as_ptr(events);
-            (*hw).value = value;
-            (*hw).init_ret = init_ret;
+        {
+            // SAFETY: as the comment above this block states.
+            let hw = unsafe { hwdevice::hwctx(raw) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*hw).events = Arc::as_ptr(events) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*hw).value = value };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*hw).init_ret = init_ret };
         }
         raw
     }
@@ -1948,22 +2112,24 @@ mod device_context {
 
     /// C's view of a context's hardware context: value and initialised flag.
     fn c_state(raw: *mut ffi::AVBufferRef) -> (i64, c_int) {
-        // SAFETY: a live reference to a fake context.
-        unsafe {
-            let hw = hwdevice::hwctx(raw);
-            ((*hw).value, (*hw).initialised)
+        // For the unsafe operations below: a live reference to a fake context.
+        {
+            // SAFETY: as the comment above this block states.
+            let hw = unsafe { hwdevice::hwctx(raw) };
+            // SAFETY: as the comment above this block states.
+            (unsafe { (*hw).value }, unsafe { (*hw).initialised })
         }
     }
 
     fn rust_state(ctx: DeviceContextRef<'_>) -> (i64, c_int) {
         // SAFETY: the fake context's hardware context is a `FakeHwctx`.
         let hw = unsafe { ctx.hwctx::<FakeHw>() }.unwrap();
-        (hw.value(), hw.initialised() as c_int)
+        (hw.value(), c_int::from(hw.initialised()))
     }
 
     fn c_unref(mut raw: *mut ffi::AVBufferRef) {
         // SAFETY: the caller's reference, released once.
-        unsafe { ffi::av_buffer_unref(&mut raw) };
+        unsafe { ffi::av_buffer_unref(&raw mut raw) };
     }
 
     #[test]
@@ -2021,14 +2187,21 @@ mod device_context {
             (&BARE_TYPE, ffi::AVHWDeviceType(99)),
         ] {
             let raw = hwdevice::fake_device_of(backend, t);
-            // SAFETY: a live fake context, read before the builder adopts it.
-            let (c_type, c_class, c_hwctx) = unsafe {
-                let ctx = hwdevice::context(raw);
-                (
-                    (*ctx).type_,
-                    CStr::from_ptr((*(*ctx).av_class).class_name),
-                    (*ctx).hwctx,
-                )
+            // For the unsafe operations below: a live fake context, read before the builder adopts
+            // it.
+            let (c_type, c_class, c_hwctx) = {
+                // SAFETY: as the comment above this block states.
+                let ctx = unsafe { hwdevice::context(raw) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let type_2 = unsafe { (*ctx).type_ };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let av_class_2 = unsafe { (*ctx).av_class };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let class_name_2 = unsafe { (*av_class_2).class_name };
+                // SAFETY: as the comment above this block states.
+                (type_2, unsafe { CStr::from_ptr(class_name_2) }, unsafe {
+                    (*ctx).hwctx
+                })
             };
             // SAFETY: the only reference to a fresh, uninitialised context.
             let b = unsafe { UninitDevice::from_c(raw) }.unwrap();
@@ -2052,13 +2225,19 @@ mod device_context {
     /// the `Mutex` its `user_opaque` addresses, as a caller's C callback
     /// reads its own data.
     unsafe extern "C" fn c_free(ctx: *mut ffi::AVHWDeviceContext) {
-        // SAFETY: C passes the live fake context; `user_opaque` is the test's
-        // slot and `hwctx` is still allocated.
-        unsafe {
-            let slot = &*(*ctx)
-                .user_opaque
-                .cast::<Mutex<Option<(usize, usize, usize)>>>();
-            let events = &*(*(*ctx).hwctx.cast::<hwdevice::FakeHwctx>()).events;
+        // For the unsafe operations below: C passes the live fake context; `user_opaque` is the
+        // test's slot and `hwctx` is still allocated.
+        {
+            // SAFETY: as the comment above this block states: a read of `user_opaque`.
+            let opaque = unsafe { (*ctx).user_opaque };
+            // SAFETY: as the comment above this block states: the test's slot.
+            let slot = unsafe { &*opaque.cast::<Mutex<Option<(usize, usize, usize)>>>() };
+            // SAFETY: as the comment above this block states: a read of `hwctx`.
+            let hwctx = unsafe { (*ctx).hwctx };
+            // SAFETY: as the comment above this block states: a read of its events.
+            let events = unsafe { (*hwctx.cast::<hwdevice::FakeHwctx>()).events };
+            // SAFETY: as the comment above this block states: the test's live events.
+            let events = unsafe { &*events };
             *slot.lock().unwrap() = Some(events.get());
         }
     }
@@ -2069,38 +2248,43 @@ mod device_context {
         let (ce, re) = (Arc::new(Events::default()), Arc::new(Events::default()));
         let c_slot = Mutex::new(None);
         let c = c_device(&ce, 1, 0);
-        // SAFETY: the only reference to a fresh fake context: the caller's
+        // For the unsafe operations below: the only reference to a fresh fake context: the caller's
         // callback and its data, which outlives the context.
-        unsafe {
-            let ctx = hwdevice::context(c);
-            (*ctx).free = Some(c_free);
-            (*ctx).user_opaque = (&raw const c_slot).cast_mut().cast::<c_void>();
+        {
+            // SAFETY: as the comment above this block states.
+            let ctx = unsafe { hwdevice::context(c) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*ctx).free = Some(c_free) };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*ctx).user_opaque = (&raw const c_slot).cast_mut().cast::<c_void>() };
         }
         let mut rust = rust_device(&re, 1, 0);
         let rust_slot = Arc::new(Mutex::new(None));
         let (slot, ev) = (rust_slot.clone(), re.clone());
         rust.context_mut()
             .set_free_callback(move |_: DeviceContextMut<'_>| {
-                *slot.lock().unwrap() = Some(ev.get())
+                *slot.lock().unwrap() = Some(ev.get());
             })
             .ok()
             .unwrap();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let context_3 = unsafe { hwdevice::context(c) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let free_3 = unsafe { (*context_3).free };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let context_3 = unsafe { hwdevice::context(c) };
         // Both are visible to C the same way: a callback and its data set.
         // SAFETY: reads of a live context's fields.
-        let c_fields = unsafe {
-            (
-                (*hwdevice::context(c)).free.is_some(),
-                !(*hwdevice::context(c)).user_opaque.is_null(),
-            )
-        };
+        let c_fields = unsafe { (free_3.is_some(), !(*context_3).user_opaque.is_null()) };
         let rust_raw = rust.into_c();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let context_2 = unsafe { hwdevice::context(rust_raw) };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let free_2 = unsafe { (*context_2).free };
+        // SAFETY: as the comment below states, for this part of the operation.
+        let context_2 = unsafe { hwdevice::context(rust_raw) };
         // SAFETY: as above.
-        let rust_fields = unsafe {
-            (
-                (*hwdevice::context(rust_raw)).free.is_some(),
-                !(*hwdevice::context(rust_raw)).user_opaque.is_null(),
-            )
-        };
+        let rust_fields = unsafe { (free_2.is_some(), !(*context_2).user_opaque.is_null()) };
         assert_eq!(c_fields, rust_fields);
         // SAFETY: the reference `into_c` gave up, still uninitialised.
         let rust = unsafe { UninitDevice::from_c(rust_raw) }.unwrap();
@@ -2126,15 +2310,22 @@ mod device_context {
         let _ = rust.context_mut().take_free_callback();
         let _ = rust.context_mut().take_user_data();
         let raw = rust.into_c();
-        // SAFETY: a fresh C context and this one, both live, read for their
-        // hook fields.
-        let (c, fresh) = unsafe {
+        // For the unsafe operations below: a fresh C context and this one, both live, read for
+        // their hook fields.
+        let (c, fresh) = {
             let fresh = hwdevice::fake_device();
-            let a = hwdevice::context(raw);
-            let f = hwdevice::context(fresh);
+            // SAFETY: as the comment above this block states.
+            let a = unsafe { hwdevice::context(raw) };
+            // SAFETY: as the comment above this block states.
+            let f = unsafe { hwdevice::context(fresh) };
+            // SAFETY: as the comment above this block states.
             (
-                ((*a).free.is_none(), (*a).user_opaque),
-                ((*f).free.is_none(), (*f).user_opaque, fresh),
+                (unsafe { (*a).free }.is_none(), unsafe { (*a).user_opaque }),
+                (
+                    unsafe { (*f).free }.is_none(),
+                    unsafe { (*f).user_opaque },
+                    fresh,
+                ),
             )
         };
         assert_eq!(c, (fresh.0, fresh.1));
@@ -2209,12 +2400,9 @@ mod device_class_object {
         let obj = ObjectRef::from(dev.context());
         assert!(obj.class().ptr_eq(dev.context().class().unwrap()));
         // SAFETY: `raw` is a live context led by its class, which C only reads.
-        let (c_name, c_category) = unsafe {
-            (
-                ffi::av_default_item_name(raw),
-                ffi::av_default_get_category(raw),
-            )
-        };
+        let (c_name, c_category) = (unsafe { ffi::av_default_item_name(raw) }, unsafe {
+            ffi::av_default_get_category(raw)
+        });
         assert_eq!(default_item_name(obj).unwrap().as_ptr(), c_name);
         assert_eq!(default_category(obj), ClassCategory::from(c_category));
         assert_eq!(default_category(obj), ClassCategory::HWDEVICE);
@@ -2227,7 +2415,7 @@ mod device_class_object {
                     Level::ERROR.raw(),
                     c"%s".as_ptr(),
                     c"in device\n".as_ptr(),
-                )
+                );
             }
         });
         let rust = seen(|| log::log_with_context(obj, Level::ERROR, c"in device\n"));
@@ -2242,7 +2430,7 @@ mod device_class_object {
 
         drop(dev);
         // SAFETY: the C side's only reference.
-        unsafe { ffi::av_buffer_unref(&mut buf) };
+        unsafe { ffi::av_buffer_unref(&raw mut buf) };
     }
 }
 
@@ -2306,15 +2494,20 @@ mod frames_constraints {
     /// A raw fake device set up for `q` and initialised by C.
     fn c_device(q: Query, events: &Arc<Events>) -> *mut ffi::AVBufferRef {
         let raw = hwdevice::fake_device_of(backend(q), ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
-        // SAFETY: the only reference to a fresh fake context.
-        unsafe {
-            let hw = hwdevice::hwctx(raw);
+        // For the unsafe operations below: the only reference to a fresh fake context.
+        {
+            // SAFETY: as the comment above this block states.
+            let hw = unsafe { hwdevice::hwctx(raw) };
             if !hw.is_null() {
-                (*hw).events = Arc::as_ptr(events);
-                (*hw).nb_sw = q.nb_sw;
-                (*hw).constraints_ret = q.ret;
+                // SAFETY: as the comment above this block states.
+                unsafe { (*hw).events = Arc::as_ptr(events) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*hw).nb_sw = q.nb_sw };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*hw).constraints_ret = q.ret };
             }
-            assert_eq!(ffi::av_hwdevice_ctx_init(raw), 0);
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_hwdevice_ctx_init(raw), 0) };
         }
         raw
     }
@@ -2341,10 +2534,15 @@ mod frames_constraints {
             return None;
         }
         let mut v = vec![];
-        // SAFETY: a live NONE-terminated list.
-        while unsafe { list.add(v.len()).read() } != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
-            // SAFETY: as above, before the terminator.
-            v.push(unsafe { list.add(v.len()).read() });
+        loop {
+            // SAFETY: a live NONE-terminated list, read up to its terminator.
+            let at = unsafe { list.add(v.len()) };
+            // SAFETY: as above.
+            let format = unsafe { at.read() };
+            if format == ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                break;
+            }
+            v.push(format);
         }
         Some(v)
     }
@@ -2358,18 +2556,16 @@ mod frames_constraints {
 
     fn c_view(c: *const ffi::AVHWFramesConstraints) -> View {
         // SAFETY: a live constraints struct.
-        unsafe {
-            (
-                c_list((*c).valid_hw_formats),
-                c_list((*c).valid_sw_formats),
-                [
-                    (*c).min_width,
-                    (*c).min_height,
-                    (*c).max_width,
-                    (*c).max_height,
-                ],
-            )
-        }
+        (
+            c_list(unsafe { (*c).valid_hw_formats }),
+            c_list(unsafe { (*c).valid_sw_formats }),
+            [
+                unsafe { (*c).min_width },
+                unsafe { (*c).min_height },
+                unsafe { (*c).max_width },
+                unsafe { (*c).max_height },
+            ],
+        )
     }
 
     fn rust_view(c: &FramesConstraintsBox) -> View {
@@ -2386,13 +2582,13 @@ mod frames_constraints {
 
     fn c_free(mut c: *mut ffi::AVHWFramesConstraints) {
         // SAFETY: the caller's constraints, released once.
-        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+        unsafe { ffi::av_hwframe_constraints_free(&raw mut c) };
         assert!(c.is_null());
     }
 
     fn c_unref(mut raw: *mut ffi::AVBufferRef) {
         // SAFETY: the caller's reference, released once.
-        unsafe { ffi::av_buffer_unref(&mut raw) };
+        unsafe { ffi::av_buffer_unref(&raw mut raw) };
     }
 
     /// One edit, applied to both sides.
@@ -2451,15 +2647,19 @@ mod frames_constraints {
                         .map(|f| f.into_raw())
                         .chain([ffi::AVPixelFormat::AV_PIX_FMT_NONE]);
                     for (i, f) in all.enumerate() {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let list_add = unsafe { list.add(i) };
                         // SAFETY: `i < n`.
-                        unsafe { list.add(i).write(f) };
+                        unsafe { list_add.write(f) };
                     }
                     list
                 }
             };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let slot_replace = unsafe { slot.replace(new) };
             // SAFETY: the struct's own list slot; the old list is its av_malloc
             // block or NULL.
-            unsafe { ffi::av_free(slot.replace(new).cast()) };
+            unsafe { ffi::av_free(slot_replace.cast()) };
         };
         let take = |slot: *mut *mut ffi::AVPixelFormat| {
             // SAFETY: as above.
@@ -2470,20 +2670,21 @@ mod frames_constraints {
             v
         };
         // SAFETY: field projections of the live struct.
-        let (hw, sw) = unsafe {
-            (
-                &raw mut (*c).valid_hw_formats,
-                &raw mut (*c).valid_sw_formats,
-            )
-        };
+        let (hw, sw) = (unsafe { &raw mut (*c).valid_hw_formats }, unsafe {
+            &raw mut (*c).valid_sw_formats
+        });
         match e {
             Edit::Sizes(s) => {
-                // SAFETY: writes of the live struct's sizes.
-                unsafe {
-                    (*c).min_width = s[0];
-                    (*c).min_height = s[1];
-                    (*c).max_width = s[2];
-                    (*c).max_height = s[3];
+                // For the unsafe operations below: writes of the live struct's sizes.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*c).min_width = s[0] };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*c).min_height = s[1] };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*c).max_width = s[2] };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*c).max_height = s[3] };
                 }
                 None
             }
@@ -2564,15 +2765,20 @@ mod frames_constraints {
             };
             assert_eq!(rust.is_some(), !c.is_null(), "{q:?}");
             assert_eq!(ce.get(), re.get(), "{q:?}");
-            // SAFETY: live fake hardware contexts, when the backend has one.
-            let seen = |raw: *mut ffi::AVBufferRef| unsafe {
-                let hw = hwdevice::hwctx(raw);
-                (!hw.is_null()).then(|| {
-                    (*hw)
-                        .seen_sizes
-                        .each_ref()
-                        .map(|a| a.load(Ordering::SeqCst))
-                })
+            // For the unsafe operations below: live fake hardware contexts, when the backend has
+            // one.
+            let seen = |raw: *mut ffi::AVBufferRef| {
+                // SAFETY: as the comment above this block states.
+                let hw = unsafe { hwdevice::hwctx(raw) };
+                // SAFETY: as the comment above this block states.
+                unsafe {
+                    (!hw.is_null()).then(|| {
+                        (*hw)
+                            .seen_sizes
+                            .each_ref()
+                            .map(|a| a.load(Ordering::SeqCst))
+                    })
+                }
             };
             // SAFETY: the fake backend's hardware context type, or none.
             let rust_hw = unsafe { rust_dev.as_ref().context().hwctx::<FakeHw>() };
@@ -2607,8 +2813,10 @@ mod frames_constraints {
         let c = unsafe { ffi::av_hwdevice_get_hwframe_constraints(dev, null()) };
         assert!(!c.is_null());
         c_free(c);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hwctx_4 = unsafe { hwdevice::hwctx(dev) };
         // SAFETY: the live fake hardware context.
-        let seen = unsafe { &(*hwdevice::hwctx(dev)).seen_sizes }
+        let seen = unsafe { &(*hwctx_4).seen_sizes }
             .each_ref()
             .map(|a| a.load(Ordering::SeqCst));
         c_unref(dev);
@@ -2617,7 +2825,7 @@ mod frames_constraints {
         // Both release a never-filled structure the same way.
         let mut c = new.into_c();
         // SAFETY: the structure `into_c` gave up, which C frees.
-        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+        unsafe { ffi::av_hwframe_constraints_free(&raw mut c) };
         assert!(c.is_null());
     }
 
@@ -2635,7 +2843,7 @@ mod frames_constraints {
         assert_eq!(c_view(c).0, Some(vec![ffi::AVPixelFormat::AV_PIX_FMT_CUDA]));
         // SAFETY: the structure `into_c` gave up, with lists the setters
         // allocated, which C frees.
-        unsafe { ffi::av_hwframe_constraints_free(&mut c) };
+        unsafe { ffi::av_hwframe_constraints_free(&raw mut c) };
     }
 
     /// One step of a query sequence on one device.
@@ -2672,8 +2880,10 @@ mod frames_constraints {
     /// Sets the status the fake backend behind `raw` returns from its
     /// constraints callback.
     fn set_status(raw: *mut ffi::AVBufferRef, ret: c_int) {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hwctx_3 = unsafe { hwdevice::hwctx(raw) };
         // SAFETY: a live fake device, used on this thread alone.
-        unsafe { (*hwdevice::hwctx(raw)).constraints_ret = ret };
+        unsafe { (*hwctx_3).constraints_ret = ret };
     }
 
     /// Repeated queries of one device, with no configuration and under one
@@ -2721,11 +2931,15 @@ mod frames_constraints {
                     ),
                     Step::Config(format) => {
                         if let Some(f) = format {
-                            // SAFETY: the fake backend's configurations, which
-                            // the test owns and no query runs on.
-                            unsafe {
-                                (*c_config).hw_format = f;
-                                (*rust_config.as_mut_ptr().cast::<FakeConfig>()).hw_format = f;
+                            // For the unsafe operations below: the fake backend's configurations,
+                            // which the test owns and no query runs on.
+                            {
+                                // SAFETY: as the comment above this block states.
+                                unsafe { (*c_config).hw_format = f };
+                                // SAFETY: as the comment above this block states.
+                                unsafe {
+                                    (*rust_config.as_mut_ptr().cast::<FakeConfig>()).hw_format = f;
+                                };
                             }
                         }
                         (
@@ -2745,8 +2959,10 @@ mod frames_constraints {
                 };
                 assert_eq!(rust.is_some(), !c.is_null(), "{nb_sw} {i} {step:?}");
                 assert_eq!(ce.get(), re.get(), "{nb_sw} {i} {step:?}");
+                // SAFETY: as the comment below states, for this part of the operation.
+                let hwctx_2 = unsafe { hwdevice::hwctx(c_dev) };
                 // SAFETY: the live fake hardware context.
-                let c_seen = unsafe { &(*hwdevice::hwctx(c_dev)).seen_sizes }
+                let c_seen = unsafe { &(*hwctx_2).seen_sizes }
                     .each_ref()
                     .map(|a| a.load(Ordering::SeqCst));
                 // SAFETY: the fake backend's hardware context type, whose
@@ -2813,7 +3029,9 @@ mod frames_context {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferPool, BufferPoolBox, BufferReference};
+    use ffmpeg_bindings::libavutil::libavutil::buffer::{
+        BufferPool, BufferPoolBox, BufferReference,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
         DeviceReferenceBox, FramesContextMut, FramesContextRef, HardwareFrame, UninitFrames,
@@ -2827,8 +3045,10 @@ mod frames_context {
     type Fields = (c_int, c_int, c_int, c_int, c_int, bool, bool, bool);
 
     fn c_fields(buf: *const ffi::AVBufferRef) -> Fields {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let frames_ctx_4 = unsafe { fx::frames_ctx(buf) };
         // SAFETY: callers pass live frames context references.
-        let c = unsafe { *fx::frames_ctx(buf) };
+        let c = unsafe { *frames_ctx_4 };
         (
             c.format.0,
             c.sw_format.0,
@@ -2881,16 +3101,23 @@ mod frames_context {
         }
 
         fn c(self, buf: *mut ffi::AVBufferRef) {
-            // SAFETY: callers pass the only reference to an uninitialised
+            // For the unsafe operations below: callers pass the only reference to an uninitialised
             // test frames context.
-            unsafe {
-                let c = fx::frames_ctx(buf);
-                (*c).format = self.format;
-                (*c).sw_format = self.sw_format;
-                (*c).width = self.width;
-                (*c).height = self.height;
-                (*c).initial_pool_size = self.pool;
-                fx::set_frames_hwctx(c, self.hwctx);
+            {
+                // SAFETY: as the comment above this block states.
+                let c = unsafe { fx::frames_ctx(buf) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c).format = self.format };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c).sw_format = self.sw_format };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c).width = self.width };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c).height = self.height };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c).initial_pool_size = self.pool };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::set_frames_hwctx(c, self.hwctx) };
             }
         }
 
@@ -3034,13 +3261,19 @@ mod frames_context {
                 assert_eq!(c_fields(c), rust_fields(ctx), "{fill:?}");
                 // SAFETY: both test backends' frames structs.
                 let rust_hw = unsafe { ctx.hwctx::<FramesHw>() }.unwrap().get();
+                // SAFETY: as the comment below states, for this part of the operation.
+                let frames_ctx_2 = unsafe { fx::frames_ctx(c) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let hwctx_2 = unsafe { (*frames_ctx_2).hwctx };
                 // SAFETY: as above, read by hand.
-                let c_hw = unsafe { (*fx::frames_ctx(c)).hwctx.cast::<FramesHwctx>().read() };
+                let c_hw = unsafe { hwctx_2.cast::<FramesHwctx>().read() };
                 assert_eq!(format!("{c_hw:?}"), format!("{rust_hw:?}"));
-                // SAFETY: a live frames context and a fresh frame.
-                let cf = unsafe {
-                    let f = ffi::av_frame_alloc();
-                    let ret = ffi::av_hwframe_get_buffer(c, f, 0);
+                // For the unsafe operations below: a live frames context and a fresh frame.
+                let cf = {
+                    // SAFETY: as the comment above this block states.
+                    let f = unsafe { ffi::av_frame_alloc() };
+                    // SAFETY: as the comment above this block states.
+                    let ret = unsafe { ffi::av_hwframe_get_buffer(c, f, 0) };
                     (f, ret)
                 };
                 let rf = r.as_ref().get_buffer();
@@ -3051,10 +3284,12 @@ mod frames_context {
                     let c_ctx = unsafe { (*cf.0).hw_frames_ctx };
                     assert_eq!(c_fields(c_ctx), rust_fields(rf.frames().context()));
                 }
-                // SAFETY: the test's frame and reference.
-                unsafe {
-                    ffi::av_frame_free(&mut { cf.0 });
-                    fx::unref(c);
+                // For the unsafe operations below: the test's frame and reference.
+                {
+                    // SAFETY: as the comment above this block states.
+                    unsafe { ffi::av_frame_free(&mut { cf.0 }) };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { fx::unref(c) };
                 }
                 drop((rf, r));
                 same_events();
@@ -3126,30 +3361,41 @@ mod frames_context {
             let (c_dev, r_dev) = devices(kind);
             let (c, r) = alloc(c_dev, &r_dev);
             let ctx = r.context();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let frames_ctx_3 = unsafe { fx::frames_ctx(c) };
             // SAFETY: a live frames context's public struct.
-            let cc = unsafe { *fx::frames_ctx(c) };
+            let cc = unsafe { *frames_ctx_3 };
             assert!(!cc.device_ref.is_null(), "C's allocator stores the device");
             // SAFETY: both devices are live; C reads the device type.
             let c_type = unsafe { (*cc.device_ctx).type_ };
             assert_eq!(ctx.device_context().device_type().into_raw(), c_type);
             assert_eq!(ctx.device().context().device_type().into_raw(), c_type);
             assert!(ctx.device().ptr_eq(r_dev.as_ref()));
+            // SAFETY: as the comment below states, for this part of the operation.
+            let class_name_2 = unsafe { (*cc.av_class).class_name };
             // SAFETY: C's class pointer is its static `hwframe_ctx_class`.
-            let c_class = unsafe { core::ffi::CStr::from_ptr((*cc.av_class).class_name) };
+            let c_class = unsafe { core::ffi::CStr::from_ptr(class_name_2) };
             assert_eq!(ctx.class().unwrap().name(), Some(c_class));
             // The frames context's own device reference.
             let r_ref = r_dev.as_c_ptr();
             // SAFETY: live references.
-            let counts = unsafe { (fx::ref_count(c_dev), fx::ref_count(r_ref)) };
+            let counts = (unsafe { fx::ref_count(c_dev) }, unsafe {
+                fx::ref_count(r_ref)
+            });
             assert_eq!(counts, (2, 2));
             let copy = ctx.device().try_clone().unwrap();
             // SAFETY: a live reference.
             assert_eq!(unsafe { fx::ref_count(r_dev.as_c_ptr()) }, 3);
             drop((copy, r));
-            // SAFETY: the test's references.
-            unsafe {
-                fx::unref(c);
-                assert_eq!(fx::ref_count(r_dev.as_c_ptr()), fx::ref_count(c_dev));
+            // For the unsafe operations below: the test's references.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(c) };
+                // SAFETY: as the comment above this block states.
+                let counts = (unsafe { fx::ref_count(r_dev.as_c_ptr()) }, unsafe {
+                    fx::ref_count(c_dev)
+                });
+                assert_eq!(counts.0, counts.1);
             }
             same_events();
             // SAFETY: the test's device reference.
@@ -3171,7 +3417,10 @@ mod frames_context {
     unsafe extern "C" fn c_free(ctx: *mut ffi::AVHWFramesContext) {
         // SAFETY: C passes the live context it releases; `user_opaque` is a
         // counter value, never dereferenced.
-        let (value, pool) = unsafe { ((*ctx).user_opaque.addr(), !(*ctx).pool.is_null()) };
+        let (value, pool) = (
+            unsafe { (*ctx).user_opaque }.addr(),
+            !unsafe { (*ctx).pool }.is_null(),
+        );
         FREED.with(|f| f.borrow_mut().push((fx::take_events(), value, pool)));
     }
 
@@ -3181,7 +3430,7 @@ mod frames_context {
         let value = *c.user_data::<usize>().unwrap();
         FREED.with(|f| {
             f.borrow_mut()
-                .push((fx::take_events(), value, c.has_pool()))
+                .push((fx::take_events(), value, c.has_pool()));
         });
     }
 
@@ -3213,12 +3462,15 @@ mod frames_context {
         {
             let (c, mut r) = alloc(c_dev, &r_dev);
             fill.c(c);
-            // SAFETY: the only reference to the uninitialised context, whose
-            // `free` C code may set before init.
-            unsafe {
-                let p = fx::frames_ctx(c);
-                (*p).free = Some(c_free);
-                (*p).user_opaque = ptr::without_provenance_mut(n + 1);
+            // For the unsafe operations below: the only reference to the uninitialised context,
+            // whose `free` C code may set before init.
+            {
+                // SAFETY: as the comment above this block states.
+                let p = unsafe { fx::frames_ctx(c) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p).free = Some(c_free) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*p).user_opaque = ptr::without_provenance_mut(n + 1) };
             }
             fill.rust(r.context_mut());
             r.context_mut().set_user_data(n + 1).unwrap();
@@ -3240,7 +3492,7 @@ mod frames_context {
                 drop(r);
                 assert!(take_freed().is_empty());
                 // SAFETY: the test's frame.
-                unsafe { ffi::av_frame_free(&mut cf) };
+                unsafe { ffi::av_frame_free(&raw mut cf) };
                 drop(rf);
             }
             let freed = take_freed();
@@ -3273,9 +3525,12 @@ mod frames_context {
 
     /// The C side's `free` for a caller pool, as NVDEC's: uninitialises it.
     unsafe extern "C" fn c_free_pool(ctx: *mut ffi::AVHWFramesContext) {
+        // SAFETY: `ctx` is to a live object, as the block below relies on, so the
+        // place of its `pool` field is in bounds; nothing is accessed here.
+        let pool_ptr = unsafe { &raw mut (*ctx).pool };
         // SAFETY: C passes the live context it releases, whose `pool` is the
         // caller's.
-        unsafe { ffi::av_buffer_pool_uninit(&raw mut (*ctx).pool) };
+        unsafe { ffi::av_buffer_pool_uninit(pool_ptr) };
     }
 
     /// The Rust side's pool, counting into `allocs`.
@@ -3302,19 +3557,27 @@ mod frames_context {
                     (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
                 let (c, mut r) = alloc(c_dev, &r_dev);
                 Fill::ok(kind, prealloc).c(c);
-                // SAFETY: the only reference to the uninitialised context, and
-                // a fresh pool its `free` uninitialises; the counter outlives
+                // For the unsafe operations below: the only reference to the uninitialised context,
+                // and a fresh pool its `free` uninitialises; the counter outlives
                 // the pool.
-                unsafe {
-                    let p = fx::frames_ctx(c);
-                    (*p).pool = ffi::av_buffer_pool_init2(
-                        fx::SURFACE_SIZE,
-                        Arc::as_ptr(&c_allocs).cast_mut().cast(),
-                        Some(c_alloc_counted),
-                        None,
-                    );
-                    assert!(!(*p).pool.is_null());
-                    (*p).free = Some(c_free_pool);
+                {
+                    // SAFETY: as the comment above this block states.
+                    let p = unsafe { fx::frames_ctx(c) };
+                    // SAFETY: as the comment above this block states: a pool whose opaque is the
+                    // test's live counter.
+                    let pool = unsafe {
+                        ffi::av_buffer_pool_init2(
+                            fx::SURFACE_SIZE,
+                            Arc::as_ptr(&c_allocs).cast_mut().cast(),
+                            Some(c_alloc_counted),
+                            None,
+                        )
+                    };
+                    assert!(!pool.is_null());
+                    // SAFETY: as the comment above this block states: the context takes it.
+                    unsafe { (*p).pool = pool };
+                    // SAFETY: as the comment above this block states.
+                    unsafe { (*p).free = Some(c_free_pool) };
                 }
                 Fill::ok(kind, prealloc).rust(r.context_mut());
                 // SAFETY: the test backends take any surface-sized bytes.
@@ -3339,10 +3602,12 @@ mod frames_context {
                 let mut held = Vec::new();
                 for round in 0..3 {
                     for _ in 0..round + 2 {
-                        // SAFETY: a live frames context and a fresh frame.
-                        let cf = unsafe {
-                            let f = ffi::av_frame_alloc();
-                            assert_eq!(ffi::av_hwframe_get_buffer(c, f, 0), 0);
+                        // For the unsafe operations below: a live frames context and a fresh frame.
+                        let cf = {
+                            // SAFETY: as the comment above this block states.
+                            let f = unsafe { ffi::av_frame_alloc() };
+                            // SAFETY: as the comment above this block states.
+                            unsafe { assert_eq!(ffi::av_hwframe_get_buffer(c, f, 0), 0) };
                             f
                         };
                         let rf = r.as_ref().get_buffer().unwrap();
@@ -3357,7 +3622,7 @@ mod frames_context {
                     same_events();
                     for (mut cf, rf) in held.drain(..) {
                         // SAFETY: the test's frame.
-                        unsafe { ffi::av_frame_free(&mut cf) };
+                        unsafe { ffi::av_frame_free(&raw mut cf) };
                         drop(rf);
                     }
                 }
@@ -3390,7 +3655,9 @@ mod frame_hw_frames_context {
     use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, FrameBox, FrameRef};
-    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReferenceBox, FramesReferenceBox};
+    use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+        DeviceReferenceBox, FramesReferenceBox,
+    };
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::PixelFormat;
 
     use super::backend::{self as fx, Kind};
@@ -3415,15 +3682,22 @@ mod frame_hw_frames_context {
 
     /// A raw C frame of NV12 at 64 x 32 holding one zeroed 64-byte buffer.
     fn c_frame() -> *mut ffi::AVFrame {
-        // SAFETY: a fresh frame and buffer; C allocates both.
-        unsafe {
-            let f = ffi::av_frame_alloc();
+        // For the unsafe operations below: a fresh frame and buffer; C allocates both.
+        {
+            // SAFETY: as the comment above this block states.
+            let f = unsafe { ffi::av_frame_alloc() };
             assert!(!f.is_null());
-            (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0;
-            (*f).width = 64;
-            (*f).height = 32;
-            (*f).buf[0] = ffi::av_buffer_allocz(64);
-            assert!(!(*f).buf[0].is_null());
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).width = 64 };
+            // SAFETY: as the comment above this block states.
+            unsafe { (*f).height = 32 };
+            // SAFETY: no precondition; NULL when C cannot allocate.
+            let buf = unsafe { ffi::av_buffer_allocz(64) };
+            assert!(!buf.is_null());
+            // SAFETY: as the comment above this block states: the frame takes it.
+            unsafe { (*f).buf[0] = buf };
             f
         }
     }
@@ -3463,9 +3737,10 @@ mod frame_hw_frames_context {
 
             // Attached: C's own field, the typed setter.
             let c_a = c_frame();
-            // SAFETY: a live frame and frames context; the frame owns the
-            // new reference.
-            unsafe { (*c_a).hw_frames_ctx = ffi::av_buffer_ref(c_frames) };
+            // SAFETY: `c_frames` is a live frames context reference.
+            let frames_ref = unsafe { ffi::av_buffer_ref(c_frames) };
+            // SAFETY: a live frame, which owns the new reference from here.
+            unsafe { (*c_a).hw_frames_ctx = frames_ref };
             let mut r_a = rust_frame();
             assert!(
                 r_a.as_mut()
@@ -3475,8 +3750,10 @@ mod frame_hw_frames_context {
             same("attach");
             assert_eq!(c_holds(c_a, c_data), rust_holds(r_a.as_ref(), &r_frames));
             let held = r_a.as_ref().hw_frames_context().unwrap().context();
+            // SAFETY: as the comment below states, for this part of the operation.
+            let frames_ctx_2 = unsafe { fx::frames_ctx(c_frames) };
             // SAFETY: a live frames context.
-            let c_ctx = unsafe { *fx::frames_ctx(c_frames) };
+            let c_ctx = unsafe { *frames_ctx_2 };
             assert_eq!((c_ctx.width, c_ctx.height), (held.width(), held.height()));
             assert_eq!(c_ctx.format, held.format().into_raw());
 
@@ -3499,13 +3776,20 @@ mod frame_hw_frames_context {
             assert_eq!(c_holds(c_c, c_data), rust_holds(r_c.as_ref(), &r_frames));
 
             // Taken out of one frame and handed to a frame holding one.
-            // SAFETY: live frames; the reference moves from `c_a` to `c_c`,
-            // whose own one is released.
-            unsafe {
-                let taken = (*c_a).hw_frames_ctx;
-                (*c_a).hw_frames_ctx = ptr::null_mut();
-                ffi::av_buffer_unref(&mut (*c_c).hw_frames_ctx);
-                (*c_c).hw_frames_ctx = taken;
+            // For the unsafe operations below: live frames; the reference moves from `c_a` to
+            // `c_c`, whose own one is released.
+            {
+                // SAFETY: as the comment above this block states.
+                let taken = unsafe { (*c_a).hw_frames_ctx };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c_a).hw_frames_ctx = ptr::null_mut() };
+                // SAFETY: `c_c` is to a live object, as the block below relies on, so the
+                // place of its `hw_frames_ctx` field is in bounds; nothing is accessed here.
+                let hw_frames_ctx_ptr = unsafe { &raw mut (*c_c).hw_frames_ctx };
+                // SAFETY: as the comment above this block states.
+                unsafe { ffi::av_buffer_unref(hw_frames_ctx_ptr) };
+                // SAFETY: as the comment above this block states.
+                unsafe { (*c_c).hw_frames_ctx = taken };
             }
             let taken = r_a.as_mut().take_hw_frames_context().unwrap();
             drop(r_c.as_mut().replace_hw_frames_context(Some(taken)));
@@ -3517,15 +3801,17 @@ mod frame_hw_frames_context {
             for (step, c, r) in [("a", c_a, r_a), ("b", c_b, r_b), ("c", c_c, r_c)] {
                 let mut c = c;
                 // SAFETY: a live frame the test owns, freed once.
-                unsafe { ffi::av_frame_free(&mut c) };
+                unsafe { ffi::av_frame_free(&raw mut c) };
                 drop(r);
                 same(step);
             }
             assert_eq!(count(c_frames), 1);
-            // SAFETY: the test's references, released once.
-            unsafe {
-                fx::unref(c_frames);
-                fx::unref(c_dev);
+            // For the unsafe operations below: the test's references, released once.
+            {
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(c_frames) };
+                // SAFETY: as the comment above this block states.
+                unsafe { fx::unref(c_dev) };
             }
             drop((r_frames, r_dev));
             fx::take_events();

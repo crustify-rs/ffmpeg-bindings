@@ -11,13 +11,12 @@
 //!
 //! Two owners follow from that:
 //!
-//! - [`Dict`], an owned dictionary that may be empty: C's `AVDictionary *`
-//!   variable, NULL when empty. It is built empty by [`Dict::new`] or from
-//!   pairs by [`Dict::from_entries`], and is what a routine that inserts or
-//!   deletes acts on, since it may allocate or free the dictionary.
-//! - [`DictionaryBox`], the sole owner of a non-empty dictionary, released
-//!   with every entry by `av_dict_free` and deep-copied, duplicate keys
-//!   included, by `av_dict_copy`. A [`Dict`] holds one when it is not empty.
+//! - [`Dict`], an owned dictionary that may be empty: C's `AVDictionary *` variable, NULL when
+//!   empty. It is built empty by [`Dict::new`] or from pairs by [`Dict::from_entries`], and is what
+//!   a routine that inserts or deletes acts on, since it may allocate or free the dictionary.
+//! - [`DictionaryBox`], the sole owner of a non-empty dictionary, released with every entry by
+//!   `av_dict_free` and deep-copied, duplicate keys included, by `av_dict_copy`. A [`Dict`] holds
+//!   one when it is not empty.
 //!
 //! Both hand out a [`DictionaryRef`] for the C readers. [`DictionaryMut`] has
 //! no setters: every writer of a dictionary can free it, so writes go through
@@ -56,7 +55,7 @@ use super::opt::AVERROR_BUG;
 
 /// `AV_DICT_MULTIKEY`: insert without looking for an equal key, so that
 /// every pair lands, in order, duplicates included.
-const MULTIKEY: c_int = ffi::AV_DICT_MULTIKEY as c_int;
+const MULTIKEY: c_int = ffi::AV_DICT_MULTIKEY.cast_signed();
 
 define_ctype!(
     /// Wraps: AVDictionary
@@ -112,7 +111,7 @@ pub struct DictionaryFree;
 /// of memory, where `clone` aborts.
 pub type DictionaryBox = CBox<Dictionary, DictionaryFree>;
 
-/// Wraps: av_dict_free
+/// Wraps: `av_dict_free`
 /// Handwritten
 ///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the
@@ -128,11 +127,11 @@ unsafe impl CDrop<Dictionary> for DictionaryFree {
         // SAFETY: the caller hands over a live dictionary whose claim it
         // owns; `av_dict_free` releases it once and NULLs only our local
         // slot.
-        unsafe { ffi::av_dict_free(&mut slot) }
+        unsafe { ffi::av_dict_free(&raw mut slot) }
     }
 }
 
-/// Wraps: av_dict_copy
+/// Wraps: `av_dict_copy`
 /// Handwritten
 ///
 /// The copy needs a fresh destination slot, the `AV_DICT_MULTIKEY` flag (with
@@ -150,11 +149,11 @@ unsafe impl CDupClone<Dictionary> for DictionaryFree {
         let src = ptr.as_ptr().cast::<ffi::AVDictionary>();
         // SAFETY: `src` is a live dictionary, per the caller, distinct from
         // the local destination slot `av_dict_copy` writes.
-        let ret = unsafe { ffi::av_dict_copy(&mut copy, src, MULTIKEY) };
+        let ret = unsafe { ffi::av_dict_copy(&raw mut copy, src, MULTIKEY) };
         if ret < 0 {
             // SAFETY: `copy` is NULL or the partial copy C allocated, which
             // nothing else references.
-            unsafe { ffi::av_dict_free(&mut copy) };
+            unsafe { ffi::av_dict_free(&raw mut copy) };
             return None;
         }
         // A source always holds an entry, so a successful copy is non-NULL.
@@ -252,10 +251,10 @@ impl Dict {
     /// `write` must leave the slot NULL or holding a dictionary it alone
     /// references that `av_dict_free` releases and that holds an entry, as
     /// every `av_dict_*` writer does (`av_dict_set` frees the dictionary with
-    /// its last entry, NULLing the slot).
+    /// its last entry, `NULLing` the slot).
     fn with_slot(&mut self, write: impl FnOnce(*mut *mut ffi::AVDictionary) -> c_int) -> c_int {
         let mut slot = self.0.take().map_or(ptr::null_mut(), CBox::into_c);
-        let ret = write(&mut slot);
+        let ret = write(&raw mut slot);
         // SAFETY: per `write`'s obligation, the slot holds NULL or a
         // non-empty dictionary nothing else references, which this owner
         // takes back.
@@ -296,29 +295,30 @@ impl From<Dict> for Option<DictionaryBox> {
 pub struct Flags(c_int);
 
 impl Flags {
-    /// Keys match case-insensitively (ASCII), in full; a write replaces the
-    /// first matching entry.
-    pub const NONE: Self = Self(0);
-    /// `AV_DICT_MATCH_CASE`: keys match only with equal case.
-    pub const MATCH_CASE: Self = Self(ffi::AV_DICT_MATCH_CASE as c_int);
-    /// `AV_DICT_IGNORE_SUFFIX`: a key matches every key it is a prefix of; the
-    /// empty key matches every entry.
-    pub const IGNORE_SUFFIX: Self = Self(ffi::AV_DICT_IGNORE_SUFFIX as c_int);
-    /// `AV_DICT_DONT_OVERWRITE`: a write leaves a matching entry (and the
-    /// dictionary) unchanged.
-    pub const DONT_OVERWRITE: Self = Self(ffi::AV_DICT_DONT_OVERWRITE as c_int);
     /// `AV_DICT_APPEND`: a write appends the value to a matching entry's,
     /// without a separator, rather than replacing it.
-    pub const APPEND: Self = Self(ffi::AV_DICT_APPEND as c_int);
-    /// `AV_DICT_MULTIKEY`: a write appends a new entry without looking for a
-    /// matching one, so keys may repeat; a removal then removes nothing.
-    pub const MULTIKEY: Self = Self(MULTIKEY);
+    pub const APPEND: Self = Self(ffi::AV_DICT_APPEND.cast_signed());
     /// `AV_DICT_DEDUP`: with [`MULTIKEY`](Self::MULTIKEY), a write of a pair
     /// that is already present (an equal value under a matching key) changes
     /// nothing.
-    pub const DEDUP: Self = Self(ffi::AV_DICT_DEDUP as c_int);
+    pub const DEDUP: Self = Self(ffi::AV_DICT_DEDUP.cast_signed());
+    /// `AV_DICT_DONT_OVERWRITE`: a write leaves a matching entry (and the
+    /// dictionary) unchanged.
+    pub const DONT_OVERWRITE: Self = Self(ffi::AV_DICT_DONT_OVERWRITE.cast_signed());
+    /// `AV_DICT_IGNORE_SUFFIX`: a key matches every key it is a prefix of; the
+    /// empty key matches every entry.
+    pub const IGNORE_SUFFIX: Self = Self(ffi::AV_DICT_IGNORE_SUFFIX.cast_signed());
+    /// `AV_DICT_MATCH_CASE`: keys match only with equal case.
+    pub const MATCH_CASE: Self = Self(ffi::AV_DICT_MATCH_CASE.cast_signed());
+    /// `AV_DICT_MULTIKEY`: a write appends a new entry without looking for a
+    /// matching one, so keys may repeat; a removal then removes nothing.
+    pub const MULTIKEY: Self = Self(MULTIKEY);
+    /// Keys match case-insensitively (ASCII), in full; a write replaces the
+    /// first matching entry.
+    pub const NONE: Self = Self(0);
 
     /// The C flag bits.
+    #[must_use]
     pub const fn bits(self) -> c_int {
         self.0
     }
@@ -326,6 +326,7 @@ impl Flags {
 
 impl BitOr for Flags {
     type Output = Self;
+
     fn bitor(self, rhs: Self) -> Self {
         Self(self.0 | rhs.0)
     }
@@ -340,7 +341,7 @@ impl BitOrAssign for Flags {
 /// The writers: each may allocate the dictionary or, deleting its last
 /// entry, free it, so they act on the owner.
 impl Dict {
-    /// Wraps: av_dict_set
+    /// Wraps: `av_dict_set`
     ///
     /// Stores a copy of `value` under a copy of `key`. Without
     /// [`Flags::MULTIKEY`] it replaces the first entry whose key matches
@@ -362,7 +363,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_dict_set
+    /// Wraps: `av_dict_set`
     ///
     /// Deletes the first entry whose key matches `key` (per `flags`), whose
     /// place the last entry then takes; deleting the last entry empties the
@@ -380,7 +381,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_dict_set
+    /// Wraps: `av_dict_set`
     ///
     /// As [`set`](Self::set), storing `key` and `value` themselves rather
     /// than copies (`AV_DICT_DONT_STRDUP_KEY | AV_DICT_DONT_STRDUP_VAL`):
@@ -399,7 +400,7 @@ impl Dict {
         flags: Flags,
     ) -> Result<(), i32> {
         let flags =
-            flags.0 | (ffi::AV_DICT_DONT_STRDUP_KEY | ffi::AV_DICT_DONT_STRDUP_VAL) as c_int;
+            flags.0 | (ffi::AV_DICT_DONT_STRDUP_KEY | ffi::AV_DICT_DONT_STRDUP_VAL).cast_signed();
         let (key, value) = (key.into_raw(), value.into_raw());
         // SAFETY: `key` and `value` are `av_malloc`-family strings we owned,
         // which `av_dict_set` takes over with the `DONT_STRDUP` flags on
@@ -409,7 +410,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_dict_set_int
+    /// Wraps: `av_dict_set_int`
     ///
     /// As [`set`](Self::set), storing `value` in decimal.
     ///
@@ -423,7 +424,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_dict_parse_string
+    /// Wraps: `av_dict_parse_string`
     ///
     /// Stores, as [`set`](Self::set) with `flags`, each `key=value` pair of
     /// `s`, in order: a key is ended by a byte of `key_val_sep`, a value by
@@ -452,7 +453,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: av_dict_copy
+    /// Wraps: `av_dict_copy`
     ///
     /// Stores, as [`set`](Self::set) with `flags`, every entry of `src`, in
     /// order (none when `src` is `None`, an empty dictionary). With
@@ -477,26 +478,31 @@ impl Dict {
 /// on C's NULL dictionary when it is.
 impl Dict {
     /// The number of entries, as [`DictionaryRef::len`]; 0 when empty.
+    #[must_use]
     pub fn len(&self) -> usize {
         count(self.as_ref())
     }
 
     /// Whether the dictionary has no entries.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_none()
     }
 
     /// The entries in order, as [`DictionaryRef::iter`].
+    #[must_use]
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.as_ref())
     }
 
     /// The first entry whose key matches `key`, as [`DictionaryRef::get`].
+    #[must_use]
     pub fn get(&self, key: &CStr, flags: Flags) -> Option<DictionaryEntryRef<'_>> {
         first(self.as_ref(), key, flags)
     }
 
     /// Every entry whose key matches `key`, as [`DictionaryRef::get_all`].
+    #[must_use]
     pub fn get_all<'k>(&self, key: &'k CStr, flags: Flags) -> Matches<'_, 'k> {
         Matches::new(self.as_ref(), key, flags)
     }
@@ -513,55 +519,65 @@ impl Dict {
 }
 
 impl<'a> IntoIterator for &'a Dict {
-    type Item = DictionaryEntryRef<'a>;
     type IntoIter = Iter<'a>;
+    type Item = DictionaryEntryRef<'a>;
+
     fn into_iter(self) -> Iter<'a> {
         self.iter()
     }
 }
 
 impl<'a> DictionaryRef<'a> {
-    /// Wraps: av_dict_count
+    /// Wraps: `av_dict_count`
     ///
     /// The number of entries, never 0 for a dictionary (an empty one is a
     /// [`Dict`] holding none).
+    #[must_use]
     pub fn len(&self) -> usize {
         count(Some(*self))
     }
 
     /// Whether the dictionary has no entries, which a dictionary never has.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Wraps: av_dict_iterate
+    /// Wraps: `av_dict_iterate`
     ///
     /// The entries in order: insertion order, except where a write replaced
     /// or deleted an entry (see [`Dict::set`] and [`Dict::remove`]).
+    #[must_use]
+    #[expect(
+        clippy::iter_without_into_iter,
+        reason = "the handle is `Copy` and iterated through `iter`"
+    )]
     pub fn iter(&self) -> Iter<'a> {
         Iter::new(Some(*self))
     }
 
-    /// Wraps: av_dict_get
+    /// Wraps: `av_dict_get`
     ///
     /// The first entry whose key matches `key`: equal to it ignoring ASCII
     /// case, or with equal case under [`Flags::MATCH_CASE`], and with
     /// [`Flags::IGNORE_SUFFIX`] any key starting with it. Other flags are
     /// ignored.
+    #[must_use]
     pub fn get(&self, key: &CStr, flags: Flags) -> Option<DictionaryEntryRef<'a>> {
         first(Some(*self), key, flags)
     }
 
-    /// Wraps: av_dict_get
+    /// Wraps: `av_dict_get`
     ///
     /// Every entry whose key matches `key` as [`get`](Self::get) matches it,
     /// in order: C's `av_dict_get` called again after each match. With
     /// [`Flags::IGNORE_SUFFIX`] and the empty key, every entry.
+    #[must_use]
     pub fn get_all<'k>(&self, key: &'k CStr, flags: Flags) -> Matches<'a, 'k> {
         Matches::new(Some(*self), key, flags)
     }
 
-    /// Wraps: av_dict_get_string
+    /// Wraps: `av_dict_get_string`
     ///
     /// The entries as one string: each key, `key_val_sep` and value, the
     /// pairs separated by `pairs_sep`, with a `\` before each separator, `'`
@@ -578,8 +594,9 @@ impl<'a> DictionaryRef<'a> {
 }
 
 impl<'a> IntoIterator for DictionaryRef<'a> {
-    type Item = DictionaryEntryRef<'a>;
     type IntoIter = Iter<'a>;
+    type Item = DictionaryEntryRef<'a>;
+
     fn into_iter(self) -> Iter<'a> {
         self.iter()
     }
@@ -616,10 +633,10 @@ fn first<'a>(
 /// `av_dict_get_string` of `m`; `""` for none.
 fn serialize(m: Option<DictionaryRef<'_>>, kv: u8, pairs: u8) -> Result<HeapString, i32> {
     let mut out: *mut c_char = ptr::null_mut();
-    let (m, kv, pairs) = (c_ptr(m), kv as c_char, pairs as c_char);
+    let (m, kv, pairs) = (c_ptr(m), kv.cast_signed(), pairs.cast_signed());
     // SAFETY: NULL or a live dictionary the handle's shared borrow keeps
     // unwritten, which C only reads; `out` is a writable slot.
-    let ret = unsafe { ffi::av_dict_get_string(m, &mut out, kv, pairs) };
+    let ret = unsafe { ffi::av_dict_get_string(m, &raw mut out, kv, pairs) };
     if ret < 0 {
         return Err(ret);
     }
@@ -783,9 +800,13 @@ impl<'a> DictionaryEntryRef<'a> {
     /// # Panics
     ///
     /// If the key is NULL, which `av_dict_set` never stores.
+    #[must_use]
     pub fn key(&self) -> &'a CStr {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `key` field is in bounds; nothing is accessed here.
+        let key_ptr = unsafe { addr_of!((*self.as_ptr()).key) };
         // SAFETY: a read of a projected field through the shared handle.
-        let key = unsafe { addr_of!((*self.as_ptr()).key).read() };
+        let key = unsafe { key_ptr.read() };
         let key = NonNull::new(key).expect("a dictionary entry has a key");
         // SAFETY: the key of an entry of a dictionary, a NUL-terminated
         // string the handle's borrow keeps live and unwritten for `'a`.
@@ -799,9 +820,13 @@ impl<'a> DictionaryEntryRef<'a> {
     /// # Panics
     ///
     /// If the value is NULL, which `av_dict_set` never stores.
+    #[must_use]
     pub fn value(&self) -> &'a CStr {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `value` field is in bounds; nothing is accessed here.
+        let value_ptr = unsafe { addr_of!((*self.as_ptr()).value) };
         // SAFETY: a read of a projected field through the shared handle.
-        let value = unsafe { addr_of!((*self.as_ptr()).value).read() };
+        let value = unsafe { value_ptr.read() };
         let value = NonNull::new(value).expect("a dictionary entry has a value");
         // SAFETY: as for `key`: C writes a value only under `av_dict_set`,
         // which the handle's borrow of the dictionary excludes.
@@ -819,11 +844,20 @@ impl fmt::Debug for DictionaryEntryRef<'_> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 mod unit_tests {
-    use super::*;
     use core::ffi::c_char;
     use std::ffi::CString;
     use std::panic::catch_unwind;
+
+    use super::*;
 
     /// The entries of the dictionary at `m` (NULL: none), read by C's
     /// `av_dict_iterate`.
@@ -859,7 +893,7 @@ mod unit_tests {
         let mut m = ptr::null_mut();
         for (k, v) in pairs {
             // SAFETY: `m` is our own slot; the strings are live for the call.
-            assert!(unsafe { ffi::av_dict_set(&mut m, k.as_ptr(), v.as_ptr(), flags) } >= 0);
+            assert!(unsafe { ffi::av_dict_set(&raw mut m, k.as_ptr(), v.as_ptr(), flags) } >= 0);
         }
         // SAFETY: `m` is a dictionary C allocated, referenced by nothing
         // else, which the box takes over.
@@ -875,7 +909,7 @@ mod unit_tests {
             value: c"x y".as_ptr().cast_mut(),
         };
         // SAFETY: `raw` is a live local whose strings are literals.
-        let e = unsafe { DictionaryEntryRef::from_ptr(&mut raw) }.unwrap();
+        let e = unsafe { DictionaryEntryRef::from_ptr(&raw mut raw) }.unwrap();
         assert_eq!((e.key(), e.value()), (c"title", c"x y"));
         assert_eq!(
             format!("{e:?}"),
@@ -890,7 +924,7 @@ mod unit_tests {
             value: ptr::null_mut(),
         };
         // SAFETY: `raw` is a live local.
-        let e = unsafe { DictionaryEntryRef::from_ptr(&mut raw) }.unwrap();
+        let e = unsafe { DictionaryEntryRef::from_ptr(&raw mut raw) }.unwrap();
         assert!(catch_unwind(|| e.key()).is_err());
         assert!(catch_unwind(|| e.value()).is_err());
     }
@@ -948,7 +982,7 @@ mod unit_tests {
     fn c_set(d: &mut Dict, key: *const c_char, value: *const c_char) -> c_int {
         let mut slot = d.take().map_or(ptr::null_mut(), CBox::into_c);
         // SAFETY: our own slot; `key` and `value` are NULL or literals.
-        let ret = unsafe { ffi::av_dict_set(&mut slot, key, value, 0) };
+        let ret = unsafe { ffi::av_dict_set(&raw mut slot, key, value, 0) };
         // SAFETY: NULL or the dictionary C left in the slot, unshared.
         *d = Dict::from(unsafe { DictionaryBox::from_c(slot) });
         ret
@@ -1007,7 +1041,7 @@ mod unit_tests {
 
     /// C's allocation failures part-way through, under an `av_max_alloc`
     /// limit the last value exceeds: the partial dictionaries are freed (as
-    /// LeakSanitizer checks) and the source is untouched.
+    /// `LeakSanitizer` checks) and the source is untouched.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn allocation_failures_free_partial_dictionaries() {
@@ -1040,7 +1074,7 @@ mod unit_tests {
     }
 
     /// Options wave 1, batch 0: the flags, the writers' slot plumbing, the
-    /// ownership `set_owned` hands over on every path (which LeakSanitizer
+    /// ownership `set_owned` hands over on every path (which `LeakSanitizer`
     /// checks), and the iterators' bookkeeping.
     mod readers_and_writers {
         use super::*;
@@ -1110,7 +1144,7 @@ mod unit_tests {
             d.remove(c"a", Flags::NONE).unwrap();
             assert_eq!(
                 d.parse_pairs(c"=v", c"=", c":", Flags::NONE),
-                Err(-(ffi::EINVAL as i32))
+                Err(-(ffi::EINVAL.cast_signed()))
             );
             assert!(d.is_empty() && d.as_ref().is_none());
         }
@@ -1129,7 +1163,10 @@ mod unit_tests {
             assert!(it.next().is_none() && it.next().is_none());
             assert_eq!(it.len(), 0);
             let mut m = d.get_all(c"a", Flags::NONE);
-            assert_eq!(format!("{m:?}"), r#"Matches { key: "a", flags: Flags(0), .. }"#);
+            assert_eq!(
+                format!("{m:?}"),
+                r#"Matches { key: "a", flags: Flags(0), .. }"#
+            );
             assert_eq!(m.by_ref().count(), 2);
             assert!(m.next().is_none() && m.next().is_none());
             let empty = Dict::new();
@@ -1150,7 +1187,7 @@ mod unit_tests {
                 return;
             }
             let long = CString::new(vec![b'x'; 1000]).unwrap();
-            let enomem = Err(-(ffi::ENOMEM as i32));
+            let enomem = Err(-(ffi::ENOMEM.cast_signed()));
             let mut d = Dict::from_entries([(c"a", c"1"), (c"b", c"2")]).unwrap();
             let src = Dict::from_entries([(c"c", c"3"), (c"d", long.as_c_str())]).unwrap();
             super::super::super::mem::set_max_alloc(500);

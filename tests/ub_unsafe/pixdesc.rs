@@ -1,9 +1,18 @@
 //! UB tests for `libavutil/pixdesc.h`'s unsafe API, each call within its
 //! `# Safety` contract.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 /// `PixelFormatDescriptor::from_raw`: adopting C's own table entries (empty
 /// ones included), string literals, NULL, and exactly sized leaked heap
-/// strings (so a read past the NUL is an ASan report), with every scalar at
+/// strings (so a read past the NUL is an `ASan` report), with every scalar at
 /// its edges; adopted values outliving the raw struct they were copied from,
 /// in `const` context, and read on several threads. Tests without `c_table`
 /// in their name make no C call and also run under Miri.
@@ -19,7 +28,7 @@ mod pixel_format_descriptor_from_raw {
 
     /// `bytes` as an exactly sized heap C string that lives for the rest of
     /// the program, kept reachable from a static so that neither
-    /// LeakSanitizer nor Miri reports it.
+    /// `LeakSanitizer` nor Miri reports it.
     fn leaked(bytes: &[u8]) -> *const c_char {
         static KEEP: Mutex<Vec<&'static CStr>> = Mutex::new(Vec::new());
         let s: &'static CStr = Box::leak(CString::new(bytes).unwrap().into_boxed_c_str());
@@ -125,12 +134,9 @@ mod pixel_format_descriptor_from_raw {
         // Adopted twice from one raw struct: two independent values.
         let r = raw(c"a".as_ptr(), ptr::null(), 1);
         // SAFETY: a literal and NULL.
-        let (mut a, b) = unsafe {
-            (
-                PixelFormatDescriptor::from_raw(r),
-                PixelFormatDescriptor::from_raw(r),
-            )
-        };
+        let (mut a, b) = (unsafe { PixelFormatDescriptor::from_raw(r) }, unsafe {
+            PixelFormatDescriptor::from_raw(r)
+        });
         a.as_mut().set_component_count(0);
         assert_eq!(b.as_ref().component_count(), 1);
         assert_ne!(a, b);

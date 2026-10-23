@@ -1,18 +1,32 @@
 //! UB tests for `libavutil/channel_layout.h`'s [`Channel`], through the safe
 //! API only: as a value, its Ambisonic conversions at every boundary, and as
 //! the plain element of `av_malloc`-family arrays.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::thread;
 
 use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+};
 
 /// Which descriptions C's parser may be given under BSan.
 #[path = "../common/channel_layout.rs"]
 mod parser_inputs;
 
-/// The BSan input filter keeps exactly the descriptions C matches by name or
+/// The `BSan` input filter keeps exactly the descriptions C matches by name or
 /// accepts as a channel list, and skips every other spelling.
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
@@ -76,9 +90,9 @@ fn channel_sample() -> Vec<Channel> {
         64,
         0x200,
         0x300,
-        0x3ff,
+        0x3FF,
         0x400,
-        0x7ff,
+        0x7FF,
         0x800,
         i32::MAX - 1,
         i32::MAX,
@@ -243,7 +257,9 @@ mod channel_order {
 
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelOrder;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+    use ffmpeg_bindings::libavutil::libavutil::mem::{
+        HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+    };
 
     /// Every value C names, the values just past them and the `unsigned`
     /// extremes, which C may store in `AVChannelLayout.order`.
@@ -345,7 +361,7 @@ mod channel_custom {
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, alloc_cell_array_zeroed};
 
     /// A name of `len` bytes in an exactly sized heap allocation, so a read
-    /// past its NUL is an ASan report.
+    /// past its NUL is an `ASan` report.
     fn heap_name(len: usize) -> CString {
         CString::new((0..len).map(|i| b'a' + (i % 26) as u8).collect::<Vec<_>>()).unwrap()
     }
@@ -374,7 +390,7 @@ mod channel_custom {
         for len in 0..=40 {
             let name = heap_name(len);
             for m in [&mut boxed.as_mut(), &mut value.as_mut()] {
-                m.set_opaque(dangling(0xdead));
+                m.set_opaque(dangling(0xDEAD));
                 m.set_id(Channel::FRONT_LEFT);
                 let strict = m.set_name(&name);
                 assert_eq!(strict.is_ok(), len <= ChannelName::MAX_LEN);
@@ -384,9 +400,12 @@ mod channel_custom {
                 }
                 assert_eq!(m.set_name_truncated(&name), len <= ChannelName::MAX_LEN);
                 let read = m.as_ref().name();
-                assert_eq!(read.as_bytes(), &name.as_bytes()[..len.min(ChannelName::MAX_LEN)]);
+                assert_eq!(
+                    read.as_bytes(),
+                    &name.as_bytes()[..len.min(ChannelName::MAX_LEN)]
+                );
                 // The neighbouring fields are untouched.
-                assert_eq!(m.as_ref().opaque().addr(), 0xdead);
+                assert_eq!(m.as_ref().opaque().addr(), 0xDEAD);
                 assert_eq!(m.as_ref().id(), Channel::FRONT_LEFT);
             }
         }
@@ -452,7 +471,10 @@ mod channel_custom {
         let mut m = v.as_mut();
         fill(&mut m, 9, c"side", 0x40);
         reset(m.as_mut());
-        assert_eq!(fields(m.as_ref()), (Channel::UNKNOWN, ChannelName::default(), 0));
+        assert_eq!(
+            fields(m.as_ref()),
+            (Channel::UNKNOWN, ChannelName::default(), 0)
+        );
         m.set_name(c"again").unwrap();
         let shared = m.as_ref();
         assert_eq!(shared.name(), c"again");
@@ -516,7 +538,10 @@ mod channel_custom {
         assert!(a.as_handles().get(N).is_none());
         let b = a.clone();
         drop(a);
-        assert_eq!(b.as_handles().get(N - 1).unwrap().name().as_bytes().len(), 15);
+        assert_eq!(
+            b.as_handles().get(N - 1).unwrap().name().as_bytes().len(),
+            15
+        );
         drop(alloc_cell_array_zeroed::<ChannelCustom>(0).unwrap());
     }
 
@@ -572,7 +597,10 @@ mod channel_custom {
             let mut m = boxed.as_mut();
             s.spawn(move || m.set_name(c"boxed").unwrap());
         });
-        let ids: Vec<i32> = values.iter().map(|v| v.as_ref().id().into_raw().0).collect();
+        let ids: Vec<i32> = values
+            .iter()
+            .map(|v| v.as_ref().id().into_raw().0)
+            .collect();
         assert_eq!(ids, [0, 1, 2, 3]);
         assert_eq!(boxed.as_ref().name(), c"boxed");
     }
@@ -600,14 +628,18 @@ mod channel_custom {
                 s.spawn(move || fill(&mut m, i as i32, &heap_name(i * 5), i));
             }
         });
-        let names: Vec<usize> = a.as_handles().iter().map(|h| h.name().as_bytes().len()).collect();
+        let names: Vec<usize> = a
+            .as_handles()
+            .iter()
+            .map(|h| h.name().as_bytes().len())
+            .collect();
         assert_eq!(names, [0, 5, 10, 15]);
     }
 }
 
 /// `Channel::write_name`, `write_description`, `name`, `description` and
 /// `from_name`: every id class and the `int` extremes written into exactly
-/// sized heap buffers of every length (so a write past the end is an ASan
+/// sized heap buffers of every length (so a write past the end is an `ASan`
 /// report), names of every shape in exactly sized heap strings, and the
 /// calls on several threads at once.
 mod channel_names {
@@ -712,7 +744,7 @@ mod channel_names {
 
 /// `Channel::append_name` / `append_description` into every print buffer
 /// owner: growing, automatic, count-only, and exactly sized caller buffers of
-/// every small length (so a byte past the end is an ASan report), handles
+/// every small length (so a byte past the end is an `ASan` report), handles
 /// reborrowed from owners and from other handles, and buffers on many
 /// threads at once.
 mod name_appenders {
@@ -953,7 +985,7 @@ mod layout {
 
     /// An `ambisonic` order of exactly `INT_MAX`, in any spelling `strtol`
     /// narrows to it and anywhere in the `+`-chain C reads orders, is
-    /// refused before C adds one to it (a signed overflow UBSan reports at
+    /// refused before C adds one to it (a signed overflow `UBSan` reports at
     /// `channel_layout.c:341`, after which C accepts a layout of no
     /// channels; wave-3 batch-1 review, `ub_safe/parse-ambisonic-int-max-
     /// order-overflow`). Its neighbours still go to C.
@@ -1090,7 +1122,7 @@ mod layout {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn setter_sequences_free_every_map_once() {
-        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut x = 0x9E37_79B9_7F4A_7C15u64;
         let mut next = move || {
             x ^= x << 13;
             x ^= x >> 7;
@@ -1265,7 +1297,7 @@ mod layout {
             0x200,
             0x300,
             0x400,
-            0x7ff,
+            0x7FF,
             i32::MAX,
         ] {
             let ch = Channel::from_raw(ffi::AVChannel(raw));
@@ -1341,7 +1373,9 @@ mod layout {
     /// `ChannelLayoutMut::retype` and its siblings, `ChannelLayoutRef::subset`
     /// and `standard_layouts` (formats wave-3 batch 2).
     mod order_changes {
-        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{Conversion, masks, standard_layouts};
+        use ffmpeg_bindings::libavutil::libavutil::channel_layout::{
+            Conversion, masks, standard_layouts,
+        };
 
         use super::*;
 
@@ -1401,7 +1435,7 @@ mod layout {
                 &[0x300, 0x300],
                 &[-1, 0],
                 &[i32::MIN, i32::MAX],
-                &[0x7ff, 0x400],
+                &[0x7FF, 0x400],
             ] {
                 out.push(ChannelLayout::from_custom_map(ids_map(ids)).unwrap());
                 out.push(ChannelLayout::from_custom_map(unterminated_map(ids)).unwrap());
@@ -1474,7 +1508,7 @@ mod layout {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn conversions_interleave_with_every_setter() {
-            let mut x = 0x2545_f491_4f6c_dd1du64;
+            let mut x = 0x2545_F491_4F6C_DD1Du64;
             let mut next = move || {
                 x ^= x << 13;
                 x ^= x >> 7;
@@ -1680,7 +1714,7 @@ mod layout {
                 0x400,
                 0x403,
                 0x404,
-                0x7ff,
+                0x7FF,
                 0x800,
                 i32::MAX,
                 i32::MIN,
@@ -1690,7 +1724,7 @@ mod layout {
         }
 
         /// Names of every lookup shape, each in an exactly sized heap block
-        /// (`CString` keeps none spare), so a read past its NUL is an ASan
+        /// (`CString` keeps none spare), so a read past its NUL is an `ASan`
         /// report.
         fn names() -> Vec<CString> {
             [
@@ -1749,7 +1783,7 @@ mod layout {
                 assert_eq!(at.and_then(|i| l.channel(i)), ch, "{name:?}");
             }
             let same = l;
-            assert!(l == same);
+            assert_eq!(l, same);
             let description = l.description();
             match &description {
                 Ok(d) => {
@@ -1800,12 +1834,12 @@ mod layout {
                 // A copy reads alike, and the source is left as it was.
                 let copy = l.as_ref().try_clone().unwrap();
                 assert_eq!(read_all(copy.as_ref()), d);
-                assert!(copy.as_ref() == l.as_ref());
+                assert_eq!(copy.as_ref(), l.as_ref());
                 walk(l.as_ref());
             }
             for ((_, layout), (_, twin)) in STANDARD_LAYOUTS.into_iter().zip(STANDARD_LAYOUTS) {
                 assert!(read_all(layout.as_ref()).is_some());
-                assert!(layout == twin);
+                assert_eq!(layout, twin);
             }
             assert!(described > 20, "{described}");
         }
@@ -1863,7 +1897,7 @@ mod layout {
                 assert!(r.is_valid());
                 assert_eq!(r.channel(ids.len() - 1), Some(last));
                 assert_eq!(r.index_of(last), Some(ids.len() - 1));
-                assert!(r == l.as_ref().try_clone().unwrap().as_ref());
+                assert_eq!(r, l.as_ref().try_clone().unwrap().as_ref());
                 let _ = r.ambisonic_order();
             }
         }
@@ -1888,7 +1922,7 @@ mod layout {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn readers_interleave_with_every_setter() {
-            let mut x = 0x5851_f42d_4c95_7f2du64;
+            let mut x = 0x5851_F42D_4C95_7F2Du64;
             let mut next = move || {
                 x ^= x << 13;
                 x ^= x >> 7;
@@ -1940,7 +1974,7 @@ mod layout {
                             l.append_description(buf.as_mut()).unwrap();
                             let _ = l.index_by_name(&names[k % names.len()]);
                             let _ = (l.channel(k % 6), l.ambisonic_order(), l.is_valid());
-                            assert!(l == layouts[(t + k) % layouts.len()].as_ref());
+                            assert_eq!(l, layouts[(t + k) % layouts.len()].as_ref());
                             buf.as_mut().clear();
                         }
                     });

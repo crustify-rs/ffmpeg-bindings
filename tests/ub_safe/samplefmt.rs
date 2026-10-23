@@ -1,12 +1,23 @@
 //! UB tests for `libavutil/samplefmt.h`'s [`SampleFormat`], through the safe
 //! API only: as values, as table indices, and as the plain elements of
 //! `av_malloc`-family arrays.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use std::collections::HashSet;
 use std::thread;
 
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed};
+use ffmpeg_bindings::libavutil::libavutil::mem::{
+    HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
+};
 use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
 /// Named constants, `AV_SAMPLE_FMT_NB` and the `int` extremes.
@@ -172,7 +183,7 @@ mod buffers {
         for i in 0..planes {
             let p = v.plane_mut(i).unwrap();
             let last = p.len() - 1;
-            p[last] = 0xee;
+            p[last] = 0xEE;
         }
         assert_eq!(v.set_silence(n - 1, 1), Ok(()));
         assert_eq!(v.set_silence(0, n), Ok(()));
@@ -247,7 +258,7 @@ mod buffers {
         for f in FORMATS {
             let mut dst = SampleBuffer::new(3, 40, f, 64).unwrap();
             let src = SampleBufferWithPointers::new(3, 7, f, 1).unwrap();
-            let mut bytes = vec![0x5a; samples_buffer_size(3, 100, f, 0).unwrap().size];
+            let mut bytes = vec![0x5A; samples_buffer_size(3, 100, f, 0).unwrap().size];
             let caller = SamplesMut::from_buffer(&mut bytes, 3, 100, f, 0).unwrap();
             assert_eq!(dst.as_mut().copy_from(src.as_ref(), 0, 33, 7), Ok(()));
             assert_eq!(
@@ -299,7 +310,9 @@ mod buffers {
             }
         }
         for raw in [-1, 12, 13, i32::MAX, i32::MIN] {
-            let f = SampleFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(
+                ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw),
+            );
             assert!(SampleBuffer::new(1, 1, f, 1).is_err());
             assert!(SampleBufferWithPointers::new(1, 1, f, 1).is_err());
             assert!(SamplesRef::from_buffer(&[0; 64], 1, 1, f, 1).is_err());
@@ -383,7 +396,7 @@ mod buffers {
 
     /// C rounds the default alignment's `INT_MAX - 31` samples up through a
     /// signed overflow (`FFALIGN(nb_samples, 32)`); the owners get the same
-    /// 2 GiB layout without it. Skipped under BSan, whose cost per byte
+    /// 2 GiB layout without it. Skipped under `BSan`, whose cost per byte
     /// makes a 2 GiB buffer impractical.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -410,7 +423,9 @@ mod buffers {
     #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_accepts_every_value() {
         for raw in [i32::MIN, -2, -1, 0, 5, 11, 12, 13, i32::MAX] {
-            let f = SampleFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(
+                ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw),
+            );
             assert_eq!(f.is_planar(), (5..=9).contains(&raw) || raw == 11, "{raw}");
         }
     }
@@ -474,7 +489,7 @@ mod sample_format_forms {
 
 /// UB tests for `SampleFormat`'s C lookups and description line: every
 /// value, named or not, into exactly sized heap buffers of every length (so
-/// a write past the end is an ASan report), and on several threads.
+/// a write past the end is an `ASan` report), and on several threads.
 mod lookups {
     use std::thread;
 

@@ -1,6 +1,14 @@
 //! UB tests for `libavutil/file.h`'s unsafe `map`, each call within its
 //! `# Safety` contract: no file is written while a mapping of it lives. The
 //! parent log context is none, or a safe `BareObject`.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    let_underscore_drop,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use core::ffi::{CStr, c_int};
 use std::ffi::CString;
@@ -58,8 +66,8 @@ fn mappings_of_every_size_are_read_and_written_end_to_end() {
         assert_eq!(m.len(), len);
         assert_eq!(m.as_slice(), &contents[..]);
         // A private mapping: writes stay in memory.
-        m.as_mut_slice().fill(0xee);
-        assert_eq!(m.as_slice(), &vec![0xee; len][..]);
+        m.as_mut_slice().fill(0xEE);
+        assert_eq!(m.as_slice(), &vec![0xEE; len][..]);
         drop(m);
         assert_eq!(std::fs::read(&f.0).unwrap(), contents);
     }

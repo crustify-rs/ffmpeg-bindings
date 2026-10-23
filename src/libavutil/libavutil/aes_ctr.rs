@@ -5,10 +5,13 @@
 //! offset. Only C knows its size and alignment. IV getters return snapshots;
 //! processing and setters borrow caller buffers only for the synchronous call.
 
-use super::aes::{CryptError, buffer_count};
-use super::{aes::InitError, ffi};
-use core::{mem::MaybeUninit, ptr::NonNull};
+use core::mem::MaybeUninit;
+use core::ptr::NonNull;
+
 use ffibox::{CAlloc, CBox, CDrop, define_ctype, impl_cdrop};
+
+use super::aes::{CryptError, InitError, buffer_count};
+use super::ffi;
 
 define_ctype!(
     /// Wraps: AVAESCTR
@@ -16,10 +19,13 @@ define_ctype!(
     /// An initialized AES-128 CTR context, opaque in the public C API. An adopted
     /// context must have been successfully initialized by `av_aes_ctr_init`.
     /// Use [`AesCtr::new`] rather than an inline value or a generic allocator.
-    AesCtr, AesCtrRef, AesCtrMut, ffi::AVAESCTR
+    AesCtr,
+    AesCtrRef,
+    AesCtrMut,
+    ffi::AVAESCTR
 );
 
-/// Wraps: av_aes_ctr_free
+/// Wraps: `av_aes_ctr_free`
 ///
 /// Release a context's full C allocation, including its inline AES state.
 #[derive(Clone, Copy, Debug, Default)]
@@ -38,7 +44,7 @@ unsafe impl CDrop<MaybeUninit<AesCtr>> for AesCtrFree {
     }
 }
 
-/// Wraps: av_aes_ctr_alloc
+/// Wraps: `av_aes_ctr_alloc`
 // SAFETY: C allocates its full private body with the right size and alignment;
 // AesCtrFree pairs with the allocator for both construction and initialized storage.
 unsafe impl CAlloc<AesCtr> for AesCtrFree {
@@ -73,6 +79,10 @@ impl AesCtr {
     /// Allocate and initialize AES-CTR with a copied 16-byte key and a zero IV.
     /// Set an appropriate IV through the processing API before encrypting messages;
     /// never reuse a key/IV combination.
+    ///
+    /// # Errors
+    ///
+    /// An [`InitError`] when C cannot allocate the context or `av_aes_ctr_init` fails.
     pub fn new(key: &[u8; 16]) -> Result<AesCtrBox, InitError> {
         let mut storage = AesCtrBox::new_uninit().ok_or(InitError::AllocationFailed)?;
         // SAFETY: storage holds the full, exclusively owned C allocation; the
@@ -88,9 +98,13 @@ impl AesCtr {
 }
 
 impl AesCtrMut<'_> {
-    /// Wraps: av_aes_ctr_init
+    /// Wraps: `av_aes_ctr_init`
     ///
     /// Replace the copied key and reset the full counter and partial-block state.
+    ///
+    /// # Errors
+    ///
+    /// An [`InitError`] when `av_aes_ctr_init` fails.
     pub fn init(&mut self, key: &[u8; 16]) -> Result<(), InitError> {
         // SAFETY: the handle exclusively borrows an initialized full C context;
         // C copies exactly 16 key bytes and does not retain the caller pointer.
@@ -104,24 +118,23 @@ impl AesCtrMut<'_> {
 }
 
 impl AesCtrRef<'_> {
-    /// Wraps: av_aes_ctr_get_iv
+    /// Wraps: `av_aes_ctr_get_iv`
     ///
     /// Snapshot the full 16-byte counter, including its current block counter.
     /// A partial crypt call may already have advanced the counter for its scratch block.
+    #[must_use]
     pub fn iv(&self) -> [u8; 16] {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let aes_ctr_get_iv = unsafe { ffi::av_aes_ctr_get_iv(self.as_ptr().cast_mut()) };
         // SAFETY: get_iv only returns the inline initialized counter without
         // writing the context despite its mutable C parameter. The shared handle
         // excludes mutation; copy all 16 bytes before the context can be freed.
-        unsafe {
-            ffi::av_aes_ctr_get_iv(self.as_ptr().cast_mut())
-                .cast::<[u8; 16]>()
-                .read()
-        }
+        unsafe { aes_ctr_get_iv.cast::<[u8; 16]>().read() }
     }
 }
 
 impl AesCtrMut<'_> {
-    /// Wraps: av_aes_ctr_set_iv
+    /// Wraps: `av_aes_ctr_set_iv`
     ///
     /// Copy the 8-byte nonce, zero the block counter and discard partial-block state.
     /// Never reuse a key/nonce pair for different messages.
@@ -131,7 +144,7 @@ impl AesCtrMut<'_> {
         unsafe { ffi::av_aes_ctr_set_iv(self.as_mut_ptr(), iv.as_ptr()) };
     }
 
-    /// Wraps: av_aes_ctr_set_full_iv
+    /// Wraps: `av_aes_ctr_set_full_iv`
     ///
     /// Copy the full counter and discard partial-block state.
     pub fn set_full_iv(&mut self, iv: &[u8; 16]) {
@@ -140,7 +153,7 @@ impl AesCtrMut<'_> {
         unsafe { ffi::av_aes_ctr_set_full_iv(self.as_mut_ptr(), iv.as_ptr()) };
     }
 
-    /// Wraps: av_aes_ctr_increment_iv
+    /// Wraps: `av_aes_ctr_increment_iv`
     ///
     /// Increment the big-endian nonce with wrapping arithmetic, zero the block
     /// counter, and discard partial-block state. Avoid nonce reuse on wraparound.
@@ -150,7 +163,7 @@ impl AesCtrMut<'_> {
         unsafe { ffi::av_aes_ctr_increment_iv(self.as_mut_ptr()) };
     }
 
-    /// Wraps: av_aes_ctr_set_random_iv
+    /// Wraps: `av_aes_ctr_set_random_iv`
     ///
     /// Ask C to choose an 8-byte nonce; reset block counter and partial state.
     /// C's random-seed API does not guarantee cryptographic uniqueness or entropy.
@@ -162,11 +175,16 @@ impl AesCtrMut<'_> {
         unsafe { ffi::av_aes_ctr_set_random_iv(self.as_mut_ptr()) };
     }
 
-    /// Wraps: av_aes_ctr_crypt
+    /// Wraps: `av_aes_ctr_crypt`
     ///
     /// XOR any byte count with the CTR stream, preserving partial-block state
     /// across calls. Buffers must have equal lengths fitting C's int range.
     /// Encryption and decryption are identical; CTR supplies no authentication.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt(&mut self, dst: &mut [u8], src: &[u8]) -> Result<(), CryptError> {
         let count = buffer_count(dst.len(), src.len(), 1)?;
         if count == 0 {
@@ -180,6 +198,11 @@ impl AesCtrMut<'_> {
     }
 
     /// In-place form of [`Self::crypt`], preserving the same stream state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
+    /// unchanged.
     pub fn crypt_in_place(&mut self, data: &mut [u8]) -> Result<(), CryptError> {
         let count = buffer_count(data.len(), data.len(), 1)?;
         if count == 0 {
@@ -221,14 +244,8 @@ mod unit_tests {
 
     #[test]
     fn null_adoption_and_opaque_layout() {
-        assert_eq!(
-            core::mem::size_of::<AesCtr>(),
-            core::mem::size_of::<ffi::AVAESCTR>()
-        );
-        assert_eq!(
-            core::mem::align_of::<AesCtr>(),
-            core::mem::align_of::<ffi::AVAESCTR>()
-        );
+        assert_eq!(size_of::<AesCtr>(), size_of::<ffi::AVAESCTR>());
+        assert_eq!(align_of::<AesCtr>(), align_of::<ffi::AVAESCTR>());
         // SAFETY: a null pointer transfers no allocation and creates no owner.
         assert!(unsafe { AesCtrBox::from_c(core::ptr::null_mut()) }.is_none());
     }

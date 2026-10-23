@@ -2,6 +2,15 @@
 //! with the C enums, as C observes them: through `av_get_media_type_string`
 //! and `av_get_picture_type_char`, and through C-allocated storage holding
 //! the values.
+#![expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 use core::ffi::{CStr, c_int, c_void};
 use core::mem::size_of;
@@ -73,14 +82,18 @@ impl CTypes {
 
     fn get(&self, i: usize) -> ffi::AVMediaType {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add_2 = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live, initialised block.
-        unsafe { self.0.add(i).read() }
+        unsafe { v_0_add_2.read() }
     }
 
     fn set(&mut self, i: usize, t: ffi::AVMediaType) {
         assert!(i < self.1);
+        // SAFETY: as the comment below states, for this part of the operation.
+        let v_0_add = unsafe { self.0.add(i) };
         // SAFETY: `i` is in bounds of the live block, which we own.
-        unsafe { self.0.add(i).write(t) }
+        unsafe { v_0_add.write(t) }
     }
 }
 
@@ -95,9 +108,13 @@ impl Drop for CTypes {
 fn rust_as_c(a: &HeapVec<MediaType>) -> Vec<ffi::AVMediaType> {
     let ptr = a.as_ptr().cast::<ffi::AVMediaType>();
     (0..a.len())
-        // SAFETY: `MediaType` is `#[repr(transparent)]` over `ffi::AVMediaType`,
-        // and `i` is in bounds of the live, initialised array `a` borrows.
-        .map(|i| unsafe { ptr.add(i).read() })
+        .map(|i| {
+            // SAFETY: `i` is in bounds of the array `ptr` points into.
+            let at = unsafe { ptr.add(i) };
+            // SAFETY: `MediaType` is `#[repr(transparent)]` over `ffi::AVMediaType`,
+            // and `i` is in bounds of the live, initialised array `a` borrows.
+            unsafe { at.read() }
+        })
         .collect()
 }
 
@@ -193,7 +210,7 @@ fn values_c_writes_are_read_back_unchanged() {
     // adopt the C block and read it as `MediaType`s.
     let len = c.1;
     let ptr = c.0;
-    core::mem::forget(c);
+    let _ = core::mem::ManuallyDrop::new(c);
     // SAFETY: `ptr` is a live `av_calloc` block of `len` initialised
     // `ffi::AVMediaType`, whose ownership `forget` gave up; `MediaType` is
     // layout-compatible with it, and `av_free` releases it.
@@ -297,8 +314,10 @@ fn picture_type_zeroed_storage_reads_as_c_zeroed_storage() {
         .cast::<ffi::AVPictureType>();
     assert!(!c.is_null());
     for (i, t) in rust.as_slice().iter().enumerate() {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add_3 = unsafe { c.add(i) };
         // SAFETY: `i` is in bounds of the live, zero-filled C block.
-        let ci = unsafe { c.add(i).read() };
+        let ci = unsafe { c_add_3.read() };
         assert_eq!(t.into_raw(), ci);
         assert_eq!(c_letter(t.into_raw()), c_letter(ci));
     }
@@ -324,15 +343,23 @@ fn picture_type_writes_through_each_side_agree_after_every_step() {
         let w = values[(step + 3) % len];
         rust.as_mut_slice()[step] = PictureType::from_raw(v);
         rust.as_mut_slice()[back] = w.into();
-        // SAFETY: `step` and `back` are in bounds of the live C block, owned
-        // here.
-        unsafe {
-            c.add(step).write(v);
-            c.add(back).write(w);
+        // For the unsafe operations below: `step` and `back` are in bounds of the live C block,
+        // owned here.
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_add_4 = unsafe { c.add(step) };
+            // SAFETY: as the comment above this block states.
+            unsafe { c_add_4.write(v) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_add_3 = unsafe { c.add(back) };
+            // SAFETY: as the comment above this block states.
+            unsafe { c_add_3.write(w) };
         }
         for i in 0..len {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let c_add_2 = unsafe { c.add(i) };
             // SAFETY: `i` is in bounds of the live, initialised C block.
-            let ci = unsafe { c.add(i).read() };
+            let ci = unsafe { c_add_2.read() };
             let ri = rust.as_slice()[i];
             assert_eq!(ri.into_raw(), ci, "step {step} slot {i}");
             assert_eq!(c_letter(ri.into_raw()), c_letter(ci));
@@ -341,8 +368,10 @@ fn picture_type_writes_through_each_side_agree_after_every_step() {
     // A clone is `av_memdup`'s copy of the same encodings.
     let copy = rust.clone();
     for i in 0..len {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let c_add = unsafe { c.add(i) };
         // SAFETY: as above.
-        let ci = unsafe { c.add(i).read() };
+        let ci = unsafe { c_add.read() };
         assert_eq!(copy.as_slice()[i].into_raw(), ci);
     }
     // SAFETY: `c` is the live `av_calloc` block allocated above.
@@ -366,13 +395,11 @@ mod version_and_x_if_null {
         let c = unsafe { ffi::avutil_version() };
         assert_eq!(version(), c);
         // SAFETY: each returns a static NUL-terminated string.
-        let strings = unsafe {
-            [
-                ffi::av_version_info(),
-                ffi::avutil_configuration(),
-                ffi::avutil_license(),
-            ]
-        };
+        let strings = [
+            unsafe { ffi::av_version_info() },
+            unsafe { ffi::avutil_configuration() },
+            unsafe { ffi::avutil_license() },
+        ];
         let rust = [version_info(), configuration(), license()];
         for (r, c) in rust.into_iter().zip(strings) {
             assert_eq!(r.as_ptr(), c);
@@ -455,17 +482,17 @@ mod fourcc {
         CStr::from_bytes_until_nul(buf).unwrap().to_bytes().to_vec()
     }
 
-    /// FourCCs whose bytes cover every class `av_fourcc_make_string` prints
+    /// `FourCCs` whose bytes cover every class `av_fourcc_make_string` prints
     /// differently, in each position.
     fn fourccs() -> impl Iterator<Item = u32> {
         let singles = (0..=255u32)
-            .flat_map(|b| (0..4).map(move |i| b << (8 * i) | 0x4141_4141 & !(0xff << (8 * i))));
+            .flat_map(|b| (0..4).map(move |i| b << (8 * i) | 0x4141_4141 & !(0xFF << (8 * i))));
         let words = [
             0,
             u32::MAX,
             u32::from_le_bytes(*b"H264"),
             u32::from_le_bytes(*b"av01"),
-            0x2e2d_205f,
+            0x2E2D_205F,
             0x0102_0304,
         ];
         singles.chain(words)
@@ -485,13 +512,13 @@ mod fourcc {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn reused_buffers_agree_after_every_step() {
-        let (mut rb, mut cb) = ([0xa5u8; 32], [0xa5u8; 32]);
+        let (mut rb, mut cb) = ([0xA5u8; 32], [0xA5u8; 32]);
         for f in [
-            0xffff_ffff,
+            0xFFFF_FFFF,
             u32::from_le_bytes(*b"mp4a"),
             0,
-            0x0000_2e41,
-            0x7f7f_7f7f,
+            0x0000_2E41,
+            0x7F7F_7F7F,
         ] {
             let r = fourcc_string(&mut rb, f).to_bytes().to_vec();
             assert_eq!(r, c_fourcc(&mut cb, f), "{f:#010x}");

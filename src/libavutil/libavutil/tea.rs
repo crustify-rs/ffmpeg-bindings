@@ -9,7 +9,8 @@ use core::ptr::NonNull;
 use ffibox::{CBox, CDrop, define_ctype};
 
 use super::aes::{CryptError, Direction};
-use super::{ffi, mem::Heap};
+use super::ffi;
+use super::mem::Heap;
 
 define_ctype!(
     /// Wraps: AVTEA
@@ -34,7 +35,10 @@ define_ctype!(
     /// first.init(&[1; 16], 64);
     /// second.init(&[2; 16], 64);
     /// ```
-    Tea, TeaRef, TeaMut, ffi::AVTEA
+    Tea,
+    TeaRef,
+    TeaMut,
+    ffi::AVTEA
 );
 
 /// Sole ownership of a C-allocated TEA context, freed with `av_free`.
@@ -53,7 +57,7 @@ pub type TeaBox = CBox<Tea, TeaFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TeaFree;
 
-/// Wraps: av_free
+/// Wraps: `av_free`
 // SAFETY: TeaBox adopts only `av_tea_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Tea> for TeaFree {
@@ -64,23 +68,26 @@ unsafe impl CDrop<Tea> for TeaFree {
 }
 
 impl Tea {
-    /// Wraps: av_tea_alloc
+    /// Wraps: `av_tea_alloc`
     ///
     /// Allocate and initialize a context; `None` means allocation failed.
     /// `rounds` is passed unchanged (64 is the standard round count).
     /// The key is copied, so its borrow ends when this call returns.
+    #[must_use]
     pub fn new(key: &[u8; 16], rounds: i32) -> Option<TeaBox> {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let tea_alloc = unsafe { ffi::av_tea_alloc() };
         // SAFETY: the allocator returns fresh, zero-filled C storage with no
         // nested resources. TeaFree frees it with the paired av_free. The owner
         // stays private until init has established the context's key/rounds.
-        let mut owner = unsafe { TeaBox::from_c(ffi::av_tea_alloc()) }?;
+        let mut owner = unsafe { TeaBox::from_c(tea_alloc) }?;
         owner.as_mut().init(key, rounds);
         Some(owner)
     }
 }
 
 impl TeaMut<'_> {
-    /// Wraps: av_tea_init
+    /// Wraps: `av_tea_init`
     ///
     /// Replace the key and round count. C copies the 16 key bytes and retains
     /// no pointer to the key. All signed round counts are accepted by C.
@@ -92,9 +99,10 @@ impl TeaMut<'_> {
     }
 }
 
-/// Wraps: av_tea_size
+/// Wraps: `av_tea_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -112,12 +120,17 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl TeaRef<'_> {
-    /// Wraps: av_tea_crypt
+    /// Wraps: `av_tea_crypt`
     ///
     /// Encrypt or decrypt whole 8-byte blocks. A mutable
     /// IV selects CBC and is updated after each block; `None` selects ECB.
     /// Output bytes beyond `src.len()` remain untouched. Partial blocks, short
-    /// outputs and block counts above C INT_MAX return an error before any mutation.
+    /// outputs and block counts above C `INT_MAX` return an error before any mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -127,8 +140,8 @@ impl TeaRef<'_> {
     ) -> Result<(), CryptError> {
         let count = crypt_count(src.len(), dst.len())?;
         // SAFETY: the shared initialized schedule is read-only throughout C.
-        // Validation covers count blocks in disjoint input/output slices. The optional IV is one exclusive
-        // block and cannot alias either slice. C retains no pointers.
+        // Validation covers count blocks in disjoint input/output slices. The optional IV is one
+        // exclusive block and cannot alias either slice. C retains no pointers.
         unsafe {
             ffi::av_tea_crypt(
                 self.as_ptr().cast_mut(),
@@ -137,7 +150,7 @@ impl TeaRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
@@ -152,6 +165,11 @@ impl TeaRef<'_> {
     /// let direction = Direction::Encrypt;
     /// cipher.as_ref().crypt_in_place(&mut bytes, Some(&mut bytes), direction).unwrap();
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -170,7 +188,7 @@ impl TeaRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
@@ -197,8 +215,8 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn rejected_buffers_are_unchanged() {
         let mut owner = Tea::new(&[0; 16], 64).unwrap();
-        let mut output = [0x7b; 8];
-        let mut iv = [0x8c; 8];
+        let mut output = [0x7B; 8];
+        let mut iv = [0x8C; 8];
         assert_eq!(
             owner.as_mut().as_ref().crypt(
                 &mut output,
@@ -225,28 +243,16 @@ mod unit_tests {
             ),
             Err(CryptError::IncompleteBlock)
         );
-        assert_eq!(output, [0x7b; 8]);
-        assert_eq!(iv, [0x8c; 8]);
+        assert_eq!(output, [0x7B; 8]);
+        assert_eq!(iv, [0x8C; 8]);
     }
 
     #[test]
     fn layout_matches_ffi() {
-        assert_eq!(
-            core::mem::size_of::<Tea>(),
-            core::mem::size_of::<ffi::AVTEA>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Tea>(),
-            core::mem::align_of::<ffi::AVTEA>()
-        );
-        assert_eq!(
-            core::mem::size_of::<TeaRef<'_>>(),
-            core::mem::size_of::<usize>()
-        );
-        assert_eq!(
-            core::mem::size_of::<TeaMut<'_>>(),
-            core::mem::size_of::<usize>()
-        );
+        assert_eq!(size_of::<Tea>(), size_of::<ffi::AVTEA>());
+        assert_eq!(align_of::<Tea>(), align_of::<ffi::AVTEA>());
+        assert_eq!(size_of::<TeaRef<'_>>(), size_of::<usize>());
+        assert_eq!(size_of::<TeaMut<'_>>(), size_of::<usize>());
     }
 
     #[test]

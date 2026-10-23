@@ -1,8 +1,12 @@
 //! Compare public lifecycle and processing APIs against independently owned C state.
-use ffmpeg_bindings::libavutil::libavutil::{
-    aes::{Aes, Direction},
-    ffi,
-};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::aes::{Aes, Direction};
+use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 struct Reference(*mut ffi::AVAES);
 impl Reference {
@@ -29,17 +33,24 @@ unsafe fn observe(ptr: *mut ffi::AVAES, direction: Direction) -> ([u8; 64], [u8;
     let mut iv = [0x31; 16];
     let decrypt = i32::from(direction == Direction::Decrypt);
     for offset in [0, 32] {
-        // SAFETY: caller provides a live initialized context. These disjoint
-        // local buffers each have 32 bytes at offset; IV is writable for 16 bytes.
-        unsafe {
-            ffi::av_aes_crypt(
-                ptr,
-                output.as_mut_ptr().add(offset),
-                input.as_ptr().add(offset),
-                2,
-                iv.as_mut_ptr(),
-                decrypt,
-            )
+        // For the unsafe operations below: caller provides a live initialized context. These
+        // disjoint local buffers each have 32 bytes at offset; IV is writable for 16 bytes.
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_mut_ptr_add_2 = unsafe { output.as_mut_ptr().add(offset) };
+            // SAFETY: as the comment below states, for this part of the operation.
+            let as_ptr_add_2 = unsafe { input.as_ptr().add(offset) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ffi::av_aes_crypt(
+                    ptr,
+                    as_mut_ptr_add_2,
+                    as_ptr_add_2,
+                    2,
+                    iv.as_mut_ptr(),
+                    decrypt,
+                );
+            };
         };
     }
     (output, iv)
@@ -102,7 +113,8 @@ fn constructors_and_reinitialization_match_c() {
                     },
                     0
                 );
-                // SAFETY: successful reinitialization restored both key schedules.
+                // For the unsafe operations below: successful reinitialization restored both key
+                // schedules.
                 let actual = observe_safe(&mut owner);
                 // SAFETY: same reference context validity and exclusive access.
                 let expected = unsafe { observe(reference.0, direction) };
@@ -130,7 +142,7 @@ fn batch10_size_is_the_c_global() {
 fn buffer_sequences_match_c() {
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let mut actual = Aes::new(&key, direction).unwrap();
             let reference = Aes::new(&key, direction).unwrap();
             let src: Vec<u8> = (0..16 * 8 + 3).map(|i| (i * 31) as u8).collect();
@@ -138,35 +150,43 @@ fn buffer_sequences_match_c() {
                 let (mut ia, mut ir) = ([0x73; 16], [0x73; 16]);
                 for blocks in [0, 1, 2, 4, 8, 1] {
                     let len = blocks * 16;
-                    let (mut a, mut r) = (vec![0xcc; len + 3], vec![0xcc; len + 3]);
+                    let (mut a, mut r) = (vec![0xCC; len + 3], vec![0xCC; len + 3]);
                     actual
                         .as_mut()
-                        .crypt(&mut a[1..1 + len], &src[2..2 + len], cbc.then_some(&mut ia))
+                        .crypt(&mut a[1..=len], &src[2..2 + len], cbc.then_some(&mut ia))
                         .unwrap();
                     let iv = if cbc {
                         ir.as_mut_ptr()
                     } else {
                         core::ptr::null_mut()
                     };
-                    // SAFETY: independent initialized context, len whole readable/
-                    // writable blocks in disjoint allocations; IV is a separate
-                    // full block or NULL. This synchronous call retains nothing.
-                    unsafe {
-                        ffi::av_aes_crypt(
-                            reference.as_c_ptr(),
-                            r.as_mut_ptr().add(1),
-                            src.as_ptr().add(2),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: independent initialized context, len whole
+                    // readable/ writable blocks in disjoint allocations; IV is
+                    // a separate full block or NULL. This synchronous call
+                    // retains nothing.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_mut_ptr_add = unsafe { r.as_mut_ptr().add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let as_ptr_add = unsafe { src.as_ptr().add(2) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_aes_crypt(
+                                reference.as_c_ptr(),
+                                as_mut_ptr_add,
+                                as_ptr_add,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);
                     // Compare subsequent in-place processing and IV transitions.
                     actual
                         .as_mut()
-                        .crypt_in_place(&mut a[1..1 + len], cbc.then_some(&mut ia))
+                        .crypt_in_place(&mut a[1..=len], cbc.then_some(&mut ia))
                         .unwrap();
                     // The assertions above reborrowed `r` and `ir`, retiring the
                     // pointers of the first call: take fresh ones, and a single
@@ -177,17 +197,25 @@ fn buffer_sequences_match_c() {
                         core::ptr::null_mut()
                     };
                     let place = r.as_mut_ptr();
-                    // SAFETY: same initialized reference, exact-alias buffers
-                    // explicitly supported by C, with len full blocks and separate IV.
-                    unsafe {
-                        ffi::av_aes_crypt(
-                            reference.as_c_ptr(),
-                            place.add(1),
-                            place.add(1),
-                            blocks as i32,
-                            iv,
-                            i32::from(direction == Direction::Decrypt),
-                        )
+                    // For the unsafe operations below: same initialized reference, exact-alias
+                    // buffers explicitly supported by C, with len full blocks
+                    // and separate IV.
+                    {
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add = unsafe { place.add(1) };
+                        // SAFETY: as the comment below states, for this part of the operation.
+                        let place_add_2 = unsafe { place.add(1) };
+                        // SAFETY: as the comment above this block states.
+                        unsafe {
+                            ffi::av_aes_crypt(
+                                reference.as_c_ptr(),
+                                place_add,
+                                place_add_2,
+                                blocks as i32,
+                                iv,
+                                i32::from(direction == Direction::Decrypt),
+                            );
+                        };
                     };
                     assert_eq!(a, r);
                     assert_eq!(ia, ir);

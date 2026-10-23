@@ -37,8 +37,7 @@
 use core::any::Any;
 use core::cell::Cell;
 use core::ffi::{CStr, c_char, c_int, c_void};
-use core::fmt;
-use core::ptr;
+use core::{fmt, ptr};
 use std::panic::{self, AssertUnwindSafe};
 
 use ffibox::{CBox, define_ctype, impl_cdrop};
@@ -46,7 +45,7 @@ use ffibox::{CBox, define_ctype, impl_cdrop};
 use super::ffi;
 use super::opt::{AVERROR_BUG, ObjectRef};
 
-/// Wraps: av_strtod
+/// Wraps: `av_strtod`
 ///
 /// The number at the start of `numstr`, and the rest of `numstr` after it.
 ///
@@ -65,6 +64,11 @@ use super::opt::{AVERROR_BUG, ObjectRef};
 /// assert_eq!(parse_number(c"1.5KiB, more"), (12288.0, c", more"));
 /// assert_eq!(parse_number(c"none"), (0.0, c"none"));
 /// ```
+///
+/// # Panics
+///
+/// Only if C breaks the guarantee that the suffix keeps the NUL.
+#[must_use]
 pub fn parse_number(numstr: &CStr) -> (f64, &CStr) {
     let start = numstr.as_ptr();
     let mut tail: *mut c_char = ptr::null_mut();
@@ -72,7 +76,7 @@ pub fn parse_number(numstr: &CStr) -> (f64, &CStr) {
     // suffix byte only after a non-NUL one), and `tail` a writable local, in
     // which C stores the address of the first byte of `numstr` it did not
     // consume.
-    let value = unsafe { ffi::av_strtod(start, &mut tail) };
+    let value = unsafe { ffi::av_strtod(start, &raw mut tail) };
     let bytes = numstr.to_bytes_with_nul();
     let parsed = (tail as usize).wrapping_sub(start as usize);
     assert!(parsed < bytes.len(), "av_strtod left the string");
@@ -81,7 +85,7 @@ pub fn parse_number(numstr: &CStr) -> (f64, &CStr) {
 }
 
 /// `AVERROR(EINVAL)`.
-const AVERROR_EINVAL: c_int = -(ffi::EINVAL as c_int);
+const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
 define_ctype!(
     /// Wraps: AVExpr
@@ -115,7 +119,7 @@ unsafe impl Send for Expr {}
 // while it lives.
 unsafe impl Send for ExprMut<'_> {}
 
-/// Wraps: av_expr_free
+/// Wraps: `av_expr_free`
 ///
 /// The release policy of an owned [`Expr`]: `av_expr_free` frees every node
 /// of the tree, then the root's registers and random-number state.
@@ -174,7 +178,7 @@ fn terminated<T: Copy>(items: impl Iterator<Item = T>, end: T) -> Vec<T> {
 }
 
 impl Expr {
-    /// Wraps: av_expr_parse
+    /// Wraps: `av_expr_parse`
     ///
     /// Parses `s` (for example `"1+2^3+5*5+sin(2/3)"`, whitespace ignored)
     /// into an expression that may name the constants `const_names`, the
@@ -183,14 +187,14 @@ impl Expr {
     /// `QP2LAMBDA`) and functions. A name matches at the first position it
     /// is listed at; the names are not kept.
     ///
-    /// Fails with `AVERROR(EINVAL)` for a malformed expression (logging why
-    /// at `AV_LOG_ERROR + log_offset` in C's `Eval` class context), one
-    /// whose parentheses or calls nest more than 100 levels deep, or a
-    /// `log_offset` above `INT_MAX - AV_LOG_ERROR` (which would overflow the
-    /// level C logs at, rejected before C runs). Fails with
-    /// `AVERROR(ENOMEM)` when allocation fails, and also, as C reports it,
-    /// for an expression whose tree would be more than 100 levels deep (a
-    /// chain of more than 100 binary operators, for example).
+    /// # Errors
+    ///
+    /// Fails with `AVERROR(EINVAL)` for a malformed expression (logging why at `AV_LOG_ERROR +
+    /// log_offset` in C's `Eval` class context), one whose parentheses or calls nest more than 100
+    /// levels deep, or a `log_offset` above `INT_MAX - AV_LOG_ERROR` (which would overflow the
+    /// level C logs at, rejected before C runs). Fails with `AVERROR(ENOMEM)` when allocation
+    /// fails, and also, as C reports it, for an expression whose tree would be more than 100 levels
+    /// deep (a chain of more than 100 binary operators, for example).
     pub fn parse(
         s: &CStr,
         const_names: &[&CStr],
@@ -201,12 +205,16 @@ impl Expr {
         Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
     }
 
-    /// Wraps: av_expr_parse
+    /// Wraps: `av_expr_parse`
     ///
     /// As [`parse`](Self::parse), logging a failure as a message of C's
     /// `Eval` context whose parent is `log_ctx`, which names it in the
     /// message's prefix; `None` is no parent. The expression keeps no pointer
     /// to `log_ctx`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_expr_parse` returns when it fails.
     pub fn parse_with_context(
         s: &CStr,
         const_names: &[&CStr],
@@ -215,16 +223,24 @@ impl Expr {
         log_offset: i32,
         log_ctx: Option<ObjectRef<'_>>,
     ) -> Result<ExprBox, i32> {
-        if log_offset > c_int::MAX - ffi::AV_LOG_ERROR as c_int {
+        type CUnary = unsafe extern "C" fn(*mut c_void, f64) -> f64;
+        type CBinary = unsafe extern "C" fn(*mut c_void, f64, f64) -> f64;
+        if log_offset > c_int::MAX - ffi::AV_LOG_ERROR.cast_signed() {
             return Err(AVERROR_EINVAL);
         }
         // Borrowed from the slices, which outlive the call: C reads the names
         // only while parsing, and copies the function pointers it keeps.
         let consts = terminated(const_names.iter().map(|n| n.as_ptr()), ptr::null());
         let unary_names = terminated(unary.iter().map(|(n, _)| n.as_ptr()), ptr::null());
-        let unary_fns = terminated(unary.iter().map(|&(_, f)| Some(f as _)), None);
+        let unary_fns = terminated(
+            unary.iter().map(|&(_, f)| -> Option<CUnary> { Some(f) }),
+            None,
+        );
         let binary_names = terminated(binary.iter().map(|(n, _)| n.as_ptr()), ptr::null());
-        let binary_fns = terminated(binary.iter().map(|&(_, f)| Some(f as _)), None);
+        let binary_fns = terminated(
+            binary.iter().map(|&(_, f)| -> Option<CBinary> { Some(f) }),
+            None,
+        );
         let log_ctx = log_ctx.map_or(ptr::null_mut(), |o| o.as_ptr());
         let mut expr = ptr::null_mut();
         // Everything below lives for the call, which is as long as C reads it.
@@ -235,7 +251,7 @@ impl Expr {
         // cannot overflow the error level C adds it to.
         let ret = unsafe {
             ffi::av_expr_parse(
-                &mut expr,
+                &raw mut expr,
                 s.as_ptr(),
                 consts.as_ptr(),
                 unary_names.as_ptr(),
@@ -269,7 +285,7 @@ pub enum Arity {
 }
 
 impl ExprRef<'_> {
-    /// Wraps: av_expr_count_vars
+    /// Wraps: `av_expr_count_vars`
     ///
     /// Adds to `counts[i]`, for each `i`, the number of places the expression
     /// reads the constant at position `i` of the names it was parsed with;
@@ -282,7 +298,7 @@ impl ExprRef<'_> {
         self.count(counts, None)
     }
 
-    /// Wraps: av_expr_count_func
+    /// Wraps: `av_expr_count_func`
     ///
     /// Adds to `counts[i]`, for each `i`, the number of calls of the user
     /// function of `arity` at position `i` of the functions the expression
@@ -353,7 +369,7 @@ impl fmt::Debug for Expression {
 }
 
 impl Expression {
-    /// Wraps: av_expr_parse
+    /// Wraps: `av_expr_parse`
     ///
     /// Parses `s` as [`Expr::parse`] does, for evaluation with a value for
     /// each of `const_names`.
@@ -373,10 +389,14 @@ impl Expression {
         Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
     }
 
-    /// Wraps: av_expr_parse
+    /// Wraps: `av_expr_parse`
     ///
     /// As [`parse`](Self::parse), logging a failure under the parent
     /// context `log_ctx`, as [`Expr::parse_with_context`] does.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_expr_parse` returns when it fails.
     pub fn parse_with_context(
         s: &CStr,
         const_names: &[&CStr],
@@ -399,11 +419,13 @@ impl Expression {
 
     /// The number of constants the expression was parsed with: the fewest
     /// values an evaluation takes.
+    #[must_use]
     pub fn constant_count(&self) -> usize {
         self.constants
     }
 
     /// The parsed tree, for the counters.
+    #[must_use]
     pub fn as_ref(&self) -> ExprRef<'_> {
         self.tree.as_ref()
     }
@@ -413,7 +435,7 @@ impl Expression {
         self.tree
     }
 
-    /// Wraps: av_expr_eval
+    /// Wraps: `av_expr_eval`
     ///
     /// The expression's value with `const_values[i]` for the constant at
     /// position `i`; each user function it calls receives a NULL opaque
@@ -428,7 +450,7 @@ impl Expression {
         self.eval_raw(const_values, ptr::null_mut())
     }
 
-    /// Wraps: av_expr_eval
+    /// Wraps: `av_expr_eval`
     ///
     /// As [`eval`](Self::eval), passing each user function `opaque`, as a
     /// pointer to the `T`, valid for the call; the functions run one at a
@@ -461,15 +483,15 @@ impl Expression {
 
 /// `AVERROR(EINVAL)`: C's code for an expression it cannot parse, and the
 /// wrapper's for one it refuses.
-const EINVAL: i32 = -(ffi::EINVAL as i32);
+const EINVAL: i32 = -(ffi::EINVAL.cast_signed());
 
 /// `AV_LOG_TRACE`, the highest level C logs a parse error at plus the
 /// offset of a quiet evaluation.
-const LOG_TRACE: c_int = ffi::AV_LOG_TRACE as c_int;
+const LOG_TRACE: c_int = ffi::AV_LOG_TRACE.cast_signed();
 
 /// `AV_LOG_FATAL`: C adds a context's level offset only to messages at or
 /// above it.
-const LOG_FATAL: c_int = ffi::AV_LOG_FATAL as c_int;
+const LOG_FATAL: c_int = ffi::AV_LOG_FATAL.cast_signed();
 
 /// The most functions of each arity one evaluation takes: each needs its own
 /// C trampoline, since C passes a function only the shared `opaque`.
@@ -483,7 +505,7 @@ pub type Func1<'f> = (&'f CStr, &'f dyn Fn(f64) -> f64);
 /// called by and the function.
 pub type Func2<'f> = (&'f CStr, &'f dyn Fn(f64, f64) -> f64);
 
-/// Wraps: av_expr_parse_and_eval
+/// Wraps: `av_expr_parse_and_eval`
 ///
 /// The value of `expr`, an arithmetic expression in FFmpeg's syntax, such as
 /// `"1+2^3+5*5+sin(2/3)"`. Whitespace is ignored. The expression may name
@@ -505,15 +527,13 @@ pub type Func2<'f> = (&'f CStr, &'f dyn Fn(f64, f64) -> f64);
 /// the evaluator's unchecked `double` to integer conversions, which are
 /// undefined behaviour for a NaN or out-of-range value (`ld(1e300)`):
 ///
-/// - an index argument of `ld`, `st`, `random`, `randomi` or `taylor`, the
-///   level argument of `print`, or an argument of `gcd`, `bitand` or
-///   `bitor` that is not a plain decimal number (`5`, `-2.5`) in range: the
-///   `int` range for an index or level, the `int64_t` range for the others;
-/// - a `print` level at or above `AV_LOG_FATAL` that overflows an `int` once
-///   `log_offset` is added, or a `log_offset` that does so for C's own
-///   messages (above `INT_MAX - AV_LOG_TRACE`);
-/// - `random` or `randomi` together with `st` or `root`, which store
-///   arbitrary values in the variables `random` seeds itself from.
+/// - an index argument of `ld`, `st`, `random`, `randomi` or `taylor`, the level argument of
+///   `print`, or an argument of `gcd`, `bitand` or `bitor` that is not a plain decimal number (`5`,
+///   `-2.5`) in range: the `int` range for an index or level, the `int64_t` range for the others;
+/// - a `print` level at or above `AV_LOG_FATAL` that overflows an `int` once `log_offset` is added,
+///   or a `log_offset` that does so for C's own messages (above `INT_MAX - AV_LOG_TRACE`);
+/// - `random` or `randomi` together with `st` or `root`, which store arbitrary values in the
+///   variables `random` seeds itself from.
 ///
 /// A function in `funcs1` or `funcs2` that panics makes the evaluation
 /// return NaN to C without calling Rust again, and the panic resumes once C
@@ -566,7 +586,7 @@ pub fn parse_and_eval(
     // expression that could reach C's unchecked conversions.
     let ret = unsafe {
         ffi::av_expr_parse_and_eval(
-            &mut value,
+            &raw mut value,
             expr.as_ptr(),
             const_names.as_ptr(),
             const_values.as_ptr(),
@@ -644,9 +664,10 @@ impl Funcs<'_> {
 }
 
 macro_rules! trampolines {
-    ($call:ident, $ty:ty; $($i:literal)*) => {
-        [$(Funcs::$call::<$i> as $ty),*]
-    };
+    ($call:ident, $ty:ty; $($i:literal)*) => {{
+        let calls: [$ty; MAX_FUNCS] = [$(Funcs::$call::<$i>),*];
+        calls
+    }};
 }
 
 const CALLS1: [Call1; MAX_FUNCS] =
@@ -674,6 +695,10 @@ enum Conversion {
 /// The check is syntactic and conservative: it reads every place C could
 /// parse a built-in call, and lets through only arguments whose value it
 /// knows.
+#[expect(
+    clippy::items_after_statements,
+    reason = "the item is declared where the code it serves begins"
+)]
 pub(crate) fn refuses(expr: &[u8], log_offset: i32) -> bool {
     if log_offset > c_int::MAX - LOG_TRACE {
         return true;
@@ -682,7 +707,7 @@ pub(crate) fn refuses(expr: &[u8], log_offset: i32) -> bool {
     let s: Vec<u8> = expr
         .iter()
         .copied()
-        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r'))
         .collect();
     let identifier = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
     let (mut seeds, mut stores) = (false, false);
@@ -701,7 +726,7 @@ pub(crate) fn refuses(expr: &[u8], log_offset: i32) -> bool {
         if s[start].is_ascii_digit() {
             continue;
         }
-        use Conversion::*;
+        use Conversion::{Int, Int64, Level};
         let converted: &[(usize, Conversion)] = match &s[start..i] {
             b"ld" => &[(0, Int)],
             b"st" => {
@@ -750,7 +775,7 @@ pub(crate) fn reads_clock(expr: &[u8]) -> bool {
     let s: Vec<u8> = expr
         .iter()
         .copied()
-        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r'))
+        .filter(|c| !matches!(c, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r'))
         .collect();
     s.split(|&c| !(c.is_ascii_alphanumeric() || c == b'_'))
         .any(|name| name == b"time")
@@ -782,6 +807,14 @@ fn arguments(s: &[u8]) -> Vec<&[u8]> {
 
 /// Whether `arg` is a plain decimal number whose `conversion` C performs
 /// without undefined behaviour.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "`fits` bounds the value first, and `as` truncates toward zero as C's conversion does"
+)]
+#[expect(
+    clippy::naive_bytecount,
+    reason = "a few bytes, counted as C counts them"
+)]
 fn in_range(arg: &[u8], conversion: Conversion, log_offset: i32) -> bool {
     let digits = arg
         .strip_prefix(b"+")
@@ -812,6 +845,12 @@ fn in_range(arg: &[u8], conversion: Conversion, log_offset: i32) -> bool {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    trivial_casts,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 mod unit_tests {
     use super::*;
 
@@ -902,7 +941,7 @@ mod unit_tests {
         a + b
     }
 
-    /// Whether this run is under BSan, which misreports C's parser: every
+    /// Whether this run is under `BSan`, which misreports C's parser: every
     /// primary goes through `av_strtod`, whose end pointer glibc's uninstrumented
     /// `strtod` writes, so the local keeps the provenance an earlier frame left
     /// in its slot (often a freed parse buffer) and `next[0]` can read as a use
@@ -1014,7 +1053,7 @@ mod unit_tests {
         // SAFETY: a writable slot, a literal, and no names or context.
         let ret = unsafe {
             ffi::av_expr_parse(
-                &mut raw,
+                &raw mut raw,
                 c"st(0, 2); ld(0) * 3".as_ptr(),
                 ptr::null(),
                 ptr::null(),
@@ -1165,8 +1204,9 @@ mod unit_tests {
     /// constant count it checks, the opaque pointer of `eval_with`, and the
     /// counters' arguments.
     mod expression {
-        use super::*;
         use std::panic::catch_unwind;
+
+        use super::*;
 
         extern "C" fn bump(opaque: *mut c_void, x: f64) -> f64 {
             // SAFETY: the only evaluation of this function passes a live

@@ -1,7 +1,10 @@
-use ffmpeg_bindings::libavutil::libavutil::{
-    ffi,
-    ripemd::{self, DigestBits, Ripemd, RipemdBox},
-};
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::ripemd::{self, DigestBits, Ripemd, RipemdBox};
 
 /// The single raw C-reference constructor fixture for this type.
 fn reference(bits: DigestBits) -> RipemdBox {
@@ -20,15 +23,20 @@ fn reference(bits: DigestBits) -> RipemdBox {
 /// each update, including buffered partial blocks. This is a C-only probe.
 fn digest(context: &RipemdBox, bits: DigestBits) -> Vec<u8> {
     let mut output = vec![0; bits.digest_len()];
-    // SAFETY: av_ripemd_size is C's immutable actual context size; the
+    // For the unsafe operations below: av_ripemd_size is C's immutable actual context size; the
     // allocation is initialized, resource-free, and contains only static
     // transform code pointers, so a byte copy is an independent context.
-    unsafe {
-        let len = ffi::av_ripemd_size as usize;
-        let copy = ffi::av_memdup(context.as_c_ptr().cast(), len).cast::<ffi::AVRIPEMD>();
+    {
+        // SAFETY: as the comment above this block states.
+        let len = unsafe { ffi::av_ripemd_size } as usize;
+        // SAFETY: as the comment above this block states.
+        let copy =
+            unsafe { ffi::av_memdup(context.as_c_ptr().cast(), len).cast::<ffi::AVRIPEMD>() };
         assert!(!copy.is_null());
-        ffi::av_ripemd_final(copy, output.as_mut_ptr());
-        ffi::av_free(copy.cast());
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_ripemd_final(copy, output.as_mut_ptr()) };
+        // SAFETY: as the comment above this block states.
+        unsafe { ffi::av_free(copy.cast()) };
     }
     output
 }

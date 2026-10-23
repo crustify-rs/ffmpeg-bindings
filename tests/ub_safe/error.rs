@@ -1,5 +1,9 @@
 //! UB tests of `libavutil/error.h`'s [`describe`]: every buffer size,
 //! including none, and every class of code, across threads.
+#![expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 
 use ffmpeg_bindings::libavutil::libavutil::error::describe;
 
@@ -53,9 +57,9 @@ mod make_error_string {
 
     /// FFmpeg codes, negated `errno`s, unknown values and the extremes.
     const CODES: [i32; 10] = [
-        -0x2046_4f45, // AVERROR_EOF
-        -0x4144_4e49, // AVERROR_INVALIDDATA
-        -0x2bb2_afa8, // AVERROR_EXPERIMENTAL
+        -0x2046_4F45, // AVERROR_EOF
+        -0x4144_4E49, // AVERROR_INVALIDDATA
+        -0x2BB2_AFA8, // AVERROR_EXPERIMENTAL
         -1,
         -12,
         0,
@@ -70,7 +74,7 @@ mod make_error_string {
     fn every_buffer_length_holds_its_string() {
         for errnum in CODES {
             for len in 0..=MAX_STRING_SIZE + 16 {
-                let mut buf = vec![0x5a_u8; len].into_boxed_slice();
+                let mut buf = vec![0x5A_u8; len].into_boxed_slice();
                 let s = make_error_string(errnum, &mut buf);
                 assert!(s.to_bytes().len() < len.max(1));
                 let n = s.to_bytes().len();
@@ -84,7 +88,7 @@ mod make_error_string {
     fn the_string_borrows_the_buffer() {
         let mut buf = [0u8; MAX_STRING_SIZE];
         let s = make_error_string(CODES[0], &mut buf).to_owned();
-        buf.fill(0xff);
+        buf.fill(0xFF);
         assert!(!s.as_bytes().is_empty());
     }
 
@@ -97,7 +101,7 @@ mod make_error_string {
                     let mut buf = [0u8; MAX_STRING_SIZE];
                     for i in 0..2000 {
                         let errnum = CODES[(i + t) % CODES.len()];
-                        let _ = make_error_string(errnum, &mut buf[..(i % MAX_STRING_SIZE) + 1]);
+                        let _ = make_error_string(errnum, &mut buf[..=(i % MAX_STRING_SIZE)]);
                     }
                 })
             })

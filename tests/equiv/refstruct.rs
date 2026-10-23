@@ -1,5 +1,19 @@
 //! Equivalence of `libavutil/refstruct.h`'s wrappers with C on
 //! independently owned inputs.
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
+#![expect(
+    clippy::needless_for_each,
+    clippy::needless_pass_by_value,
+    clippy::redundant_closure_for_method_calls,
+    reason = "each test is one scenario, its helpers and steps kept where they are used"
+)]
 
 /// Buffer-frame wave 0, type batch 3: `AVRefStructOpaque` as C's union
 /// builders and consumers see it, and `AVRefStructPool`'s lifecycle against a
@@ -60,7 +74,7 @@ mod pool_and_opaque {
     fn c_uninit(p: *mut ffi::AVRefStructPool) {
         let mut slot = p;
         // SAFETY: releases one reference the caller holds.
-        unsafe { ffi::av_refstruct_pool_uninit(&mut slot) };
+        unsafe { ffi::av_refstruct_pool_uninit(&raw mut slot) };
         assert!(slot.is_null());
     }
 
@@ -103,7 +117,7 @@ mod pool_and_opaque {
         let zeroes =
             !flags.contains(PoolFlags::NO_ZEROING) || flags.contains(PoolFlags::ZERO_EVERY_TIME);
         let fresh = zeroes.then(|| bytes(first).iter().all(|&b| b == 0));
-        fill(first, 0xab);
+        fill(first, 0xAB);
         put(first);
         let second = get(p);
         let reused = second == first;
@@ -165,8 +179,8 @@ mod pool_and_opaque {
     }
 
     /// Entries outlive the pool's last reference on both sides and stay
-    /// usable; the last one returned frees the pool (LSan otherwise reports
-    /// it, ASan any use after free).
+    /// usable; the last one returned frees the pool (`LSan` otherwise reports
+    /// it, `ASan` any use after free).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn entries_outlive_the_last_reference_as_in_c() {
@@ -188,7 +202,7 @@ mod pool_and_opaque {
     }
 
     /// Clones on other threads get and return entries while the owning
-    /// thread drops its reference first (TSan checks the hand-offs).
+    /// thread drops its reference first (`TSan` checks the hand-offs).
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn references_and_entries_cross_threads() {
@@ -446,12 +460,10 @@ mod pool_and_opaque {
             if let Some(pool) = rust {
                 // SAFETY: both pools are live; C fails the entry's
                 // allocation and returns NULL.
-                let (ours, theirs) = unsafe {
-                    (
-                        ffi::av_refstruct_pool_get(pool.as_c_ptr()),
-                        ffi::av_refstruct_pool_get(c),
-                    )
-                };
+                let (ours, theirs) = (
+                    unsafe { ffi::av_refstruct_pool_get(pool.as_c_ptr()) },
+                    unsafe { ffi::av_refstruct_pool_get(c) },
+                );
                 assert!(ours.is_null() && theirs.is_null());
                 c_uninit(c);
             } else {
@@ -468,15 +480,17 @@ mod pool_and_opaque {
             .as_ref()
             .mut_ptr()
             .cast::<u64>();
+        // SAFETY: as the comment below states, for this part of the operation.
+        let slot_read = unsafe { slot.read() };
         // SAFETY: the test below passes `Cell::as_ptr` of a live
         // `Cell<u64>`, which no Rust access touches during C's call.
-        unsafe { slot.write(slot.read() + 1) };
+        unsafe { slot.write(slot_read + 1) };
     }
 
     /// C keeps a pointer to Rust memory in an object's header while Rust
     /// reads and writes the pointee through its own shared borrows, then
     /// writes through it from the free callback: the retained pointer stays
-    /// valid across those reborrows (BSan) because it points into a `Cell`.
+    /// valid across those reborrows (`BSan`) because it points into a `Cell`.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn retained_opaque_survives_rust_reborrows() {
@@ -512,7 +526,7 @@ mod pool_and_opaque {
             // C, with no other view alive.
             let view = unsafe { core::slice::from_raw_parts_mut(e, SIZE) };
             assert!(view.iter().all(|&b| b == 0));
-            view.fill(0x5a);
+            view.fill(0x5A);
         }
         put(e);
         let again = get(pool.as_c_ptr());
@@ -760,7 +774,7 @@ mod counted_references {
         let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
         let (seeds, steps) = if bsan { (2u64, 100) } else { (64, 400) };
         for seed in 1..=seeds {
-            let mut rng = XorShift(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
+            let mut rng = XorShift(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
             let mut c = CSide([ptr::null_mut(); 2 * SLOTS]);
             let mut r = RustSide {
                 refs: Default::default(),
@@ -777,14 +791,18 @@ mod counted_references {
     #[cfg_attr(miri, ignore = "calls C")]
     fn zeroed_payloads_match_c_byte_for_byte() {
         let size = size_of::<ffi::AVColorPrimariesDesc>();
-        // SAFETY: an allocation by size, then a read of its `size` zeroed bytes
-        // and the release of its one reference.
-        let c_bytes = unsafe {
-            let mut obj = ffi::av_refstruct_allocz(size);
+        // For the unsafe operations below: an allocation by size, then a read of its `size` zeroed
+        // bytes and the release of its one reference.
+        let c_bytes = {
+            // SAFETY: as the comment above this block states.
+            let mut obj = unsafe { ffi::av_refstruct_allocz(size) };
             assert!(!obj.is_null());
-            let bytes = core::slice::from_raw_parts(obj.cast::<u8>(), size).to_vec();
-            assert_eq!(ffi::av_refstruct_exclusive(obj), 1);
-            ffi::av_refstruct_unref((&raw mut obj).cast());
+            // SAFETY: as the comment above this block states.
+            let bytes = unsafe { core::slice::from_raw_parts(obj.cast::<u8>(), size).to_vec() };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_refstruct_exclusive(obj), 1) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_refstruct_unref((&raw mut obj).cast()) };
             assert!(obj.is_null());
             bytes
         };
@@ -800,19 +818,29 @@ mod counted_references {
     #[cfg_attr(miri, ignore = "calls C")]
     fn replace_of_the_last_reference_releases_like_c() {
         // C: the slot's object goes when replaced by another, as the Rust slot's.
-        // SAFETY: two fresh objects, each reference released exactly once.
-        unsafe {
-            let mut x = ffi::av_refstruct_allocz(8);
-            let mut y = ffi::av_refstruct_allocz(8);
-            let mut slot = ffi::av_refstruct_ref(y);
-            ffi::av_refstruct_unref((&raw mut y).cast());
-            assert_eq!(ffi::av_refstruct_exclusive(slot), 1);
-            ffi::av_refstruct_replace((&raw mut slot).cast(), x);
-            assert_eq!(ffi::av_refstruct_exclusive(x), 0);
-            ffi::av_refstruct_replace((&raw mut slot).cast(), ptr::null());
+        // For the unsafe operations below: two fresh objects, each reference released exactly once.
+        {
+            // SAFETY: as the comment above this block states.
+            let mut x = unsafe { ffi::av_refstruct_allocz(8) };
+            // SAFETY: as the comment above this block states.
+            let mut y = unsafe { ffi::av_refstruct_allocz(8) };
+            // SAFETY: as the comment above this block states.
+            let mut slot = unsafe { ffi::av_refstruct_ref(y) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_refstruct_unref((&raw mut y).cast()) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_refstruct_exclusive(slot), 1) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_refstruct_replace((&raw mut slot).cast(), x) };
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_refstruct_exclusive(x), 0) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_refstruct_replace((&raw mut slot).cast(), ptr::null()) };
             assert!(slot.is_null());
-            assert_eq!(ffi::av_refstruct_exclusive(x), 1);
-            ffi::av_refstruct_unref((&raw mut x).cast());
+            // SAFETY: as the comment above this block states.
+            unsafe { assert_eq!(ffi::av_refstruct_exclusive(x), 1) };
+            // SAFETY: as the comment above this block states.
+            unsafe { ffi::av_refstruct_unref((&raw mut x).cast()) };
         }
         let x = RefStructArc::<IntFloat64>::new_zeroed().unwrap();
         let mut slot = Some(RefStructArc::<IntFloat64>::new_zeroed().unwrap());
@@ -913,7 +941,7 @@ mod releases_and_typed_pools {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn release_runs_where_cs_free_callback_runs() {
-        let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
+        let mut rng = XorShift(0x9E37_79B9_7F4A_7C15);
         for _ in 0..300 {
             let refs = 1 + rng.below(5);
             let value = rng.next();
@@ -988,7 +1016,7 @@ mod releases_and_typed_pools {
     unsafe extern "C" fn c_reset(_: ffi::AVRefStructOpaque, obj: *mut c_void) {
         let v = read(obj);
         c_log("reset", v);
-        write(obj, v ^ 0xffff_0000);
+        write(obj, v ^ 0xFFFF_0000);
     }
 
     unsafe extern "C" fn c_free_entry(_: ffi::AVRefStructOpaque, obj: *mut c_void) {
@@ -1008,7 +1036,7 @@ mod releases_and_typed_pools {
     fn r_reset(s: &State, mut e: IntFloat64Mut<'_>) {
         let v = e.as_ref().bits();
         s.0.log.lock().unwrap().push(("reset", v));
-        e.set_bits(v ^ 0xffff_0000);
+        e.set_bits(v ^ 0xFFFF_0000);
     }
 
     fn r_free_entry(s: &State, e: IntFloat64Mut<'_>) {
@@ -1162,7 +1190,7 @@ mod releases_and_typed_pools {
         fn release_pool(&mut self) {
             let mut slot = std::mem::replace(&mut self.c_pool, ptr::null_mut());
             // SAFETY: the run's one reference to the live C pool.
-            unsafe { ffi::av_refstruct_pool_uninit(&mut slot) };
+            unsafe { ffi::av_refstruct_pool_uninit(&raw mut slot) };
             self.c_free.clear();
             self.r_pool = None;
         }
@@ -1240,7 +1268,7 @@ mod releases_and_typed_pools {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn typed_pools_follow_c_pools_step_by_step() {
-        let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
+        let mut rng = XorShift(0x2545_F491_4F6C_DD1D);
         for flags in flag_sets() {
             for kind in kinds() {
                 for _ in 0..4 {

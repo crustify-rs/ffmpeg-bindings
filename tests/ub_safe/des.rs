@@ -1,3 +1,7 @@
+#![expect(
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::aes::Direction::{Decrypt, Encrypt};
 use ffmpeg_bindings::libavutil::libavutil::des::{Des, DesBox};

@@ -8,20 +8,21 @@ use core::ffi::CStr;
 
 use super::ffi;
 
-/// Wraps: av_strerror
+/// Wraps: `av_strerror`
 ///
-/// Writes a description of the `AVERROR` code `errnum` into `buf` and returns
-/// it, NUL-terminated and truncated to fit:
-///
-/// - `Ok` with FFmpeg's own description, or the system's for an
-///   `AVERROR(errno)` code;
-/// - `Err` with the generic "Error number N occurred" when no description is
-///   found or the system's does not fit `buf`.
+/// - `Ok` with FFmpeg's own description, or the system's for an `AVERROR(errno)` code;
+/// - `Err` with the generic "Error number N occurred" when no description is found or the system's
+///   does not fit `buf`.
 ///
 /// An empty `buf` has no room for even the terminator: C writes nothing, and
 /// the description is `c""`, with the status C reports for a zero-sized
 /// buffer. `AV_ERROR_MAX_STRING_SIZE` (64) bytes hold every FFmpeg
 /// description.
+///
+/// # Errors
+///
+/// Writes a description of the `AVERROR` code `errnum` into `buf` and returns it, NUL-terminated
+/// and truncated to fit:
 pub fn describe(errnum: i32, buf: &mut [u8]) -> Result<&CStr, &CStr> {
     // An empty slice's pointer is dangling, which C's `strerror_r` may not
     // receive even for a zero size; a live byte stands in for it, unwritten.
@@ -45,12 +46,12 @@ pub fn describe(errnum: i32, buf: &mut [u8]) -> Result<&CStr, &CStr> {
 /// defines itself (`AV_ERROR_MAX_STRING_SIZE`).
 pub const MAX_STRING_SIZE: usize = ffi::AV_ERROR_MAX_STRING_SIZE as usize;
 
-/// Wraps: av_make_error_string
+/// Wraps: `av_make_error_string`
 ///
 /// Writes the description of the `AVERROR` code `errnum` into `buf`, and
-/// returns it, as [`describe`] does without the status: FFmpeg's own text for its codes, the system's for a negated
-/// `errno`, and `Error number <errnum> occurred` for anything else, truncated
-/// to fit with its NUL. An empty `buf` yields an empty string.
+/// returns it, as [`describe`] does without the status: FFmpeg's own text for its codes, the
+/// system's for a negated `errno`, and `Error number <errnum> occurred` for anything else,
+/// truncated to fit with its NUL. An empty `buf` yields an empty string.
 /// [`MAX_STRING_SIZE`] bytes hold every FFmpeg description untruncated.
 pub fn make_error_string(errnum: i32, buf: &mut [u8]) -> &CStr {
     if buf.is_empty() {
@@ -119,16 +120,16 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn make_error_string_describes_ffmpeg_codes() {
-        let mut buf = [0xaa; MAX_STRING_SIZE];
+        let mut buf = [0xAA; MAX_STRING_SIZE];
         assert_eq!(make_error_string(EOF, &mut buf), c"End of file");
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn make_error_string_truncates_to_the_buffer() {
-        let mut buf = [0xaa; 4];
+        let mut buf = [0xAA; 4];
         assert_eq!(make_error_string(EOF, &mut buf), c"End");
-        let mut one = [0xaa; 1];
+        let mut one = [0xAA; 1];
         assert_eq!(make_error_string(EOF, &mut one), c"");
     }
 

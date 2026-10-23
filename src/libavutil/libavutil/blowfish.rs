@@ -4,10 +4,13 @@
 //! support shared and exclusive handles. Array getters return snapshots, not
 //! references to memory C can access. Dropping a box uses [`Heap`](super::mem::Heap).
 
-use super::aes::{CryptError, Direction, buffer_count};
-use super::{ffi, mem::HeapBox};
 use core::ptr::{addr_of, addr_of_mut};
+
 use ffibox::{CZeroable, define_ctype};
+
+use super::aes::{CryptError, Direction, buffer_count};
+use super::ffi;
+use super::mem::HeapBox;
 
 define_ctype!(
     /// Wraps: AVBlowfish
@@ -15,7 +18,10 @@ define_ctype!(
     /// A resource-free Blowfish key schedule. Field replacement accepts any
     /// words (all bit patterns are valid), but changes the resulting cipher.
     #[derive(Clone, Copy)]
-    Blowfish, BlowfishRef, BlowfishMut, ffi::AVBlowfish
+    Blowfish,
+    BlowfishRef,
+    BlowfishMut,
+    ffi::AVBlowfish
 );
 
 // SAFETY: both fields contain only u32 arrays. Zero is valid for every field
@@ -47,6 +53,11 @@ impl Blowfish {
     ///
     /// Matches C for any nonempty key whose length fits `i32`; C does not
     /// enforce the customary Blowfish key-size limit. The key is not retained.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for an empty key or one longer than `i32::MAX`
+    /// bytes.
     pub fn new(key: &[u8]) -> Result<Self, InitError> {
         key_len(key)?;
         let mut context = Self::zeroed();
@@ -54,15 +65,22 @@ impl Blowfish {
         Ok(context)
     }
 
-    /// Wraps: av_blowfish_alloc
+    /// Wraps: `av_blowfish_alloc`
     ///
     /// Allocate and initialize a sole owner; the key is not retained.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] as [`Blowfish::new`], and
+    /// [`InitError::AllocationFailed`] when C cannot allocate the context.
     pub fn new_boxed(key: &[u8]) -> Result<BlowfishBox, InitError> {
         key_len(key)?;
+        // SAFETY: as the comment below states, for this part of the operation.
+        let blowfish_alloc = unsafe { ffi::av_blowfish_alloc() };
         // SAFETY: C returns a fresh av_mallocz block with two initialized u32
         // arrays, or NULL. Heap frees it with av_free and C retains no pointer.
-        let mut context = unsafe { BlowfishBox::from_c(ffi::av_blowfish_alloc()) }
-            .ok_or(InitError::AllocationFailed)?;
+        let mut context =
+            unsafe { BlowfishBox::from_c(blowfish_alloc) }.ok_or(InitError::AllocationFailed)?;
         context.as_mut().init(key)?;
         Ok(context)
     }
@@ -72,25 +90,38 @@ impl BlowfishRef<'_> {
     /// Field: AVBlowfish.p
     ///
     /// Copy the 18 round-key words.
+    #[must_use]
     pub fn p(&self) -> [u32; 18] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `p` field is in bounds; nothing is accessed here.
+        let p_ptr = unsafe { addr_of!((*self.as_ptr()).p) };
         // SAFETY: the shared handle keeps the initialized array alive and
         // excludes writes for this read; projection creates no C reference.
-        unsafe { addr_of!((*self.as_ptr()).p).read() }
+        unsafe { p_ptr.read() }
     }
 
     /// Field: AVBlowfish.s
     ///
     /// Copy all four 256-word substitution tables.
+    #[must_use]
     pub fn s(&self) -> [[u32; 256]; 4] {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `s` field is in bounds; nothing is accessed here.
+        let s_ptr = unsafe { addr_of!((*self.as_ptr()).s) };
         // SAFETY: as p(), for the complete initialized s array.
-        unsafe { addr_of!((*self.as_ptr()).s).read() }
+        unsafe { s_ptr.read() }
     }
 }
 
 impl BlowfishMut<'_> {
-    /// Wraps: av_blowfish_init
+    /// Wraps: `av_blowfish_init`
     ///
     /// Replace the whole schedule. An invalid key leaves the context unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InitError::InvalidKeyLength`] for an empty key or one longer than `i32::MAX`
+    /// bytes.
     pub fn init(&mut self, key: &[u8]) -> Result<(), InitError> {
         let len = key_len(key)?;
         // SAFETY: the exclusive handle addresses a full writable context. C
@@ -104,25 +135,36 @@ impl BlowfishMut<'_> {
     ///
     /// Replace the round-key words without changing the substitution tables.
     pub fn set_p(&mut self, words: [u32; 18]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `p` field is in bounds; nothing is accessed here.
+        let p_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).p) };
         // SAFETY: exclusive access to the complete p array; every u32 is valid.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).p).write(words) }
+        unsafe { p_ptr.write(words) }
     }
 
     /// Field: AVBlowfish.s
     ///
     /// Replace the substitution tables without changing the round-key words.
     pub fn set_s(&mut self, tables: [[u32; 256]; 4]) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `s` field is in bounds; nothing is accessed here.
+        let s_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).s) };
         // SAFETY: exclusive access to the complete s array; every u32 is valid.
-        unsafe { addr_of_mut!((*self.as_mut_ptr()).s).write(tables) }
+        unsafe { s_ptr.write(tables) }
     }
 }
 
 impl BlowfishRef<'_> {
-    /// Wraps: av_blowfish_crypt
+    /// Wraps: `av_blowfish_crypt`
     ///
     /// Encrypt or decrypt whole blocks.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
     /// Buffers must have equal lengths; errors leave all state unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -146,12 +188,17 @@ impl BlowfishRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 
     /// In-place form of [`Self::crypt`], with the same modes and validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
+    /// unchanged.
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -176,33 +223,42 @@ impl BlowfishRef<'_> {
                 count,
                 iv.map_or(core::ptr::null_mut(), |iv| iv.as_mut_ptr()),
                 direction.as_int(),
-            )
+            );
         };
         Ok(())
     }
 }
 
 impl BlowfishRef<'_> {
-    /// Wraps: av_blowfish_crypt_ecb
+    /// Wraps: `av_blowfish_crypt_ecb`
     ///
     /// Process a pair of numeric 32-bit halves (not host-endian byte strings).
     pub fn crypt_ecb(&self, halves: &mut [u32; 2], direction: Direction) {
         let ptr = halves.as_mut_ptr();
-        // SAFETY: the context is initialized and shared without writers. The
-        // two distinct aligned u32 slots are writable for the synchronous call;
+        // For the unsafe operations below: the context is initialized and shared without writers.
+        // The two distinct aligned u32 slots are writable for the synchronous call;
         // C reads both before writing and retains neither pointer.
-        unsafe {
-            ffi::av_blowfish_crypt_ecb(
-                self.as_ptr().cast_mut(),
-                ptr,
-                ptr.add(1),
-                direction.as_int(),
-            )
+        {
+            // SAFETY: as the comment below states, for this part of the operation.
+            let ptr_add = unsafe { ptr.add(1) };
+            // SAFETY: as the comment above this block states.
+            unsafe {
+                ffi::av_blowfish_crypt_ecb(
+                    self.as_ptr().cast_mut(),
+                    ptr,
+                    ptr_add,
+                    direction.as_int(),
+                );
+            };
         };
     }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::unreadable_literal,
+    reason = "constants as the C sources and specifications spell them"
+)]
 mod unit_tests {
     use super::*;
 
@@ -237,9 +293,9 @@ mod unit_tests {
         let mut context = Blowfish::zeroed();
         let mut handle = context.as_mut();
         handle.as_mut().set_p([u32::MAX; 18]);
-        handle.set_s([[0x1234abcd; 256]; 4]);
+        handle.set_s([[0x1234ABCD; 256]; 4]);
         assert_eq!(handle.as_ref().p(), [u32::MAX; 18]);
-        assert_eq!(handle.as_ref().s(), [[0x1234abcd; 256]; 4]);
+        assert_eq!(handle.as_ref().s(), [[0x1234ABCD; 256]; 4]);
         let copy = context;
         context.as_mut().set_p([0; 18]);
         assert_eq!(copy.as_ref().p(), [u32::MAX; 18]);

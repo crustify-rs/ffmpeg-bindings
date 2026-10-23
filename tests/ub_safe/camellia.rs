@@ -8,7 +8,7 @@ fn reinitialize_across_reborrows() {
         Camellia::new(&key).unwrap()
     }; // C may not retain the key.
     for len in [24, 32, 16, 32, 24] {
-        let key = vec![0xab; len].into_boxed_slice();
+        let key = vec![0xAB; len].into_boxed_slice();
         let mut outer = context.as_mut();
         outer.as_mut().init(&key).unwrap();
         let _shared = outer.as_ref();
@@ -60,13 +60,13 @@ use ffmpeg_bindings::libavutil::libavutil::aes::Direction;
 fn processing_across_reborrows_and_unaligned_buffers() {
     for key_len in [16, 24, 32] {
         for direction in [Direction::Encrypt, Direction::Decrypt] {
-            let key = vec![0xa7; key_len];
+            let key = vec![0xA7; key_len];
             let mut owner = Camellia::new(&key).unwrap();
             drop(key);
-            let mut source = [0x5a; 16 * 8 + 3];
+            let mut source = [0x5A; 16 * 8 + 3];
             let mut destination = vec![0x99; source.len()];
             for cbc in [false, true] {
-                let mut iv = [0xf3; 16];
+                let mut iv = [0xF3; 16];
                 for blocks in [0, 1, 4, 2, 8] {
                     let len = blocks * 16;
                     let mut outer = owner.as_mut();
@@ -75,7 +75,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                         handle
                             .as_ref()
                             .crypt(
-                                &mut destination[1..1 + len],
+                                &mut destination[1..=len],
                                 &source[2..2 + len],
                                 cbc.then_some(&mut iv),
                                 direction,
@@ -84,7 +84,7 @@ fn processing_across_reborrows_and_unaligned_buffers() {
                     }
                     outer
                         .as_ref()
-                        .crypt_in_place(&mut source[1..1 + len], cbc.then_some(&mut iv), direction)
+                        .crypt_in_place(&mut source[1..=len], cbc.then_some(&mut iv), direction)
                         .unwrap();
                 }
                 owner

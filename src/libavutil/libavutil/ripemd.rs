@@ -7,13 +7,17 @@ use core::ptr::NonNull;
 
 use ffibox::{CBox, CDrop, define_ctype};
 
-use super::{ffi, mem::Heap};
+use super::ffi;
+use super::mem::Heap;
 
 define_ctype!(
     /// Wraps: AVRIPEMD
     ///
     /// An opaque, initialized C hashing context, held behind an [`RipemdBox`].
-    Ripemd, RipemdRef, RipemdMut, ffi::AVRIPEMD
+    Ripemd,
+    RipemdRef,
+    RipemdMut,
+    ffi::AVRIPEMD
 );
 
 /// Sole ownership of a complete C-allocated hashing context.
@@ -43,14 +47,19 @@ unsafe impl CDrop<Ripemd> for RipemdFree {
 /// The four digest sizes accepted by C initialization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DigestBits {
+    /// RIPEMD-128.
     Bits128,
+    /// RIPEMD-160.
     Bits160,
+    /// RIPEMD-256.
     Bits256,
+    /// RIPEMD-320.
     Bits320,
 }
 
 impl DigestBits {
     /// Number of bits in the digest.
+    #[must_use]
     pub const fn bits(self) -> i32 {
         match self {
             Self::Bits128 => 128,
@@ -61,8 +70,9 @@ impl DigestBits {
     }
 
     /// Number of output bytes required by this algorithm.
+    #[must_use]
     pub const fn digest_len(self) -> usize {
-        (self.bits() / 8) as usize
+        (self.bits() / 8).unsigned_abs() as usize
     }
 }
 
@@ -81,10 +91,11 @@ impl TryFrom<i32> for DigestBits {
 }
 
 impl Ripemd {
-    /// Wraps: av_ripemd_alloc
+    /// Wraps: `av_ripemd_alloc`
     ///
     /// Allocate through C and initialize for the chosen digest size before
     /// publishing the owner. None means C allocation failed.
+    #[must_use]
     pub fn new(bits: DigestBits) -> Option<RipemdBox> {
         // SAFETY: C's allocator has no arguments or preconditions and returns
         // its actual private context size, zero-filled, or NULL.
@@ -108,10 +119,14 @@ impl Ripemd {
 }
 
 impl RipemdMut<'_> {
-    /// Wraps: av_ripemd_init
+    /// Wraps: `av_ripemd_init`
     ///
     /// Reset the context for a supported digest size. C retains no pointer
     /// to caller-owned data. Returns C's status (zero for these four sizes).
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_ripemd_init` returns when it fails.
     pub fn init(&mut self, bits: DigestBits) -> Result<(), i32> {
         // SAFETY: this handle exclusively borrows a full initialized C
         // context; bits admits only sizes C accepts. C retains no pointer.
@@ -120,9 +135,10 @@ impl RipemdMut<'_> {
     }
 }
 
-/// Wraps: av_ripemd_size
+/// Wraps: `av_ripemd_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
     // static lifetime and no writer anywhere in the library.
@@ -130,7 +146,7 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl RipemdMut<'_> {
-    /// Wraps: av_ripemd_update
+    /// Wraps: `av_ripemd_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
     pub fn update(&mut self, data: &[u8]) {
@@ -146,11 +162,11 @@ impl RipemdMut<'_> {
                     data.as_ptr()
                 },
                 data.len(),
-            )
+            );
         }
     }
 
-    /// Wraps: av_ripemd_final
+    /// Wraps: `av_ripemd_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.

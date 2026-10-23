@@ -1,3 +1,7 @@
+#![expect(
+    clippy::no_effect_underscore_binding,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 use ffmpeg_bindings::libavutil::libavutil::aes_ctr::{AesCtr, AesCtrRef};
 
 fn shared_views(view: AesCtrRef<'_>) {
@@ -34,18 +38,18 @@ fn partial_stream_iv_changes_and_reborrows() {
         let nonce = [seed; 8];
         owner.as_mut().set_iv(&nonce);
         let snapshot = owner.as_ref().iv();
-        let source = [0x5a; 133];
+        let source = [0x5A; 133];
         let mut destination = [0x99; 133];
         for len in [0, 1, 14, 1, 16, 17, 31, 64, 129] {
             let mut outer = owner.as_mut();
             outer
                 .as_mut()
-                .crypt(&mut destination[1..1 + len], &source[2..2 + len])
+                .crypt(&mut destination[1..=len], &source[2..2 + len])
                 .unwrap();
             let _snapshot = outer.as_ref().iv();
             outer.crypt_in_place(&mut destination[2..2 + len]).unwrap();
             outer.increment_iv();
-            outer.set_full_iv(&[0xff; 16]);
+            outer.set_full_iv(&[0xFF; 16]);
         }
         // The previous snapshot owns bytes and survives mutation and parent drop.
         owner.as_mut().increment_iv();

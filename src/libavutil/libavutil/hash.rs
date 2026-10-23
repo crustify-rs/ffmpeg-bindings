@@ -24,7 +24,7 @@ define_ctype!(
     ffi::AVHashContext
 );
 
-/// Wraps: av_hash_freep
+/// Wraps: `av_hash_freep`
 ///
 /// Releases the context and its algorithm storage exactly once. The CRC
 /// table is static and is not freed.
@@ -40,7 +40,7 @@ unsafe impl CDrop<HashContext> for HashContextFree {
         // SAFETY: CDrop's caller transfers the uniquely owned av_hash_alloc
         // allocation. C frees its child and then the context, and clears only
         // this writable local slot; it does not retain the slot's address.
-        unsafe { ffi::av_hash_freep(&mut slot) };
+        unsafe { ffi::av_hash_freep(&raw mut slot) };
     }
 }
 
@@ -76,18 +76,25 @@ unsafe impl CDrop<HashContext> for HashContextFree {
 pub type HashContextBox = CBox<HashContext, HashContextFree>;
 
 impl HashContext {
-    /// Wraps: av_hash_alloc
+    /// Wraps: `av_hash_alloc`
     ///
     /// Allocates and initializes the named algorithm (case-insensitive).
     /// Returns C's negative error code for an unknown algorithm or allocation
     /// failure. The name is read only during allocation, never retained.
-    #[allow(clippy::new_ret_no_self)]
+    ///
+    /// # Errors
+    ///
+    /// Returns C's negative error code for an unknown algorithm or allocation failure.
+    ///
+    /// # Panics
+    ///
+    /// Only if C reports success from `av_hash_alloc` without allocating a context.
     pub fn new(name: &CStr) -> Result<HashContextBox, c_int> {
         let mut context = ptr::null_mut();
         // SAFETY: context is a writable local output slot; name is a live
         // NUL-terminated string. C reads the name, retains no input pointer,
         // and hands over a fresh allocation on success, NULL on failure.
-        let result = unsafe { ffi::av_hash_alloc(&mut context, name.as_ptr()) };
+        let result = unsafe { ffi::av_hash_alloc(&raw mut context, name.as_ptr()) };
         if result < 0 {
             return Err(result);
         }
@@ -102,28 +109,32 @@ impl HashContext {
 }
 
 impl HashContextRef<'_> {
-    /// Wraps: av_hash_get_name
+    /// Wraps: `av_hash_get_name`
     ///
     /// The algorithm's canonical name, backed by C's immutable static table.
+    #[must_use]
     pub fn name(&self) -> &'static CStr {
+        // SAFETY: as the comment below states, for this part of the operation.
+        let hash_get_name = unsafe { ffi::av_hash_get_name(self.as_ptr()) };
         // SAFETY: this handle keeps a valid allocated context alive. C only
         // reads its algorithm and returns a non-NULL NUL-terminated string
         // in static const hashdesc storage, independent of the context's life.
-        unsafe { CStr::from_ptr(ffi::av_hash_get_name(self.as_ptr())) }
+        unsafe { CStr::from_ptr(hash_get_name) }
     }
 
-    /// Wraps: av_hash_get_size
+    /// Wraps: `av_hash_get_size`
     ///
     /// The number of bytes in this algorithm's binary digest.
+    #[must_use]
     pub fn size(&self) -> usize {
         // SAFETY: the live allocated context has an algorithm selected by
         // av_hash_alloc. C only reads it and returns its positive digest size.
-        unsafe { ffi::av_hash_get_size(self.as_ptr()) as usize }
+        unsafe { ffi::av_hash_get_size(self.as_ptr()) }.unsigned_abs() as usize
     }
 }
 
 impl HashContextMut<'_> {
-    /// Wraps: av_hash_init
+    /// Wraps: `av_hash_init`
     ///
     /// Initializes or resets the hashing state, including after finalization.
     pub fn init(&mut self) {
@@ -142,7 +153,7 @@ fn c_capacity(len: usize) -> i32 {
 }
 
 impl HashContextMut<'_> {
-    /// Wraps: av_hash_update
+    /// Wraps: `av_hash_update`
     ///
     /// Append borrowed bytes. Empty input is a no-op; no pointer is retained.
     pub fn update(&mut self, data: &[u8]) {
@@ -154,7 +165,7 @@ impl HashContextMut<'_> {
         unsafe { ffi::av_hash_update(self.as_mut_ptr(), data.as_ptr(), data.len()) };
     }
 
-    /// Wraps: av_hash_final
+    /// Wraps: `av_hash_final`
     ///
     /// Finalize into a digest-sized owned buffer. Reset with [`Self::init`]
     /// before a new message. The current C backends remain memory-safe after
@@ -167,7 +178,7 @@ impl HashContextMut<'_> {
         output
     }
 
-    /// Wraps: av_hash_final_bin
+    /// Wraps: `av_hash_final_bin`
     ///
     /// Finalize with truncation or zero-padding to the output length. An
     /// empty output still finalizes the context. C pads at most `INT_MAX`
@@ -185,10 +196,10 @@ impl HashContextMut<'_> {
         // valid pointer. C truncates/pads within len and retains neither pointer.
         unsafe { ffi::av_hash_final_bin(self.as_mut_ptr(), ptr, len) };
         // Empty unless the output is longer than C could pad.
-        output[len as usize..].fill(0);
+        output[len.unsigned_abs() as usize..].fill(0);
     }
 
-    /// Wraps: av_hash_final_hex
+    /// Wraps: `av_hash_final_hex`
     ///
     /// Finalize into C's NUL-terminated lowercase hex representation. The
     /// buffer must contain at least two bytes; C writes nothing at smaller
@@ -196,6 +207,10 @@ impl HashContextMut<'_> {
     /// without modifying the context or output for smaller buffers.
     /// Truncation, including odd-sized buffers, matches C; bytes beyond the
     /// terminating NUL are left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_hash_final_hex` returns when it fails.
     pub fn finalize_hex(&mut self, output: &mut [u8]) -> Result<(), i32> {
         if output.len() < 2 {
             return Err(-22);
@@ -208,12 +223,16 @@ impl HashContextMut<'_> {
         Ok(())
     }
 
-    /// Wraps: av_hash_final_b64
+    /// Wraps: `av_hash_final_b64`
     ///
     /// Finalize into NUL-terminated Base64, truncating to the output capacity.
     /// Returns -22 before any mutation for empty output, which would make C
     /// write at `dst[-1]`, so it is never passed to C.
     /// Bytes beyond the terminating NUL are left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns the negative `AVERROR` code `av_hash_final_b64` returns when it fails.
     pub fn finalize_b64(&mut self, output: &mut [u8]) -> Result<(), i32> {
         if output.is_empty() {
             return Err(-22);
@@ -227,10 +246,11 @@ impl HashContextMut<'_> {
     }
 }
 
-/// Wraps: av_hash_names
+/// Wraps: `av_hash_names`
 ///
 /// Name at a C hash registry index, or `None` for an invalid index.
 /// The registry and its NUL-terminated names are immutable static storage.
+#[must_use]
 pub fn name(index: i32) -> Option<&'static CStr> {
     // SAFETY: every integer index is checked by C; no input pointers.
     let ptr = unsafe { ffi::av_hash_names(index) };
@@ -268,7 +288,10 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn unknown_names_are_errors() {
         for name in [c"", c"not a hash", c"SHA999", c"\xff"] {
-            assert_eq!(HashContext::new(name).err(), Some(-(ffi::EINVAL as c_int)));
+            assert_eq!(
+                HashContext::new(name).err(),
+                Some(-(ffi::EINVAL.cast_signed()))
+            );
         }
     }
 

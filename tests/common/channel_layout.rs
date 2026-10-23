@@ -12,13 +12,13 @@
 //! call put its `chlist` there. Which inputs trip it therefore depends on the
 //! caller's frames, not on the input alone, so every input whose parse reaches
 //! those lines is skipped under BSan; see
-//! `crustify/reviews/20261005/libavutil/formats/wave-2/batch-0/misc/bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`.
+//! `crustify/reviews/20261005/libavutil/formats/wave-2/batch-0/misc/
+//! bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`.
 //!
 //! `av_channel_from_string`'s `USR<n>` path initialises its `endptr` to the
 //! string before `strtol` overwrites it, so its shadow stays live: channel
 //! lists are safe, and this predicate mirrors `av_channel_layout_from_string`
 //! only as far as needed to tell whether C stops before `strtol`.
-#![allow(dead_code)]
 
 use core::ffi::CStr;
 use std::ffi::CString;
@@ -70,8 +70,8 @@ const STANDARD_NAMES: [&str; 40] = [
     "22.2",
 ];
 
-/// Whether this run is under BSan.
-pub fn under_bsan() -> bool {
+/// Whether this run is under `BSan`.
+pub(crate) fn under_bsan() -> bool {
     std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
 }
 
@@ -81,7 +81,7 @@ pub fn under_bsan() -> bool {
 /// `<n> channels (...)`. Anything else, every `ambisonic` form included, is
 /// parsed through glibc end pointers, or is too irregular (quotes, escapes,
 /// blanks, empty keys) to be sure it is not.
-pub fn parsed_before_strtol(description: &CStr) -> bool {
+pub(crate) fn parsed_before_strtol(description: &CStr) -> bool {
     let Ok(s) = description.to_str() else {
         return false;
     };
@@ -125,13 +125,13 @@ fn channel_list_accepted(list: &str) -> bool {
 }
 
 /// Whether `description` must not be given to `av_channel_layout_from_string`
-/// in this run: under BSan, every input parsed through glibc end pointers.
-pub fn skipped_under_bsan(description: &CStr) -> bool {
+/// in this run: under `BSan`, every input parsed through glibc end pointers.
+pub(crate) fn skipped_under_bsan(description: &CStr) -> bool {
     under_bsan() && !parsed_before_strtol(description)
 }
 
 /// `descriptions` without the ones [`skipped_under_bsan`].
-pub fn allowed<'a>(descriptions: &'a [&'a CStr]) -> impl Iterator<Item = &'a CStr> + 'a {
+pub(crate) fn allowed<'a>(descriptions: &'a [&'a CStr]) -> impl Iterator<Item = &'a CStr> + 'a {
     descriptions
         .iter()
         .copied()
@@ -139,7 +139,7 @@ pub fn allowed<'a>(descriptions: &'a [&'a CStr]) -> impl Iterator<Item = &'a CSt
 }
 
 /// Every `AV_CH_<name>` channel bit beside its [`Channel`], in header order.
-pub const CHANNEL_BITS: [(&str, Channel); 36] = [
+pub(crate) const CHANNEL_BITS: [(&str, Channel); 36] = [
     ("FRONT_LEFT", Channel::FRONT_LEFT),
     ("FRONT_RIGHT", Channel::FRONT_RIGHT),
     ("FRONT_CENTER", Channel::FRONT_CENTER),
@@ -180,7 +180,7 @@ pub const CHANNEL_BITS: [(&str, Channel); 36] = [
 
 /// Every `AV_CH_LAYOUT_<name>` beside its [`masks`] constant, in header
 /// order, the deprecated aliases left out.
-pub const LAYOUT_MASKS: [(&str, u64); 40] = [
+pub(crate) const LAYOUT_MASKS: [(&str, u64); 40] = [
     ("MONO", masks::MONO),
     ("STEREO", masks::STEREO),
     ("2POINT1", masks::L2POINT1),
@@ -225,7 +225,7 @@ pub const LAYOUT_MASKS: [(&str, u64); 40] = [
 
 /// Every `AV_CHANNEL_LAYOUT_<name>` beside its [`ChannelLayout`] constant,
 /// in header order, the deprecated aliases left out.
-pub const STANDARD_LAYOUTS: [(&str, ChannelLayout); 41] = [
+pub(crate) const STANDARD_LAYOUTS: [(&str, ChannelLayout); 41] = [
     ("MONO", ChannelLayout::MONO),
     ("STEREO", ChannelLayout::STEREO),
     ("2POINT1", ChannelLayout::L2POINT1),

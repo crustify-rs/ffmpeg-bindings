@@ -62,7 +62,7 @@ impl fmt::Display for SadError {
 
 impl std::error::Error for SadError {}
 
-/// Wraps: av_pixelutils_sad_fn
+/// Wraps: `av_pixelutils_sad_fn`
 ///
 /// A sum-of-absolute-differences function over square blocks of
 /// [`size`](Self::size) x `size` bytes, as `av_pixelutils_get_sad_fn` selects
@@ -83,7 +83,7 @@ pub struct SadFn {
 }
 
 impl SadFn {
-    /// Wraps: av_pixelutils_get_sad_fn
+    /// Wraps: `av_pixelutils_get_sad_fn`
     ///
     /// The function C selects for blocks of `2^log2_size` x `2^log2_size`
     /// bytes whose addresses meet `alignment`: SIMD code when the CPU has it
@@ -94,6 +94,7 @@ impl SadFn {
     ///
     /// C's log context is used only by a libavutil built without
     /// pixelutils, which logs that it is missing; this passes none.
+    #[must_use]
     pub fn new(log2_size: u32, alignment: SadAlignment) -> Option<Self> {
         let bits = c_int::try_from(log2_size).ok()?;
         // SAFETY: C only reads its integer arguments and the CPU flags; the
@@ -113,12 +114,14 @@ impl SadFn {
     /// The side of the square blocks the function compares, in bytes: 2, 4,
     /// 8, 16 or 32.
     #[inline]
+    #[must_use]
     pub fn size(&self) -> usize {
         1 << self.log2_size
     }
 
     /// The alignment the function assumes of its blocks.
     #[inline]
+    #[must_use]
     pub fn alignment(&self) -> SadAlignment {
         self.alignment
     }
@@ -133,9 +136,11 @@ impl SadFn {
     /// so a block needs `(size - 1) * |stride| + size` bytes. Strides may be
     /// smaller than the block, overlapping its rows.
     ///
-    /// Fails when a block ends past its slice, or when a row of a block the
-    /// function's [`SadAlignment`] assumes aligned does not start at an
-    /// address that is a multiple of the block size.
+    /// # Errors
+    ///
+    /// Fails when a block ends past its slice, or when a row of a block the function's
+    /// [`SadAlignment`] assumes aligned does not start at an address that is a multiple of the
+    /// block size.
     pub fn call(
         &self,
         src1: &[u8],
@@ -148,7 +153,9 @@ impl SadFn {
         let at2 = plane_origin(src2.len(), stride2, size, size).ok_or(SadError::SecondTooShort)?;
         // SAFETY: `plane_origin` placed both row-0 offsets inside their
         // slices, and the pointers derive from the whole slices.
-        let (row1, row2) = unsafe { (src1.as_ptr().add(at1), src2.as_ptr().add(at2)) };
+        let (row1, row2) = (unsafe { src1.as_ptr().add(at1) }, unsafe {
+            src2.as_ptr().add(at2)
+        });
         let aligned = |row: *const u8, stride: isize| {
             row.addr().is_multiple_of(size) && stride.unsigned_abs().is_multiple_of(size)
         };
@@ -169,11 +176,21 @@ impl SadFn {
         // row the function's alignment assumes aligned is.
         let sum = unsafe { (self.sad)(row1, stride1, row2, stride2) };
         // At most `32 * 32 * 255`: never negative.
-        Ok(sum as u32)
+        Ok(sum.cast_unsigned())
     }
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#[expect(
+    clippy::assert_is_empty,
+    reason = "assertions keep the form of the C behaviour they check"
+)]
 mod unit_tests {
     use super::*;
 
@@ -269,7 +286,7 @@ mod unit_tests {
 
     #[test]
     fn handles_are_plain_shareable_values() {
-        fn assert_traits<T: Copy + Send + Sync + core::fmt::Debug + 'static>() {}
+        fn assert_traits<T: Copy + Send + Sync + fmt::Debug + 'static>() {}
         assert_traits::<SadFn>();
     }
 
@@ -289,7 +306,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn sums_match_the_reference_and_c() {
-        let (a, b) = (noise(7), noise(0x9e37_79b9));
+        let (a, b) = (noise(7), noise(0x9E37_79B9));
         for f in all() {
             let n = f.size();
             for (s1, s2) in [
@@ -311,9 +328,13 @@ mod unit_tests {
                     reference(n, l1, at1, s1, l2, at2, s2),
                     "{f:?} {s1} {s2}"
                 );
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_ptr_add = unsafe { l1.as_ptr().add(at1) };
+                // SAFETY: as the comment below states, for this part of the operation.
+                let as_ptr_add_2 = unsafe { l2.as_ptr().add(at2) };
                 // SAFETY: both blocks lie inside the slices, at aligned rows
                 // (64-byte aligned buffers, strides multiples of 32).
-                let c = unsafe { (f.sad)(l1.as_ptr().add(at1), s1, l2.as_ptr().add(at2), s2) };
+                let c = unsafe { (f.sad)(as_ptr_add, s1, as_ptr_add_2, s2) };
                 assert_eq!(sum, c as u32);
             }
         }
@@ -322,7 +343,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn extreme_blocks_sum_to_the_maximum() {
-        let (zeros, ones) = (Aligned([0u8; 2048]), Aligned([0xffu8; 2048]));
+        let (zeros, ones) = (Aligned([0u8; 2048]), Aligned([0xFFu8; 2048]));
         for f in all() {
             let n = f.size();
             let sum = f.call(&zeros.0, 64, &ones.0, 64).unwrap();

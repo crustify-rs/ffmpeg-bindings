@@ -1,4 +1,15 @@
 //! Equivalence of `libavutil/csp.h`'s safe API with the C library.
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
+)]
+#![expect(
+    clippy::many_single_char_names,
+    clippy::struct_field_names,
+    reason = "names follow the C fields, formulas and fixtures they mirror"
+)]
 
 /// [`CieXy`] against C's `AVCIExy`: the safe getters against C's fields for
 /// the white point and primaries of every gamut C describes
@@ -330,8 +341,10 @@ mod luma_coefficients {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn equality_matches_c_s_comparison_of_every_coefficient() {
-        let mut entries: Vec<ffi::AVLumaCoefficients> =
-            spaces().filter_map(c_entry).map(|e| e.get().into_raw()).collect();
+        let mut entries: Vec<ffi::AVLumaCoefficients> = spaces()
+            .filter_map(c_entry)
+            .map(|e| e.get().into_raw())
+            .collect();
         // Unreduced twins and a `0/0` entry, beside C's own.
         let mut twin = entries[0];
         twin.cg.num *= 3;
@@ -342,11 +355,9 @@ mod luma_coefficients {
         for a in &entries {
             for b in &entries {
                 // SAFETY: `av_cmp_q` takes any two rationals by value.
-                let c_eq = unsafe {
-                    ffi::av_cmp_q(a.cr, b.cr) == 0
-                        && ffi::av_cmp_q(a.cg, b.cg) == 0
-                        && ffi::av_cmp_q(a.cb, b.cb) == 0
-                };
+                let c_eq = unsafe { ffi::av_cmp_q(a.cr, b.cr) } == 0
+                    && unsafe { ffi::av_cmp_q(a.cg, b.cg) } == 0
+                    && unsafe { ffi::av_cmp_q(a.cb, b.cb) } == 0;
                 let rust_eq = LumaCoefficients::from_raw(*a) == LumaCoefficients::from_raw(*b);
                 assert_eq!(rust_eq, c_eq, "{a:?} {b:?}");
                 equal += usize::from(rust_eq);
@@ -417,7 +428,11 @@ mod luma_coefficients {
             ];
             for (n, step) in steps.iter().enumerate() {
                 step(&mut c_side, &mut rust_side);
-                assert_eq!(rust_fields(rust_side.as_ref()), c_fields(&c_side), "{csp:?} step {n}");
+                assert_eq!(
+                    rust_fields(rust_side.as_ref()),
+                    c_fields(&c_side),
+                    "{csp:?} step {n}"
+                );
             }
             assert_eq!(rust_fields(rust_side.as_ref()), rust_fields(entry));
             // A clone (`av_memdup`) and a value built by `new` read alike.
@@ -534,7 +549,7 @@ mod primary_coefficients {
         let d = ffi::AVColorPrimariesDesc { wp, prim };
         // SAFETY: `d` is a live, initialised description, which C only reads
         // during the call.
-        unsafe { ffi::av_csp_primaries_id_from_desc(&d) }
+        unsafe { ffi::av_csp_primaries_id_from_desc(&raw const d) }
     }
 
     #[test]
@@ -738,12 +753,10 @@ mod color_transfer {
         for raw in raws() {
             // SAFETY: the gamma getters take the enum by value and read
             // their tables only for an index inside them.
-            let (ct, ce) = unsafe {
-                (
-                    ffi::av_csp_approximate_trc_gamma(c(raw)),
-                    ffi::av_csp_approximate_eotf_gamma(c(raw)),
-                )
-            };
+            let (ct, ce) = (
+                unsafe { ffi::av_csp_approximate_trc_gamma(c(raw)) },
+                unsafe { ffi::av_csp_approximate_eotf_gamma(c(raw)) },
+            );
             assert_eq!(
                 t(raw).approximate_trc_gamma().map(f64::to_bits),
                 gamma(ct),
@@ -768,12 +781,9 @@ mod color_transfer {
         for raw in raws() {
             // SAFETY: the getters take the enum by value and return NULL or
             // a `csp.c` transfer function.
-            let cs: [Option<Trc>; 2] = unsafe {
-                [
-                    ffi::av_csp_trc_func_from_id(c(raw)),
-                    ffi::av_csp_trc_func_inv_from_id(c(raw)),
-                ]
-            };
+            let cs: [Option<Trc>; 2] = [unsafe { ffi::av_csp_trc_func_from_id(c(raw)) }, unsafe {
+                ffi::av_csp_trc_func_inv_from_id(c(raw))
+            }];
             let rs = [t(raw).trc_function(), t(raw).inverse_trc_function()];
             for (i, (r, cf)) in rs.into_iter().zip(cs).enumerate() {
                 assert_eq!(r.is_some(), cf.is_some(), "{raw} #{i}");
@@ -799,12 +809,9 @@ mod color_transfer {
         for raw in raws() {
             // SAFETY: the getters take the enum by value and return NULL or
             // a `csp.c` EOTF.
-            let cs: [Option<Eotf>; 2] = unsafe {
-                [
-                    ffi::av_csp_itu_eotf(c(raw)),
-                    ffi::av_csp_itu_eotf_inv(c(raw)),
-                ]
-            };
+            let cs: [Option<Eotf>; 2] = [unsafe { ffi::av_csp_itu_eotf(c(raw)) }, unsafe {
+                ffi::av_csp_itu_eotf_inv(c(raw))
+            }];
             let rs = [t(raw).eotf(), t(raw).inverse_eotf()];
             for (i, (r, cf)) in rs.into_iter().zip(cs).enumerate() {
                 assert_eq!(r.is_some(), cf.is_some(), "{raw} #{i}");
@@ -844,15 +851,15 @@ mod color_transfer {
                 continue;
             };
             // SAFETY: as above.
-            let (cf, cg) = unsafe {
-                (
-                    ffi::av_csp_trc_func_from_id(c(raw)).unwrap(),
-                    ffi::av_csp_trc_func_inv_from_id(c(raw)).unwrap(),
-                )
-            };
+            let (cf, cg) = (
+                unsafe { ffi::av_csp_trc_func_from_id(c(raw)) }.unwrap(),
+                unsafe { ffi::av_csp_trc_func_inv_from_id(c(raw)) }.unwrap(),
+            );
             for x in INPUTS {
+                // SAFETY: as the comment below states, for this part of the operation.
+                let cf_2 = unsafe { cf(x) };
                 // SAFETY: `csp.c` transfer functions take any `f64`.
-                let expect = unsafe { cg(cf(x)) };
+                let expect = unsafe { cg(cf_2) };
                 assert_eq!(
                     g.call(f.call(x)).to_bits(),
                     expect.to_bits(),
@@ -920,7 +927,7 @@ mod luma_lookup {
 /// [`ColorPrimariesDescriptor`]: ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor
 mod color_primaries_descriptor {
     use core::mem::{align_of, offset_of, size_of};
-    use core::ptr::{self, addr_of};
+    use core::ptr::{self};
 
     use ffmpeg_bindings::libavutil::libavutil::csp::{
         CieXy, CieXyMut, ColorPrimariesDescriptor, ColorPrimariesDescriptorMut,
@@ -1163,7 +1170,8 @@ mod color_primaries_descriptor {
             for b in &entries {
                 let c_equal = c_points(a).iter().zip(c_points(b)).all(|(x, y)| {
                     // SAFETY: `av_cmp_q` takes both by value.
-                    unsafe { ffi::av_cmp_q(x.x, y.x) == 0 && ffi::av_cmp_q(x.y, y.y) == 0 }
+                    (unsafe { ffi::av_cmp_q(x.x, y.x) } == 0)
+                        && unsafe { ffi::av_cmp_q(x.y, y.y) } == 0
                 });
                 assert_eq!(
                     ColorPrimariesDescriptor::from_raw(*a)
@@ -1203,11 +1211,14 @@ mod color_primaries_descriptor {
     /// parent, read in place through the parent's C layout.
     fn embedded_id(parent: &DmLevel10) -> ffi::AVColorPrimaries {
         let c = ptr::from_ref(parent).cast::<ffi::AVDOVIDmLevel10>();
+        // SAFETY: `c` is to a live object, as the block below relies on, so the
+        // place of its `target_display_primaries` field is in bounds; nothing is accessed here.
+        let target_display_primaries_ptr = unsafe { &raw const (*c).target_display_primaries };
         // SAFETY: `DmLevel10` mirrors `AVDOVIDmLevel10` field for field
         // (sizes and the field offset asserted by the test), and the shared
         // borrow keeps the parent live and unwritten while C reads the
         // projected field.
-        unsafe { ffi::av_csp_primaries_id_from_desc(addr_of!((*c).target_display_primaries)) }
+        unsafe { ffi::av_csp_primaries_id_from_desc(target_display_primaries_ptr) }
     }
 
     #[test]
@@ -1295,7 +1306,9 @@ mod color_primaries_descriptor {
 /// `csp::unit_tests`): the sequences check the wrapper's `None` there
 /// instead.
 mod primaries_lookup {
-    use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorRef};
+    use ffmpeg_bindings::libavutil::libavutil::csp::{
+        CieXy, ColorPrimariesDescriptor, ColorPrimariesDescriptorRef,
+    };
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
     use ffmpeg_bindings::libavutil::libavutil::pixfmt::ColorPrimaries;
@@ -1522,7 +1535,7 @@ mod primaries_lookup {
         // Each part of the description, with the one coordinate at a random
         // large denominator placed one part short of, at, or past 1/1000
         // from the entry, plus the known reduced-to-the-tolerance ones.
-        let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
+        let mut rng = XorShift(0x2545_F491_4F6C_DD1D);
         let mut cases: Vec<(usize, i32, i32)> = REDUCED_TO_THE_TOLERANCE
             .iter()
             .map(|&(num, den)| (0, num, den))
@@ -1579,7 +1592,7 @@ mod primaries_lookup {
     #[cfg_attr(miri, ignore = "calls C")]
     fn random_edits_identify_as_in_c_after_each_step() {
         let entries: Vec<[i32; 16]> = values().filter_map(c_desc).map(|d| fields(&d)).collect();
-        let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
+        let mut rng = XorShift(0x9E37_79B9_7F4A_7C15);
         let (mut compared, mut corrected_steps) = (0, 0);
         for round in 0..400 {
             let start = entries[round % entries.len()];
