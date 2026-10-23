@@ -1,0 +1,13 @@
+{
+ "cli": "claude",
+ "provider": "anthropic",
+ "model": "claude-opus-5-5",
+ "session_id": "64484ecf-f1b0-482f-aeb8-26b7ad63649b",
+ "transcript": "/work/.claude/projects/-work-ffmpeg-bindings/64484ecf-f1b0-482f-aeb8-26b7ad63649b.jsonl",
+ "exit_code": 0,
+ "resumed": false,
+ "agent": "planner",
+ "started_at": "2026-10-23T15:12:16+00:00",
+ "ended_at": "2026-10-23T16:35:44+00:00",
+ "duration_ms": 5007700
+}

@@ -682,10 +682,10 @@ the corrections it made to what earlier runs committed.
 
 | run | modules changed | items moved | wavefront artifacts changed | reports | $ | tokens | wall |
 |---|---:|---:|---|---:|---|---|---|
-| 1 | `<n>` | `<n>` | `<files>` | `<n>` | `$<n>` | `<n>M` | `<n>m<n>s` |
-| 2 | `<n>` | `<n>` | `<files>` | `<n>` | `$<n>` | `<n>M` | `<n>m<n>s` |
-| 3 | 160 | 674 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (160 added, 22 per-subsystem removed) | 0 | `$<n>` | `<n>M` | `<n>m<n>s` |
-| **Σ** | **`<n>`** | **`<n>`** | | **`<n>`** | **`$<n>`** | **`<n>M`** | **`<n>m<n>s`** |
+| 1 | 0 | 0 | — | 0 | $0.93 | 1.0M | 2m11s |
+| 2 | — | — | `t3/chased_casts.csv`, `t3/type_generators.csv`, per-subsystem configurations | 9 | $9.46 | 21.8M | 34m11s |
+| 3 | 160 | 674 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (160 added, 22 per-subsystem removed) | 0 | $11.52 | 28.9M | 83m26s |
+| **Σ** | **160** | **674** | | **9** | **$21.91** | **51.7M** | **119m48s** |
 
 ## Notes
 
