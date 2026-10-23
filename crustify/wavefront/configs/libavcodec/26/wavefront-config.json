@@ -1,0 +1,10 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/smpte_436m.c"
+  ],
+  "api_headers": [
+    "libavcodec/smpte_436m.h"
+  ]
+}

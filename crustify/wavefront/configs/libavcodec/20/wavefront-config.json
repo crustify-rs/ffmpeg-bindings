@@ -1,0 +1,55 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/encode.c",
+    "libavcodec/encode.h"
+  ],
+  "api_headers": [
+    "libavcodec/avcodec.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVCodecConfig",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVCodecContext",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVCodecParser",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVCodecParserContext",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVHWAccel",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVPictureStructure",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVSubtitle",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVSubtitleRect",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "AVSubtitleType",
+        "defined_in": "libavcodec/avcodec.h"
+      },
+      {
+        "name": "RcOverride",
+        "defined_in": "libavcodec/avcodec.h"
+      }
+    ]
+  }
+}

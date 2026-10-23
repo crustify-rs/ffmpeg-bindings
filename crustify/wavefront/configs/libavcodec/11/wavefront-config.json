@@ -1,0 +1,33 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/avcodec.c",
+    "libavcodec/avcodec_internal.h",
+    "libavcodec/internal.h"
+  ],
+  "api_headers": [
+    "libavcodec/avcodec.h",
+    "libavcodec/packet.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVPacket",
+        "defined_in": "libavcodec/packet.h"
+      },
+      {
+        "name": "AVPacketSideData",
+        "defined_in": "libavcodec/packet.h"
+      },
+      {
+        "name": "AVPacketSideDataType",
+        "defined_in": "libavcodec/packet.h"
+      },
+      {
+        "name": "AVSideDataParamChangeFlags",
+        "defined_in": "libavcodec/packet.h"
+      }
+    ]
+  }
+}

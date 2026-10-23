@@ -1,0 +1,26 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/hmac.c"
+  ],
+  "api_headers": [
+    "libavutil/hmac.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "hmac_final",
+        "defined_in": "libavutil/hmac.c"
+      },
+      {
+        "name": "hmac_init",
+        "defined_in": "libavutil/hmac.c"
+      },
+      {
+        "name": "hmac_update",
+        "defined_in": "libavutil/hmac.c"
+      }
+    ]
+  }
+}

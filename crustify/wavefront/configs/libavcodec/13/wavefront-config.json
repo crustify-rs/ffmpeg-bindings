@@ -1,0 +1,11 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/bsf.c",
+    "libavcodec/bsf_internal.h"
+  ],
+  "api_headers": [
+    "libavcodec/bsf.h"
+  ]
+}

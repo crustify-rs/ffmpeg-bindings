@@ -1,0 +1,47 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/pixelutils.c",
+    "libavutil/x86/pixelutils.h"
+  ],
+  "api_headers": [
+    "libavutil/pixelutils.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "ff_pixelutils_sad_16x16_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_32x32_avx2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_32x32_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_8x8_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_a_16x16_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_a_32x32_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_u_16x16_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      },
+      {
+        "name": "ff_pixelutils_sad_u_32x32_sse2",
+        "defined_in": "libavutil/x86/pixelutils.h"
+      }
+    ]
+  }
+}

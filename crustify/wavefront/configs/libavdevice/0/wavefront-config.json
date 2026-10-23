@@ -1,0 +1,126 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavdevice/alldevices.c"
+  ],
+  "api_headers": [
+    "libavdevice/avdevice.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "ff_alsa_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_alsa_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_android_camera_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_audiotoolbox_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_avfoundation_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_caca_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_decklink_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_decklink_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_dshow_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_gdigrab_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_iec61883_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_jack_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_kmsgrab_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_libcdio_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_libdc1394_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_openal_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_pulse_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_pulse_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_sndio_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_sndio_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_vfwcap_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_xcbgrab_demuxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "ff_xv_muxer",
+        "defined_in": "libavdevice/alldevices.c"
+      },
+      {
+        "name": "AVAppToDevMessageType",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDevToAppMessageType",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceInfo",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceInfoList",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceRect",
+        "defined_in": "libavdevice/avdevice.h"
+      }
+    ]
+  }
+}

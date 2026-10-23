@@ -1,0 +1,11 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/aes.c",
+    "libavutil/aes_internal.h"
+  ],
+  "api_headers": [
+    "libavutil/aes.h"
+  ]
+}

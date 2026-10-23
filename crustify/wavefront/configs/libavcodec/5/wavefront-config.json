@@ -1,0 +1,20 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [],
+  "api_headers": [
+    "libavcodec/defs.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVCPBProperties",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVProducerReferenceTime",
+        "defined_in": "libavcodec/defs.h"
+      }
+    ]
+  }
+}

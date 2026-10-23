@@ -1,0 +1,11 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavformat/avformat.c",
+    "libavformat/avformat_internal.h"
+  ],
+  "api_headers": [
+    "libavformat/avformat.h"
+  ]
+}

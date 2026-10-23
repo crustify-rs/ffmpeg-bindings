@@ -1,0 +1,44 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavfilter/avfilter.c",
+    "libavfilter/avfilter_internal.h",
+    "libavfilter/filters.h"
+  ],
+  "api_headers": [
+    "libavfilter/avfilter.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "FFFilter",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "FilterFormatsState",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "FilterLink",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "ff_filter_link",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "ff_outlink_set_status",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "ff_slice_pos",
+        "defined_in": "libavfilter/filters.h"
+      },
+      {
+        "name": "fffilter",
+        "defined_in": "libavfilter/filters.h"
+      }
+    ]
+  }
+}

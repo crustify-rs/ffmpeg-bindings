@@ -1,0 +1,27 @@
+{
+  "version": "1019f8f036602a8464185baa4857654337eeca14",
+  "libraries": [
+    {
+      "name": "libc",
+      "resolved": {
+        "path": "/lib/x86_64-linux-gnu/libc.so.6",
+        "version": "2.39",
+        "package": "libc6-dev 2.39-0ubuntu8.9"
+      },
+      "source": {
+        "repository": "https://sourceware.org/git/glibc.git",
+        "tag": "glibc-2.39",
+        "patches": "glibc 2.39-0ubuntu8.9"
+      },
+      "linked_from": "system",
+      "wrapper": {
+        "repository": "crustify-rs/glibc-bindings",
+        "pin": null
+      },
+      "rust_equivalent": {
+        "ported": [],
+        "bindings": []
+      }
+    }
+  ]
+}

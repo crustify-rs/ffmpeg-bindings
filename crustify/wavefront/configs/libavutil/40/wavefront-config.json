@@ -1,0 +1,11 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/pixdesc.c"
+  ],
+  "api_headers": [
+    "libavutil/pixdesc.h",
+    "libavutil/pixfmt.h"
+  ]
+}

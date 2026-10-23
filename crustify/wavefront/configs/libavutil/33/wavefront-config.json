@@ -1,0 +1,102 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/intmath.c"
+  ],
+  "api_headers": [
+    "libavutil/common.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "av_ceil_log2_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip64_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_int16_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_int8_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_intp2_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_uint16_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_uint8_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clip_uintp2_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clipd_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clipf_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_clipl_int32_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_parity_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_popcount64_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_popcount_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_add32_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_add64_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_dadd32_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_dsub32_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_sub32_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_sat_sub64_c",
+        "defined_in": "libavutil/common.h"
+      },
+      {
+        "name": "av_zero_extend_c",
+        "defined_in": "libavutil/common.h"
+      }
+    ]
+  }
+}

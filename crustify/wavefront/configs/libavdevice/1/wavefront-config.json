@@ -1,0 +1,10 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavdevice/avdevice.c"
+  ],
+  "api_headers": [
+    "libavdevice/avdevice.h"
+  ]
+}

@@ -1,0 +1,678 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavfilter/allfilters.c"
+  ],
+  "api_headers": [
+    "libavfilter/avfilter.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "ff_af_asr",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_azmq",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_bs2b",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_ladspa",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_lv2",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_rubberband",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_sofalizer",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_af_whisper",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_asrc_flite",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_ass",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_avgblur_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_avgblur_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_bilateral_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_blackdetect_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_blackframe",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_blend_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_boxblur",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_boxblur_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_bwdif_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_bwdif_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_chromaber_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_chromakey_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_colorkey_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_colormatrix",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_colorspace_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_convolution_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_coreimage",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_cover_rect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_cropdetect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_deinterlace_d3d12",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_deinterlace_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_deinterlace_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_delogo",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_denoise_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_derain",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_deshake_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_dilation_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_dnn_classify",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_dnn_detect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_dnn_processing",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_drawbox_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_drawtext",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_drawvg",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_eq",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_erosion_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_find_rect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_flip_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_frc_amf",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_frei0r",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_fspp",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_gblur_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_hflip_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_histeq",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_hqdn3d",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_hstack_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_hstack_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_hwupload_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_iccdetect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_iccgen",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_interlace",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_interlace_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_kerndeint",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_lcevc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_lensfun",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_libplacebo",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_libvmaf",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_libvmaf_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_mcdeint",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_mestimate_d3d12",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_mpdecimate",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_nlmeans_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_nlmeans_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_nnedi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_ocio",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_ocr",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_ocv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_overlay_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_overlay_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_overlay_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_overlay_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_overlay_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_owdenoise",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_pad_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_pad_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_pad_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_perspective",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_phase",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_pp7",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_prewitt_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_procamp_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_program_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_pullup",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_qrencode",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_quirc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_remap_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_repeatfields",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_roberts_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_sab",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_d3d11",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_d3d12",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_vt",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scale_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_scdet_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_sharpness_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_signature",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_smartblur",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_sobel_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_spp",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_sr",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_sr_amf",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_stereo3d",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_subtitles",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_super2xsai",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_thumbnail_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_tinterlace",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_tonemap_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_tonemap_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_transpose_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_transpose_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_transpose_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_transpose_vt",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_transpose_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_unsharp_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_uspp",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_v360_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vaguedenoiser",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vflip_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vidstabdetect",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vidstabtransform",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vpp_amf",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vpp_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vqe_amf",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vstack_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_vstack_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_xfade_opencl",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_xfade_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_xstack_qsv",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_xstack_vaapi",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_yadif_cuda",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_yadif_videotoolbox",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_zmq",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vf_zscale",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_amf_capture",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_color_vulkan",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_coreimagesrc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_ddagrab",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_frei0r_src",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_gfxcapture",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_mptestsrc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_openclsrc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "ff_vsrc_qrencodesrc",
+        "defined_in": "libavfilter/allfilters.c"
+      },
+      {
+        "name": "AVFilter",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterChain",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterContext",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterFormatsConfig",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterGraph",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterGraphSegment",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterInOut",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterLink",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterPadParams",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "AVFilterParams",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "avfilter_action_func",
+        "defined_in": "libavfilter/avfilter.h"
+      },
+      {
+        "name": "avfilter_execute_func",
+        "defined_in": "libavfilter/avfilter.h"
+      }
+    ]
+  }
+}

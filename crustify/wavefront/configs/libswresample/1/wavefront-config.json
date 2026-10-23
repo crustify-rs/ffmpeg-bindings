@@ -1,0 +1,26 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libswresample/options.c"
+  ],
+  "api_headers": [
+    "libswresample/swresample.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "SwrDitherType",
+        "defined_in": "libswresample/swresample.h"
+      },
+      {
+        "name": "SwrEngine",
+        "defined_in": "libswresample/swresample.h"
+      },
+      {
+        "name": "SwrFilterType",
+        "defined_in": "libswresample/swresample.h"
+      }
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/packet.c"
+  ],
+  "api_headers": [
+    "libavcodec/defs.h",
+    "libavcodec/packet.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVAudioServiceType",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVCPBProperties",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVDiscard",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVFieldOrder",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVPanScan",
+        "defined_in": "libavcodec/defs.h"
+      },
+      {
+        "name": "AVRTCPSenderReport",
+        "defined_in": "libavcodec/defs.h"
+      }
+    ]
+  }
+}

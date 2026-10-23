@@ -1,0 +1,54 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libswscale/swscale_unscaled.c"
+  ],
+  "api_headers": [
+    "libswscale/swscale.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "SwsAlphaBlend",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsBackend",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsContext",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsDither",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsFilter",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsFlags",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsIntent",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsScaler",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "SwsVector",
+        "defined_in": "libswscale/swscale.h"
+      },
+      {
+        "name": "rgbConvFn",
+        "defined_in": "libswscale/swscale_unscaled.c"
+      }
+    ]
+  }
+}

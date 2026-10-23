@@ -675,6 +675,18 @@ Deterministic `crustify ffimap <workdir>` (`ffimap.json`); no model.
 | `deref_impl_on_wrapper` | `<n>` | `<n>` | … |
 | `ffi_calls` | `<n>` | `<n>` | … |
 
+## Planning
+
+`anthropic/claude-opus-5-5` via Claude Code. One row per planner run, in order; its reports are
+the corrections it made to what earlier runs committed.
+
+| run | modules changed | items moved | wavefront artifacts changed | reports | $ | tokens | wall |
+|---|---:|---:|---|---:|---|---|---|
+| 1 | `<n>` | `<n>` | `<files>` | `<n>` | `$<n>` | `<n>M` | `<n>m<n>s` |
+| 2 | `<n>` | `<n>` | `<files>` | `<n>` | `$<n>` | `<n>M` | `<n>m<n>s` |
+| 3 | 160 | 674 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (160 added, 22 per-subsystem removed) | 0 | `$<n>` | `<n>M` | `<n>m<n>s` |
+| **Σ** | **`<n>`** | **`<n>`** | | **`<n>`** | **`$<n>`** | **`<n>M`** | **`<n>m<n>s`** |
+
 ## Notes
 
 The only prose outside the setup and legend above: pitfalls, findings, and the

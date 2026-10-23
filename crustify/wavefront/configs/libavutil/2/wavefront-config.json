@@ -1,0 +1,28 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/avstring.c"
+  ],
+  "api_headers": [
+    "libavutil/avstring.h"
+  ],
+  "items": [
+    {
+      "name": "av_asprintf",
+      "defined_in": "libavutil/avstring.c"
+    },
+    {
+      "name": "av_get_token",
+      "defined_in": "libavutil/avstring.c"
+    },
+    {
+      "name": "av_append_path_component",
+      "defined_in": "libavutil/avstring.c"
+    },
+    {
+      "name": "av_strlcpy",
+      "defined_in": "libavutil/avstring.c"
+    }
+  ]
+}

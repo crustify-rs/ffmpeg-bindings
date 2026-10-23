@@ -1,0 +1,822 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/allcodecs.c"
+  ],
+  "api_headers": [
+    "libavcodec/codec.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "ff_aac_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_aac_at_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_aac_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_aac_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ac3_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ac3_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_circus_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_escape_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_hvqm2_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_hvqm4_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_magix_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_pda_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_ima_qt_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_n64_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_adpcm_psxc_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ahx_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_alac_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_alac_at_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_amr_nb_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_amrnb_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_amrwb_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_apv_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_amf_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_amf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_d3d12va_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_nvenc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_av1_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_eac3_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ffv1_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_gsm_ms_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h263_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h263_v4l2m2m_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_amf_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_amf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_d3d12va_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_mmal_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_nvenc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_oh_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_oh_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_rkmpp_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_rkmpp_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_v4l2m2m_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_videotoolbox_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_h264_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hap_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_amf_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_amf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_d3d12va_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_nvenc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_oh_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_oh_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_rkmpp_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_rkmpp_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_v4l2m2m_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_videotoolbox_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_hevc_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ilbc_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_ilbc_at_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libaom_av1_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libaom_av1_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libaribb24_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libaribcaption_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libcodec2_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libcodec2_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libdav1d_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libdavs2_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libfdk_aac_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libfdk_aac_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libgsm_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libgsm_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libgsm_ms_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libgsm_ms_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libilbc_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libilbc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libjxl_anim_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libjxl_anim_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libjxl_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libjxl_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libkvazaar_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_liblc3_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_liblc3_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libmp3lame_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libmpeghdec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_liboapv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopencore_amrnb_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopencore_amrnb_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopencore_amrwb_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopenh264_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopenh264_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopenjpeg_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopus_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libopus_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_librav1e_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_librsvg_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libshine_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libspeex_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libspeex_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libsvtav1_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libsvtjpegxs_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libsvtjpegxs_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libtheora_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libtwolame_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libuavs3d_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvo_amrwbenc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvorbis_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvorbis_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvpx_vp8_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvpx_vp8_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvpx_vp9_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvpx_vp9_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libvvenc_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libwebp_anim_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libwebp_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libx262_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libx264_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libx264rgb_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libx265_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libxavs2_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libxavs_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libxevd_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libxeve_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libxvid_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_libzvbi_teletext_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mjpeg_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mjpeg_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mjpeg_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mjpeg_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mp1_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mp2_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mp3_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mp3_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mp3_mf_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg1_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg1_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_mmal_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg2_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_mmal_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_mpeg4_v4l2m2m_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_pcm_alaw_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_pcm_alaw_at_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_pcm_mulaw_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_pcm_mulaw_at_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_prores_ks_vulkan_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_prores_videotoolbox_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_qdm2_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_qdmc_at_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vc1_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vc1_mmal_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vc1_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vc1_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_rkmpp_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_v4l2m2m_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp8_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_amf_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_cuvid_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_mediacodec_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_mediacodec_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_qsv_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_rkmpp_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_v4l2m2m_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vp9_vaapi_encoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "ff_vvc_qsv_decoder",
+        "defined_in": "libavcodec/allcodecs.c"
+      },
+      {
+        "name": "AVCodecHWConfig",
+        "defined_in": "libavcodec/codec.h"
+      },
+      {
+        "name": "AVProfile",
+        "defined_in": "libavcodec/codec.h"
+      }
+    ]
+  }
+}

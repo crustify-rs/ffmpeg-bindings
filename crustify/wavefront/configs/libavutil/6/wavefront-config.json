@@ -1,0 +1,46 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/avsscanf.c"
+  ],
+  "api_headers": [
+    "libavutil/avstring.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVEscapeMode",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_isdigit",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_isgraph",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_isspace",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_isxdigit",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_strnlen",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_tolower",
+        "defined_in": "libavutil/avstring.h"
+      },
+      {
+        "name": "av_toupper",
+        "defined_in": "libavutil/avstring.h"
+      }
+    ]
+  }
+}

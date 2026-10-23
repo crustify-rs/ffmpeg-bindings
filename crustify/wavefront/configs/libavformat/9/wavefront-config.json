@@ -1,0 +1,94 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavformat/dump.c"
+  ],
+  "api_headers": [
+    "libavformat/avformat.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVChapter",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVDurationEstimationMethod",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVFormatCommandID",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVFormatContext",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVIndexEntry",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVInputFormat",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVOpenCallback",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVOutputFormat",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVProbeData",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVProgram",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVRTSPCommandRequest",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVRTSPResponse",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStream",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamGroup",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamGroupLayeredVideo",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamGroupParamsType",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamGroupTREF",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamGroupTileGrid",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "AVStreamParseType",
+        "defined_in": "libavformat/avformat.h"
+      },
+      {
+        "name": "av_format_control_message",
+        "defined_in": "libavformat/avformat.h"
+      }
+    ]
+  }
+}

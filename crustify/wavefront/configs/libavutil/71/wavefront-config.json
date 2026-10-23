@@ -1,0 +1,10 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/hdr_dynamic_vivid_metadata.c"
+  ],
+  "api_headers": [
+    "libavutil/hdr_dynamic_vivid_metadata.h"
+  ]
+}

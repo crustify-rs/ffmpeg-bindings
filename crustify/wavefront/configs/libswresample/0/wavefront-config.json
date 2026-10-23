@@ -1,0 +1,71 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libswresample/swresample.c",
+    "libswresample/swresample_internal.h"
+  ],
+  "api_headers": [
+    "libswresample/swresample.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "get_delay_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "get_out_samples_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "invert_initial_buffer_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "mix_1_1_func_type",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "mix_2_1_func_type",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "mix_any_func_type",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "multiple_resample_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "resample_flush_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "resample_free_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "resample_init_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "set_compensation_func",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "swri_audio_convert_init_aarch64",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "swri_audio_convert_init_arm",
+        "defined_in": "libswresample/swresample_internal.h"
+      },
+      {
+        "name": "swri_soxr_resampler",
+        "defined_in": "libswresample/swresample_internal.h"
+      }
+    ]
+  }
+}

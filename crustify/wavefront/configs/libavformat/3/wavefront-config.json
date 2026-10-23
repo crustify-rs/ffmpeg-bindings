@@ -1,0 +1,142 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavformat/protocols.c"
+  ],
+  "api_headers": [
+    "libavformat/avio.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVIOContext",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "AVIODataMarkerType",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "AVIODirEntry",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "AVIODirEntryType",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "AVIOInterruptCB",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "avio_tell",
+        "defined_in": "libavformat/avio.h"
+      },
+      {
+        "name": "ff_android_content_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_bluray_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_dtls_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_ffrtmpcrypt_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_gophers_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_https_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_ipfs_gateway_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_ipns_gateway_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libamqp_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libcurl_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librist_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librtmp_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librtmpe_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librtmps_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librtmpt_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_librtmpte_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libsmbclient_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libsrt_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libssh_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_libzmq_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_rtmpe_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_rtmps_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_rtmpte_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_rtmpts_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_sctp_protocol",
+        "defined_in": "libavformat/protocols.c"
+      },
+      {
+        "name": "ff_tls_protocol",
+        "defined_in": "libavformat/protocols.c"
+      }
+    ]
+  }
+}

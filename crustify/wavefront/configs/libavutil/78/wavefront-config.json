@@ -1,0 +1,46 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/side_data.c"
+  ],
+  "api_headers": [
+    "libavutil/frame.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVActiveFormatDescription",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVFrame",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVFrameSideData",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVFrameSideDataType",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVRegionOfInterest",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVSideDataDescriptor",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "AVSideDataProps",
+        "defined_in": "libavutil/frame.h"
+      },
+      {
+        "name": "av_frame_side_data_get",
+        "defined_in": "libavutil/frame.h"
+      }
+    ]
+  }
+}

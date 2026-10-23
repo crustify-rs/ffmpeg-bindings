@@ -1,0 +1,11 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavcodec/vorbis_parser.c",
+    "libavcodec/vorbis_parser_internal.h"
+  ],
+  "api_headers": [
+    "libavcodec/vorbis_parser.h"
+  ]
+}

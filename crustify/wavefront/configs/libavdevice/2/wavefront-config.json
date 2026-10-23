@@ -1,0 +1,34 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavdevice/version.c"
+  ],
+  "api_headers": [
+    "libavdevice/avdevice.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "AVAppToDevMessageType",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDevToAppMessageType",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceInfo",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceInfoList",
+        "defined_in": "libavdevice/avdevice.h"
+      },
+      {
+        "name": "AVDeviceRect",
+        "defined_in": "libavdevice/avdevice.h"
+      }
+    ]
+  }
+}

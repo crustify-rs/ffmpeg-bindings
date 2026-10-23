@@ -1,0 +1,71 @@
+{
+  "state_dir": "../crustify/wavefront",
+  "t3_dir": "t3",
+  "impl_files": [
+    "libavutil/hwcontext.c",
+    "libavutil/hwcontext_internal.h"
+  ],
+  "api_headers": [
+    "libavutil/hwcontext.h"
+  ],
+  "out_of_scope": {
+    "items": [
+      {
+        "name": "ff_hwcontext_type_amf",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_cuda",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_d3d11va",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_d3d12va",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_drm",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_dxva2",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_mediacodec",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_oh",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_opencl",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_qsv",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_vaapi",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_vdpau",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_videotoolbox",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      },
+      {
+        "name": "ff_hwcontext_type_vulkan",
+        "defined_in": "libavutil/hwcontext_internal.h"
+      }
+    ]
+  }
+}
