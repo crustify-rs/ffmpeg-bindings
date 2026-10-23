@@ -1,0 +1,7 @@
+# Types of out-of-tree libraries, one regex per line, `#` comments: blocklisted here and
+# re-exported in src/lib.rs from the library's wrapper, whose safe type is
+# layout-compatible with the C one.
+
+# libc's `struct tm` (av_bprint_strftime, av_small_strptime, av_timegm):
+# crustify-rs/glibc-bindings' Tm.
+tm

@@ -11,7 +11,7 @@ publish.workspace = true
 
 [features]
 default = ["libavutil", "libswresample", "libswscale", "libavcodec", "libavformat", "libavfilter", "libavdevice"]
-libavutil = ["dep:libavutil-sys"]
+libavutil = ["dep:libavutil-sys", "dep:glibc-bindings"]
 libswresample = ["dep:libswresample-sys", "libavutil"]
 libswscale = ["dep:libswscale-sys", "libavutil"]
 libavcodec = ["dep:libavcodec-sys", "libswresample", "libavutil"]
@@ -21,6 +21,7 @@ libavdevice = ["dep:libavdevice-sys", "libavfilter", "libavformat", "libavcodec"
 
 [dependencies]
 ffibox.workspace = true
+glibc-bindings = { workspace = true, optional = true }
 libavutil-sys = { workspace = true, optional = true }
 libswresample-sys = { workspace = true, optional = true }
 libswscale-sys = { workspace = true, optional = true }
@@ -69,6 +70,11 @@ libavcodec-sys = { path = "libavcodec-sys" }
 libavformat-sys = { path = "libavformat-sys" }
 libavfilter-sys = { path = "libavfilter-sys" }
 libavdevice-sys = { path = "libavdevice-sys" }
+# Wrappers of the out-of-tree libraries, each pinned to its side campaign's working branch
+# (`wrapper.pin` in crustify/artifacts/dependencies.json). glibc-bindings is reached through
+# its clone beside this repository until crustify-rs/glibc-bindings can be fetched; it then
+# becomes a Git dependency at the pin, patched to the clone while the campaign extends it.
+glibc-bindings = { path = "../glibc-bindings" }
 
 [workspace.metadata.crustify]
 nightly = "nightly-2026-10-08"

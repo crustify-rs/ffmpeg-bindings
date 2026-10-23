@@ -2,7 +2,7 @@
 // drop while the rest lives.
 use std::ffi::CString;
 
-use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
+use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 use ffmpeg_bindings::libavutil::libavutil::parseutils::small_strptime;
 
 fn main() {

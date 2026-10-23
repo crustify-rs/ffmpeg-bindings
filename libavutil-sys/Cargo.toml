@@ -15,6 +15,7 @@ publish.workspace = true
 doctest = false
 
 [dependencies]
+glibc-bindings.workspace = true
 
 
 [build-dependencies]

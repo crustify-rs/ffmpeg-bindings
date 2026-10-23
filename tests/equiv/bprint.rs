@@ -258,8 +258,10 @@ mod owners {
     use core::ptr::{self};
 
     use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
-    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use glibc_bindings::libc::ffi as libc_ffi;
+    use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 
     /// A C-side buffer on its own heap storage, which C initialises in place
     /// and which never moves.
@@ -397,7 +399,7 @@ mod owners {
     const GMTOFF: c_long = 5400;
 
     /// [`TIME`] as C's `struct tm`.
-    fn c_tm() -> ffi::tm {
+    fn c_tm() -> libc_ffi::tm {
         let [
             tm_sec,
             tm_min,
@@ -409,7 +411,7 @@ mod owners {
             tm_yday,
             tm_isdst,
         ] = TIME;
-        ffi::tm {
+        libc_ffi::tm {
             tm_sec,
             tm_min,
             tm_hour,
@@ -571,7 +573,9 @@ mod owners {
                 );
             },
             // SAFETY: as above.
-            Op::Strftime(fmt) => unsafe { ffi::av_bprint_strftime(b, fmt.as_ptr(), &c_tm()) },
+            Op::Strftime(fmt) => unsafe {
+                ffi::av_bprint_strftime(b, fmt.as_ptr(), ptr::from_ref(&c_tm()).cast());
+            },
             Op::GetBuffer(size, data) => {
                 let mut mem = ptr::null_mut();
                 let mut room = 0;
@@ -922,7 +926,7 @@ mod owners {
         tm.as_mut().set_zone(None);
         for fmt in [c"%Z", c"[%Z]", c"%Z"] {
             // SAFETY: an initialised buffer; `fmt` and `c_tm` are live.
-            unsafe { ffi::av_bprint_strftime(c.buf, fmt.as_ptr(), &raw const c_tm) };
+            unsafe { ffi::av_bprint_strftime(c.buf, fmt.as_ptr(), (&raw const c_tm).cast()) };
             r.as_mut().append_strftime(fmt, tm.as_ref());
             assert_eq!(rust_state(r.as_ref()), c.state(), "{fmt:?}");
         }

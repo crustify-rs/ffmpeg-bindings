@@ -104,6 +104,7 @@ name = "ffmpeg-bindings"
 version = "0.1.0"
 dependencies = [
  "ffibox",
+ "glibc-bindings",
  "libavcodec-sys",
  "libavdevice-sys",
  "libavfilter-sys",
@@ -119,6 +120,14 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+
+[[package]]
+name = "glibc-bindings"
+version = "0.1.0"
+dependencies = [
+ "ffibox",
+ "libc-sys",
+]
 
 [[package]]
 name = "glob"
@@ -203,6 +212,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "cc",
+ "glibc-bindings",
  "serde_json",
 ]
 
@@ -211,6 +221,13 @@ name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+
+[[package]]
+name = "libc-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+]
 
 [[package]]
 name = "libloading"

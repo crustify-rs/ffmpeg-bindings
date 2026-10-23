@@ -432,7 +432,7 @@ mod owners {
 /// and abandoned by a panic; and buffers, handles and times on other
 /// threads.
 ///
-/// [`Tm`]: ffmpeg_bindings::libavutil::libavutil::bprint::Tm
+/// [`Tm`]: glibc_bindings::libc::time::bits::types::struct_tm_h::Tm
 mod appenders {
     use core::ffi::{CStr, c_int, c_long};
     use core::fmt::Write;
@@ -440,7 +440,8 @@ mod appenders {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
-    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+    use ffmpeg_bindings::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef};
+    use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 
     /// `size_max` values at every boundary the appenders distinguish.
     const SIZE_MAX: [u32; 8] = [

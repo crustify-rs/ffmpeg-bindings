@@ -7,7 +7,8 @@ use core::ptr::{self, addr_of, addr_of_mut};
 use std::ffi::CString;
 
 use ffmpeg::libavutil::libavutil::avstring::{EscapeFlags, EscapeMode};
-use ffmpeg::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef, Tm};
+use ffmpeg::libavutil::libavutil::bprint::{BPrint, BPrintMut, BPrintRef};
+use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 use ffmpeg::libavutil::libavutil::ffi;
 use ffmpeg::libavutil::libavutil::mem::set_max_alloc;
 
@@ -108,8 +109,8 @@ fn rust_state(r: BPrintRef<'_>) -> State {
     }
 }
 
-fn c_tm() -> ffi::tm {
-    ffi::tm { tm_sec: 9, tm_min: 8, tm_hour: 7, tm_mday: 20, tm_mon: 11, tm_year: 100, tm_wday: 3, tm_yday: 354, tm_isdst: 0, tm_gmtoff: 5400, tm_zone: c"XST".as_ptr() }
+fn c_tm() -> glibc_bindings::libc::ffi::tm {
+    glibc_bindings::libc::ffi::tm { tm_sec: 9, tm_min: 8, tm_hour: 7, tm_mday: 20, tm_mon: 11, tm_year: 100, tm_wday: 3, tm_yday: 354, tm_isdst: 0, tm_gmtoff: 5400, tm_zone: c"XST".as_ptr() }
 }
 fn rust_tm() -> Tm {
     let mut tm = Tm::new();
@@ -150,7 +151,7 @@ fn c_op(b: *mut ffi::AVBPrint, op: &Op) -> Option<usize> {
             Op::Fmt(i, s) => ffi::av_bprintf(b, c"%d-%s".as_ptr(), *i, s.as_ptr()),
             Op::CStr(s) => ffi::crustify_av_vbprintf(b, c"%s".as_ptr(), s.as_ptr()),
             Op::Escape(src, special, mode, flags) => ffi::av_bprint_escape(b, src.as_ptr(), special.as_ref().map_or(ptr::null(), |s| s.as_ptr()), (*mode).into(), flags.bits()),
-            Op::Strftime(fmt) => ffi::av_bprint_strftime(b, fmt.as_ptr(), &c_tm()),
+            Op::Strftime(fmt) => ffi::av_bprint_strftime(b, fmt.as_ptr(), std::ptr::from_ref(&c_tm()).cast()),
             Op::GetBuffer(size, data) => {
                 let mut mem = ptr::null_mut();
                 let mut room = 0;

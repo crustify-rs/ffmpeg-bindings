@@ -708,13 +708,14 @@ mod ratios_and_dates {
     use core::ffi::{CStr, c_int, c_void};
     use core::ptr::{self, null_mut};
 
-    use ffmpeg_bindings::libavutil::libavutil::bprint::{Tm, TmRef};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
     use ffmpeg_bindings::libavutil::libavutil::parseutils::{
         parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
     };
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use glibc_bindings::libc::ffi as libc_ffi;
+    use glibc_bindings::libc::time::bits::types::struct_tm_h::{Tm, TmRef};
 
     use super::{CLASS, Ctx, captured, isolated};
     use crate::log::LogState;
@@ -910,7 +911,7 @@ mod ratios_and_dates {
     }
 
     /// Every field of a `struct tm`.
-    fn fields_c(t: &ffi::tm) -> [i64; 10] {
+    fn fields_c(t: &libc_ffi::tm) -> [i64; 10] {
         [
             t.tm_sec.into(),
             t.tm_min.into(),
@@ -1000,9 +1001,10 @@ mod ratios_and_dates {
 
     /// One call of each implementation on its own `struct tm`: the rest's
     /// offset, then every field.
-    fn step(s: &CStr, fmt: &CStr, c: &mut ffi::tm, r: &mut Tm) {
+    fn step(s: &CStr, fmt: &CStr, c: &mut libc_ffi::tm, r: &mut Tm) {
         // SAFETY: live strings and a live, writable `struct tm`.
-        let c_rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), c) };
+        let c_rest =
+            unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), ptr::from_mut(c).cast()) };
         let c_off = (!c_rest.is_null()).then(|| c_rest as usize - s.as_ptr() as usize);
         let r_rest = small_strptime(s, fmt, r.as_mut());
         let r_off = r_rest.map(|rest| rest.as_ptr() as usize - s.as_ptr() as usize);
@@ -1019,7 +1021,7 @@ mod ratios_and_dates {
         for fmt in FORMATS {
             for s in INPUTS {
                 let (mut c, mut r) = (
-                    ffi::tm {
+                    libc_ffi::tm {
                         tm_zone: ptr::null(),
                         ..Default::default()
                     },
@@ -1036,7 +1038,7 @@ mod ratios_and_dates {
     #[cfg_attr(miri, ignore = "calls C")]
     fn strptime_sequences_agree_after_every_call() {
         let (mut c, mut r) = (
-            ffi::tm {
+            libc_ffi::tm {
                 tm_zone: ptr::null(),
                 ..Default::default()
             },
@@ -1058,7 +1060,7 @@ mod ratios_and_dates {
 
     /// `av_timegm` on a copy of `t`.
     fn c_timegm(t: TmRef<'_>) -> i64 {
-        let mut c = ffi::tm {
+        let mut c = libc_ffi::tm {
             tm_sec: t.sec(),
             tm_min: t.min(),
             tm_hour: t.hour(),
@@ -1073,7 +1075,7 @@ mod ratios_and_dates {
         };
         // SAFETY: a live local `struct tm`; every caller checked that C's
         // arithmetic does not overflow (the wrapper returned a value).
-        unsafe { ffi::av_timegm(&raw mut c) }
+        unsafe { ffi::av_timegm((&raw mut c).cast()) }
     }
 
     #[test]

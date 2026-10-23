@@ -7,6 +7,9 @@
 // Bindings come from `wrapper.h` restricted to the crate's agent-owned
 // `allowlist.txt` plus the orchestrator-owned `api-types.txt` (every public type). Items published by the link units in `deps` are blocklisted and
 // reached through their crates' re-exports instead, so each C type has one Rust type.
+// Types of out-of-tree libraries listed in `external-types.txt` are blocklisted too: the
+// crate re-exports, under their C names, the safe layout-compatible types of the
+// libraries' wrappers (crustify-rs/<source>-bindings), which its signatures then name.
 // Allowlisted `static inline` functions get compiled wrappers (bindgen
 // `wrap_static_fns`), and `shim.c` holds the `crustify_<NAME>` macro shims.
 
@@ -97,6 +100,9 @@ pub fn build(lib: &str, deps: &[&str]) {
     }
     for pat in allowlist_types(&manifest.join("api-types.txt")) {
         b = b.allowlist_type(pat);
+    }
+    for pat in allowlist_types(&manifest.join("external-types.txt")) {
+        b = b.blocklist_type(pat);
     }
     for d in deps {
         // Definitions in the dependency's headers, and forward declarations of its

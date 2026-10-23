@@ -420,13 +420,13 @@ mod info_tags_and_colors {
 /// C-UB inputs the wrappers refuse, every `int` edge of a `Tm`, borrowed
 /// rests outliving the `Tm`, and calls from many threads.
 mod ratios_and_dates {
-    use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::log::{Class, ClassCategory};
     use ffmpeg_bindings::libavutil::libavutil::opt::BareObject;
     use ffmpeg_bindings::libavutil::libavutil::parseutils::{
         parse_ratio, parse_ratio_with_context, parse_video_rate, small_strptime, timegm,
     };
+    use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 
     use super::{EINVAL, exact};
 

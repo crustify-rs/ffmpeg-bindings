@@ -10,3 +10,4 @@ build = "build.rs"
 [dependencies]
 ffmpeg = { package = "ffmpeg-bindings", path = "../../../../..", default-features = false, features = ["libavutil"] }
 libavutil-sys = { path = "../../../../../libavutil-sys" }
+glibc-bindings = { path = "../../../../../../glibc-bindings" }

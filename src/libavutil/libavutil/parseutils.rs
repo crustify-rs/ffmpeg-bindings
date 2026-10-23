@@ -13,13 +13,14 @@
 //!
 //! [`parse_ratio`] and [`parse_video_rate`] read a [`Rational`] (an aspect
 //! ratio, a frame rate); [`small_strptime`] reads date and time fields into
-//! a [`Tm`](super::bprint::Tm), and [`timegm`] turns one into seconds since
-//! the epoch, refusing the values C's unchecked arithmetic overflows on.
+//! a [`Tm`](glibc_bindings::libc::time::bits::types::struct_tm_h::Tm), and [`timegm`] turns one
+//! into seconds since the epoch, refusing the values C's unchecked arithmetic overflows on.
 
 use core::ffi::{CStr, c_char, c_int};
 use core::ptr::{self, NonNull};
 
-use super::bprint::{TmMut, TmRef};
+use glibc_bindings::libc::time::bits::types::struct_tm_h::{TmMut, TmRef};
+
 use super::opt::ObjectRef;
 use super::rational::Rational;
 use super::{eval, ffi};
@@ -468,8 +469,8 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
 /// No other field of `tm` is written.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
 /// use ffmpeg_bindings::libavutil::libavutil::parseutils::small_strptime;
+/// use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 /// let mut tm = Tm::new();
 /// let rest = small_strptime(c"2024-02-29 12:34:56 UTC", c"%Y-%m-%d %T", tm.as_mut());
 /// assert_eq!(rest, Some(c" UTC"));
@@ -484,7 +485,7 @@ pub fn small_strptime<'s>(s: &'s CStr, fmt: &CStr, mut tm: TmMut<'_>) -> Option<
     // SAFETY: `s` and `fmt` are live NUL-terminated strings C only reads,
     // never past their NULs (a trailing `%` fails as it reads the NUL), and
     // `tm` a live `struct tm` of which C writes only integer fields.
-    let rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), tm.as_mut_ptr()) };
+    let rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), tm.as_mut_tm_ptr()) };
     // SAFETY: a non-NULL result points into `s`, at a byte C has not read
     // past or at its NUL, so it is a suffix of the same string, live for
     // `'s`.
@@ -529,8 +530,8 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
 /// day exceed the `int` range.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::bprint::Tm;
 /// use ffmpeg_bindings::libavutil::libavutil::parseutils::timegm;
+/// use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
 /// let mut tm = Tm::new();
 /// let mut t = tm.as_mut();
 /// t.set_year(100);
@@ -543,7 +544,7 @@ pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
     // SAFETY: the shared handle covers a live `struct tm`, which C only
     // reads although its parameter is not `const`; `timegm_terms` checked
     // that none of C's `int` operations overflows.
-    Some(unsafe { ffi::av_timegm(tm.as_ptr().cast_mut()) })
+    Some(unsafe { ffi::av_timegm(tm.as_tm_ptr().cast_mut()) })
 }
 
 /// Whether `av_parse_color(color)` (the whole string, `slen` of -1) reaches
@@ -839,8 +840,9 @@ mod unit_tests {
     /// Options wave 1, batch 1: ratio refusals and `av_timegm`'s overflow
     /// model.
     mod timegm_and_ratios {
+        use glibc_bindings::libc::time::bits::types::struct_tm_h::Tm;
+
         use super::*;
-        use crate::libavutil::libavutil::bprint::Tm;
 
         /// `av_timegm`'s computation in `i64`, with whether every
         /// intermediate value of C's `int` operations fits an `int`.
