@@ -6,8 +6,8 @@
       "defined_in": "libavutil/bprint.h",
       "kind": "type",
       "field_anchors": [
-        "str",
         "len",
+        "str",
         "size",
         "reserved_padding",
         "reserved_internal_buffer",
@@ -20,8 +20,8 @@
       "defined_in": "libavutil/log.h",
       "kind": "type",
       "field_anchors": [
-        "version",
         "option",
+        "version",
         "category",
         "item_name",
         "get_category",
@@ -36,12 +36,12 @@
       "home": "src/libavutil/libavutil/log.rs"
     }
   ],
-  "wave": 30,
+  "wave": 6,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": "libavutil/bprint.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-30",
+  "base_branch": "crustify/waves/wave-6",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

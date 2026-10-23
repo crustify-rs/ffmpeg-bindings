@@ -7,8 +7,8 @@
       "kind": "type",
       "field_anchors": [
         "data",
-        "buffer",
-        "size"
+        "size",
+        "buffer"
       ],
       "home": "src/libavutil/libavutil/buffer.rs"
     },
@@ -27,12 +27,12 @@
       "home": "src/libavutil/libavutil/frame.rs"
     }
   ],
-  "wave": 38,
+  "wave": 32,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": "libavutil/buffer.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-38",
+  "base_branch": "crustify/waves/wave-32",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

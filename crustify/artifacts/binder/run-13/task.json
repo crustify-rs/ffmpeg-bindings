@@ -13,7 +13,7 @@
       "defined_in": "libavutil/intfloat.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/intfloat.rs"
+      "home": "src/libavutil/libavutil/intfloat_h.rs"
     },
     {
       "name": "av_dynarray2_add",
@@ -76,7 +76,7 @@
       "defined_in": "libavutil/intfloat.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/intfloat.rs"
+      "home": "src/libavutil/libavutil/intfloat_h.rs"
     },
     {
       "name": "av_force_cpu_flags",
@@ -90,7 +90,7 @@
       "defined_in": "libavutil/utils.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     },
     {
       "name": "av_free",
@@ -160,14 +160,14 @@
       "defined_in": "libavutil/intfloat.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/intfloat.rs"
+      "home": "src/libavutil/libavutil/intfloat_h.rs"
     },
     {
       "name": "av_int2float",
       "defined_in": "libavutil/intfloat.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/intfloat.rs"
+      "home": "src/libavutil/libavutil/intfloat_h.rs"
     },
     {
       "name": "av_isdigit",
@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/avstring.rs"
     }
   ],
-  "wave": 0,
-  "batch": 0,
+  "wave": 4,
+  "batch": 11,
   "link_unit": "libavutil",
-  "module": "libavutil/mem.c",
-  "foundational": true,
-  "base_branch": "crustify/waves/wave-0",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

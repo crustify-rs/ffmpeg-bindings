@@ -1,117 +1,15 @@
 {
   "method": {
-    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --test equiv --test ub_safe --test ub_unsafe -- buffer; nightly llvm-profdata merge + llvm-cov export -summary-only over the four binaries, reported for libavutil/buffer.rs (the whole file, so the wave-0/1 type items in it are included)",
-    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov 13 -b -c -f over libavutil/buffer.c (gcc 14 build), every function of the file",
-    "note": "measured on this review's tree before the last equivalence test (equiv/buffer.rs::pool_resize, which adds no new line) was added. C: every line of the workset functions runs except the av_buffer_pool_init/init2 ff_mutex_init failure branches (glibc never fails) and av_buffer_create:66-67, where av_mallocz of the 24-byte AVBufferRef fails after the 48-byte AVBuffer succeeded, which no av_max_alloc limit can select (environment-dependent OOM only). Rust: every library line of buffer.rs runs, including the new realloc_by_copy, UninitBuffer::from_owner and its failure path; the misses are test-only lines (allocator closures C never calls, let-else panic arms) and the panic arms of expect calls."
+    "rust": "RUSTFLAGS=-C instrument-coverage; cargo +nightly test -p ffmpeg --lib --tests -- hwcontext --skip compile_fail; nightly llvm-profdata merge + llvm-cov report over the four test binaries, for libavutil/hwcontext.rs",
+    "c": "none: the workset is two C enums with no C routine of their own; their C readers are hwcontext wave-1 symbols",
+    "note": "The review changed only rustdoc, so the wave tip and the fixed tree measure the same. Environment-dependent: av_hwdevice_iterate_types' loop body and every backend path (hw_table is empty under --disable-autodetect), and TransferDirection's only C reader, av_hwframe_transfer_get_formats, which needs a frames context."
   },
   "rust": {
-    "libavutil/buffer.rs": {
-      "regions": {
-        "count": 1170,
-        "percent": 99.15
-      },
-      "functions": {
-        "count": 101,
-        "percent": 99.01
-      },
-      "lines": {
-        "count": 839,
-        "percent": 99.05
-      }
+    "libavutil/hwcontext.rs": {
+      "regions": {"count": 163, "percent": 100.0},
+      "functions": {"count": 21, "percent": 100.0},
+      "lines": {"count": 117, "percent": 100.0}
     }
   },
-  "c": {
-    "av_buffer_pool_buffer_get_opaque": {
-      "lines_percent": 100.0,
-      "lines": 4
-    },
-    "av_buffer_pool_get": {
-      "lines_percent": 100.0,
-      "lines": 19
-    },
-    "pool_alloc_buffer": {
-      "lines_percent": 100.0,
-      "lines": 18
-    },
-    "pool_release_buffer": {
-      "lines_percent": 100.0,
-      "lines": 10
-    },
-    "av_buffer_pool_uninit": {
-      "lines_percent": 100.0,
-      "lines": 10
-    },
-    "buffer_pool_free": {
-      "lines_percent": 100.0,
-      "lines": 7
-    },
-    "buffer_pool_flush": {
-      "lines_percent": 100.0,
-      "lines": 7
-    },
-    "av_buffer_pool_init": {
-      "lines_percent": 80.0,
-      "lines": 10
-    },
-    "av_buffer_pool_init2": {
-      "lines_percent": 84.62,
-      "lines": 13
-    },
-    "av_buffer_replace": {
-      "lines_percent": 100.0,
-      "lines": 15
-    },
-    "av_buffer_realloc": {
-      "lines_percent": 100.0,
-      "lines": 30
-    },
-    "av_buffer_make_writable": {
-      "lines_percent": 100.0,
-      "lines": 8
-    },
-    "av_buffer_get_ref_count": {
-      "lines_percent": 100.0,
-      "lines": 2
-    },
-    "av_buffer_get_opaque": {
-      "lines_percent": 100.0,
-      "lines": 2
-    },
-    "av_buffer_is_writable": {
-      "lines_percent": 100.0,
-      "lines": 3
-    },
-    "av_buffer_unref": {
-      "lines_percent": 100.0,
-      "lines": 3
-    },
-    "buffer_replace": {
-      "lines_percent": 100.0,
-      "lines": 13
-    },
-    "av_buffer_ref": {
-      "lines_percent": 100.0,
-      "lines": 6
-    },
-    "av_buffer_allocz": {
-      "lines_percent": 100.0,
-      "lines": 5
-    },
-    "av_buffer_alloc": {
-      "lines_percent": 100.0,
-      "lines": 8
-    },
-    "av_buffer_default_free": {
-      "lines_percent": 100.0,
-      "lines": 3
-    },
-    "av_buffer_create": {
-      "lines_percent": 75.0,
-      "lines": 8
-    },
-    "buffer_create": {
-      "lines_percent": 100.0,
-      "lines": 14
-    }
-  }
+  "c": {}
 }

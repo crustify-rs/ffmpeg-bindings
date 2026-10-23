@@ -13,14 +13,14 @@
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_popcount_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_random_bytes",
@@ -83,42 +83,42 @@
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_sat_add64_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_sat_dadd32_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_sat_dsub32_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_sat_sub32_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_sat_sub64_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "av_size_mult",
@@ -132,7 +132,7 @@
       "defined_in": "libavutil/avsscanf.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avstring.rs"
+      "home": "src/libavutil/libavutil/avsscanf.rs"
     },
     {
       "name": "av_strcasecmp",
@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/avstring.rs"
     }
   ],
-  "wave": 0,
-  "batch": 0,
+  "wave": 4,
+  "batch": 13,
   "link_unit": "libavutil",
-  "module": "libavutil/mem.c",
-  "foundational": true,
-  "base_branch": "crustify/waves/wave-0",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

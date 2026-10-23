@@ -16,12 +16,12 @@
       "home": "src/libavutil/libavutil/aes_ctr.rs"
     }
   ],
-  "wave": 10,
+  "wave": 26,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": "libavutil/aes.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-10",
+  "base_branch": "crustify/waves/wave-26",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

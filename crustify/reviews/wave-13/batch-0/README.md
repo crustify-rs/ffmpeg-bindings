@@ -1,73 +1,63 @@
-# Review: libavutil/crypto wave 1, batch 0 (the wave's symbols)
+# Review: libavutil/formats wave 1, batch 0 (the wave's four types)
 
-- Items (79): every symbol the four wave-1 translation batches scheduled,
-  homed in `crustify/rust/ffmpeg/libavutil/{aes,aes_ctr,blowfish,camellia,cast5,crc,des,hash,hmac,md5,murmur3,rc4,ripemd,sha,sha512,tea,twofish,xtea}.rs`
-  (plus `random_seed.rs`'s seed lock, which `av_aes_ctr_set_random_iv` takes).
-  The lifecycle routines among them (`*_alloc`, `*_init`, `*_free`) were
-  emitted by wave 0's type runs and reviewed there; they were re-read here
-  against the cipher and hash wrappers that build on them.
-- Reviewed commit: the wave tip `0896e41211` (batches 3, 0, 2, 1:
-  `1ab47283f1`, `72aa992e7f`, `ca48444648`, `0896e41211`).
-- Wave 1 is the crypto sub-campaign's last wave (`schedule.json` lists waves
-  0-1), so this review ran the sub-campaign's BSan gate, on the tip and on the
-  landed tree.
-- Reports:
-  - `equiv/hash-and-hmac-reject-outputs-beyond-c-ranges` (reproducer)
-  - `internal/xtea-in-place-source-pointer-taken-before-exclusive-retag`
-  - `wavefront/hash-and-hmac-output-sizes-not-recorded`
-  - `conventions/cipher-direction-and-error-vocabularies-diverge`
-  - `conventions/cast5-ecb-safety-comments-describe-cbc`
-  - `misc/bsan-gate-equiv-iv-pointer-reused-across-reborrow`
-  - `misc/translator-notes-in-orchestrator-record-dirs` (reported, not fixed)
+- Items: `AVCIExy` (`csp::CieXy`, alias `WhitepointCoefficients`),
+  `AVLumaCoefficients` (`csp::LumaCoefficients`), `AVChannelCustom`
+  (`channel_layout::ChannelCustom`, with `ChannelName` and `NameTooLong`),
+  `AVPixFmtDescriptor` (`pixdesc::PixelFormatDescriptor`, with
+  `PixelFormatFlags`).
+- Homes: `crustify/rust/ffmpeg/libavutil/{csp,channel_layout,pixdesc}.rs`.
+- Reviewed commit: the wave tip `0a2fbf9bb7` (types landed by batches 0-2:
+  `1d1d7dd308`, `fac2331574`, `287eeecb28`).
+- Reports: `misc/channel-custom-eq-without-hash` (fixed),
+  `misc/bsan-quadratic-pixdesc-descriptor-equiv-tests` (fixed, tests
+  only) and `internal/descriptor-unit-tests-assume-literal-address-identity`
+  (fixed, tests only). Every other step below found nothing to report.
 
 ## Verdicts by step
 
 | step | finding |
 |---|---|
-| lifecycle | Not applicable: the worklist has symbols only. The alloc/init/free wrappers it lists match wave 0's policies (C-sized allocation, paired release, keyed constructors). |
-| wavefront | All 79 records submitted and structurally right (borrowed call-scoped buffers, nullable IVs, DES/RC4 nullable sources, CRC and hash-name static returns, CTR IV borrowed from its context, the lifecycle roles). The hash and HMAC outputs carried a generic note and did not record how many bytes C writes or that the size is a caller-chosen upper bound, the gap behind the equivalence defect; notes corrected and resubmitted for 6 symbols (`wavefront/hash-and-hmac-output-sizes-not-recorded`). |
-| unsafe boundary | No public `unsafe fn` and no raw pointer in a public signature in the workset; `scan-unsafe` finds no smell site and no undocumented block in the homes, before or after. Shared handles are used only where C reads the context (Blowfish, Camellia under its `SP` lock, CAST5, DES, TEA, Twofish, XTEA); AES, AES-CTR and RC4, whose C writes the context, take exclusive handles. CAST5's ECB SAFETY comments described an IV and CBC (`conventions/cast5-ecb-safety-comments-describe-cbc`). |
-| ub_safe / ub_unsafe | No UB reachable through the safe API. Read against the C: block counts and `int`/`unsigned` lengths, empty-slice paths (C never offsets a dangling pointer: early returns or live stand-in bytes), in-place aliasing (C reads each block before writing it, IVs updated after the source is read), DES's defective NULL source avoided by `crypt_zeros`, `av_hash_final_b64`'s `dst[-1]` and `final_hex`'s unterminated sizes refused, the CLMUL CRC assembly's short-input copies (no over-read), Camellia's global `SP` and the random-seed fallback serialized by locks. No public unsafe API in the workset, so no `ub_unsafe` suite. One aliasing-model issue in a private helper: XTEA's in-place path derived its source pointer before the exclusive retag, unsound under Stacked Borrows only; BSan (Tree-Borrows-like) is clean, so it is filed as internal with a Miri regression. |
-| equiv | Hash `finalize_bin/hex/b64` refused outputs over `INT_MAX` and HMAC `finalize`/`calculate` over `UINT_MAX` where C, offered the largest size it accepts, succeeds (`equiv/hash-and-hmac-reject-outputs-beyond-c-ranges`). Documented, deliberate divergences kept: `finalize_hex` refuses fewer than 2 bytes and `finalize_b64` an empty output without finalizing (C writes nothing / writes `dst[-1]`); data lengths beyond C's per-call types are refused (C callers split them). |
-| internal | `xtea::process` pointer derivation (above). Private helpers `buffer_count`, `crypt_count`, `key_len`, `c_capacity` checked at their boundaries. |
-| conventions | Three vocabularies for cipher direction and buffer errors across the wave (`aes::Direction`/`CryptError`; XTEA's duplicates; `decrypt: bool` and an invented `-22` in DES, TEA, Twofish, RC4): all now use the shared `aes` types (`conventions/cipher-direction-and-error-vocabularies-diverge`). Anchors: one `Wraps:` per wrapped symbol, duplicated only on the deliberate in-place / zero-input variants. |
-| misc | The tip gate stopped on aliasing UB in the raw C side of four batch-0 equiv tests (a reused IV pointer), fixed (`misc/bsan-gate-equiv-iv-pointer-reused-across-reborrow`). The translators again committed notes under `crustify/campaigns/` (reported for the orchestrator). |
+| BSan gate | The gate failed on the 7200 s timeout of the `equiv` and `ub_safe` binaries, with no BSan report. The orchestrator's triage names symbol-route tests only (`imgutils::images`, `samplefmt::buffers`); the one test of this workset it lists, `csp::cie_xy::heap_box_owner_lives_reads_writes_clones_and_frees`, passes alone in 6 s and merely never got scheduled. This workset's own share of the budget was two `pixdesc::pixel_format_descriptor` equiv tests at 215 s and 1432 s alone, by the per-byte-retag mechanism the symbol review's `batch-1/misc/bsan-gate-per-byte-retags-in-image-alloc-and-sweeps` names for its own tests; see the second misc report (now 7 s and 215 s). The whole lib (501) and `ub_unsafe` (72) binaries and the workset's `equiv` (16) and `ub_safe` (62) modules pass under BSan. |
+| wavefront | All four findings match the C: `AVCIExy` and `AVLumaCoefficients` are pointer-free `AVRational` pairs/triples with no lifecycle routine (`--lifecycle-ops` empty), embedded by value in `csp.c`'s static tables and copied by value by every reader; `AVChannelCustom` is the by-value element of `AVChannelLayout.u.map` whose storage `av_channel_layout_{custom_init,from_string,retype,copy,uninit}` own (wave 3), with `opaque` a user cookie no FFmpeg path dereferences or frees (`channel_layout.c` touches only `AVChannelLayout.opaque`); `AVPixFmtDescriptor` lives only in `pixdesc.c`'s `static const` table or in caller storage, its `name`/`alias` string literals (`borrowed: static`, `mutable: false`). Nothing to resubmit. |
+| lifecycle | Complete: no C routine allocates, frees, clones or disposes any of the four on its own, so each is the `define_ctype!` value with `Ref`/`Mut` handles, `CZeroable` (every all-zero state is one C itself stores), `Copy`, `new`/`from_raw`/`into_raw`, and Rust-side heap storage through the generic `av_malloc` policies (`HeapBox`, `HeapVec`, `alloc_cell_array_zeroed`), exercised by the ub_safe suites. The map that holds `AVChannelCustom`s is `AVChannelLayout`'s to allocate and free (wave 3). |
+| unsafe boundary | One public `unsafe fn`, `PixelFormatDescriptor::from_raw`, whose `# Safety` contract (NULL or never-freed, never-written NUL-terminated `name`/`alias`) is exactly the type invariant the `&'static CStr` getters and setters rest on, and which no safe path can break (`new`/`Default`/zeroed owners, setters taking `&'static CStr`, `get()` copies). Two raw-pointer sites, `ChannelCustomRef::opaque` / `ChannelCustomMut::set_opaque` (`*mut c_void`), are the user cookie itself: nothing dereferences it on either side, storing or reading an address is safe, and no wave will replace it with a handle (there is no pointee type to wrap); it follows the crate's existing cookie convention (`log::Message::context`). `crustify scan-unsafe --sites all` reports no `ref_to_type_wrapper` or private-unsafe smell in the three homes; every field access projects with `addr_of!`/`addr_of_mut!` on the handle pointers under a specific `SAFETY:` comment (clippy's `undocumented_unsafe_blocks` is denied and clean). Three `SAFETY:` comments longer than the lexical scanner's six-line look-back were reflowed so the scanner agrees with clippy. |
+| ub_safe / ub_unsafe | No UB reachable. The getters read plain fields; `ChannelName` copies the 16-byte field and stops at its end (an unterminated field, which only a raw write leaves, reads as 16 bytes where C would overrun); `set_name` refuses 16+ bytes and `set_name_truncated` writes `av_strlcpy`'s bytes and NUL exactly; the component runs are exactly four elements over the embedded array; the `Send`/`Sync` impls cover plain data (the descriptor's strings are `'static` by invariant). Whole-crate ASan/UBSan and TSan, workset BSan (above), and Miri over the 41 FFI-free unit tests of the three homes pass. The `ub_unsafe` suite for `from_raw` (literal, NULL and leaked strings; outliving the raw struct and its frame; threads; C's table entries) passes under every instrument. |
+| equiv | The suites already observe every field through C: gamut identification after every coordinate write (`av_csp_primaries_id_from_desc`), the luma table read through the handles, twin custom maps written by `av_strlcpy` and by the setters and read through `av_channel_layout_describe`/`_check`/`_index_from_string`/`_channel_from_index` after each step, and descriptors rebuilt field by field under `av_get_bits_per_pixel`, `av_get_padded_bits_per_pixel`, `av_read_image_line2` and `av_write_image_line2`. `ChannelCustom`'s `PartialEq` (id, name to its NUL, pointer address) is a Rust value equality; C's own `av_channel_layout_compare` compares custom layouts by id only, which is the layout's (wave 3) comparison to wrap, not the element's. No divergence found. |
+| internal | `ChannelName::from_field`, `write_name`, `DescriptorFields`, the flag `Debug`s and `gamma` are each covered by unit tests, Miri included where FFI-free; no defect in the private implementation. Two `pixdesc` unit tests asserted that a second occurrence of a string literal has the address the setter stored, which Rust does not promise and Miri does not provide (both fail under `-Zmiri-seed=0..5` on the reviewed tree; one failed in this review's unseeded pass); they now compare the stored pointer with the getter's and the contents with the literal. See the internal report. |
+| conventions | `Wraps:` anchors on the four types, `Field:` anchors on every field accessor (`x`, `y`; `cr`, `cg`, `cb`; `id`, `name`, `opaque`; `name`, `nb_components`, `log2_chroma_w`, `log2_chroma_h`, `flags`, `comp`, `alias`); getters on `Ref`, setters on `Mut`; names drop the `AV` prefix and read as Rust (`component_count`, `PixelFormatFlags`); rustdoc builds with `-D warnings`. |
+| misc | `ChannelCustom` was the only `Eq` value type of the subsystem without `Hash` (its siblings `Channel`, `ChannelName`, `ComponentDescriptor`, `PixelFormatDescriptor` have one); added over the fields its equality compares, with a unit regression. Two `pixdesc` equivalence tests spent 215 s and 1432 s under BSan walking plane bytes through slice iterators; rewritten as whole-slice operations with the same assertions (7 s and 215 s). |
 
 ## Coverage
 
-Details in `coverage.json`. Rust: 99.33% of the 2395 lines and 100% of the
-functions in the 19 files. C: 100% of the lines of all 18 workset `.c` files;
-every untaken branch is an input the wrappers refuse before C or a
-CPU-feature-selected CRC path. The equivalence fix added the multi-GiB
-`beyond_int_max` / `beyond_uint_max` tests; no other coverage gap reachable
-through the safe API remained.
+Rust (`llvm-cov` over the lib, `equiv`, `ub_safe` and `ub_unsafe` binaries
+at the reviewed tree): `csp.rs` 507/507 lines, 850/850 regions, 98/98
+functions; `channel_layout.rs` 713/713 lines, 1118/1118 regions, 120/120
+functions; `pixdesc.rs` 917/917 lines, 1354/1354 regions, 154/154
+functions. The fix adds one `Hash` impl, executed by its new unit test.
+Details in `coverage.json`.
 
-## BSan gate
+C: no C function belongs to this workset (the four are by-value structs
+with no lifecycle routine), so there is no C path to measure; the C
+readers the equivalence tests observe through belong to the symbol route.
 
-Run per the sub-campaign policy: one invocation per test binary in parallel,
-each under `timeout 7200`, `BSAN_OPTIONS=gc_hang_threshold_ms=600000`, `lib`
-with `--test-threads=1`, skipping `compile_fail` and the 48 known `strto*`
-end-pointer false positives listed in
-`../../../options/wave-2/batch-0/misc/bsan-gate-strto-end-pointer-false-positives/skip-list.txt`.
-
-- Wave tip `0896e41211`, before any change: `lib` 752 passed (380 s),
-  `ub_safe` 642 passed (3170 s), `ub_unsafe` 95 passed (163 s), the seven
-  `-sys` binaries passed; `equiv` stopped at its first report, a true
-  positive in test code (`misc/bsan-gate-equiv-iv-pointer-reused-across-reborrow`).
-- Landed tree (the tip plus this review; the wave branch did not move): every
-  binary passed, `equiv` 591 (2328 s), `ub_safe` 642 (4248 s), `lib` 753
-  (431 s), `ub_unsafe` 95 (198 s), the seven `-sys` binaries. The new
-  multi-GiB equivalence regressions return early under BSan, as the base64
-  one does.
-
-## Validation at the landed tree
+## Validation at the fixed tree
 
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean.
-- `cargo test --workspace` (plain, trybuild `compile_fail` included): all pass.
-- ASan/UBSan and TSan (`-Zbuild-std`, `--lib --tests --skip compile_fail`):
-  all binaries pass, no `runtime error:` and no sanitizer report.
-- Miri: the FFI-free unit tests touched here (`buffer_count`, `crypt_count`,
-  `c_capacity`, XTEA's `in_place_pointers_share_one_exclusive_reborrow`)
-  pass; the XTEA regression fails with the old derivation.
-- The equivalence reproducer exits 1 on the tip and 0 on the landed tree.
+- plain `cargo test --workspace`: 502 lib, 418 equiv, 416 ub_safe (the
+  compile-fail programs included), 72 ub_unsafe, 54 doctests, 0 failed.
+- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants, whole
+  crate): 502 / 418 / 415 / 72, no `runtime error:` and no sanitizer
+  report; the lib rerun after the last unit-test edit likewise.
+- BSan (`cargo bsan`, bsan C build): lib 502 and `ub_unsafe` 72 whole;
+  the workset's five `equiv` modules (16 tests, 224 s, down from 1416 s)
+  and `ub_safe` modules (62 tests, 6 s); no report.
+- Miri: the 42 FFI-free unit tests of the three homes (the new `Hash`
+  test included), and the two fixed tests under seeds 0-5.
+- `crustify scan-unsafe --sites all`: in the three homes the only smell
+  sites on this workset's items are the two documented `opaque` cookie
+  accessors (`raw_ptr_pub_smell` / `void_ptr_pub_smell`); the others
+  (`static_name`, `name_buffer`) are the symbol route's. The fixes change
+  no counter but `ref_to_type_wrapper_sanctioned` (+1, the `Hash` impl's
+  `&self`), and the workset's files have zero undocumented unsafe sites
+  (the crate total went 25 to 22 with the three reflowed comments).

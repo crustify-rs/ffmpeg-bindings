@@ -93,12 +93,12 @@
       "home": "src/libavutil/libavutil/pixdesc.rs"
     }
   ],
-  "wave": 50,
+  "wave": 14,
   "batch": 1,
   "link_unit": "libavutil",
-  "module": "libavutil/channel_layout.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-50",
+  "base_branch": "crustify/waves/wave-14",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

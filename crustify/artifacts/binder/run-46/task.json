@@ -170,12 +170,12 @@
       "home": "src/libavutil/libavutil/opt.rs"
     }
   ],
-  "wave": 72,
-  "batch": 1,
+  "wave": 20,
+  "batch": 3,
   "link_unit": "libavutil",
-  "module": "libavutil/eval.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-72",
+  "base_branch": "crustify/waves/wave-20",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

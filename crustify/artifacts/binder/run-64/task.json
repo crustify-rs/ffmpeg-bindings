@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/xtea.rs"
     }
   ],
-  "wave": 110,
-  "batch": 0,
+  "wave": 28,
+  "batch": 2,
   "link_unit": "libavutil",
-  "module": "libavutil/murmur3.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-110",
+  "base_branch": "crustify/waves/wave-28",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

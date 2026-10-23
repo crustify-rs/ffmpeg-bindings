@@ -8,15 +8,15 @@
       "field_anchors": [
         "l"
       ],
-      "home": "src/libavutil/libavutil/intreadwrite.rs"
+      "home": "src/libavutil/libavutil/intreadwrite_h.rs"
     }
   ],
-  "wave": 90,
-  "batch": 2,
+  "wave": 4,
+  "batch": 9,
   "link_unit": "libavutil",
-  "module": "libavutil/intreadwrite.h",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-90",
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

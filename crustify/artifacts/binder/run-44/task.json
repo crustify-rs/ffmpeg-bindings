@@ -13,20 +13,20 @@
       "defined_in": "libavutil/opt.h",
       "kind": "type",
       "field_anchors": [
-        "def",
-        "sep",
         "size_max",
+        "sep",
+        "def",
         "size_min"
       ],
       "home": "src/libavutil/libavutil/opt.rs"
     }
   ],
-  "wave": 72,
-  "batch": 0,
+  "wave": 20,
+  "batch": 1,
   "link_unit": "libavutil",
-  "module": "libavutil/eval.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-72",
+  "base_branch": "crustify/waves/wave-20",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

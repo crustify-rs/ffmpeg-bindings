@@ -34,14 +34,14 @@
       "defined_in": "libavutil/intmath.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/intmath.rs"
     },
     {
       "name": "av_log2_16bit",
       "defined_in": "libavutil/intmath.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/intmath.rs"
     },
     {
       "name": "av_log_default_callback",
@@ -174,15 +174,15 @@
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     }
   ],
-  "wave": 0,
-  "batch": 0,
+  "wave": 4,
+  "batch": 12,
   "link_unit": "libavutil",
-  "module": "libavutil/mem.c",
-  "foundational": true,
-  "base_branch": "crustify/waves/wave-0",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

@@ -1,106 +1,72 @@
-# Review: AVBPrint appenders, initialisers and finalizer (core wave 2)
+# Review: libavutil/buffer-frame wave 1, batch 0 (types)
 
-Route: **symbol** (12 items, all homed in `crustify/rust/ffmpeg/libavutil/bprint.rs`).
-Objective: **review**. Affected base: `06a7548c5c439c49f36f434a7251d23939b53462`.
-No BSan gate log was filed for the wave, so there was no candidate to start from.
+- Items: `AVBufferRef` (`buffer.rs`: `BufferReference`, `BufferReferenceBox`,
+  `BufferUnref`, `UninitBuffer`), `AVRegionOfInterest` (`frame.rs`:
+  `RegionOfInterest`)
+- Reviewed: wave tip `6fd5597711` (type batch 0). The symbol share of the wave
+  belongs to review batch 1. Wave 1 is not the sub-campaign's last wave (the
+  schedule runs to wave 4), so BSan ran on no suite. This review emits no Rust
+  reproducer to run under it.
+- Reports: two, on one finding.
+  - `misc/region-of-interest-self-size-hazards`: the type's docs and its
+    `CZeroable` SAFETY comment said that C readers reject only a zero
+    `self_size`, and do so with an error. In fact an undersized nonzero
+    `self_size` makes them read past the side data payload (ASan, C probe
+    included), and `vf_addroi` aborts on 0. Docs fixed. No Rust path reaches
+    C with a region yet.
+  - `wavefront/region-of-interest-reader-checks-incomplete`: the same facts,
+    plus the encoders' unchecked `qoffset` arithmetic, were missing from the
+    type's record. Resubmitted.
 
-Items: `av_bprint_append_data` (`BPrintMut::append_bytes`), `av_bprint_chars`
-(`append_repeated`), `av_bprint_clear` (`clear`), `av_bprint_escape`
-(`append_escaped`), `av_bprintf` (`append_fmt`, and `fmt::Write`), `av_vbprintf`
-(`append_c_str` through the `crustify_av_vbprintf` shim), `av_bprint_strftime`
-(`append_strftime` with the hand-written `Tm`), `av_bprint_get_buffer`
-(`append_with`), `av_bprint_is_complete` (`BPrintRef::is_complete`), and the
-three lifecycle routines the core wave-1 type run emitted and this batch
-re-checked: `av_bprint_init` (`BPrint::new`), `av_bprint_init_for_buffer`
-(`BPrint::for_buffer`) and `av_bprint_finalize` (`BPrintFinalize`,
-`into_string`, `into_bytes`).
+## Verdicts by step
 
-## Findings and scope
+| step | finding |
+|---|---|
+| wavefront | `AVBufferRef`'s field records (`data` borrowed from `buffer`, nullable only with size 0; `buffer` an owned counted reference, never NULL) match `buffer.c`. So do the lifecycle roles of `av_buffer_alloc`/`allocz`/`create` (constructors), `av_buffer_ref` (up-ref cloner, unchecked relaxed increment) and `av_buffer_unref` (dropper, acq_rel decrement). `AVRegionOfInterest`'s comment was incomplete (report, resubmitted). |
+| lifecycle | Complete for this wave. `AVBufferRef`: `av_buffer_unref` (`CDrop`), `av_buffer_ref` (`CDupClone`, count-guarded), `av_buffer_alloc` (`UninitBuffer`), `av_buffer_allocz`, and `av_buffer_create` in three ownership variants (`HeapVec` with the default free, a `Send` Rust owner, a read-only Rust owner). `av_buffer_realloc` (which can also construct from NULL), `av_buffer_make_writable`, `av_buffer_replace` and `av_buffer_pool_get` are wave-2 symbols. The struct's size is outside the ABI, so no by-value owner is missing. `AVRegionOfInterest` has no C lifecycle routine: it is a value type. |
+| unsafe boundary | `scan-unsafe --sites all`: in the workset only `with_allocator` and `UninitBuffer::assume_init` are `unsafe_fns_pub_smell`. Both are legitimate. `with_allocator` cannot express in types its no-re-entry rule (a self-deadlock on a default mutex) or the size-from-the-buffer's-start rule (`AVBuffer` is opaque). `assume_init` is the promotion of written bytes, and `fill`/`copy_from_slice` are its safe forms. I checked both `# Safety` texts against `pool_alloc_buffer`, `buffer_pool_flush` and `buffer_pool_free`. The re-entry obligation is complete: a pool reference held by `F` or by an owner `T` forms a cycle that leaks rather than frees. The other sites are trait seams (`c_drop`/`c_dup`) and the allocator trampoline's `Box<F>` deref. There is no undocumented unsafe block in the homes or their tests. |
+| ub_safe | No defect. I checked: `data()`'s `'a` against `replace` and `UninitBuffer::try_from` (`as_ref` reborrows); `data_mut`'s sole-and-writable check against the C count's ordering (acq_rel release vs seq_cst load); the `Send`/`Sync` proofs against every C writer of a shared `AVBuffer`; `from_owner`/`from_read_only` with non-`Sync` owners (Rust never touches `T` between `as_mut`/`as_ref` and the release); empty and dangling windows; that `CBox::with_policy`/`new_uninit` give no safe path around `BufferUnref` (`with_policy` is unsafe, no `CAlloc`); and the count guard under concurrent clones. A pool allocator only takes sole, writable references (`UninitBuffer`), so the pool never takes over a shared buffer's free callback. |
+| ub_unsafe | No defect within `with_allocator`'s and `assume_init`'s contracts. The existing suites cover every element of both. |
+| equiv | No divergence beyond the documented one (`try_clone` refuses at `u32::MAX / 2` references, where C would wrap later). |
+| internal | No defect. |
+| conventions | No deviation. Every item has one `Wraps:` anchor, and the duplicates are intentional: `UninitBuffer` (a second owner form) and three `av_buffer_create` variants. All three `AVBufferRef` fields and all six `AVRegionOfInterest` fields carry `Field:` anchors, and `Handwritten` marks the hand-written policies and owner. Getters are on `Ref` and setters on `Mut`, and projections use `addr_of!`/`addr_of_mut!`. |
+| misc | One report (above). |
 
-- **No UB defect** in the safe public API, and the workset adds no public
-  unsafe API (nothing to evaluate for `ub_unsafe`). Each wrapper's unsafe
-  block was read against the C body: the appenders write only within `size`
-  and grow only a string the buffer owns; `append_with` hands out
-  `min(room - 1, size, LEN_MAX - len)` zeroed bytes at `str + len` and its
-  drop guard re-terminates at `min(len, size - 1)` on every exit, so the
-  `BPrint` invariants (`str` valid for `size` bytes, written and
-  NUL-terminated at `min(len, size - 1)`) hold after every path, including a
-  `strftime` attempt that clobbers the terminator before `av_bprint_grow(buf, 0)`
-  restores it. The layout newtypes keep their fields private, no owner
-  dereferences to a `BPrint`, and `BPrintOnBuffer<'b>` holds the caller
-  buffer's `&'b mut [u8]` borrow (the E0503 doctest and the two compile-fail
-  cases cover the borrow conflicts).
-- **No equivalence defect.** Besides the existing step-by-step suites, a
-  differential probe (`probe/`, kept for reuse) ran 20 000 random sequences
-  on the plain build and 15 000 under ASan/UBSan over every init shape,
-  every appender, C-style truncation, `av_max_alloc` limits toggled
-  mid-sequence and both finalizers, comparing the full state after every
-  step: no mismatch, no sanitizer report.
-- **Two documentation defects, fixed** (`misc/`): `is_complete` claimed a
-  count-only buffer is incomplete only once appended to, where C's
-  `len < size` is false from initialisation (`clear`'s doc repeated the
-  slip); `TmRef::zone` claimed a NULL `tm_zone` always names the local zone,
-  where glibc does so only for `tm_isdst >= 0` and formats nothing otherwise.
-  Both get doctests as regression evidence.
-- **No Wavefront correction needed**: the findings for all 12 symbols record
-  the borrow-for-the-call `buf`, the read-only `data`/`src`/`special_chars`/
-  `fmt`/`tm` inputs, the nullable `special_chars` and `ret_str`, the
-  `by_ref` out-slots of `av_bprint_get_buffer` and `av_bprint_finalize`, the
-  `other`-lifetime caller buffer of `av_bprint_init_for_buffer`, and the
-  count-only finalize defect, as the C bodies show. The `tm` note's "the
-  local zone name is used" for a NULL `tm_zone` is the same nuance as the doc
-  fix above (empty for `tm_isdst < 0`) and does not affect ownership or
-  safety, so it was left as is.
-- **No lifecycle work**: symbol-only route; `av_bprint_finalize` is correctly
-  recorded as the disposer of a caller-stored structure.
-- **No convention deviation**: clippy `--all-targets -D warnings`, rustdoc
-  `-D warnings`, every unsafe block documented; `crustify scan-unsafe` shows
-  no smell at any site this batch added (the `unsafe_fns_priv_smell` and
-  `raw_ptr_priv_smell` sites in `bprint.rs` are the wave-1 lifecycle
-  helpers `finalize_and_free`, `free_storage`, `init_with` and `finalize`,
-  private and documented, and the one `unsafe_fns_pub_smell` is
-  `BPrintFieldsMut::set_str_borrowed`, a wave-1 stored-borrow setter whose
-  contract states the referent lifetime).
+## Coverage
 
-### Observation, not changed
+One coverage run (`CRUSTIFY_FFMPEG_VARIANT=coverage`, `-C instrument-coverage`,
+the lib, `equiv`, `ub_safe` and `ub_unsafe` binaries filtered to `buffer` and
+`region_of_interest`):
 
-`BPrint::into_string` / `into_bytes` consume the owner, so when
-`av_bprint_finalize` fails to copy an inline string out (`AVERROR(ENOMEM)`,
-only reachable through `av_max_alloc`), the string is lost with the
-structure, whereas C's caller keeps a usable buffer. The consuming signature
-was chosen by the wave-1 type run and accepted by its review; handing the
-buffer back in the error would change a landed API for an allocation of at
-most 1004 bytes, so it is noted here rather than changed.
+- Added `buffer.rs::unit_tests::copies_stop_at_the_reference_limit`. It
+  raises a real buffer's count through a mirror of `AVBuffer`'s private
+  layout, which it first checks against `av_buffer_get_ref_count`. With that it
+  covers `try_clone`'s refusal at `MAX_REFERENCES` through the handle and the
+  box, and counts above `INT_MAX` (negative `int`s from C). The translator
+  had left that branch uncovered, since reaching it honestly needs 2^31 live
+  references.
+- Rust: `buffer.rs` 99.06% lines (746 lines, 7 missed), 98.94% regions. In
+  the merged line view only three lines have a zero count: a test allocator
+  closure that is never called on purpose
+  (`construction_failure_drops_the_allocator`). The report's other misses are
+  per-instantiation arms of the generic `with_allocator` (its init2-failure
+  path, taken by another instantiation). In `frame.rs` the
+  `RegionOfInterest` block (lines 915-1250) runs all 103 of its executable
+  lines. The rest of `frame.rs` is other waves' items, outside this run's
+  filter.
+- C (`gcov -b` over `buffer.c`): `av_buffer_alloc`, `allocz`, `ref`, `unref`,
+  `is_writable`, `get_ref_count`, `default_free` and `buffer_create` all run
+  at 100%. Three lines remain uncovered. `av_buffer_create` (75%): the
+  `AVBufferRef` allocation failing after the 48-byte `AVBuffer` succeeded,
+  which `av_max_alloc` cannot select since the reference is smaller.
+  `buffer_replace` (84.6%): its `src` branch, reached only by wave 2's
+  `av_buffer_make_writable`/`av_buffer_realloc`. `av_buffer_pool_init`/`init2`:
+  `ff_mutex_init` failures, which depend on the environment.
+  `AVRegionOfInterest` has no C path of its own.
 
-## Regression evidence and coverage
+## Validation of the landed tree
 
-Added: doctests on `BPrintRef::is_complete` (count-only `new`, cleared after
-an append, `for_buffer(&mut [])`, and a complete automatic buffer) and on
-`TmRef::zone` (`[%Z]` with no zone and `tm_isdst = -1`, then a named zone).
-
-`coverage.json`: `bprint.c` at 100% of lines, 100% of branches executed and
-96.3% taken; the untaken ones are the `INT_MAX` arm of `av_bprint_strftime`'s
-room doubling (needs more than 1 GiB of room) and gcov's unwind edges.
-`bprint.rs` at 100% of lines, functions and regions. `av_bprint_is_complete`
-is a header inline compiled into the `-sys` shim, outside the gcov build.
-
-## Validation
-
-All commands ran from `crustify/rust` with private target and log paths
-under `/tmp/rw2b0`; the reusable C builds were left immutable (`GCOV_PREFIX`
-redirected the coverage writes). No binding, shim or C source changed, so no
-C rebuild or baseline was needed.
-
-- `cargo check --workspace`, `cargo clippy --workspace --all-targets --
-  -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg`: pass.
-- `cargo test --workspace`: pass (compile-fail and doctests included).
-- ASan/UBSan: whole crate, `--lib --tests` under `-Zsanitizer=address`
-  against `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan`, `--skip compile_fail`: 897
-  passed, no `runtime error`, no leak.
-- TSan: same suites under `-Zsanitizer=thread` against the tsan build: pass,
-  no report.
-- BSan: lib, equiv, ub_safe and ub_unsafe `bprint` suites with `cargo bsan
-  test` against the bsan build (`gc_hang_threshold_ms=600000`): pass.
-- Miri: the eleven C-free `bprint::unit_tests` (layout, constants, the
-  `BPrintFields` and `Tm` values, handles and `Debug`): pass.
-- `crustify scan-unsafe <workdir> --json --sites all`: see above.
+Plain `cargo check`/`clippy`/`clippy --all-targets -D warnings`/`test
+--workspace`, `cargo doc -p ffmpeg` with `-D warnings`, ASan+UBSan and TSan
+over the whole `ffmpeg` crate (lib, `equiv`, `ub_safe`, `ub_unsafe`), and Miri
+on the workset's FFI-free unit tests. No BSan (see above).

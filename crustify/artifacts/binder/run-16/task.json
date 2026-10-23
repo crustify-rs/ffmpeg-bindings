@@ -104,7 +104,7 @@
       "defined_in": "libavutil/version.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/version.rs"
     },
     {
       "name": "av_vlog",
@@ -118,43 +118,43 @@
       "defined_in": "libavutil/avutil.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/avutil_h.rs"
     },
     {
       "name": "av_zero_extend_c",
       "defined_in": "libavutil/common.h",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/common.rs"
+      "home": "src/libavutil/libavutil/common_h.rs"
     },
     {
       "name": "avutil_configuration",
       "defined_in": "libavutil/version.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/version.rs"
     },
     {
       "name": "avutil_license",
       "defined_in": "libavutil/version.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/version.rs"
     },
     {
       "name": "avutil_version",
       "defined_in": "libavutil/version.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/version.rs"
     }
   ],
-  "wave": 0,
-  "batch": 0,
+  "wave": 4,
+  "batch": 14,
   "link_unit": "libavutil",
-  "module": "libavutil/mem.c",
-  "foundational": true,
-  "base_branch": "crustify/waves/wave-0",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

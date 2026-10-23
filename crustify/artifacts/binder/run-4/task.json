@@ -13,15 +13,15 @@
       "defined_in": "libavutil/avutil.h",
       "kind": "type",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     }
   ],
-  "wave": 6,
+  "wave": 4,
   "batch": 1,
   "link_unit": "libavutil",
-  "module": "libavutil/avstring.c",
-  "foundational": true,
-  "base_branch": "crustify/waves/wave-6",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

@@ -6,22 +6,22 @@
       "defined_in": "libavutil/pixfmt.h",
       "kind": "type",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/pixfmt.rs"
+      "home": "src/libavutil/libavutil/pixdesc.rs"
     },
     {
       "name": "AVColorTransferCharacteristic",
       "defined_in": "libavutil/pixfmt.h",
       "kind": "type",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/pixfmt.rs"
+      "home": "src/libavutil/libavutil/pixdesc.rs"
     }
   ],
-  "wave": 112,
-  "batch": 5,
+  "wave": 10,
+  "batch": 3,
   "link_unit": "libavutil",
-  "module": "libavutil/pixdesc.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-112",
+  "base_branch": "crustify/waves/wave-10",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

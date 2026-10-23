@@ -2,12 +2,12 @@
   "commits": [
     "c1a235cc9297f75cb8930151fcd09881e48323a4"
   ],
-  "wave": 51,
+  "wave": 15,
   "batch": 1,
   "link_unit": "libavutil",
-  "module": "libavutil/channel_layout.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-51",
+  "base_branch": "crustify/waves/wave-15",
   "model": "openrouter/anthropic/claude-fable-5.1",
   "billing": "api"
 }

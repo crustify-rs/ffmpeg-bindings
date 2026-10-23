@@ -1,14 +1,14 @@
 {
   "commits": [
-    "ce32b4994fc5c87e207382b1dce713f2178aca30",
-    "6b681023143972aa4093db554713be6e45025f9b"
+    "6b681023143972aa4093db554713be6e45025f9b",
+    "ce32b4994fc5c87e207382b1dce713f2178aca30"
   ],
-  "wave": 21,
-  "batch": 0,
+  "wave": 7,
+  "batch": 1,
   "link_unit": "libavutil",
-  "module": "libavutil/avstring.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-21",
+  "base_branch": "crustify/waves/wave-7",
   "model": "openrouter/anthropic/claude-fable-5.1",
   "billing": "api"
 }

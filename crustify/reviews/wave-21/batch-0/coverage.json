@@ -1,224 +1,40 @@
 {
   "method": {
-    "c": "CRUSTIFY_FFMPEG_VARIANT=coverage (gcc gcov), GCOV_PREFIX=/tmp/batch1/gcov, gcov 13 over the batch tests of lib, equiv, ub_safe and ub_unsafe (filters: rational mathematics timestamp avstring::escape avutil::names/media/picture/time_base log::default_category)",
-    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-cov export --summary-only over the same test binaries, after the nearest fix"
+    "rust": "RUSTFLAGS=-C instrument-coverage, nightly llvm-profdata merge + llvm-cov report over the lib, equiv, ub_safe and ub_unsafe test binaries (cargo +nightly test -p ffmpeg --lib --tests -- dict eval opt --skip compile_fail), reported for the three home files",
+    "c": "the same run with CRUSTIFY_FFMPEG_VARIANT=coverage and GCOV_PREFIX; gcov -b -c -f over libavutil/dict.c, eval.c and opt.c, reported for the workset's lifecycle routines and the readers of its fields",
+    "note": "one measurement on the review's tree (the wave tip cde88fc249 plus this review's changes)"
   },
-  "after": {
-    "rust": {
-      "avstring.rs": {
-        "lines": {
-          "count": 889,
-          "covered": 133,
-          "percent": 14.96
-        },
-        "functions": {
-          "count": 105,
-          "covered": 17,
-          "percent": 16.19
-        },
-        "regions": {
-          "count": 1307,
-          "covered": 194,
-          "percent": 14.84
-        }
-      },
-      "avutil.rs": {
-        "lines": {
-          "count": 216,
-          "covered": 203,
-          "percent": 93.98
-        },
-        "functions": {
-          "count": 45,
-          "covered": 41,
-          "percent": 91.11
-        },
-        "regions": {
-          "count": 350,
-          "covered": 336,
-          "percent": 96
-        }
-      },
-      "log.rs": {
-        "lines": {
-          "count": 936,
-          "covered": 31,
-          "percent": 3.31
-        },
-        "functions": {
-          "count": 152,
-          "covered": 6,
-          "percent": 3.95
-        },
-        "regions": {
-          "count": 1233,
-          "covered": 29,
-          "percent": 2.35
-        }
-      },
-      "mathematics.rs": {
-        "lines": {
-          "count": 377,
-          "covered": 377,
-          "percent": 100
-        },
-        "functions": {
-          "count": 47,
-          "covered": 47,
-          "percent": 100
-        },
-        "regions": {
-          "count": 890,
-          "covered": 889,
-          "percent": 99.89
-        }
-      },
-      "rational.rs": {
-        "lines": {
-          "count": 434,
-          "covered": 434,
-          "percent": 100
-        },
-        "functions": {
-          "count": 64,
-          "covered": 64,
-          "percent": 100
-        },
-        "regions": {
-          "count": 999,
-          "covered": 999,
-          "percent": 100
-        }
-      },
-      "timestamp.rs": {
-        "lines": {
-          "count": 82,
-          "covered": 82,
-          "percent": 100
-        },
-        "functions": {
-          "count": 7,
-          "covered": 7,
-          "percent": 100
-        },
-        "regions": {
-          "count": 170,
-          "covered": 169,
-          "percent": 99.41
-        }
-      }
+  "rust": {
+    "libavutil/dict.rs": { "regions": { "count": 322, "percent": 100.0 }, "functions": { "count": 36, "percent": 100.0 }, "lines": { "count": 222, "percent": 100.0 } },
+    "libavutil/eval.rs": { "regions": { "count": 624, "percent": 98.24 }, "functions": { "count": 57, "percent": 96.49 }, "lines": { "count": 465, "percent": 97.85 } },
+    "libavutil/opt.rs": { "regions": { "count": 2558, "percent": 99.10 }, "functions": { "count": 204, "percent": 100.0 }, "lines": { "count": 1755, "percent": 99.49 } },
+    "uncovered": [
+      "eval.rs unit_tests: the helper functions negate and plus (listed after a same-named entry, so C never calls them, which is what the test checks) and four `return` arms taken only under BSan",
+      "opt.rs unit_tests: `panic!` arms of fixture helpers and one `return` taken only under BSan",
+      "opt.rs:2427, a fallback arm of a wave-0 symbol (not this workset)"
+    ]
+  },
+  "c": {
+    "libavutil/dict.c": {
+      "av_dict_free": "100% of 9 lines",
+      "av_dict_copy": "100% of 5 lines",
+      "av_dict_iterate": "100% of 8 lines",
+      "av_dict_set": "70% of 70 lines",
+      "av_dict_get": "94.12% of 17 lines",
+      "uncovered": "av_dict_set's AV_DICT_DONT_STRDUP_VAL, AV_DICT_DEDUP, AV_DICT_DONT_OVERWRITE and AV_DICT_APPEND paths and av_dict_get's AV_DICT_MATCH_CASE loop: the workset's constructor and cloner always pass AV_DICT_MULTIKEY alone, so these are reachable only through the wave-1 av_dict_set / av_dict_get wrappers"
     },
-    "c_functions": {
-      "av_gcd_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 8
-      },
-      "av_q2intfloat": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 82.61,
-        "lines": 23
-      },
-      "av_find_nearest_q_idx": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 6
-      },
-      "av_nearer_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 6
-      },
-      "av_d2q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 13
-      },
-      "av_sub_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 6
-      },
-      "av_add_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 6
-      },
-      "av_div_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 2
-      },
-      "av_mul_q": {
-        "file": "libavutil/rational.c",
-        "lines_percent": 100.0,
-        "lines": 5
-      },
-      "av_add_stable": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 16
-      },
-      "av_rescale_delta": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 18
-      },
-      "av_compare_ts": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 8
-      },
-      "av_rescale_q": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 2
-      },
-      "av_rescale_q_rnd": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 4
-      },
-      "av_rescale_rnd": {
-        "file": "libavutil/mathematics.c",
-        "lines_percent": 100.0,
-        "lines": 41
-      },
-      "av_ts_make_time_string2": {
-        "file": "libavutil/timestamp.c",
-        "lines_percent": 100.0,
-        "lines": 16
-      },
-      "av_get_time_base_q": {
-        "file": "libavutil/utils.c",
-        "lines_percent": 100.0,
-        "lines": 2
-      },
-      "av_get_picture_type_char": {
-        "file": "libavutil/utils.c",
-        "lines_percent": 100.0,
-        "lines": 2
-      },
-      "av_get_media_type_string": {
-        "file": "libavutil/utils.c",
-        "lines_percent": 100.0,
-        "lines": 7
-      },
-      "av_default_get_category": {
-        "file": "libavutil/log.c",
-        "lines_percent": 100.0,
-        "lines": 2
-      },
-      "av_escape": {
-        "file": "libavutil/avstring.c",
-        "lines_percent": 100.0,
-        "lines": 12
-      }
+    "libavutil/eval.c": {
+      "av_expr_parse": "100% of 49 lines",
+      "av_expr_free": "100% of 10 lines",
+      "parse_primary, parse_factor, parse_term, parse_subexpr, parse_expr, parse_dB, make_eval_expr, verify_expr, strmatch": "100% each",
+      "uncovered": []
+    },
+    "libavutil/opt.c": {
+      "av_opt_freep_ranges": "100% of 11 lines",
+      "av_opt_query_ranges": "100% of 12 lines",
+      "av_opt_query_ranges_default": "100% of 50 lines",
+      "opt_array_sep": "every branch taken (41701 calls)",
+      "uncovered": []
     }
-  },
-  "notes": [
-    "av_q2intfloat lines 160-165 (C negating a negative denominator or numerator) are intentionally unreached: the wrapper normalizes the sign in Rust because C shifts it as `sign<<31`, undefined for an int; C computes the other bits from the magnitudes.",
-    "avstring.rs, avutil.rs and log.rs hold other batches' items; their batch-owned functions (escape, EscapeFlags and its impls, MediaType::as_str, PictureType::to_char, time_base, default_category) are 100% covered per llvm-cov --show-functions.",
-    "The header inlines av_make_q, av_inv_q, av_q2d, av_cmp_q and av_ts_make_time_string are compiled into the -sys shim, outside the gcov C build."
-  ]
+  }
 }

@@ -5,23 +5,37 @@
       "name": "AVOption",
       "defined_in": "libavutil/opt.h",
       "kind": "type",
-      "field_anchors": [],
+      "field_anchors": [
+        "name",
+        "flags",
+        "unit",
+        "type",
+        "min",
+        "max",
+        "offset",
+        "help",
+        "default_val"
+      ],
       "home": "src/libavutil/libavutil/opt.rs"
     },
     {
       "name": "AVOptionRanges",
       "defined_in": "libavutil/opt.h",
       "kind": "type",
-      "field_anchors": [],
+      "field_anchors": [
+        "nb_components",
+        "range",
+        "nb_ranges"
+      ],
       "home": "src/libavutil/libavutil/opt.rs"
     }
   ],
-  "wave": 94,
-  "batch": 0,
+  "wave": 4,
+  "batch": 2,
   "link_unit": "libavutil",
-  "module": "libavutil/opt.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-94",
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

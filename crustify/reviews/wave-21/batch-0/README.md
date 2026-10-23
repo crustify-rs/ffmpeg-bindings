@@ -1,98 +1,61 @@
-# Review: rational arithmetic, rescaling, names, escape, time strings
+# Review: libavutil/options wave 0, batch 0 (the wave's types)
 
-Route: **symbol** (26 items). Objective: **review**. Affected base:
-`b2cff27cd691af1482bd36e8c2edab9d5e25fcf8` (`av_make_q`, `av_rescale_rnd`
-and `av_ts_make_time_string2` were wrapped earlier and re-checked here).
+- Items: `AVDictionary` (`dict::Dictionary`, owned as `DictionaryBox` / `Dict`),
+  `AVDictionaryEntry` (`dict::DictionaryEntry`, fields `key`, `value`),
+  `AVExpr` (`eval::Expr`, owned as `ExprBox`), `AVOptionArrayDef`
+  (`opt::OptionArrayDef`, fields `def`, `sep`, `size_max`, `size_min`),
+  `AVOptionRange` (`opt::OptionRange`, fields `str`, `is_range`,
+  `component_max`, `component_min`, `value_max`, `value_min`) and
+  `AVOptionType` (`opt::OptionType`).
+- Homes: `crustify/rust/ffmpeg/libavutil/{dict,eval,opt}.rs`.
+- Reviewed commit: the wave tip `cde88fc249` (types landed by batches 0
+  `aa6053aec5`, 1 `66fa3604d1` and 2 `e605248b0c`; symbols by batches 4
+  `ae14a85553` and 3 `cde88fc249`).
+- Reports: `unsafe/expr-parse-with-context-raw-log-context`,
+  `conventions/expr-send-safety-comment-past-scan-window`.
+- Not the sub-campaign's last wave (options has waves 0-2), so no BSan gate:
+  BSan runs only on reproducers, and this review emits none.
 
-## Findings and scope
+## Verdicts by step
 
-- One equivalence defect, fixed: `Rational::nearest` refused every list with
-  two `INT_MIN` denominators, while C compares such a pair (and overflows)
-  only when the first of them is the nearest so far. Report, reproducer and
-  regression tests in `equiv/nearest-refuses-lists-c-finishes`. The same
-  patch corrects `cmp_distance`'s doc, which claimed C always overflows on
-  unordered candidates (it multiplies `INT_MIN` by -1, 0 or 1).
-- No UB defect in the safe or unsafe public API. The one public unsafe
-  function the batch adds, `default_category`, keeps the context seam the
-  log module already uses (`default_item_name`, `log_with_context`) for
-  `AVClass`-enabled objects whose types are not wrapped yet; its contract
-  states alignment, readability, the non-NULL class pointer and the
-  no-concurrent-write obligation, and its `ub_unsafe` suite exercises it.
-- No Wavefront finding needed correction: every pointer argument and return
-  of the 26 symbols (`q_list`, `last`, `dst`/`src`/`special_chars`, `buf`,
-  `tb`, `ptr`, the static name) is recorded with the ownership, nullability,
-  cardinality and lifetime the C bodies show.
-- No lifecycle work: the route is symbol-only and `AVRational` owns nothing.
-- No convention deviation: clippy (`--all-targets -D warnings`) and rustdoc
-  (`-D warnings`) are clean; every unsafe block carries a specific comment.
+| step | finding |
+|---|---|
+| wavefront | The submitted findings match the C for all six types: `AVDictionary` (opaque, `elems` owned and NULL only before the first insert; lifecycle `av_dict_set` constructor, `av_dict_free` dropper, `av_dict_copy` deep cloner), `AVDictionaryEntry` (`key` / `value` owned by the dictionary, never NULL, `value` written by `AV_DICT_APPEND` only), `AVExpr` (`av_expr_parse` alloc constructor, `av_expr_free` recursive dropper, `param` children unshared, `func1` / `func2` copies of the caller's functions, `func0` static), `AVOptionArrayDef` (static descriptor, `def` a static string), `AVOptionRange` (element of an `AVOptionRanges` list, `str` owned and released by `av_opt_freep_ranges`) and `AVOptionType` (open enum with the array flag). The lifecycle symbols' records (`av_expr_parse`, `av_expr_free`, `av_dict_set`, `av_dict_copy`, `av_dict_free`, `av_opt_freep_ranges`) agree with the C bodies. Nothing to resubmit. |
+| lifecycle | Complete. `AVDictionary`: owned non-empty (`DictionaryBox`, `av_dict_free` + `av_dict_copy` with `AV_DICT_MULTIKEY`), owned nullable slot (`Dict`, built by `new` / `from_entries` through `av_dict_set`, which allocates and frees the dictionary with its first and last entry) and borrowed (`DictionaryRef`); entries are borrow-only, as C stores them only in the entry array. `AVExpr`: `ExprBox` with `av_expr_free`, built only by `Expr::parse` / `parse_with_context`; C has no copy. `AVOptionRange`: borrowed from its list, its `str` replaced, taken and released as a `HeapString` (the list frees it with `av_freep`). `AVOptionArrayDef`: a value type (`new`, `Default`, `CZeroable`) with no C lifecycle. `AVOptionType`: a value. No gap. |
+| unsafe boundary | `Expr::parse_with_context` was a public `unsafe fn` taking the parent log context as `*mut c_void`, a raw seam made obsolete by batch 3's `ObjectRef` (already used by `parse_and_eval`): now safe over `Option<ObjectRef<'_>>` (`unsafe/expr-parse-with-context-raw-log-context`). `scan-unsafe` then reports no smell counter in `eval.rs` or `dict.rs`. The workset's remaining `opt.rs` smells are not its own: `OptionRanges::query` / `query_default` (core's `AVOptionRanges`; their `void *obj` could now take `ObjectRef` too, which their scheduled symbols in options wave 2 should pick up) and `set_options_string` (a symbol). Every field accessor projects with `addr_of!` / `addr_of_mut!` through the handle pointers; the `Send` / `Sync` proofs hold (`DictionaryMut` and `DictionaryEntryMut` have no setters; `OptionRangeMut` and `OptionArrayDefMut` write only through `&mut self`; `Expr` is `Send` but not `Sync`, since evaluation writes the root's registers). |
+| ub_safe / ub_unsafe | No UB found. Read against the C: `av_expr_parse` with the wrapper's level-offset guard (C adds the offset to `AV_LOG_ERROR` only; `av_log_default_callback` masks and clips any level), the parser's depth limits and failure paths (every partial tree freed); `av_dict_set` / `av_dict_copy` / `av_dict_free` with `MULTIKEY`; `av_opt_freep_ranges` over `get_mut`'s distinct elements; the array separator rules against `av_opt_set_defaults`' `av_assert0`. Whole-crate ASan/UBSan and TSan are clean on the wave tip and on the review's tree, and the 22 FFI-free unit tests of the workset's types pass under Miri. With `parse_with_context` safe, the workset adds no public unsafe API, so `tests/ub_unsafe/eval.rs` moved to `tests/ub_safe/eval.rs::parse_with_context`. |
+| equiv | The suites compare dictionaries built, copied and edited by C and by the wrappers step by step, parsed trees through C's evaluator and counters, range writes against C's own and array definitions through `av_opt_set_defaults`. Added: `equiv/eval.rs::parse_with_context::parses_log_as_c_under_each_parent`, the result and every logged line of `parse_with_context` against `av_expr_parse` under no parent, a NULL-class parent (C) vs `None`, and a classed parent. No divergence found. |
+| internal | Private helpers (`Dict::append`, `terminated`, `opt_c_str`, `OptionRangesRef::slot` / `slots`, `RangeIter`) checked; no defect. |
+| conventions | `Send for Expr`'s nine-line `SAFETY:` block exceeded `scan-unsafe`'s six-line window and counted as undocumented (`conventions/expr-send-safety-comment-past-scan-window`). Anchors: one `Wraps:` per type, `Field:` on every getter and setter of the eleven field anchors; Rust names throughout; clippy `--all-targets -D warnings` and rustdoc `-D warnings` clean; the changed files are rustfmt-clean, as they were at the base. |
+| misc | Nothing to report. Hand-off for wave 1 (`av_expr_eval`): `AVExpr` keeps no constant count and C reads `const_values[const_index]` unchecked, so a safe evaluator must carry the count `Expr::parse` was given; `ExprBox` does not record it today. |
 
-### Method
+## Coverage
 
-Besides reading each C body against its wrapper's guards, a differential
-probe (standalone package, `/tmp/batch1/probe`, 300k pseudo-random and edge
-iterations against the asan-ubsan C library) ran three sweeps:
+Details in `coverage.json`. Rust: `dict.rs` 100% of lines, regions and
+functions; `eval.rs` and `opt.rs` miss only test-harness arms (helper
+functions C is meant never to call, BSan-only early returns, `panic!` arms)
+and one line of a symbol outside the workset. C: `av_expr_parse` and its
+parser, `av_expr_free`, `av_dict_free`, `av_dict_copy`,
+`av_opt_freep_ranges` and `av_opt_query_ranges(_default)` 100% of lines;
+`av_dict_set` 70%, the rest being flag paths (`DONT_STRDUP_VAL`, `DEDUP`,
+`DONT_OVERWRITE`, `APPEND`) that the workset's `MULTIKEY`-only constructor
+cannot reach and wave 1's `av_dict_set` wrapper owns.
 
-- `safe`: every safe wrapper of the batch; no UBSan report and no ASan
-  report.
-- `equiv`: wrapper results against the raw C calls wherever the wrapper
-  accepts the input; no mismatch.
-- `reject`: every input a wrapper refuses, replayed one per process with
-  `UBSAN_OPTIONS=halt_on_error=1` (UBSan reports a location once per
-  process, so in-process correlation is misleading). Every refused
-  `cmp_distance` (266/266), `to_f32_bits`, `gcd`, `add_stable` (increments
-  within `int`), `rescale_delta` and `Add` input (150 sampled each) made C
-  report an overflow, a division by zero or a sign shift, so those guards are
-  exact. `from_f64`'s negative bound is defined but meaningless in C for most
-  values and overflows (`-INT_MIN` in `av_reduce`) for `i32::MIN`, so the
-  rejection stays. `nearest`: 37 of 150 refused lists finished in C; hence
-  the defect above.
+## Validation at the landed tree
 
-## Regression evidence and coverage
-
-Added:
-
-- `tests/equiv/rational.rs`:
-  `nearest_walks_two_min_denominators_as_av_find_nearest_q_idx`, six lists
-  against every edge rational with a C-driven oracle for the pair C would
-  overflow on;
-- `rational.rs` unit test
-  `nearest_rejects_two_min_denominators_only_when_c_compares_them`.
-
-`coverage.json` records the batch's tests (lib, equiv, ub_safe, ub_unsafe,
-filtered to the six homes' items) against the gcov C build and under Rust
-`-C instrument-coverage`. Every C function of the worklist is at 100% of
-its lines except `av_q2intfloat` (82.6%): its sign normalization is never
-reached because the wrapper normalizes in Rust to avoid C's `sign<<31`.
-`rational.rs`, `mathematics.rs` and `timestamp.rs` are at 100% of lines;
-the batch's items in the shared `avstring.rs`, `avutil.rs` and `log.rs`
-(`escape`, `EscapeFlags`, `MediaType::as_str`, `PictureType::to_char`,
-`time_base`, `default_category`) are 100% per `llvm-cov --show-functions`.
-The one uncovered region in `mathematics.rs` is `rescale_delta`'s second
-`checked_sub(a)?`: with `last >= 2a - b` and both bounds halves of an `i64`
-that difference cannot overflow (the rescales of `2·in_ts ± 1` overflow
-monotonically), so the branch is defensive and unreachable. The header
-inlines (`av_make_q`, `av_inv_q`, `av_q2d`, `av_cmp_q`,
-`av_ts_make_time_string`) live in the `-sys` shim, outside the gcov build.
-
-## Validation
-
-All commands ran from `crustify/rust` with private target and log paths
-under `/tmp/batch1`; the reusable C builds were left immutable
-(`GCOV_PREFIX` redirected coverage writes). No binding, shim or C source
-changed, so no C rebuild or baseline was needed.
-
-- `cargo check --workspace`, `cargo clippy --workspace --all-targets --
-  -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg`: pass.
-- `cargo test --workspace`: 910 passed, 0 failed (compile-fail and
-  doctests included).
-- ASan/UBSan: whole-crate `--lib --tests` under `-Zsanitizer=address`
-  against `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan`, `--skip compile_fail`: pass,
-  no `runtime error`, no leak.
-- TSan: same suites under `-Zsanitizer=thread` against the tsan build: pass.
-- BSan: lib, equiv and ub_safe `rational` suites with `cargo bsan test`
-  against the bsan build: pass.
-- Miri: the C-free unit tests of `rational.rs` and `mathematics.rs`
-  (rejections before the call, layout, conversions, handles): pass.
-- `crustify scan-unsafe <workdir> --name <26 symbols> --json`: no
-  undocumented unsafe; raw sites only at `default_category`'s documented
-  context seam and `escape`'s out-slot local.
+- `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean.
+- plain `cargo test --workspace`: 630 lib, 515 equiv, 533 ub_safe (the
+  compile-fail programs included), 93 ub_unsafe, 87 doctests, 0 failed.
+- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants, whole crate):
+  630 / 515 / 532 / 93 each, no `runtime error:` and no sanitizer report;
+  on the wave tip before the change, 630 / 514 / 528 / 98, equally clean.
+- Miri: the 22 FFI-free unit tests of the workset's types (`dict` entry
+  getters, `eval` terminators and box layout, `opt` option types, array
+  definitions and range handles over Rust-built lists).
+- `crustify scan-unsafe --sites all`: `unsafe_fns_pub_smell`,
+  `raw_ptr_pub_smell` and `void_ptr_pub_smell` each down by one (the
+  `parse_with_context` seam), undocumented unsafe sites 24 -> 23 (none left
+  in `eval.rs` or `dict.rs`).
+- BSan: not run; this is not the sub-campaign's last wave and the review
+  emits no reproducer.

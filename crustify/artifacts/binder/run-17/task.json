@@ -6,7 +6,7 @@
       "defined_in": "libavutil/avutil.h",
       "kind": "type",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     },
     {
       "name": "AVRational",
@@ -19,12 +19,12 @@
       "home": "src/libavutil/libavutil/rational.rs"
     }
   ],
-  "wave": 92,
-  "batch": 0,
+  "wave": 4,
+  "batch": 3,
   "link_unit": "libavutil",
-  "module": "libavutil/rational.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-92",
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

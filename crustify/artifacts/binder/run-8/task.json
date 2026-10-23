@@ -13,25 +13,25 @@
         "f64",
         "u64"
       ],
-      "home": "src/libavutil/libavutil/intreadwrite.rs"
+      "home": "src/libavutil/libavutil/intreadwrite_h.rs"
     },
     {
       "name": "av_intfloat32",
       "defined_in": "libavutil/intfloat.h",
       "kind": "type",
       "field_anchors": [
-        "f",
-        "i"
+        "i",
+        "f"
       ],
-      "home": "src/libavutil/libavutil/intfloat.rs"
+      "home": "src/libavutil/libavutil/intfloat_h.rs"
     }
   ],
-  "wave": 86,
-  "batch": 0,
+  "wave": 4,
+  "batch": 6,
   "link_unit": "libavutil",
-  "module": "libavutil/intfloat.h",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-86",
+  "base_branch": "crustify/waves/wave-4",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

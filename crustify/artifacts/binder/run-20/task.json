@@ -76,21 +76,21 @@
       "defined_in": "libavutil/utils.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     },
     {
       "name": "av_get_picture_type_char",
       "defined_in": "libavutil/utils.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     },
     {
       "name": "av_get_time_base_q",
       "defined_in": "libavutil/utils.c",
       "kind": "symbol",
       "field_anchors": [],
-      "home": "src/libavutil/libavutil/avutil.rs"
+      "home": "src/libavutil/libavutil/utils.rs"
     },
     {
       "name": "av_inv_q",
@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/timestamp.rs"
     }
   ],
-  "wave": 20,
-  "batch": 0,
+  "wave": 6,
+  "batch": 2,
   "link_unit": "libavutil",
-  "module": "libavutil/avstring.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-20",
+  "base_branch": "crustify/waves/wave-6",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

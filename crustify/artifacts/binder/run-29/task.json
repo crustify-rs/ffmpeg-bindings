@@ -9,12 +9,12 @@
       "home": "src/libavutil/libavutil/samplefmt.rs"
     }
   ],
-  "wave": 148,
-  "batch": 1,
+  "wave": 10,
+  "batch": 6,
   "link_unit": "libavutil",
-  "module": "libavutil/samplefmt.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-148",
+  "base_branch": "crustify/waves/wave-10",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

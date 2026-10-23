@@ -12,8 +12,8 @@
   "wave": 0,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": "libavutil/mem.c",
-  "foundational": true,
+  "module": null,
+  "foundational": false,
   "base_branch": "crustify/waves/wave-0",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"

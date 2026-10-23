@@ -6,21 +6,21 @@
       "defined_in": "libavutil/frame.h",
       "kind": "type",
       "field_anchors": [
-        "type",
         "data",
-        "buf",
         "size",
+        "buf",
+        "type",
         "metadata"
       ],
       "home": "src/libavutil/libavutil/frame.rs"
     }
   ],
-  "wave": 178,
+  "wave": 34,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": "libavutil/frame.c",
+  "module": null,
   "foundational": false,
-  "base_branch": "crustify/waves/wave-178",
+  "base_branch": "crustify/waves/wave-34",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }
