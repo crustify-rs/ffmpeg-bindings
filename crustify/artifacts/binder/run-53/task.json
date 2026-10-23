@@ -170,12 +170,12 @@
       "home": "src/libavutil/libavutil/uuid.rs"
     }
   ],
-  "wave": 122,
+  "wave": 8,
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/adler32.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-122",
+  "base_branch": "crustify/waves/wave-8",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

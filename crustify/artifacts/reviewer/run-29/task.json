@@ -2,12 +2,12 @@
   "commits": [
     "37dca90bd781297ee93fc6925c13a325bc5a4e9d"
   ],
-  "wave": 103,
+  "wave": 133,
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/csp.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-103",
+  "base_branch": "crustify/waves/wave-133",
   "model": "openrouter/anthropic/claude-fable-5.1",
   "billing": "api"
 }

@@ -1,60 +1,106 @@
-# Review: libavutil/core wave 0, batch 0 (`AVClassCategory`, `AVClassStateFlags`)
+# Review: AVBPrint appenders, initialisers and finalizer (core wave 2)
 
-- Home: `crustify/rust/ffmpeg/libavutil/log.rs` (`ClassCategory`, `ClassStateFlags`)
-- Reviewed commit: `d511f2ca48` as landed on the wave branch at `5d0c0b3b31`
-- Reports: one, `misc/class-category-device-predicates` (the header's two
-  predicates over the category were not wrapped). Every other step below
-  found nothing to report.
+Route: **symbol** (12 items, all homed in `crustify/rust/ffmpeg/libavutil/bprint.rs`).
+Objective: **review**. Affected base: `06a7548c5c439c49f36f434a7251d23939b53462`.
+No BSan gate log was filed for the wave, so there was no candidate to start from.
 
-## Verdicts by step
+Items: `av_bprint_append_data` (`BPrintMut::append_bytes`), `av_bprint_chars`
+(`append_repeated`), `av_bprint_clear` (`clear`), `av_bprint_escape`
+(`append_escaped`), `av_bprintf` (`append_fmt`, and `fmt::Write`), `av_vbprintf`
+(`append_c_str` through the `crustify_av_vbprintf` shim), `av_bprint_strftime`
+(`append_strftime` with the hand-written `Tm`), `av_bprint_get_buffer`
+(`append_with`), `av_bprint_is_complete` (`BPrintRef::is_complete`), and the
+three lifecycle routines the core wave-1 type run emitted and this batch
+re-checked: `av_bprint_init` (`BPrint::new`), `av_bprint_init_for_buffer`
+(`BPrint::for_buffer`) and `av_bprint_finalize` (`BPrintFinalize`,
+`into_string`, `into_bytes`).
 
-| step | finding |
-|---|---|
-| wavefront | The submitted type findings (field-less enums, no lifecycle, any `unsigned` reaches Rust unchecked, `log.c` guards only the field `>= AV_CLASS_CATEGORY_NB`) match the C: `AVClass.category` is stored by value, `av_default_get_category` returns it unchecked, and the `get_category` callback's result is not guarded. `--lifecycle-ops` and `--users` are empty for both. No resubmission. |
-| lifecycle | None exists: C never allocates, frees, clones or disposes either value. Plain `Copy` newtypes are the complete representation. |
-| unsafe boundary | The two types expose no `unsafe fn` and no raw pointer; the only unsafe blocks in the workset are the two shim calls the fix adds, each a by-value FFI call. `scan-unsafe --name AVClassCategory AVClassStateFlags AV_IS_INPUT_DEVICE AV_IS_OUTPUT_DEVICE` reports no raw-pointer sites and no undocumented unsafe. |
-| ub_safe / ub_unsafe | No UB is reachable: both are `#[repr(transparent)]` over bindgen's `c_uint` newtypes, every bit pattern is a valid value, and no operation dereferences anything. The FFI-free tests (`unit_tests::{layouts,category_*,flags_*,debug_propagates_sink_errors}`, `ub_safe::log::{any_category_value_is_valid,any_state_flag_bits_are_valid,values_cross_threads}`) pass under Miri. No `ub_unsafe` surface: the workset adds no unsafe public API. |
-| equiv | `from_bits` / `contains` use Rust precedence (`&` above `==`), so the masks are what C computes; `Sub` is set difference; `all()` folds the one named flag. Against C: `av_default_get_category` round-trips every named and unnamed value, and `av_opt_set_int`'s gate refuses exactly when `AV_CLASS_STATE_INITIALIZED` is set. No divergence found. |
-| internal | `KNOWN` tables carry the 18 and 1 header values in declaration order (`category_constants_carry_the_c_values`, `flags_bits_and_constructors`); `Debug` covers named, unnamed and mixed sets and propagates sink errors. |
-| conventions | Anchors `Wraps: AVClassCategory` / `Wraps: AVClassStateFlags` with `Handwritten` (ffibox has no enum primitive), names drop the `AV_CLASS_` prefix the type supplies, no unsafe without a `SAFETY:` comment. |
+## Findings and scope
 
-## Coverage added
+- **No UB defect** in the safe public API, and the workset adds no public
+  unsafe API (nothing to evaluate for `ub_unsafe`). Each wrapper's unsafe
+  block was read against the C body: the appenders write only within `size`
+  and grow only a string the buffer owns; `append_with` hands out
+  `min(room - 1, size, LEN_MAX - len)` zeroed bytes at `str + len` and its
+  drop guard re-terminates at `min(len, size - 1)` on every exit, so the
+  `BPrint` invariants (`str` valid for `size` bytes, written and
+  NUL-terminated at `min(len, size - 1)`) hold after every path, including a
+  `strftime` attempt that clobbers the terminator before `av_bprint_grow(buf, 0)`
+  restores it. The layout newtypes keep their fields private, no owner
+  dereferences to a `BPrint`, and `BPrintOnBuffer<'b>` holds the caller
+  buffer's `&'b mut [u8]` borrow (the E0503 doctest and the two compile-fail
+  cases cover the borrow conflicts).
+- **No equivalence defect.** Besides the existing step-by-step suites, a
+  differential probe (`probe/`, kept for reuse) ran 20 000 random sequences
+  on the plain build and 15 000 under ASan/UBSan over every init shape,
+  every appender, C-style truncation, `av_max_alloc` limits toggled
+  mid-sequence and both finalizers, comparing the full state after every
+  step: no mismatch, no sanitizer report.
+- **Two documentation defects, fixed** (`misc/`): `is_complete` claimed a
+  count-only buffer is incomplete only once appended to, where C's
+  `len < size` is false from initialisation (`clear`'s doc repeated the
+  slip); `TmRef::zone` claimed a NULL `tm_zone` always names the local zone,
+  where glibc does so only for `tm_isdst >= 0` and formats nothing otherwise.
+  Both get doctests as regression evidence.
+- **No Wavefront correction needed**: the findings for all 12 symbols record
+  the borrow-for-the-call `buf`, the read-only `data`/`src`/`special_chars`/
+  `fmt`/`tm` inputs, the nullable `special_chars` and `ret_str`, the
+  `by_ref` out-slots of `av_bprint_get_buffer` and `av_bprint_finalize`, the
+  `other`-lifetime caller buffer of `av_bprint_init_for_buffer`, and the
+  count-only finalize defect, as the C bodies show. The `tm` note's "the
+  local zone name is used" for a NULL `tm_zone` is the same nuance as the doc
+  fix above (empty for `tm_isdst < 0`) and does not affect ownership or
+  safety, so it was left as is.
+- **No lifecycle work**: symbol-only route; `av_bprint_finalize` is correctly
+  recorded as the disposer of a caller-stored structure.
+- **No convention deviation**: clippy `--all-targets -D warnings`, rustdoc
+  `-D warnings`, every unsafe block documented; `crustify scan-unsafe` shows
+  no smell at any site this batch added (the `unsafe_fns_priv_smell` and
+  `raw_ptr_priv_smell` sites in `bprint.rs` are the wave-1 lifecycle
+  helpers `finalize_and_free`, `free_storage`, `init_with` and `finalize`,
+  private and documented, and the one `unsafe_fns_pub_smell` is
+  `BPrintFieldsMut::set_str_borrowed`, a wave-1 stored-borrow setter whose
+  contract states the referent lifetime).
 
-C paths belonging to the workset, measured with the `coverage` build
-(`gcov -b`, `GCOV_PREFIX` redirected):
+### Observation, not changed
 
-- `log.c:246-248` `av_default_get_category`: 100% before and after.
-- `opt.c:190-210`, the `AV_CLASS_STATE_INITIALIZED` gate: all lines executed
-  before, but the child-to-parent fallback (`199-202`) and the
-  "no state flags anywhere" branches were never taken. New `tests/equiv/log.rs`
-  tests take every branch: `state_flags_of_the_parent_gate_a_child_option_as_in_c`
-  (child class without `state_flags_offset`, parent's word read through
-  `AV_OPT_SEARCH_CHILDREN` / `child_next`),
-  `state_flags_of_the_child_take_precedence_over_the_parent_as_in_c`, and
-  `without_state_flags_nothing_gates_an_option_as_in_c` (direct object and
-  parent/child, neither locating flags).
+`BPrint::into_string` / `into_bytes` consume the owner, so when
+`av_bprint_finalize` fails to copy an inline string out (`AVERROR(ENOMEM)`,
+only reachable through `av_max_alloc`), the string is lost with the
+structure, whereas C's caller keeps a usable buffer. The consuming signature
+was chosen by the wave-1 type run and accepted by its review; handing the
+buffer back in the error would change a landed API for an allocation of at
+most 1004 bytes, so it is noted here rather than changed.
 
-Rust (`llvm-cov` over `--lib`, `equiv` and `ub_safe` filtered to `log::`):
-`log.rs` 98.99% lines; in the two types' region the only unexecuted line is
-`log.rs:290`, the `" | "` separator between two *named* flags in
-`ClassStateFlags`'s `Debug`, unreachable while `INITIALIZED` is the header's
-only named flag. Left in place: it is what makes the next flag print right.
+## Regression evidence and coverage
 
-## Sanitizer evidence (log suites: `--lib`, `equiv`, `ub_safe`, `ub_unsafe` filtered to `log::`)
+Added: doctests on `BPrintRef::is_complete` (count-only `new`, cleared after
+an append, `for_buffer(&mut [])`, and a complete automatic buffer) and on
+`TmRef::zone` (`[%Z]` with no zone and `tm_isdst = -1`, then a named zone).
 
-- ASan/UBSan (`asan-ubsan` build, `-Zsanitizer=address`): 84 tests pass, no
-  `runtime error:` lines.
-- TSan (`tsan` build, `-Zsanitizer=thread`): 83 tests pass, no reports.
-- BSan (`cargo bsan`, `bsan` build): the type-tier tests and the new
-  equivalence tests pass.
-- Miri: the FFI-free type tests pass (see above).
+`coverage.json`: `bprint.c` at 100% of lines, 100% of branches executed and
+96.3% taken; the untaken ones are the `INT_MAX` arm of `av_bprint_strftime`'s
+room doubling (needs more than 1 GiB of room) and gcov's unwind edges.
+`bprint.rs` at 100% of lines, functions and regions. `av_bprint_is_complete`
+is a header inline compiled into the `-sys` shim, outside the gcov build.
 
-## Out of scope, noted for wave 1 (`AVClass`)
+## Validation
 
-`log.c:get_category` guards `avc->category >= AV_CLASS_CATEGORY_NB` but not
-the value an `AVClass.get_category` callback returns, which then indexes
-`color[16 + AV_CLASS_CATEGORY_NB]` in `colored_fputs` when colour output is
-on. A Rust `AVClass` wrapper that lets safe code install a `get_category`
-callback returning an arbitrary `ClassCategory` would reach that C
-out-of-bounds read; the `ClassCategory` value type itself is open on purpose
-and cannot prevent it.
+All commands ran from `crustify/rust` with private target and log paths
+under `/tmp/rw2b0`; the reusable C builds were left immutable (`GCOV_PREFIX`
+redirected the coverage writes). No binding, shim or C source changed, so no
+C rebuild or baseline was needed.
+
+- `cargo check --workspace`, `cargo clippy --workspace --all-targets --
+  -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg`: pass.
+- `cargo test --workspace`: pass (compile-fail and doctests included).
+- ASan/UBSan: whole crate, `--lib --tests` under `-Zsanitizer=address`
+  against `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan`, `--skip compile_fail`: 897
+  passed, no `runtime error`, no leak.
+- TSan: same suites under `-Zsanitizer=thread` against the tsan build: pass,
+  no report.
+- BSan: lib, equiv, ub_safe and ub_unsafe `bprint` suites with `cargo bsan
+  test` against the bsan build (`gc_hang_threshold_ms=600000`): pass.
+- Miri: the eleven C-free `bprint::unit_tests` (layout, constants, the
+  `BPrintFields` and `Tm` values, handles and `Debug`): pass.
+- `crustify scan-unsafe <workdir> --json --sites all`: see above.

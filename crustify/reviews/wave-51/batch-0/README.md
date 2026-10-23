@@ -1,98 +1,63 @@
-# Review: rational arithmetic, rescaling, names, escape, time strings
+# Review: libavutil/formats wave 1, batch 0 (the wave's four types)
 
-Route: **symbol** (26 items). Objective: **review**. Affected base:
-`b2cff27cd691af1482bd36e8c2edab9d5e25fcf8` (`av_make_q`, `av_rescale_rnd`
-and `av_ts_make_time_string2` were wrapped earlier and re-checked here).
+- Items: `AVCIExy` (`csp::CieXy`, alias `WhitepointCoefficients`),
+  `AVLumaCoefficients` (`csp::LumaCoefficients`), `AVChannelCustom`
+  (`channel_layout::ChannelCustom`, with `ChannelName` and `NameTooLong`),
+  `AVPixFmtDescriptor` (`pixdesc::PixelFormatDescriptor`, with
+  `PixelFormatFlags`).
+- Homes: `crustify/rust/ffmpeg/libavutil/{csp,channel_layout,pixdesc}.rs`.
+- Reviewed commit: the wave tip `0a2fbf9bb7` (types landed by batches 0-2:
+  `1d1d7dd308`, `fac2331574`, `287eeecb28`).
+- Reports: `misc/channel-custom-eq-without-hash` (fixed),
+  `misc/bsan-quadratic-pixdesc-descriptor-equiv-tests` (fixed, tests
+  only) and `internal/descriptor-unit-tests-assume-literal-address-identity`
+  (fixed, tests only). Every other step below found nothing to report.
 
-## Findings and scope
+## Verdicts by step
 
-- One equivalence defect, fixed: `Rational::nearest` refused every list with
-  two `INT_MIN` denominators, while C compares such a pair (and overflows)
-  only when the first of them is the nearest so far. Report, reproducer and
-  regression tests in `equiv/nearest-refuses-lists-c-finishes`. The same
-  patch corrects `cmp_distance`'s doc, which claimed C always overflows on
-  unordered candidates (it multiplies `INT_MIN` by -1, 0 or 1).
-- No UB defect in the safe or unsafe public API. The one public unsafe
-  function the batch adds, `default_category`, keeps the context seam the
-  log module already uses (`default_item_name`, `log_with_context`) for
-  `AVClass`-enabled objects whose types are not wrapped yet; its contract
-  states alignment, readability, the non-NULL class pointer and the
-  no-concurrent-write obligation, and its `ub_unsafe` suite exercises it.
-- No Wavefront finding needed correction: every pointer argument and return
-  of the 26 symbols (`q_list`, `last`, `dst`/`src`/`special_chars`, `buf`,
-  `tb`, `ptr`, the static name) is recorded with the ownership, nullability,
-  cardinality and lifetime the C bodies show.
-- No lifecycle work: the route is symbol-only and `AVRational` owns nothing.
-- No convention deviation: clippy (`--all-targets -D warnings`) and rustdoc
-  (`-D warnings`) are clean; every unsafe block carries a specific comment.
+| step | finding |
+|---|---|
+| BSan gate | The gate failed on the 7200 s timeout of the `equiv` and `ub_safe` binaries, with no BSan report. The orchestrator's triage names symbol-route tests only (`imgutils::images`, `samplefmt::buffers`); the one test of this workset it lists, `csp::cie_xy::heap_box_owner_lives_reads_writes_clones_and_frees`, passes alone in 6 s and merely never got scheduled. This workset's own share of the budget was two `pixdesc::pixel_format_descriptor` equiv tests at 215 s and 1432 s alone, by the per-byte-retag mechanism the symbol review's `batch-1/misc/bsan-gate-per-byte-retags-in-image-alloc-and-sweeps` names for its own tests; see the second misc report (now 7 s and 215 s). The whole lib (501) and `ub_unsafe` (72) binaries and the workset's `equiv` (16) and `ub_safe` (62) modules pass under BSan. |
+| wavefront | All four findings match the C: `AVCIExy` and `AVLumaCoefficients` are pointer-free `AVRational` pairs/triples with no lifecycle routine (`--lifecycle-ops` empty), embedded by value in `csp.c`'s static tables and copied by value by every reader; `AVChannelCustom` is the by-value element of `AVChannelLayout.u.map` whose storage `av_channel_layout_{custom_init,from_string,retype,copy,uninit}` own (wave 3), with `opaque` a user cookie no FFmpeg path dereferences or frees (`channel_layout.c` touches only `AVChannelLayout.opaque`); `AVPixFmtDescriptor` lives only in `pixdesc.c`'s `static const` table or in caller storage, its `name`/`alias` string literals (`borrowed: static`, `mutable: false`). Nothing to resubmit. |
+| lifecycle | Complete: no C routine allocates, frees, clones or disposes any of the four on its own, so each is the `define_ctype!` value with `Ref`/`Mut` handles, `CZeroable` (every all-zero state is one C itself stores), `Copy`, `new`/`from_raw`/`into_raw`, and Rust-side heap storage through the generic `av_malloc` policies (`HeapBox`, `HeapVec`, `alloc_cell_array_zeroed`), exercised by the ub_safe suites. The map that holds `AVChannelCustom`s is `AVChannelLayout`'s to allocate and free (wave 3). |
+| unsafe boundary | One public `unsafe fn`, `PixelFormatDescriptor::from_raw`, whose `# Safety` contract (NULL or never-freed, never-written NUL-terminated `name`/`alias`) is exactly the type invariant the `&'static CStr` getters and setters rest on, and which no safe path can break (`new`/`Default`/zeroed owners, setters taking `&'static CStr`, `get()` copies). Two raw-pointer sites, `ChannelCustomRef::opaque` / `ChannelCustomMut::set_opaque` (`*mut c_void`), are the user cookie itself: nothing dereferences it on either side, storing or reading an address is safe, and no wave will replace it with a handle (there is no pointee type to wrap); it follows the crate's existing cookie convention (`log::Message::context`). `crustify scan-unsafe --sites all` reports no `ref_to_type_wrapper` or private-unsafe smell in the three homes; every field access projects with `addr_of!`/`addr_of_mut!` on the handle pointers under a specific `SAFETY:` comment (clippy's `undocumented_unsafe_blocks` is denied and clean). Three `SAFETY:` comments longer than the lexical scanner's six-line look-back were reflowed so the scanner agrees with clippy. |
+| ub_safe / ub_unsafe | No UB reachable. The getters read plain fields; `ChannelName` copies the 16-byte field and stops at its end (an unterminated field, which only a raw write leaves, reads as 16 bytes where C would overrun); `set_name` refuses 16+ bytes and `set_name_truncated` writes `av_strlcpy`'s bytes and NUL exactly; the component runs are exactly four elements over the embedded array; the `Send`/`Sync` impls cover plain data (the descriptor's strings are `'static` by invariant). Whole-crate ASan/UBSan and TSan, workset BSan (above), and Miri over the 41 FFI-free unit tests of the three homes pass. The `ub_unsafe` suite for `from_raw` (literal, NULL and leaked strings; outliving the raw struct and its frame; threads; C's table entries) passes under every instrument. |
+| equiv | The suites already observe every field through C: gamut identification after every coordinate write (`av_csp_primaries_id_from_desc`), the luma table read through the handles, twin custom maps written by `av_strlcpy` and by the setters and read through `av_channel_layout_describe`/`_check`/`_index_from_string`/`_channel_from_index` after each step, and descriptors rebuilt field by field under `av_get_bits_per_pixel`, `av_get_padded_bits_per_pixel`, `av_read_image_line2` and `av_write_image_line2`. `ChannelCustom`'s `PartialEq` (id, name to its NUL, pointer address) is a Rust value equality; C's own `av_channel_layout_compare` compares custom layouts by id only, which is the layout's (wave 3) comparison to wrap, not the element's. No divergence found. |
+| internal | `ChannelName::from_field`, `write_name`, `DescriptorFields`, the flag `Debug`s and `gamma` are each covered by unit tests, Miri included where FFI-free; no defect in the private implementation. Two `pixdesc` unit tests asserted that a second occurrence of a string literal has the address the setter stored, which Rust does not promise and Miri does not provide (both fail under `-Zmiri-seed=0..5` on the reviewed tree; one failed in this review's unseeded pass); they now compare the stored pointer with the getter's and the contents with the literal. See the internal report. |
+| conventions | `Wraps:` anchors on the four types, `Field:` anchors on every field accessor (`x`, `y`; `cr`, `cg`, `cb`; `id`, `name`, `opaque`; `name`, `nb_components`, `log2_chroma_w`, `log2_chroma_h`, `flags`, `comp`, `alias`); getters on `Ref`, setters on `Mut`; names drop the `AV` prefix and read as Rust (`component_count`, `PixelFormatFlags`); rustdoc builds with `-D warnings`. |
+| misc | `ChannelCustom` was the only `Eq` value type of the subsystem without `Hash` (its siblings `Channel`, `ChannelName`, `ComponentDescriptor`, `PixelFormatDescriptor` have one); added over the fields its equality compares, with a unit regression. Two `pixdesc` equivalence tests spent 215 s and 1432 s under BSan walking plane bytes through slice iterators; rewritten as whole-slice operations with the same assertions (7 s and 215 s). |
 
-### Method
+## Coverage
 
-Besides reading each C body against its wrapper's guards, a differential
-probe (standalone package, `/tmp/batch1/probe`, 300k pseudo-random and edge
-iterations against the asan-ubsan C library) ran three sweeps:
+Rust (`llvm-cov` over the lib, `equiv`, `ub_safe` and `ub_unsafe` binaries
+at the reviewed tree): `csp.rs` 507/507 lines, 850/850 regions, 98/98
+functions; `channel_layout.rs` 713/713 lines, 1118/1118 regions, 120/120
+functions; `pixdesc.rs` 917/917 lines, 1354/1354 regions, 154/154
+functions. The fix adds one `Hash` impl, executed by its new unit test.
+Details in `coverage.json`.
 
-- `safe`: every safe wrapper of the batch; no UBSan report and no ASan
-  report.
-- `equiv`: wrapper results against the raw C calls wherever the wrapper
-  accepts the input; no mismatch.
-- `reject`: every input a wrapper refuses, replayed one per process with
-  `UBSAN_OPTIONS=halt_on_error=1` (UBSan reports a location once per
-  process, so in-process correlation is misleading). Every refused
-  `cmp_distance` (266/266), `to_f32_bits`, `gcd`, `add_stable` (increments
-  within `int`), `rescale_delta` and `Add` input (150 sampled each) made C
-  report an overflow, a division by zero or a sign shift, so those guards are
-  exact. `from_f64`'s negative bound is defined but meaningless in C for most
-  values and overflows (`-INT_MIN` in `av_reduce`) for `i32::MIN`, so the
-  rejection stays. `nearest`: 37 of 150 refused lists finished in C; hence
-  the defect above.
+C: no C function belongs to this workset (the four are by-value structs
+with no lifecycle routine), so there is no C path to measure; the C
+readers the equivalence tests observe through belong to the symbol route.
 
-## Regression evidence and coverage
+## Validation at the fixed tree
 
-Added:
-
-- `tests/equiv/rational.rs`:
-  `nearest_walks_two_min_denominators_as_av_find_nearest_q_idx`, six lists
-  against every edge rational with a C-driven oracle for the pair C would
-  overflow on;
-- `rational.rs` unit test
-  `nearest_rejects_two_min_denominators_only_when_c_compares_them`.
-
-`coverage.json` records the batch's tests (lib, equiv, ub_safe, ub_unsafe,
-filtered to the six homes' items) against the gcov C build and under Rust
-`-C instrument-coverage`. Every C function of the worklist is at 100% of
-its lines except `av_q2intfloat` (82.6%): its sign normalization is never
-reached because the wrapper normalizes in Rust to avoid C's `sign<<31`.
-`rational.rs`, `mathematics.rs` and `timestamp.rs` are at 100% of lines;
-the batch's items in the shared `avstring.rs`, `avutil.rs` and `log.rs`
-(`escape`, `EscapeFlags`, `MediaType::as_str`, `PictureType::to_char`,
-`time_base`, `default_category`) are 100% per `llvm-cov --show-functions`.
-The one uncovered region in `mathematics.rs` is `rescale_delta`'s second
-`checked_sub(a)?`: with `last >= 2a - b` and both bounds halves of an `i64`
-that difference cannot overflow (the rescales of `2·in_ts ± 1` overflow
-monotonically), so the branch is defensive and unreachable. The header
-inlines (`av_make_q`, `av_inv_q`, `av_q2d`, `av_cmp_q`,
-`av_ts_make_time_string`) live in the `-sys` shim, outside the gcov build.
-
-## Validation
-
-All commands ran from `crustify/rust` with private target and log paths
-under `/tmp/batch1`; the reusable C builds were left immutable
-(`GCOV_PREFIX` redirected coverage writes). No binding, shim or C source
-changed, so no C rebuild or baseline was needed.
-
-- `cargo check --workspace`, `cargo clippy --workspace --all-targets --
-  -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg`: pass.
-- `cargo test --workspace`: 910 passed, 0 failed (compile-fail and
-  doctests included).
-- ASan/UBSan: whole-crate `--lib --tests` under `-Zsanitizer=address`
-  against `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan`, `--skip compile_fail`: pass,
-  no `runtime error`, no leak.
-- TSan: same suites under `-Zsanitizer=thread` against the tsan build: pass.
-- BSan: lib, equiv and ub_safe `rational` suites with `cargo bsan test`
-  against the bsan build: pass.
-- Miri: the C-free unit tests of `rational.rs` and `mathematics.rs`
-  (rejections before the call, layout, conversions, handles): pass.
-- `crustify scan-unsafe <workdir> --name <26 symbols> --json`: no
-  undocumented unsafe; raw sites only at `default_category`'s documented
-  context seam and `escape`'s out-slot local.
+- `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean.
+- plain `cargo test --workspace`: 502 lib, 418 equiv, 416 ub_safe (the
+  compile-fail programs included), 72 ub_unsafe, 54 doctests, 0 failed.
+- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants, whole
+  crate): 502 / 418 / 415 / 72, no `runtime error:` and no sanitizer
+  report; the lib rerun after the last unit-test edit likewise.
+- BSan (`cargo bsan`, bsan C build): lib 502 and `ub_unsafe` 72 whole;
+  the workset's five `equiv` modules (16 tests, 224 s, down from 1416 s)
+  and `ub_safe` modules (62 tests, 6 s); no report.
+- Miri: the 42 FFI-free unit tests of the three homes (the new `Hash`
+  test included), and the two fixed tests under seeds 0-5.
+- `crustify scan-unsafe --sites all`: in the three homes the only smell
+  sites on this workset's items are the two documented `opaque` cookie
+  accessors (`raw_ptr_pub_smell` / `void_ptr_pub_smell`); the others
+  (`static_name`, `name_buffer`) are the symbol route's. The fixes change
+  no counter but `ref_to_type_wrapper_sanctioned` (+1, the `Hash` impl's
+  `&self`), and the workset's files have zero undocumented unsafe sites
+  (the crate total went 25 to 22 with the three reflowed comments).

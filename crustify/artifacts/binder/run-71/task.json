@@ -51,12 +51,12 @@
       "home": "src/libavutil/libavutil/refstruct.rs"
     }
   ],
-  "wave": 202,
+  "wave": 2,
   "batch": 1,
   "link_unit": "libavutil",
   "module": "libavutil/refstruct.c",
   "foundational": true,
-  "base_branch": "crustify/waves/wave-202",
+  "base_branch": "crustify/waves/wave-2",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

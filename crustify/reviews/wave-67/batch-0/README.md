@@ -1,57 +1,61 @@
-# Review: libavutil/formats wave 0, batch 0 (the wave's twelve types)
+# Review: libavutil/options wave 0, batch 0 (the wave's types)
 
-- Items: `AVAlphaMode`, `AVChannel`, `AVChannelOrder`, `AVChromaLocation`,
-  `AVColorPrimaries`, `AVColorRange`, `AVColorSpace`,
-  `AVColorTransferCharacteristic`, `AVComponentDescriptor`,
-  `AVMatrixEncoding`, `AVPixelFormat`, `AVSampleFormat`.
-- Homes: `crustify/rust/ffmpeg/libavutil/{pixfmt,channel_layout,pixdesc,samplefmt}.rs`.
-- Reviewed commit: the wave tip `17c012afcd` (types landed by batches 0-6:
-  `41844f9750`, `33cbfb768a`, `eb9a1ebc0c`, `889a1ec70f`, `653bf3f6d0`,
-  `0c753e50ee`, `b39657734d`).
-- Reports: `misc/missing-default-on-none-valued-enums` (fixed) and
-  `wavefront/matrix-encoding-underlying-type` (finding resubmitted). Every
-  other step below found nothing to report.
+- Items: `AVDictionary` (`dict::Dictionary`, owned as `DictionaryBox` / `Dict`),
+  `AVDictionaryEntry` (`dict::DictionaryEntry`, fields `key`, `value`),
+  `AVExpr` (`eval::Expr`, owned as `ExprBox`), `AVOptionArrayDef`
+  (`opt::OptionArrayDef`, fields `def`, `sep`, `size_max`, `size_min`),
+  `AVOptionRange` (`opt::OptionRange`, fields `str`, `is_range`,
+  `component_max`, `component_min`, `value_max`, `value_min`) and
+  `AVOptionType` (`opt::OptionType`).
+- Homes: `crustify/rust/ffmpeg/libavutil/{dict,eval,opt}.rs`.
+- Reviewed commit: the wave tip `cde88fc249` (types landed by batches 0
+  `aa6053aec5`, 1 `66fa3604d1` and 2 `e605248b0c`; symbols by batches 4
+  `ae14a85553` and 3 `cde88fc249`).
+- Reports: `unsafe/expr-parse-with-context-raw-log-context`,
+  `conventions/expr-send-safety-comment-past-scan-window`.
+- Not the sub-campaign's last wave (options has waves 0-2), so no BSan gate:
+  BSan runs only on reproducers, and this review emits none.
 
 ## Verdicts by step
 
 | step | finding |
 |---|---|
-| BSan gate | The wave's gate failure (`review-wave-0/bsan-gate.log`) is in the `equiv` binary only and reproduces only when the `cpu::` and `imgutils::` modules run in parallel; its report site is C `av_strtod` under `av_parse_cpu_caps`, and the suspected cause is `tests/equiv/imgutils.rs`'s process-wide log callback. None of the report touches a type of this workset (the lone type test it names, `channel_layout::matrix_encoding::option_default_and_range_span_the_named_values`, passes alone and in every combination it was tried in); it belongs to the symbol review (batch 1). This workset's modules pass BSan on all four binaries (see evidence). |
-| wavefront | Eleven of the twelve findings match the C: every enum is field-less with no lifecycle, the open value set is justified by the public fields and `-1`/`AVERROR` returns each cites, and `AVComponentDescriptor` is a plain five-`int` value embedded in the static descriptor table and copied by value by its readers. `AVMatrixEncoding`'s finding called the encoding `c_int`; it is `c_uint` (no negative enumerator; bindgen emits `c_uint`). Resubmitted, see the report. |
-| lifecycle | None exists: C never allocates, frees, clones or disposes any of the enums, and `AVComponentDescriptor` lives only by value as `AVPixFmtDescriptor.comp[4]` (static table) with no routine taking its pointer. The `Copy` newtypes and the `CZeroable`, `Copy` layout type with `new()` / `from_raw` / `into_raw` are the complete representations. |
-| unsafe boundary | No type exposes an `unsafe fn` or a raw pointer: `from_raw` on each enum is safe because every bit pattern is a value C may hold, and `ComponentDescriptor::from_raw` takes the C struct by value. `crustify scan-unsafe --sites all` reports no smell counter in the four homes; the only unsafe sites are `pixdesc.rs`'s ten field projections and whole-value read/write (all through `addr_of!`/`addr_of_mut!` on the handle pointers, each with a specific `SAFETY:` comment), the `define_ctype!` seam, and the five `from_name` FFI calls that belong to the symbol route. |
-| ub_safe / ub_unsafe | No UB reachable: the enums are `#[repr(transparent)]` over bindgen's `c_int`/`c_uint` newtypes (layout tests), `Channel::ambisonic` / `ambisonic_index` and the two `index()` methods bound-check before casting, and `ComponentDescriptor`'s `Send`/`Sync` impls (value, `Ref`, `Mut`) cover plain data with getters on `Ref` only. 86 FFI-free unit tests pass under Miri. No `ub_unsafe` surface: the workset adds no unsafe public API. |
-| equiv | Every enumerator and every `AV_PIX_FMT_NE` alias (273 + 104) has a constant with the C value; `Default`s match `get_frame_defaults` (now asserted for all seven frame-stored pixfmt types in one place, plus `format` = -1); `Channel::ambisonic` is C's `AMBI<n>` parse and `MatrixEncoding::COUNT` / `SampleFormat::COUNT` are the `_NB` counts. No divergence found. |
-| internal | `name()` tables and `Debug` cover named, aliased and unnamed values; `ComponentDescriptor`'s `PartialEq`/`Hash` are field-wise and consistent. No defect. |
-| conventions | `Wraps:` anchors with `Handwritten` on the eleven enums, `Wraps:` plus five `Field:` anchors on the descriptor; names drop the `AV_`/`AVCOL_`/`AV_PIX_FMT_` prefixes; accessors on `Ref`/`Mut` project with `addr_of!`; rustdoc builds with `-D warnings`. |
-| misc | Four enums (`PixelFormat`, `SampleFormat`, `Channel`, `MatrixEncoding`) lacked the `Default` the other eight carry although C has the same unset value for each (`NONE`). Added, with unit and C-backed equivalence regressions; see the report. |
+| wavefront | The submitted findings match the C for all six types: `AVDictionary` (opaque, `elems` owned and NULL only before the first insert; lifecycle `av_dict_set` constructor, `av_dict_free` dropper, `av_dict_copy` deep cloner), `AVDictionaryEntry` (`key` / `value` owned by the dictionary, never NULL, `value` written by `AV_DICT_APPEND` only), `AVExpr` (`av_expr_parse` alloc constructor, `av_expr_free` recursive dropper, `param` children unshared, `func1` / `func2` copies of the caller's functions, `func0` static), `AVOptionArrayDef` (static descriptor, `def` a static string), `AVOptionRange` (element of an `AVOptionRanges` list, `str` owned and released by `av_opt_freep_ranges`) and `AVOptionType` (open enum with the array flag). The lifecycle symbols' records (`av_expr_parse`, `av_expr_free`, `av_dict_set`, `av_dict_copy`, `av_dict_free`, `av_opt_freep_ranges`) agree with the C bodies. Nothing to resubmit. |
+| lifecycle | Complete. `AVDictionary`: owned non-empty (`DictionaryBox`, `av_dict_free` + `av_dict_copy` with `AV_DICT_MULTIKEY`), owned nullable slot (`Dict`, built by `new` / `from_entries` through `av_dict_set`, which allocates and frees the dictionary with its first and last entry) and borrowed (`DictionaryRef`); entries are borrow-only, as C stores them only in the entry array. `AVExpr`: `ExprBox` with `av_expr_free`, built only by `Expr::parse` / `parse_with_context`; C has no copy. `AVOptionRange`: borrowed from its list, its `str` replaced, taken and released as a `HeapString` (the list frees it with `av_freep`). `AVOptionArrayDef`: a value type (`new`, `Default`, `CZeroable`) with no C lifecycle. `AVOptionType`: a value. No gap. |
+| unsafe boundary | `Expr::parse_with_context` was a public `unsafe fn` taking the parent log context as `*mut c_void`, a raw seam made obsolete by batch 3's `ObjectRef` (already used by `parse_and_eval`): now safe over `Option<ObjectRef<'_>>` (`unsafe/expr-parse-with-context-raw-log-context`). `scan-unsafe` then reports no smell counter in `eval.rs` or `dict.rs`. The workset's remaining `opt.rs` smells are not its own: `OptionRanges::query` / `query_default` (core's `AVOptionRanges`; their `void *obj` could now take `ObjectRef` too, which their scheduled symbols in options wave 2 should pick up) and `set_options_string` (a symbol). Every field accessor projects with `addr_of!` / `addr_of_mut!` through the handle pointers; the `Send` / `Sync` proofs hold (`DictionaryMut` and `DictionaryEntryMut` have no setters; `OptionRangeMut` and `OptionArrayDefMut` write only through `&mut self`; `Expr` is `Send` but not `Sync`, since evaluation writes the root's registers). |
+| ub_safe / ub_unsafe | No UB found. Read against the C: `av_expr_parse` with the wrapper's level-offset guard (C adds the offset to `AV_LOG_ERROR` only; `av_log_default_callback` masks and clips any level), the parser's depth limits and failure paths (every partial tree freed); `av_dict_set` / `av_dict_copy` / `av_dict_free` with `MULTIKEY`; `av_opt_freep_ranges` over `get_mut`'s distinct elements; the array separator rules against `av_opt_set_defaults`' `av_assert0`. Whole-crate ASan/UBSan and TSan are clean on the wave tip and on the review's tree, and the 22 FFI-free unit tests of the workset's types pass under Miri. With `parse_with_context` safe, the workset adds no public unsafe API, so `tests/ub_unsafe/eval.rs` moved to `tests/ub_safe/eval.rs::parse_with_context`. |
+| equiv | The suites compare dictionaries built, copied and edited by C and by the wrappers step by step, parsed trees through C's evaluator and counters, range writes against C's own and array definitions through `av_opt_set_defaults`. Added: `equiv/eval.rs::parse_with_context::parses_log_as_c_under_each_parent`, the result and every logged line of `parse_with_context` against `av_expr_parse` under no parent, a NULL-class parent (C) vs `None`, and a classed parent. No divergence found. |
+| internal | Private helpers (`Dict::append`, `terminated`, `opt_c_str`, `OptionRangesRef::slot` / `slots`, `RangeIter`) checked; no defect. |
+| conventions | `Send for Expr`'s nine-line `SAFETY:` block exceeded `scan-unsafe`'s six-line window and counted as undocumented (`conventions/expr-send-safety-comment-past-scan-window`). Anchors: one `Wraps:` per type, `Field:` on every getter and setter of the eleven field anchors; Rust names throughout; clippy `--all-targets -D warnings` and rustdoc `-D warnings` clean; the changed files are rustfmt-clean, as they were at the base. |
+| misc | Nothing to report. Hand-off for wave 1 (`av_expr_eval`): `AVExpr` keeps no constant count and C reads `const_values[const_index]` unchecked, so a safe evaluator must carry the count `Expr::parse` was given; `ExprBox` does not record it today. |
 
 ## Coverage
 
-Rust (`llvm-cov` over `--lib`, `equiv` and `ub_safe` filtered to the four
-modules, before the fix): `channel_layout.rs`, `pixdesc.rs` and
-`samplefmt.rs` 100% of lines and regions; `pixfmt.rs` 551/552 lines, the
-one miss being the big-endian arm of `native_endian`, unreachable on this
-little-endian host. The fix adds four `Default` impls, each executed by its
-new unit and equivalence tests.
+Details in `coverage.json`. Rust: `dict.rs` 100% of lines, regions and
+functions; `eval.rs` and `opt.rs` miss only test-harness arms (helper
+functions C is meant never to call, BSan-only early returns, `panic!` arms)
+and one line of a symbol outside the workset. C: `av_expr_parse` and its
+parser, `av_expr_free`, `av_dict_free`, `av_dict_copy`,
+`av_opt_freep_ranges` and `av_opt_query_ranges(_default)` 100% of lines;
+`av_dict_set` 70%, the rest being flag paths (`DONT_STRDUP_VAL`, `DEDUP`,
+`DONT_OVERWRITE`, `APPEND`) that the workset's `MULTIKEY`-only constructor
+cannot reach and wave 1's `av_dict_set` wrapper owns.
 
-C: no C function belongs to this workset (enums have no code and
-`AVComponentDescriptor` has no lifecycle routine), so there is no C path to
-measure; the descriptor's C readers (`av_read_image_line2`,
-`av_get_padded_bits_per_pixel`) are exercised by `tests/equiv/pixdesc.rs`
-over every component of every table descriptor.
-
-## Validation at the fixed tree
+## Validation at the landed tree
 
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean.
-- plain `cargo test --workspace`: 395 lib, 351 equiv, 325 ub_safe, 63 ub_unsafe,
-  53 doctests, 0 failed.
-- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants): the same counts,
-  no `runtime error:` and no sanitizer report.
-- BSan (`cargo bsan`, bsan C build): whole-crate lib 395, ub_unsafe 63 and
-  ub_safe 324 pass; the four modules' equiv tests (68, the new ones included)
-  pass. The whole equiv binary still fails at the gate's site (`av_strtod`
-  under `cpu::` while `imgutils::` runs in parallel), which the fix neither
-  touches nor changes; it is the symbol review's.
-- Miri: the 86 FFI-free unit tests of the four modules pass.
+- plain `cargo test --workspace`: 630 lib, 515 equiv, 533 ub_safe (the
+  compile-fail programs included), 93 ub_unsafe, 87 doctests, 0 failed.
+- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants, whole crate):
+  630 / 515 / 532 / 93 each, no `runtime error:` and no sanitizer report;
+  on the wave tip before the change, 630 / 514 / 528 / 98, equally clean.
+- Miri: the 22 FFI-free unit tests of the workset's types (`dict` entry
+  getters, `eval` terminators and box layout, `opt` option types, array
+  definitions and range handles over Rust-built lists).
+- `crustify scan-unsafe --sites all`: `unsafe_fns_pub_smell`,
+  `raw_ptr_pub_smell` and `void_ptr_pub_smell` each down by one (the
+  `parse_with_context` seam), undocumented unsafe sites 24 -> 23 (none left
+  in `eval.rs` or `dict.rs`).
+- BSan: not run; this is not the sub-campaign's last wave and the review
+  emits no reproducer.

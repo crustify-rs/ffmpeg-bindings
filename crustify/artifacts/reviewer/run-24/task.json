@@ -4,12 +4,12 @@
     "287efd12c9fb6e9311dc35414b86056fcabcf285",
     "c5e5f798942c112bf4f1274361d5f6174a3ff667"
   ],
-  "wave": 79,
+  "wave": 51,
   "batch": 1,
   "link_unit": "libavutil",
   "module": "libavutil/channel_layout.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-79",
+  "base_branch": "crustify/waves/wave-51",
   "model": "openrouter/anthropic/claude-fable-5.1",
   "billing": "api"
 }

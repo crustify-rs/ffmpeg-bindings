@@ -1,104 +1,58 @@
-# Review: AVBPrint, AVClass, ff_pad_helper_AVBPrint
+# Review: libavutil/formats wave 2, batch 0 (the wave's two types)
 
-Route: **type**. Objective: **review**. Affected base:
-`b2cff27cd691af1482bd36e8c2edab9d5e25fcf8`.
+- Items: `AVChannelLayout` (`channel_layout::ChannelLayout`, with
+  `ChannelLayoutVal`, `ChannelLayoutUninit`, `LayoutDetails`) and
+  `AVPrimaryCoefficients` (`csp::PrimaryCoefficients`).
+- Homes: `crustify/rust/ffmpeg/libavutil/{channel_layout,csp}.rs`.
+- Reviewed commit: the wave tip `ac34a06476` (types landed by batch 0;
+  batch 1 `57c0cc8756` landed the wave's symbols).
+- Reports: `misc/bsan-stale-stack-shadow-under-glibc-strtol-end-pointers`
+  (the gate failure; tests only) and
+  `misc/channel-layout-header-constants-unreachable` (fixed: the header's
+  three macro families). Every other step below found nothing to report.
 
-## Findings and scope
+## Verdicts by step
 
-- Three corrected Wavefront findings: the sizeof helper does not own a
-  print buffer's storage; a class/name can be temporary; finalization can
-  clear an allocated `str` by freeing it as well as transferring it.
-  Each report includes the exact `--update` submission.
-- Two Rust documentation/test defects: the static-only class description,
-  and BPrintBox's no-Clone doctest accidentally cloning a reference.
-- No new runtime UB, functional equivalence defect, or missing lifecycle
-  representation was confirmed. No public unsafe API was added.
+| step | finding |
+|---|---|
+| BSan gate | The gate's three aborts (`lib`'s isolated child, `equiv`, `ub_safe`) are one BSan artifact in C, not a wrapper defect: `av_channel_layout_from_string` reads `endptr` / `end`, uninitialised locals that uninstrumented glibc `strtol` / `strtoull` wrote, whose shadow still carries the freed `av_strdup` block an *earlier* call of the same function left in that stack slot. A pure-C probe reproduces it as a sequence effect (`3c` then `ambisonic 1` fails; either alone passes), so which inputs trip it depends on the caller's frames; the orchestrator's "on any input" is the right class and the wrong scope. Under `CRUSTIFY_FFMPEG_VARIANT=bsan` the suites now keep only the descriptions C resolves before `strtol` (standard names, accepted channel lists), through one shared predicate; nothing changes under any other instrument. See the first misc report. |
+| wavefront | Both findings and the six symbol findings match the C: `AVChannelLayout` is by value, not address-sensitive, owns `u.map` only in custom order (`av_calloc` / `av_dynarray2_add` / `av_malloc_array` blocks `av_freep` releases), `opaque` is a cookie only `av_channel_layout_retype` touches (to preserve it); `uninit` is the disposer, `copy` the deep cloner (uninits `dst` first, leaves it mapless-custom on ENOMEM), `custom_init` / `from_mask` / `from_string` / `default` are in-place initialisers that never uninit first; `--lifecycle-ops` lists exactly those six. `AVPrimaryCoefficients` is three `AVCIExy` by value with no routine of its own. Nothing to resubmit. |
+| lifecycle | Complete for the routines: `ChannelLayoutVal = CVal<ChannelLayout, ChannelLayoutUninit>`, every initialiser bound as a safe constructor on a fresh zeroed value (so C's overwrite-without-uninit leaks nothing), `try_clone` / `copy_from` over `av_channel_layout_copy`, `clear` over `uninit`, and the Rust-side map transfers (`set_custom_map` / `take_custom_map` over `HeapVec<ChannelCustom>`, whose `av_malloc` block `uninit`'s `av_freep` accepts). What was missing is the header's own constructors: the `AV_CHANNEL_LAYOUT_<NAME>` compound literals, their `AV_CH_LAYOUT_<NAME>` masks and the `AV_CH_<NAME>` channel bits, none of which bindgen can evaluate and none of which wavefront schedules. Added as `ChannelLayout::<NAME>` / `ChannelLayout::native(mask)` / `AMBISONIC_FIRST_ORDER`, `channel_layout::masks::*` and `Channel::mask()`, with `From<ChannelLayout> for ChannelLayoutVal`, three table shims as the C reference, and unit, equivalence and UB tests (second misc report). `PrimaryCoefficients` is the `define_ctype!` value with `new` / `from_raw` / `into_raw` / `zeroed` / `Default`, as its wave-1 siblings. |
+| unsafe boundary | No public `unsafe fn` in either home. The raw-pointer sites on the workset are `ChannelLayoutRef::opaque` / `ChannelLayoutMut::set_opaque` (`*mut c_void`), the user cookie C never dereferences or frees, on the terms the wave-1 review accepted for `ChannelCustom`'s; `crustify scan-unsafe --sites all` reports those four (`raw_ptr_pub_smell` / `void_ptr_pub_smell`, two per type) and no `unsafe_fns` or `ref_to_type_wrapper` smell, before and after the fixes, with zero undocumented unsafe sites in both homes. Every field access projects with `addr_of!` / `addr_of_mut!` through the handle pointers under a specific `SAFETY:` comment; `copy_from` refuses the mapless-custom source C would read through, and clears the destination C leaves mapless on ENOMEM. The handles' `Send` / `Sync` proofs hold: `Ref` getters copy fields or lend a getter-only `CSlice`, `Mut` setters need `&mut`. |
+| ub_safe / ub_unsafe | No UB reachable. Every safe path keeps a layout in a state `av_channel_layout_uninit` and C's readers accept (custom order with a non-NULL map of `nb_channels >= 1` elements, no map otherwise); `details()` and `into_custom_map_mut()` bound their runs by `nb_channels` and read a NULL or negative-count map as empty; the `compile_fail` programs reject views outliving or aliasing their owner. Whole-crate ASan/UBSan, TSan and BSan (below), and Miri over the 12 FFI-free unit tests, pass. The workset adds no public unsafe API, so there is no `ub_unsafe` obligation. |
+| equiv | The suites compare every initialiser, `av_channel_layout_copy` over every destination kind, and setter sequences through C's readers after each step; `set_ambisonic` mirrors the parser's `int` bounds exactly (`(order+1)^2 <= INT_MAX`, extras `< INT_MAX - that`), `set_native` / `native` count as `av_channel_layout_from_mask`, and the documented divergences (`set_native(0)` and `unspecified(n <= 0)` accepted, `copy_from`'s ENOMEM clear) are deliberate and stated. The new constants are compared with the compound literals, masks and bits C evaluates, with `av_channel_layout_check` / `_compare`, and round-tripped through `av_channel_layout_describe` and both parsers. No divergence found. |
+| internal | `masked`, `from_parts`, `init_with`, `map_parts`, `reset_to` and `write_name` are each covered by unit tests; the isolated-child allocation-failure test exercises every ENOMEM path the wrapper handles. No defect in the private implementation. |
+| conventions | `Wraps:` anchors on both types and the six routines (`uninit` on the policy and `clear`, `copy` on `try_clone` and `copy_from`), `Field:` anchors on every worklist field (`order`, `nb_channels`, `u` with `u.mask` / `u.map`, `opaque`; `r`, `g`, `b`); getters on `Ref`, setters on `Mut`; Rust names (`channel_count`, `LayoutDetails`, `PrimaryCoefficients`); rustdoc builds with `-D warnings`; the review's additions are rustfmt-clean and the files keep exactly the base's pre-existing rustfmt hunks. |
+| misc | The two reports above. |
 
-Lifecycle discovery used the type records, field touchers, dependency
-closure, and constructor/disposer records, cross-checked against C bodies
-and callers. `av_bprint_init` and `av_bprint_init_for_buffer` are the two
-initializers; `av_bprint_finalize` disposes/transfers the owned string, not
-the descriptor. The existing stationary CBox storage and separate finalizing
-versus caller-buffer policies are necessary and complete. There is no C
-cloner. The helper has no runtime C users; Class has no dedicated allocator,
-destructor, or cloner. AVOption/AVOptionRanges dependencies already use their
-safe handles. Object-specific callback contexts remain narrow raw seams for
-higher-layer context types not yet wrapped.
+## Coverage
 
-The unsafe helper-string setter's contract covers every copy and every
-thread. The four class callback handles retain their documented object,
-result-lifetime, and allocation contracts. Existing UB tests exercise them;
-ffibox adoption seams remain internal-test escape hatches rather than new
-unsafe public wrapper APIs.
+Rust (`llvm-cov` over the lib, `equiv`, `ub_safe` and `ub_unsafe`
+binaries at the fixed tree): `channel_layout.rs` 1364 lines 98.97%, 2112
+regions 99.29%, 196 functions 99.49%; `csp.rs` 738 / 1280 / 135 all 100%.
+The misses are `masks::bit`, a `const fn` only evaluated at compile time,
+and `panic!()` arms of test destructurings. C (`gcov` variant, the two
+modules' tests): every lifecycle routine 100% of its lines
+(`av_channel_layout_from_string` 76/76), `parse_channel_list` 30/31, the
+miss being its ENOMEM-only `av_freep` that `av_max_alloc` cannot reach.
+Details in `coverage.json`.
 
-## Regression evidence and coverage
+## Validation at the fixed tree
 
-Added:
-
-- safe, isolated descriptor-allocation failures (both owners, empty and
-  nonempty caller buffers), proving no caller bytes are touched on failure;
-- C/Rust multi-call equivalence after allocation failure, repeated truncated
-  appends, explicit shortening, recovery, repeated heap growth, and finalization;
-- local Class handles shared/moved through scoped threads and exclusive
-  reborrows, plus an internal temporary descriptor borrowing a heap name;
-- corrected no-Clone compile-fail doctest, checked by nightly rustdoc.
-
-`coverage.json` records independent before/after runs, using the prepared
-coverage C library plus Rust `-C instrument-coverage`. Rust `bprint.rs`
-regions improve **590/591 -> 591/591**; the entire Class production surface
-has **196/196** covered source regions. C `av_bprint_alloc` improves
-**13/14 -> 14/14** blocks; both initializers and finalize remain **100%**.
-Class-related name/category and option/child iteration paths are **100%**.
-
-Remaining coverage is outside this type surface: the default-callback
-selection in `av_opt_query_ranges` is not taken by an explicit QueryRangesFn
-handle (absent callback is represented by None); unscheduled bprint escape,
-get-buffer, and most strftime paths are not exposed by these types. The
-whole log.rs file is 1608/1620 regions, with remaining regions in other
-symbols' formatting/overflow paths and test fallback branches. The helper
-has no C execution path. OOM tests force deterministic av_max_alloc failures;
-actual OS allocator exhaustion is intentionally not induced. Timing-sensitive
-logging stress tests have nondeterministic execution counts.
-
-## Validation
-
-All commands ran from `crustify/rust`, with agent-private target/log/output
-paths under `/tmp/crustify-review-b0`. The reusable C builds were left
-immutable (GCOV_PREFIX redirected all coverage writes). `build.json` matches
-the orchestrator's version 3; C sources are unchanged from `1019f8f036`.
-Configured compilers/instrumentation match: clang 18.1.3 ASan/UBSan and TSan,
-matched BSan clang 23.1.3 plus plugin, GCC 13.3 gcov. No bindings, shim, or C
-source changed, so no C rebuild/baseline was needed.
-
-- `cargo check --workspace`: pass.
-- `cargo clippy --workspace`: pass.
-- `cargo test --workspace`: pass on stable, linked with clang's ASan/UBSan
-  runtime against `CRUSTIFY_FFMPEG_VARIANT=asan-ubsan`, including trybuild
-  compile-fail and doctests.
-- Fully instrumented Rust ASan + sanitized C: workspace unit/integration
-  suites pass with `cargo +nightly test --workspace --lib --tests
-  -Zbuild-std --target x86_64-unknown-linux-gnu -- --skip compile_fail`,
-  `RUSTFLAGS=-Zsanitizer=address`, leak checking and UBSan halt-on-error.
-  Workset doctests also pass under nightly.
-- TSan: all bprint/log tests pass against the TSan C build using nightly
-  build-std and `-Zsanitizer=thread`, including the threaded handle tests.
-- BSan: all bprint tests, Class unit tests, Class equivalence/safe suites,
-  callback unsafe suites, and the new tests pass against the BSan C build
-  with `cargo bsan test`. A broader unrelated multi-megabyte logging-symbol
-  comparison was stopped for cost; the selected type suites were then run
-  separately to completion. The existing >4 GiB caller-buffer test skips
-  BSan because its shadow memory is impractical; it passes ASan and TSan.
-- Miri: eight safe helper-field tests, five unsafe borrowed-string tests,
-  and the new local-Class scoped-thread test pass. Foreign calls cannot run
-  under Miri; ASan/UBSan, BSan, and TSan cover those paths instead.
-- `crustify scan-unsafe <workdir> --name AVBPrint AVClass
-  ff_pad_helper_AVBPrint --json`: no illegal sites; zero nonconforming
-  wrappers, wrapped field references, out-of-impl projections, or
-  out-of-impl raw dereferences. Remaining raw pointers are documented layout,
-  lifecycle-policy, FFI, and higher-layer callback seams.
-
-Nightly-only whole-workspace limitations: three pre-existing trybuild stderr
-snapshots differ from nightly diagnostics (all illegal programs still fail
-compilation); the stable suite passes. Two unrelated HeapBox/OptionRangesBox
-no-Clone doctests still request E0599 while producing E0308 under nightly.
-The corresponding BPrintBox defect belongs to this workset and is fixed here.
+- `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `RUSTDOCFLAGS=-D warnings cargo doc -p ffmpeg --no-deps`: clean.
+- plain `cargo test --workspace`: 542 lib, 448 equiv, 454 ub_safe (the
+  compile-fail programs included), 72 ub_unsafe, doctests, 0 failed.
+- ASan/UBSan and TSan (`-Zbuild-std`, the matching C variants, whole
+  crate): 542 / 448 / 453 / 72 each, no `runtime error:` and no sanitizer
+  report.
+- BSan (`cargo bsan`, bsan C build, whole crate, `--no-fail-fast`): lib 542
+  (47 s), equiv 448 (21 min), ub_safe 453 (35 min), ub_unsafe 72; no
+  report. At the reviewed tree the same command fails the lib's isolated
+  child and aborts equiv and ub_safe as the gate did.
+- Miri: the 12 FFI-free unit tests of the two homes (`Channel::mask`, the
+  `masks` composition, the layout checks and the `PrimaryCoefficients`
+  value tests).
+- `crustify scan-unsafe --sites all`: no counter but `total_stmts` (+2)
+  and `code_lines` changes; the two homes' smell sites are the four
+  documented `opaque` cookie accessors, as before.

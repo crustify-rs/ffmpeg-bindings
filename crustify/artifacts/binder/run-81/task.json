@@ -100,12 +100,12 @@
       "home": "src/libavutil/libavutil/hwcontext.rs"
     }
   ],
-  "wave": 228,
+  "wave": 184,
   "batch": 1,
   "link_unit": "libavutil",
   "module": "libavutil/hwcontext.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-228",
+  "base_branch": "crustify/waves/wave-184",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

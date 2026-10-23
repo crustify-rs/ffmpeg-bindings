@@ -11,12 +11,12 @@
     "99dda2492d1f4feb11faeaa2a57a97deb0a75e7d",
     "5eccdfa47b573930bf12b5300aab2c53513a359a"
   ],
-  "wave": 125,
+  "wave": 11,
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/aes.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-125",
+  "base_branch": "crustify/waves/wave-11",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

@@ -6,12 +6,12 @@
     "25e979543325d585766578f8bb651d4478f612e6",
     "3d8d866f5b3cff2b5f9539fdbc8823f2ee0d9c48"
   ],
-  "wave": 203,
+  "wave": 3,
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/refstruct.c",
   "foundational": true,
-  "base_branch": "crustify/waves/wave-203",
+  "base_branch": "crustify/waves/wave-3",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }
