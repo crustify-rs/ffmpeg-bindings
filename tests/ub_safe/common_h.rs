@@ -9,11 +9,11 @@
 
 use std::thread;
 
-use ffmpeg_bindings::libavutil::libavutil::common::{
+use ffmpeg_bindings::libavutil::libavutil::common_h::{
     ceil_log2, clamp_f32, clamp_f64, clamp_i32, clamp_i64, clamp_to_i8, clamp_to_i16, clamp_to_i32,
-    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, log2, log2_16bit,
-    parity, zero_extend,
+    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, parity, zero_extend,
 };
+use ffmpeg_bindings::libavutil::libavutil::intmath::{log2, log2_16bit};
 
 /// `i32` values around zero, every power of two and the type limits.
 fn ints() -> impl Iterator<Item = i32> {
@@ -112,7 +112,7 @@ fn zero_extend_is_defined_at_every_position() {
 /// arithmetic: every overflow edge, in debug builds where Rust's own
 /// arithmetic overflow would panic, and across threads.
 mod count_and_saturate {
-    use ffmpeg_bindings::libavutil::libavutil::common::{
+    use ffmpeg_bindings::libavutil::libavutil::common_h::{
         count_ones, count_ones64, saturating_add_doubled32, saturating_add32, saturating_add64,
         saturating_sub_doubled32, saturating_sub32, saturating_sub64,
     };
@@ -167,14 +167,6 @@ mod count_and_saturate {
             .join()
             .unwrap();
         assert_eq!(r, i64::MIN);
-    }
-}
-
-#[test]
-#[cfg_attr(miri, ignore = "calls C")]
-fn log2_16bit_takes_every_value_of_its_domain() {
-    for v in 0..=u16::MAX {
-        assert!(log2_16bit(v) < 16);
     }
 }
 

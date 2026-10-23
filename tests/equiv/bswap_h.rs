@@ -5,7 +5,7 @@
     reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
 )]
 
-use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
+use ffmpeg_bindings::libavutil::libavutil::bswap_h::{swap16, swap32, swap64};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Every single-bit and single-byte pattern of a 64-bit word, its

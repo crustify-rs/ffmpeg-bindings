@@ -1,5 +1,5 @@
 // A reborrowed `Unaligned64Mut` freezes its parent while it lives.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64Mut;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned64Mut;
 
 fn main() {
     let mut bytes = [0u8; 8];

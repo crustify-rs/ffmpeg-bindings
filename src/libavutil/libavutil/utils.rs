@@ -1,7 +1,8 @@
-//! Safe wrappers over `libavutil/avutil.h`.
+//! Safe wrappers over `libavutil/utils.c`: the media and picture types, their names, the
+//! `FourCC` string and the internal time base.
 
-use core::ffi::{CStr, c_void};
-use core::{fmt, ptr};
+use core::ffi::CStr;
+use core::fmt;
 
 use ffibox::CPlainElem;
 
@@ -19,7 +20,7 @@ use super::rational::Rational;
 /// the associated constants, with a `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::avutil::MediaType;
+/// use ffmpeg_bindings::libavutil::libavutil::utils::MediaType;
 /// fn is_av(t: MediaType) -> bool {
 ///     match t {
 ///         MediaType::VIDEO | MediaType::AUDIO => true,
@@ -137,7 +138,7 @@ unsafe impl CPlainElem for MediaType {}
 /// `_` arm for the values C does not name:
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
+/// use ffmpeg_bindings::libavutil::libavutil::utils::PictureType;
 /// fn is_intra(t: PictureType) -> bool {
 ///     matches!(t, PictureType::I | PictureType::SI | PictureType::BI)
 /// }
@@ -228,86 +229,6 @@ impl From<PictureType> for ffi::AVPictureType {
 // memory is the whole of it.
 unsafe impl CPlainElem for PictureType {}
 
-/// Wraps: `avutil_version`
-///
-/// The `LIBAVUTIL_VERSION_INT` the library was built as:
-/// `major << 16 | minor << 8 | micro`.
-#[must_use]
-pub fn version() -> u32 {
-    // SAFETY: `avutil_version` takes no arguments and returns a constant.
-    unsafe { ffi::avutil_version() }
-}
-
-/// Wraps: `av_version_info`
-///
-/// An informative version string, usually the release number or a git
-/// commit description. It has no fixed format and must not be parsed.
-#[must_use]
-pub fn version_info() -> &'static CStr {
-    // SAFETY: as the comment below states, for this part of the operation.
-    let version_info = unsafe { ffi::av_version_info() };
-    // SAFETY: `av_version_info` returns the address of a string literal,
-    // NUL-terminated and immutable for the life of the process.
-    unsafe { CStr::from_ptr(version_info) }
-}
-
-/// Wraps: `avutil_configuration`
-///
-/// The `configure` command line libavutil was built with.
-#[must_use]
-pub fn configuration() -> &'static CStr {
-    // SAFETY: as the comment below states, for this part of the operation.
-    let avutil_configuration_2 = unsafe { ffi::avutil_configuration() };
-    // SAFETY: `avutil_configuration` returns the address of a string literal,
-    // NUL-terminated and immutable for the life of the process.
-    unsafe { CStr::from_ptr(avutil_configuration_2) }
-}
-
-/// Wraps: `avutil_license`
-///
-/// The license libavutil was built under, such as `LGPL version 2.1 or
-/// later`.
-#[must_use]
-pub fn license() -> &'static CStr {
-    // SAFETY: as the comment below states, for this part of the operation.
-    let avutil_license_2 = unsafe { ffi::avutil_license() };
-    // SAFETY: `avutil_license` returns an address inside a string literal,
-    // past its prefix and before its NUL, immutable for the life of the
-    // process.
-    unsafe { CStr::from_ptr(avutil_license_2) }
-}
-
-/// Wraps: `av_x_if_null`
-///
-/// `p`, or `x` when `p` is `None`: C's `p ? p : x`, over shared borrows.
-#[must_use]
-pub fn x_if_null<'a, T>(p: Option<&'a T>, x: Option<&'a T>) -> Option<&'a T> {
-    let p: *const c_void = p.map_or(ptr::null(), |r| ptr::from_ref(r).cast());
-    let x: *const c_void = x.map_or(ptr::null(), |r| ptr::from_ref(r).cast());
-    // SAFETY: `av_x_if_null` compares `p` with NULL and returns `p` or `x`
-    // unchanged, dereferencing neither.
-    let chosen = unsafe { ffi::av_x_if_null(p, x) };
-    // SAFETY: `chosen` is NULL or one of the two pointers above, each from a
-    // `&'a T`, so it addresses a `T` shared for `'a`.
-    unsafe { chosen.cast_const().cast::<T>().as_ref() }
-}
-
-/// Wraps: `av_x_if_null`
-///
-/// `p`, or `x` when `p` is `None`, as [`x_if_null`], over exclusive borrows:
-/// the one not returned is given up with the call.
-#[must_use]
-pub fn x_if_null_mut<'a, T>(p: Option<&'a mut T>, x: Option<&'a mut T>) -> Option<&'a mut T> {
-    let p: *mut c_void = p.map_or(ptr::null_mut(), |r| ptr::from_mut(r).cast());
-    let x: *mut c_void = x.map_or(ptr::null_mut(), |r| ptr::from_mut(r).cast());
-    // SAFETY: as for `x_if_null`.
-    let chosen = unsafe { ffi::av_x_if_null(p, x) };
-    // SAFETY: `chosen` is NULL or one of the two pointers above, each from a
-    // `&'a mut T` this call took by value, so it addresses a `T` exclusively
-    // borrowed for `'a`, and no other reference to it remains.
-    unsafe { chosen.cast::<T>().as_mut() }
-}
-
 /// `AV_FOURCC_MAX_STRING_SIZE`: the buffer [`fourcc_string`] fills.
 const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 
@@ -318,7 +239,7 @@ const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 /// value in brackets (`[0]`). The result borrows `buf`.
 ///
 /// ```
-/// use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
+/// use ffmpeg_bindings::libavutil::libavutil::utils::fourcc_string;
 /// let mut buf = [0; 32];
 /// assert_eq!(
 ///     fourcc_string(&mut buf, u32::from_le_bytes(*b"H264")),
@@ -514,38 +435,6 @@ mod unit_tests {
             assert_eq!(PictureType::from(c).into_raw(), c);
             assert_eq!(ffi::AVPictureType::from(PictureType::from_raw(c)), c);
         }
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn x_if_null_picks_the_first_present_borrow() {
-        let (a, b) = (1u64, 2u64);
-        assert_eq!(x_if_null(Some(&a), Some(&b)), Some(&1));
-        assert_eq!(x_if_null(None, Some(&b)), Some(&2));
-        assert_eq!(x_if_null(Some(&a), None), Some(&1));
-        assert_eq!(x_if_null::<u64>(None, None), None);
-        assert!(ptr::eq(x_if_null(None, Some(&b)).unwrap(), &raw const b));
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn x_if_null_mut_hands_back_a_writable_borrow() {
-        let (mut a, mut b) = ([0u8; 3], [0u8; 3]);
-        x_if_null_mut(Some(&mut a), Some(&mut b)).unwrap()[0] = 7;
-        x_if_null_mut(None, Some(&mut b)).unwrap()[2] = 9;
-        assert_eq!((a, b), ([7, 0, 0], [0, 0, 9]));
-        assert!(x_if_null_mut::<()>(None, None).is_none());
-        let mut unit = ();
-        assert!(x_if_null_mut(Some(&mut unit), None).is_some());
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn version_packs_the_built_parts() {
-        let v = version();
-        assert_eq!(v >> 16, ffi::LIBAVUTIL_VERSION_MAJOR);
-        assert_eq!(v >> 8 & 0xFF, ffi::LIBAVUTIL_VERSION_MINOR);
-        assert_eq!(v & 0xFF, ffi::LIBAVUTIL_VERSION_MICRO);
     }
 
     #[test]

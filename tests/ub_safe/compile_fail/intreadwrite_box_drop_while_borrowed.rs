@@ -1,5 +1,5 @@
 // A C-allocated `Alias32` cannot be freed while a handle to it is live.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Alias32;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Alias32;
 use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
 
 fn main() {

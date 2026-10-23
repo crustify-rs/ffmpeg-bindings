@@ -1,6 +1,6 @@
 // The exclusive result of `x_if_null_mut` keeps both arguments borrowed: the
 // one not returned cannot be read while the result is alive.
-use ffmpeg_bindings::libavutil::libavutil::avutil::x_if_null_mut;
+use ffmpeg_bindings::libavutil::libavutil::avutil_h::x_if_null_mut;
 
 fn main() {
     let mut a = 1u32;

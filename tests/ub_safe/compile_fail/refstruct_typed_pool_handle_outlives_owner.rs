@@ -1,4 +1,4 @@
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::refstruct::{PoolFlags, TypedRefStructPool};
 fn main() {
     let owner = TypedRefStructPool::<IntFloat64>::new(PoolFlags::NONE).unwrap();

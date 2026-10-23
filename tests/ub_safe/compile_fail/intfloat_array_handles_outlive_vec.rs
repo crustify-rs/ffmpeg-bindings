@@ -1,6 +1,6 @@
 // A run of handles over a `HeapVec<IntFloat64>` cannot outlive the array
 // that frees its block.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::mem::alloc_cell_array_zeroed;
 
 fn main() {

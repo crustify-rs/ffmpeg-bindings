@@ -825,7 +825,7 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// ```
 /// use std::sync::mpsc;
 ///
-/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{self, RefStructArc};
 ///
 /// let (tx, rx) = mpsc::channel();
@@ -846,7 +846,7 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// rejected:
 ///
 /// ```compile_fail,E0597
-/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 /// use ffmpeg_bindings::libavutil::libavutil::refstruct;
 /// let seen = std::cell::Cell::new(0);
 /// let _ = refstruct::alloc_with_release::<IntFloat64, _>(|last| {
@@ -857,7 +857,7 @@ pub fn replace<T: CCell, D: RefStructPolicy + CDrop<T>>(
 /// and so is state that cannot move to the thread releasing the object:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 /// use ffmpeg_bindings::libavutil::libavutil::refstruct;
 /// let seen = std::rc::Rc::new(std::cell::Cell::new(0));
 /// let _ = refstruct::alloc_with_release::<IntFloat64, _>(move |last| {
@@ -939,7 +939,7 @@ const EINVAL: c_int = -22;
 /// State that is not `Sync` is rejected:
 ///
 /// ```compile_fail,E0277
-/// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+/// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 /// use ffmpeg_bindings::libavutil::libavutil::refstruct::PoolCallbacks;
 /// let _ = PoolCallbacks::<IntFloat64, _>::new(std::cell::Cell::new(0));
 /// ```
@@ -1097,7 +1097,7 @@ impl<T: CZeroable + 'static> TypedRefStructPool<T> {
     /// ```
     /// use std::sync::atomic::{AtomicUsize, Ordering};
     ///
-    /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    /// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
     /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{
     ///     PoolCallbacks, PoolFlags, TypedRefStructPool,
     /// };
@@ -1181,7 +1181,7 @@ impl<T: CCell + 'static> TypedRefStructPool<T> {
     /// after the reset callback, for a later `get` to hand out again.
     ///
     /// ```
-    /// use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    /// use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
     /// use ffmpeg_bindings::libavutil::libavutil::refstruct::{
     ///     PoolFlags, RefStructArc, TypedRefStructPool,
     /// };
@@ -1512,7 +1512,7 @@ mod unit_tests {
     /// Buffer-frame wave 0, symbol batch 5: the counted references' policies.
     mod counted_references {
         use super::super::*;
-        use crate::libavutil::libavutil::intfloat::IntFloat64;
+        use crate::libavutil::libavutil::intfloat_h::IntFloat64;
 
         /// A C-allocated zeroed object, adopted by its one reference.
         fn adopted() -> RefStructArc<IntFloat64> {
@@ -1650,7 +1650,7 @@ mod unit_tests {
         use std::sync::{Arc, Mutex};
 
         use super::super::*;
-        use crate::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+        use crate::libavutil::libavutil::intfloat_h::{IntFloat64, IntFloat64Mut};
 
         type ReleaseFn = unsafe extern "C" fn(ffi::AVRefStructOpaque, *mut c_void);
 

@@ -1,6 +1,6 @@
 // A payload handle borrows the reference it came from: dropping the
 // reference first, possibly the last one, is rejected.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::refstruct::RefStructArc;
 
 fn main() {

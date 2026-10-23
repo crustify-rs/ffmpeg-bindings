@@ -1,5 +1,5 @@
 // A byte view cannot outlive the bytes it reads.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned32Ref;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned32Ref;
 
 fn main() {
     let view = {

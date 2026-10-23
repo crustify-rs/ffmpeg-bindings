@@ -1,6 +1,6 @@
 // A byte view crosses threads only within the bytes' borrow: an unscoped
 // thread may outlive them.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned16Ref;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned16Ref;
 
 fn main() {
     let bytes = [0u8; 2];

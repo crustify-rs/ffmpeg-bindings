@@ -552,7 +552,7 @@ mod counted_references {
 
     use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
     use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, RefStructArc, into_const, is_exclusive, replace, to_const,
     };
@@ -872,7 +872,7 @@ mod releases_and_typed_pools {
     use std::sync::{Arc, Mutex};
 
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg_bindings::libavutil::libavutil::intfloat_h::{IntFloat64, IntFloat64Mut};
     use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolCallbacks, PoolFlags, RefStructArc, RefStructBox, TypedRefStructPool,
         alloc_with_release, is_exclusive,

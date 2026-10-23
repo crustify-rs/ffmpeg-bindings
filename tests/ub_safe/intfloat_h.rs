@@ -9,7 +9,7 @@
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg_bindings::libavutil::libavutil::intfloat::{
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::{
     IntFloat32, IntFloat32Mut, IntFloat64, IntFloat64Mut, IntFloat64Ref, double_from_bits,
     double_to_bits, float_from_bits, float_to_bits,
 };

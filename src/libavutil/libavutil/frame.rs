@@ -56,7 +56,6 @@ use core::{fmt, slice};
 
 use ffibox::{CBox, CNew, CPlainElem, CZeroable, define_ctype, impl_cdrop};
 
-use super::avutil::PictureType;
 use super::buffer::{
     BufferReference, BufferReferenceBox, BufferReferenceRef, ENOMEM, may_add_reference,
 };
@@ -69,6 +68,7 @@ use super::pixfmt::{
 };
 use super::rational::{Rational, RationalMut, RationalRef};
 use super::samplefmt::{self, SampleFormat};
+use super::utils::PictureType;
 use super::{ffi, imgutils, refstruct};
 
 /// Wraps: `AVFrameSideDataType`

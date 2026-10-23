@@ -1,4 +1,4 @@
-//! UB tests for `libavutil/avutil.h`'s [`MediaType`] and [`PictureType`],
+//! UB tests for `libavutil/utils.c`'s [`MediaType`] and [`PictureType`],
 //! through the safe API only: as values, and as the plain elements of
 //! `av_malloc`-family arrays.
 #![expect(
@@ -13,11 +13,11 @@
 
 use std::thread;
 
-use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mem::{
     HeapVec, alloc_array, alloc_array_from_fn, alloc_array_zeroed,
 };
+use ffmpeg_bindings::libavutil::libavutil::utils::{MediaType, PictureType};
 
 /// Named constants, `AVMEDIA_TYPE_NB` and the `int` extremes.
 fn sample() -> Vec<MediaType> {
@@ -161,63 +161,11 @@ fn picture_type_arrays_cross_and_are_shared_between_threads() {
     assert_eq!(back.iter().rev().copied().collect::<Vec<_>>(), values);
 }
 
-/// The version strings and `av_x_if_null`'s borrows.
-mod version_and_x_if_null {
-    use std::thread;
-
-    use ffmpeg_bindings::libavutil::libavutil::avutil::{
-        configuration, license, version, version_info, x_if_null, x_if_null_mut,
-    };
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn static_strings_read_whole_and_cross_threads() {
-        let lens = |_| {
-            (
-                version_info().count_bytes(),
-                configuration().count_bytes(),
-                license().count_bytes(),
-            )
-        };
-        let theirs = thread::spawn(move || (0..100).map(lens).collect::<Vec<_>>())
-            .join()
-            .unwrap();
-        assert!(theirs.iter().all(|&l| l == lens(0)));
-        let strings: &'static [u8] = version_info().to_bytes();
-        assert!(!strings.is_empty() && version() > 0);
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn x_if_null_results_borrow_their_sources() {
-        let a = Box::new([1u64; 4]);
-        let b = Box::new([2u64; 4]);
-        let r = x_if_null(None, Some(&*b)).unwrap();
-        assert_eq!(r, &[2; 4]);
-        let r = x_if_null(Some(&*a), Some(&*b)).unwrap();
-        assert_eq!(r, &[1; 4]);
-        drop((a, b));
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore = "calls C")]
-    fn x_if_null_mut_results_write_their_source_only() {
-        let mut a = Box::new([0u8; 8]);
-        let mut b = Box::new([0u8; 8]);
-        x_if_null_mut(None, Some(&mut *b)).unwrap().fill(1);
-        x_if_null_mut(Some(&mut *a), Some(&mut *b)).unwrap()[7] = 9;
-        assert_eq!((*a, *b), ([0, 0, 0, 0, 0, 0, 0, 9], [1; 8]));
-        let mut zst = ();
-        assert!(x_if_null_mut(Some(&mut zst), None).is_some());
-        assert!(x_if_null::<String>(None, None).is_none());
-    }
-}
-
 /// `fourcc_string` on every byte class and from many threads.
 mod fourcc {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::avutil::fourcc_string;
+    use ffmpeg_bindings::libavutil::libavutil::utils::fourcc_string;
 
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
@@ -260,8 +208,8 @@ mod fourcc {
 mod names {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::avutil::{MediaType, PictureType, time_base};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::utils::{MediaType, PictureType, time_base};
 
     /// `int` and `unsigned` edges, as the enums' encodings.
     const VALUES: [i64; 12] = [

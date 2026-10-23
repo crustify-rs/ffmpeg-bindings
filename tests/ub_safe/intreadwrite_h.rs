@@ -18,7 +18,7 @@
 use std::thread;
 
 use ffibox::CZeroable;
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::{
     Alias16, Alias16Mut, Alias16Ref, Alias32, Alias32Mut, Alias32Ref, Alias64, Alias64Mut,
     Alias64Ref, Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut,
     Unaligned32Ref, Unaligned64, Unaligned64Mut, Unaligned64Ref,

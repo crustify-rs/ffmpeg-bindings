@@ -1,5 +1,5 @@
 // A handle into an `av_malloc` block cannot outlive the box that frees it.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat32;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat32;
 use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
 
 fn main() {

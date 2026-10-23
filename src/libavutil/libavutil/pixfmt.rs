@@ -429,7 +429,7 @@ unsafe impl CPlainElem for AlphaMode {}
 /// hardware surface that holds it.
 ///
 /// A newtype over the C enum rather than a Rust `enum`, as
-/// [`MediaType`](super::avutil::MediaType) is: C stores the value in public
+/// [`MediaType`](super::utils::MediaType) is: C stores the value in public
 /// struct fields and format lists its users write directly
 /// (`AVCodecContext.pix_fmt`, `AVHWFramesContext.sw_format`), and a newer
 /// library may return a format this crate does not name, so it may hold any

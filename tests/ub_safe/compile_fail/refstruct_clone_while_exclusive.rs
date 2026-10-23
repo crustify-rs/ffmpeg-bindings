@@ -1,6 +1,6 @@
 // The exclusive handle borrows the reference mutably: cloning it while the
 // handle lives, which would make the handle's writes shared, is rejected.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::refstruct::RefStructArc;
 
 fn main() {

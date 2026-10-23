@@ -1,5 +1,5 @@
 // An `Alias32Ref` cannot outlive the bytes it views.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Alias32Ref;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Alias32Ref;
 
 fn main() {
     let view;

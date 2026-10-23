@@ -1525,7 +1525,6 @@ mod frame_type {
     use std::sync::{Arc, Barrier};
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
     use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
@@ -1539,6 +1538,7 @@ mod frame_type {
     };
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
+    use ffmpeg_bindings::libavutil::libavutil::utils::PictureType;
 
     const NOPTS: i64 = i64::MIN;
 

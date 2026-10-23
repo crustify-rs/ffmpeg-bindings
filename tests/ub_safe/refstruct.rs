@@ -196,7 +196,7 @@ mod counted_references {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::csp::{CieXy, ColorPrimariesDescriptor};
-    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, RefStructArc, RefStructBox, into_const, is_exclusive, replace, to_const,
@@ -488,7 +488,7 @@ mod releases_and_typed_pools {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::csp::ColorPrimariesDescriptor;
-    use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+    use ffmpeg_bindings::libavutil::libavutil::intfloat_h::{IntFloat64, IntFloat64Mut};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
     use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         ConstRefStructArc, PoolCallbacks, PoolFlags, RefStructArc, RefStructBox,
@@ -1035,7 +1035,7 @@ mod pool_teardown_in_callbacks {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
 
-    use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+    use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
     use ffmpeg_bindings::libavutil::libavutil::refstruct::{
         PoolCallbacks, PoolFlags, RefStructBox, TypedRefStructPool,
     };

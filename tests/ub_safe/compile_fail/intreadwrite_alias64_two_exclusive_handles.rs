@@ -1,5 +1,5 @@
 // Two exclusive handles to one `Alias64` cannot coexist.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Alias64;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Alias64;
 
 fn main() {
     let mut a = Alias64::default();

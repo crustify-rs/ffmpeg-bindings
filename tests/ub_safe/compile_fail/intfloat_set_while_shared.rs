@@ -1,5 +1,5 @@
 // The exclusive handle cannot write while a shared reborrow of it lives.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 
 fn main() {
     let mut v = IntFloat64::from_bits(1);

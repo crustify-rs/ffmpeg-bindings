@@ -1,5 +1,5 @@
 // An `Unaligned64Ref` cannot outlive the bytes it views.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64Ref;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned64Ref;
 
 fn main() {
     let view;

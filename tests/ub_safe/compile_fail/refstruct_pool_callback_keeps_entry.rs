@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use ffmpeg_bindings::libavutil::libavutil::intfloat::{IntFloat64, IntFloat64Mut};
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::{IntFloat64, IntFloat64Mut};
 use ffmpeg_bindings::libavutil::libavutil::refstruct::PoolCallbacks;
 
 fn main() {

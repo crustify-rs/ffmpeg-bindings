@@ -1,6 +1,6 @@
 // A handle into an `av_malloc` block of an `Unaligned64` cannot outlive the
 // box that frees it.
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::Unaligned64;
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned64;
 use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
 
 fn main() {

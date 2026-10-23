@@ -5,7 +5,7 @@
     reason = "test inputs are chosen within range, and the casts mirror the C conversions under comparison"
 )]
 
-use ffmpeg_bindings::libavutil::libavutil::bswap::{swap16, swap32, swap64};
+use ffmpeg_bindings::libavutil::libavutil::bswap_h::{swap16, swap32, swap64};
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]

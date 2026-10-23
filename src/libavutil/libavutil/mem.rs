@@ -1640,7 +1640,7 @@ mod unit_tests {
     fn dynarray_is_two_words_and_crosses_threads() {
         fn send_sync<T: Send + Sync>() {}
         send_sync::<DynArray<u32>>();
-        send_sync::<DynArray<crate::libavutil::libavutil::intfloat::IntFloat64>>();
+        send_sync::<DynArray<crate::libavutil::libavutil::intfloat_h::IntFloat64>>();
         assert!(size_of::<DynArray<u8>>() <= 2 * size_of::<usize>());
         assert!(REALLOC_ALIGN >= align_of::<*const u8>() && REALLOC_ALIGN.is_power_of_two());
     }

@@ -5,7 +5,7 @@ error[E0599]: no method named `set_value` found for struct `Unaligned32Ref<'a>` 
   |                                        ^^^^^^^^^
   |
 help: there is a method `value` with a similar name, but with different arguments
- --> src/libavutil/libavutil/intreadwrite.rs
+ --> src/libavutil/libavutil/intreadwrite_h.rs
   |
   |     pub fn value(&self) -> u32 {
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^

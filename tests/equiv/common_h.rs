@@ -10,10 +10,9 @@
 
 use core::ffi::c_int;
 
-use ffmpeg_bindings::libavutil::libavutil::common::{
+use ffmpeg_bindings::libavutil::libavutil::common_h::{
     ceil_log2, clamp_f32, clamp_f64, clamp_i32, clamp_i64, clamp_to_i8, clamp_to_i16, clamp_to_i32,
-    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, log2, log2_16bit,
-    parity, zero_extend,
+    clamp_to_signed_pow2, clamp_to_u8, clamp_to_u16, clamp_to_unsigned_pow2, parity, zero_extend,
 };
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 
@@ -192,7 +191,7 @@ fn chained_zero_extends_agree_after_every_step() {
 /// Equivalence of `libavutil/common.h`'s native bit-count and saturating
 /// arithmetic with the C `static inline` bodies they replace.
 mod count_and_saturate {
-    use ffmpeg_bindings::libavutil::libavutil::common::{
+    use ffmpeg_bindings::libavutil::libavutil::common_h::{
         count_ones, count_ones64, saturating_add_doubled32, saturating_add32, saturating_add64,
         saturating_sub_doubled32, saturating_sub32, saturating_sub64,
     };
@@ -312,7 +311,7 @@ mod count_and_saturate {
 }
 
 /// Values at every bit boundary, their neighbours, and a spread between.
-fn u32_edges() -> Vec<u32> {
+pub(crate) fn u32_edges() -> Vec<u32> {
     let mut v = vec![0, 1, 2, 3, u32::MAX, u32::MAX - 1, 0x5555_5555, 0xAAAA_AAAA];
     for bit in 0..32 {
         let p = 1u32 << bit;
@@ -320,27 +319,6 @@ fn u32_edges() -> Vec<u32> {
     }
     v.extend((0..4096).map(|i: u32| i.wrapping_mul(0x9E37_79B9)));
     v
-}
-
-#[test]
-#[cfg_attr(miri, ignore = "calls C")]
-fn log2_matches_av_log2() {
-    for v in u32_edges() {
-        // SAFETY: `av_log2` takes its argument by value.
-        let c = unsafe { ffi::av_log2(v) };
-        assert_eq!(log2(v) as c_int, c, "{v:#x}");
-    }
-}
-
-#[test]
-#[cfg_attr(miri, ignore = "calls C")]
-fn log2_16bit_matches_av_log2_16bit_on_every_value() {
-    for v in 0..=u16::MAX {
-        // SAFETY: `av_log2_16bit` takes its argument by value; it is below
-        // 2^16.
-        let c = unsafe { ffi::av_log2_16bit(v.into()) };
-        assert_eq!(log2_16bit(v) as c_int, c, "{v:#x}");
-    }
 }
 
 #[test]

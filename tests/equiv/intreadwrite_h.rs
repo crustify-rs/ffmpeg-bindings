@@ -41,7 +41,7 @@ use core::mem::{align_of, offset_of, size_of};
 
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{
+use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::{
     Alias16, Alias16Mut, Alias16Ref, Alias32, Alias32Mut, Alias32Ref, Alias64, Alias64Ref,
     Unaligned16, Unaligned16Mut, Unaligned16Ref, Unaligned32, Unaligned32Mut, Unaligned32Ref,
     Unaligned64, Unaligned64Mut, Unaligned64Ref,
@@ -956,7 +956,7 @@ fn alias64_write_sequences_match_c_after_each_step() {
 /// driven the same way, after each step.
 mod alias64_c_accessors {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::intreadwrite::{Alias64, Alias64Mut};
+    use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::{Alias64, Alias64Mut};
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapBox, HeapVec, alloc_cell_array_zeroed};
 
     use super::{Alias64Write, alias64_read_c, alias64_read_rust, alias64_write_c, alias64_writes};

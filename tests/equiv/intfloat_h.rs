@@ -12,7 +12,7 @@ use core::mem::{align_of, offset_of, size_of, size_of_val};
 
 use ffibox::CZeroable;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::intfloat::{
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::{
     IntFloat32, IntFloat64, IntFloat64Mut, IntFloat64Ref, double_from_bits, double_to_bits,
     float_from_bits, float_to_bits,
 };

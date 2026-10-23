@@ -16,7 +16,7 @@ use core::mem::MaybeUninit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::thread;
 
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::mem::{
     BackReferenceError, DynArray, FastBuffer, Heap, HeapBox, HeapString, HeapVec, StringHeap,
     ZeroedFastBuffer, alloc_array, alloc_array_from_fn, alloc_array_zeroed,

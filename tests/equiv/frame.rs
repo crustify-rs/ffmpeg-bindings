@@ -2418,7 +2418,6 @@ mod frame_type {
     use core::ffi::{CStr, c_int};
     use core::ptr;
 
-    use ffmpeg_bindings::libavutil::libavutil::avutil::PictureType;
     use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::ChannelLayout;
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
@@ -2431,6 +2430,7 @@ mod frame_type {
         AlphaMode, ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransfer,
     };
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::utils::PictureType;
 
     /// Where a plane pointer points: NULL, inside unified buffer `index`
     /// (`buf`, then `extended_buf`) at `offset`, or nowhere C allocated.

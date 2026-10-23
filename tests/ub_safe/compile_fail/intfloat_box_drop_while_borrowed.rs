@@ -1,5 +1,5 @@
 // Dropping a `HeapBox<IntFloat64>` while a handle to it lives is rejected.
-use ffmpeg_bindings::libavutil::libavutil::intfloat::IntFloat64;
+use ffmpeg_bindings::libavutil::libavutil::intfloat_h::IntFloat64;
 use ffmpeg_bindings::libavutil::libavutil::mem::HeapBox;
 
 fn main() {
