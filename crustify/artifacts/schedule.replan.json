@@ -9598,7 +9598,7 @@
               "defined_in": "libavutil/frame.h",
               "kind": "symbol",
               "field_anchors": [],
-              "home": "src/libavutil/libavutil/frame.rs"
+              "home": "src/libavutil/libavutil/side_data.rs"
             }
           ],
           "commits": []

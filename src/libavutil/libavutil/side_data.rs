@@ -818,6 +818,15 @@ impl SideDataMut<'_> {
 }
 
 impl SideDataArrayMut<'_> {
+    /// Wraps: `av_frame_side_data_get`
+    ///
+    /// The first entry of `kind`, in array order, writable; `None` when
+    /// there is none.
+    #[must_use]
+    pub fn find_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
+        self.as_mut().into_found(kind)
+    }
+
     /// Wraps: `av_frame_side_data_remove`
     ///
     /// Removes every entry of `kind`, freeing each with its buffer reference
@@ -974,7 +983,7 @@ impl SideDataArrayMut<'_> {
 impl<'a> SideDataArrayMut<'a> {
     /// [`find_mut`](Self::find_mut), lending the entry for the array's
     /// whole borrow.
-    pub(super) fn into_found(self, kind: SideDataType) -> Option<SideDataMut<'a>> {
+    fn into_found(self, kind: SideDataType) -> Option<SideDataMut<'a>> {
         // SAFETY: as the comment below states, for this part of the operation.
         let entries_read = unsafe { self.entries.read() };
         // SAFETY: as the comment below states, for this part of the operation.

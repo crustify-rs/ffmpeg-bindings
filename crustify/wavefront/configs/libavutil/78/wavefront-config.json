@@ -36,10 +36,6 @@
       {
         "name": "AVSideDataProps",
         "defined_in": "libavutil/frame.h"
-      },
-      {
-        "name": "av_frame_side_data_get",
-        "defined_in": "libavutil/frame.h"
       }
     ]
   }

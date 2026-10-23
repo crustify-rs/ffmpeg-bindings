@@ -1678,17 +1678,6 @@ impl SideDataMut<'_> {
     }
 }
 
-impl SideDataArrayMut<'_> {
-    /// Wraps: `av_frame_side_data_get`
-    ///
-    /// The first entry of `kind`, in array order, writable; `None` when
-    /// there is none.
-    #[must_use]
-    pub fn find_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
-        self.as_mut().into_found(kind)
-    }
-}
-
 /// `AVERROR(EINVAL)`.
 const EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
