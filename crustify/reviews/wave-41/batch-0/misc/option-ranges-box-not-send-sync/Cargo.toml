@@ -1,0 +1,15 @@
+[package]
+name = "option-ranges-box-not-send-sync"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[dependencies]
+ffmpeg = { package = "ffmpeg-bindings", path = "../../../../../.." }
+# A direct dependency only so that `DEP_AVUTIL_LIB_DIR` reaches `build.rs`,
+# which embeds the prebuilt library's rpath as the ffmpeg crate does for its
+# own tests.
+libavutil-sys = { path = "../../../../../../libavutil-sys" }

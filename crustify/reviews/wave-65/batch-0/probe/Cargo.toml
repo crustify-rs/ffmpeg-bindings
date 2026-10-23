@@ -1,0 +1,12 @@
+[package]
+name = "probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[dependencies]
+ffmpeg = { package = "ffmpeg-bindings", path = "../../../../..", default-features = false, features = ["libavutil"] }
+libavutil-sys = { path = "../../../../../libavutil-sys" }

@@ -1,0 +1,12 @@
+[package]
+name = "ffibox-cvec-clone-ignores-align"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+# ffibox lives outside the repository; the campaign workspace names it by the
+# same absolute path (the workspace's Cargo.toml).
+ffibox = { path = "/opt/venv/share/ffibox" }

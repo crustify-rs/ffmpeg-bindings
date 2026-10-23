@@ -1,0 +1,10 @@
+[package]
+name = "parse-ambisonic-int-max-order-overflow"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { package = "ffmpeg-bindings", path = "../../../../../.." }

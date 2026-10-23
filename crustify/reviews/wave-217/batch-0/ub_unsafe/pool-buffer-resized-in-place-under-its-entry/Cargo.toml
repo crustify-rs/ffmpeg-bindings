@@ -1,0 +1,10 @@
+[package]
+name = "pool-buffer-resized-in-place-under-its-entry"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg = { package = "ffmpeg-bindings", path = "../../../../../..", default-features = false, features = ["libavutil"] }
