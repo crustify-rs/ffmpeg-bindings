@@ -43,7 +43,7 @@ use core::hash::{Hash, Hasher};
 use core::ops::{BitAnd, BitOr, BitOrAssign, Range};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CPlainElem, CSlice, CSliceMut, CZeroable, define_ctype};
+use ffibox::{CMutSeam, CPlainElem, CRefSeam, CSlice, CSliceMut, CZeroable, define_ctype};
 
 use super::ffi;
 use super::imgutils::{Planes, PlanesMut};

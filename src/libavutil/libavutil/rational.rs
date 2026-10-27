@@ -34,7 +34,7 @@ use core::fmt;
 use core::ops::{Add, Div, Mul, Sub};
 use core::ptr::{addr_of, addr_of_mut};
 
-use ffibox::{CZeroable, define_ctype};
+use ffibox::{CMutSeam, CRefSeam, CZeroable, define_ctype};
 
 use super::ffi;
 

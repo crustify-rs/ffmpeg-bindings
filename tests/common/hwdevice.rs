@@ -22,7 +22,7 @@ use core::ffi::{c_char, c_int, c_void};
 use core::ptr::{addr_of, addr_of_mut, null, null_mut};
 use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 
-use ffibox::define_ctype;
+use ffibox::{CMutSeam, CRefSeam, define_ctype};
 
 use super::ffi;
 

@@ -5,7 +5,7 @@
 
 use core::ptr::{NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CBox, CNew, CSlice, CSliceMut, CZeroable, define_ctype};
+use ffibox::{CBox, CMutSeam, CNew, CRefSeam, CSlice, CSliceMut, CZeroable, define_ctype};
 
 use super::aes::CryptError;
 use super::ffi;

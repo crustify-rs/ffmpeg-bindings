@@ -19,6 +19,7 @@
 use core::ffi::{CStr, c_char, c_int};
 use core::ptr::{self, NonNull};
 
+use ffibox::{CMutSeam, CRefSeam};
 use glibc_bindings::libc::time::bits::types::struct_tm_h::{TmMut, TmRef};
 
 use super::opt::ObjectRef;
@@ -485,7 +486,7 @@ pub fn small_strptime<'s>(s: &'s CStr, fmt: &CStr, mut tm: TmMut<'_>) -> Option<
     // SAFETY: `s` and `fmt` are live NUL-terminated strings C only reads,
     // never past their NULs (a trailing `%` fails as it reads the NUL), and
     // `tm` a live `struct tm` of which C writes only integer fields.
-    let rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), tm.as_mut_tm_ptr()) };
+    let rest = unsafe { ffi::av_small_strptime(s.as_ptr(), fmt.as_ptr(), tm.as_mut_ptr().cast()) };
     // SAFETY: a non-NULL result points into `s`, at a byte C has not read
     // past or at its NUL, so it is a suffix of the same string, live for
     // `'s`.
@@ -544,7 +545,7 @@ pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
     // SAFETY: the shared handle covers a live `struct tm`, which C only
     // reads although its parameter is not `const`; `timegm_terms` checked
     // that none of C's `int` operations overflows.
-    Some(unsafe { ffi::av_timegm(tm.as_tm_ptr().cast_mut()) })
+    Some(unsafe { ffi::av_timegm(tm.as_ptr().cast_mut().cast()) })
 }
 
 /// Whether `av_parse_color(color)` (the whole string, `slen` of -1) reaches

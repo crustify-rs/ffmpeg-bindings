@@ -5,7 +5,7 @@
 //! it does not retain the input pointer. There is no C clone operation, and
 //! byte copying the opaque context would duplicate its owned hash pointer.
 
-use ffibox::{CBox, CPlainElem, define_ctype, impl_cdrop};
+use ffibox::{CBox, CMutSeam, CPlainElem, define_ctype, impl_cdrop};
 
 use super::ffi;
 

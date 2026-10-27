@@ -8,7 +8,7 @@
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-use ffibox::{CAlloc, CBox, CDrop, define_ctype, impl_cdrop};
+use ffibox::{CAlloc, CBox, CDrop, CMutSeam, CRefSeam, define_ctype, impl_cdrop};
 
 use super::aes::{CryptError, InitError, buffer_count};
 use super::ffi;

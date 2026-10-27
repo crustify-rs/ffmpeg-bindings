@@ -42,7 +42,7 @@ use core::mem::MaybeUninit;
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{fmt, slice};
 
-use ffibox::{CBox, CDrop, CDupClone, define_ctype};
+use ffibox::{CBox, CDrop, CDupClone, CMutSeam, CRefSeam, define_ctype};
 
 use super::ffi;
 use super::mem::HeapVec;

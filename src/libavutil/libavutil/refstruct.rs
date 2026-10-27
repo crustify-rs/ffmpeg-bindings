@@ -69,7 +69,10 @@ use core::mem::{MaybeUninit, align_of, size_of};
 use core::ops::{BitOr, BitOrAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CRefClone, CZeroable, define_ctype};
+use ffibox::{
+    CAlloc, CAllocZeroed, CArc, CBox, CCell, CDrop, CMutSeam, CRefClone, CRefSeam, CZeroable,
+    define_ctype,
+};
 
 use super::ffi;
 

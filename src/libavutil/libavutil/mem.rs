@@ -1175,7 +1175,7 @@ fn copy_back_reference_in_runs(
 mod unit_tests {
     use core::ffi::c_void;
 
-    use ffibox::{CLenClone, CLenDrop, define_ctype};
+    use ffibox::{CLenClone, CLenDrop, CMutSeam, CRefSeam, define_ctype};
 
     use super::*;
 

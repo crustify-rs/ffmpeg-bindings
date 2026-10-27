@@ -40,7 +40,7 @@ use core::ffi::{CStr, c_char, c_int, c_void};
 use core::{fmt, ptr};
 use std::panic::{self, AssertUnwindSafe};
 
-use ffibox::{CBox, define_ctype, impl_cdrop};
+use ffibox::{CBox, CMutSeam, CRefSeam, define_ctype, impl_cdrop};
 
 use super::ffi;
 use super::opt::{AVERROR_BUG, ObjectRef};

@@ -43,7 +43,7 @@ use core::ffi::{c_char, c_int, c_void};
 use core::mem::{size_of, zeroed};
 use core::ptr::{self, null_mut};
 
-use ffibox::define_ctype;
+use ffibox::{CMutSeam, CRefSeam, define_ctype};
 
 use super::ffi;
 

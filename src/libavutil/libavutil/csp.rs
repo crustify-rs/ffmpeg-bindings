@@ -41,7 +41,7 @@
 use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
 
-use ffibox::{CZeroable, define_ctype};
+use ffibox::{CMutSeam, CRefSeam, CZeroable, define_ctype};
 
 use super::ffi;
 use super::pixdesc::{ColorPrimaries, ColorSpace, ColorTransfer};

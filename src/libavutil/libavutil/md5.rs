@@ -6,7 +6,7 @@
 
 use core::ptr::NonNull;
 
-use ffibox::{CBox, CDrop, CNew, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CNew, define_ctype};
 
 use super::ffi;
 
@@ -139,6 +139,8 @@ pub fn sum(input: &[u8]) -> [u8; 16] {
 
 #[cfg(test)]
 mod unit_tests {
+    use ffibox::CRefSeam;
+
     use super::*;
 
     #[test]

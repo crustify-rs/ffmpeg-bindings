@@ -57,7 +57,7 @@ use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ptr::{self, addr_of, addr_of_mut};
 
-use ffibox::{CZeroable, define_ctype};
+use ffibox::{CMutSeam, CRefSeam, CZeroable, define_ctype};
 
 use super::ffi;
 

@@ -8,7 +8,7 @@ use core::fmt;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-use ffibox::{CAlloc, CBox, CDrop, define_ctype};
+use ffibox::{CAlloc, CBox, CDrop, CMutSeam, define_ctype};
 
 use super::ffi;
 use super::mem::Heap;

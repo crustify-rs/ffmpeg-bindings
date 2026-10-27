@@ -35,7 +35,7 @@ use core::marker::PhantomData;
 use core::mem::{align_of, offset_of, size_of};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CBox, CCell, CDrop, CZeroable, define_ctype, impl_cdrop};
+use ffibox::{CBox, CCell, CDrop, CMutSeam, CRefSeam, CZeroable, define_ctype, impl_cdrop};
 use glibc_bindings::libc::time::bits::types::struct_tm_h::TmRef;
 
 use super::avstring::{EscapeFlags, EscapeMode, text_until_nul};
@@ -1033,7 +1033,7 @@ impl BPrintMut<'_> {
         // NUL-terminated string and `tm` a live `struct tm` whose `tm_zone`
         // is NULL or a `'static` string (`Tm`'s invariant), which C and
         // `strftime` only read during the call.
-        unsafe { ffi::av_bprint_strftime(self.as_mut_ptr(), fmt.as_ptr(), tm.as_tm_ptr()) }
+        unsafe { ffi::av_bprint_strftime(self.as_mut_ptr(), fmt.as_ptr(), tm.as_ptr().cast()) }
     }
 
     /// Wraps: `av_bprint_get_buffer`

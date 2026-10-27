@@ -45,7 +45,9 @@ use core::marker::PhantomData;
 use core::ops::{BitAnd, BitOr, BitOrAssign, Sub};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CBox, CCell, CDrop, CDupClone, CNew, CPlainElem, CSlice, define_ctype};
+use ffibox::{
+    CBox, CCell, CDrop, CDupClone, CMutSeam, CNew, CPlainElem, CRefSeam, CSlice, define_ctype,
+};
 
 use super::buffer::{
     BufferPoolBox, BufferPoolRef, BufferReferenceRef, ENOMEM, MAX_REFERENCES, may_add_reference,

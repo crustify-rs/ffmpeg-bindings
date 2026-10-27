@@ -2,6 +2,8 @@
 
 use core::ffi::CStr;
 
+use ffibox::CRefSeam;
+
 use super::ffi;
 use super::rational::{Rational, RationalRef};
 

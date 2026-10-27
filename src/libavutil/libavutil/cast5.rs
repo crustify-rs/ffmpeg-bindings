@@ -6,7 +6,7 @@
 use core::fmt;
 use core::ptr::NonNull;
 
-use ffibox::{CBox, CDrop, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CRefSeam, define_ctype};
 
 use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;

@@ -24,7 +24,7 @@ use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::marker::PhantomData;
 use core::mem::{MaybeUninit, size_of};
 
-use ffibox::{CZeroable, define_ctype};
+use ffibox::{CMutSeam, CZeroable, define_ctype};
 use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mem::{
     BackReferenceError, DynArray, FastBuffer, HeapBox, HeapString, HeapVec, ZeroedFastBuffer,

@@ -14,6 +14,8 @@ use core::ops::{BitOr, BitOrAssign, Range};
 use core::ptr::{self, NonNull, addr_of_mut};
 use core::{fmt, slice};
 
+use ffibox::{CMutSeam, CRefSeam};
+
 use super::buffer::{BufferReference, BufferReferenceBox, ENOMEM, may_add_reference};
 use super::dict::{Dict, DictionaryBox};
 use super::ffi;

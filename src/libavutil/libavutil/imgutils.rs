@@ -28,6 +28,8 @@ use core::mem::MaybeUninit;
 use core::ops::Range;
 use core::{fmt, ptr};
 
+use ffibox::CRefSeam;
+
 use super::ffi;
 use super::mem::HeapVec;
 use super::opt::ObjectRef;

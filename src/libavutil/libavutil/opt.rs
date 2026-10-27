@@ -67,7 +67,7 @@ use core::ops::BitOr;
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use std::ffi::CString;
 
-use ffibox::{CBox, CDrop, CSlice, CZeroable, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CRefSeam, CSlice, CZeroable, define_ctype};
 
 use super::channel_layout::{ChannelLayout, ChannelLayoutRef, ChannelLayoutVal};
 use super::dict::{Dict, DictionaryBox, DictionaryRef};

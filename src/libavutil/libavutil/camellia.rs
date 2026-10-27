@@ -10,7 +10,7 @@
 use core::ptr::NonNull;
 use std::sync::{Mutex, MutexGuard};
 
-use ffibox::{CBox, CDrop, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CRefSeam, define_ctype};
 
 use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;

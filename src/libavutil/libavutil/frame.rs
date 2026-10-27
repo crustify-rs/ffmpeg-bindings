@@ -53,7 +53,7 @@ use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{fmt, slice};
 
-use ffibox::{CBox, CNew, CPlainElem, CZeroable, define_ctype, impl_cdrop};
+use ffibox::{CBox, CMutSeam, CNew, CPlainElem, CRefSeam, CZeroable, define_ctype, impl_cdrop};
 
 use super::buffer::{BufferReferenceBox, BufferReferenceRef, ENOMEM, may_add_reference};
 use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};

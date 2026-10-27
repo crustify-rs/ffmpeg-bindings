@@ -47,7 +47,7 @@ use core::iter::FusedIterator;
 use core::ops::{BitOr, BitOrAssign};
 use core::ptr::{self, NonNull, addr_of};
 
-use ffibox::{CBox, CDrop, CDupClone, define_ctype};
+use ffibox::{CBox, CDrop, CDupClone, CRefSeam, define_ctype};
 
 use super::ffi;
 use super::mem::HeapString;
@@ -856,6 +856,8 @@ mod unit_tests {
     use core::ffi::c_char;
     use std::ffi::CString;
     use std::panic::catch_unwind;
+
+    use ffibox::CMutSeam;
 
     use super::*;
 

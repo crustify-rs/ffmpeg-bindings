@@ -5,7 +5,7 @@
 
 use core::ptr::NonNull;
 
-use ffibox::{CBox, CDrop, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, define_ctype};
 
 use super::ffi;
 use super::mem::Heap;

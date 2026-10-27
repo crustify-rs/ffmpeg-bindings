@@ -36,7 +36,9 @@ use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{cmp, fmt};
 use std::ffi::CString;
 
-use ffibox::{CPlainElem, CSlice, CSliceMut, CVal, CZeroable, define_ctype, impl_cdispose};
+use ffibox::{
+    CMutSeam, CPlainElem, CRefSeam, CSlice, CSliceMut, CVal, CZeroable, define_ctype, impl_cdispose,
+};
 
 use super::bprint::BPrintMut;
 use super::ffi;

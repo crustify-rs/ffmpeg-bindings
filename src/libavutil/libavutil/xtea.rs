@@ -13,7 +13,7 @@
 use core::marker::PhantomData;
 use core::ptr::{NonNull, addr_of, addr_of_mut};
 
-use ffibox::{CNew, CZeroable, define_ctype};
+use ffibox::{CMutSeam, CNew, CRefSeam, CZeroable, define_ctype};
 
 use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;

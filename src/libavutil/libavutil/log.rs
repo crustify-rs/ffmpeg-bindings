@@ -35,7 +35,7 @@ use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of};
 use std::ffi::CString;
 
-use ffibox::{CSlice, define_ctype};
+use ffibox::{CRefSeam, CSlice, define_ctype};
 
 use super::avstring::text_until_nul;
 use super::ffi;

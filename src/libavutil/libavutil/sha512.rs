@@ -10,7 +10,7 @@
 use core::fmt;
 use core::ptr::NonNull;
 
-use ffibox::{CBox, CDrop, CNew, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CNew, CRefSeam, define_ctype};
 
 use super::ffi;
 use super::mem::Heap;

@@ -7,7 +7,7 @@
 use core::ffi::{CStr, c_int};
 use core::ptr::{self, NonNull};
 
-use ffibox::{CBox, CDrop, define_ctype};
+use ffibox::{CBox, CDrop, CMutSeam, CRefSeam, define_ctype};
 
 use super::ffi;
 
