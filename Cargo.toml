@@ -60,7 +60,7 @@ publish = false
 [workspace.dependencies]
 bindgen = { version = "0.73", features = ["experimental"] }
 cc = "1.5"
-ffibox = { path = "/opt/venv/share/ffibox" }
+ffibox = { git = "https://github.com/crustify-rs/ffibox", rev = "203b1a05269bdd549459a80d5d58d6c2f2689d01" }
 serde_json = "1"
 trybuild = "1"
 libavutil-sys = { path = "libavutil-sys" }
@@ -73,10 +73,15 @@ libavdevice-sys = { path = "libavdevice-sys" }
 # Wrappers of the out-of-tree libraries, each pinned to its side campaign's working branch
 # (`wrapper.pin` in crustify/artifacts/dependencies.json), and patched below to its clone
 # beside this repository while the campaign extends it.
-glibc-bindings = { git = "https://github.com/crustify-rs/glibc-bindings", rev = "b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc" }
+glibc-bindings = { git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
 
 [patch."https://github.com/crustify-rs/glibc-bindings"]
 glibc-bindings = { path = "../glibc-bindings" }
+
+# ffibox is pinned by Git so that this crate and the wrappers it takes by Git
+# resolve one copy of it; patched to the local checkout while the campaign runs.
+[patch."https://github.com/crustify-rs/ffibox"]
+ffibox = { path = "/opt/venv/share/ffibox" }
 
 [workspace.metadata.crustify]
 nightly = "nightly-2026-10-08"

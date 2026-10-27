@@ -10,4 +10,4 @@ build = "build.rs"
 [dependencies]
 ffmpeg = { package = "ffmpeg-bindings", path = "../../../../..", default-features = false, features = ["libavutil"] }
 libavutil-sys = { path = "../../../../../libavutil-sys" }
-glibc-bindings = { git = "https://github.com/crustify-rs/glibc-bindings", rev = "b7d01b0f5958c799b8f4677c4a6ecd95748fe6dc" }
+glibc-bindings = { git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
