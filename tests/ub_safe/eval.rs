@@ -80,7 +80,7 @@ fn rest_is_a_suffix_of_the_input() {
 /// while the byte C reads lies inside the live string (`ASan` agrees). The
 /// exhaustive sweeps skip under `BSan`; the listed inputs still run.
 fn under_bsan() -> bool {
-    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
 }
 
 /// Every string of up to three bytes over the bytes that steer C's suffix
@@ -171,7 +171,7 @@ mod expr {
     /// `av_expr_parse` calls from pure C, the second from a deeper frame, trip it
     /// at some depths. The tests that parse return early under it.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     fn parse(s: &CStr) -> Result<ExprBox, i32> {
@@ -442,7 +442,7 @@ mod expressions {
     const EINVAL: i32 = -22;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     fn eval(e: &str) -> Result<f64, i32> {
@@ -730,7 +730,7 @@ mod parse_with_context {
     /// Whether this run is under `BSan`, which misreports C's parser (see
     /// `expr::under_bsan`). The tests that parse return early under it.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     extern "C" fn twice(_: *mut c_void, x: f64) -> f64 {
@@ -831,7 +831,7 @@ mod expression {
 
     /// As the other modules: `BSan` misreports C's number parse.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     extern "C" fn plus_one(_: *mut c_void, x: f64) -> f64 {

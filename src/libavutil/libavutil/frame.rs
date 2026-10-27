@@ -109,115 +109,102 @@ pub struct SideDataType(ffi::AVFrameSideDataType);
 
 impl SideDataType {
     /// ATSC A53 Part 4 closed captions: the CC bitstream as bytes.
-    pub const A53_CC: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_A53_CC);
+    pub const A53_CC: Self = Self(ffi::AV_FRAME_DATA_A53_CC);
     /// Active Format Description: one byte holding an
     /// `AVActiveFormatDescription`, as ETSI TS 101 154 specifies.
-    pub const AFD: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD);
+    pub const AFD: Self = Self(ffi::AV_FRAME_DATA_AFD);
     /// Ambient viewing environment metadata, as H.274 defines it.
     pub const AMBIENT_VIEWING_ENVIRONMENT: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT);
+        Self(ffi::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT);
     /// An audio frame's `AVAudioServiceType` (`libavcodec/avcodec.h`).
-    pub const AUDIO_SERVICE_TYPE: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_AUDIO_SERVICE_TYPE);
+    pub const AUDIO_SERVICE_TYPE: Self = Self(ffi::AV_FRAME_DATA_AUDIO_SERVICE_TYPE);
     /// Content light level (CTA-861.3), an `AVContentLightMetadata`.
-    pub const CONTENT_LIGHT_LEVEL: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+    pub const CONTENT_LIGHT_LEVEL: Self = Self(ffi::AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
     /// Object detection and classification bounding boxes, an
     /// `AVDetectionBBoxHeader`.
-    pub const DETECTION_BBOXES: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DETECTION_BBOXES);
+    pub const DETECTION_BBOXES: Self = Self(ffi::AV_FRAME_DATA_DETECTION_BBOXES);
     /// A 3x3 affine transformation matrix to apply for correct presentation
     /// (`libavutil/display.h`).
-    pub const DISPLAY_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DISPLAYMATRIX);
+    pub const DISPLAY_MATRIX: Self = Self(ffi::AV_FRAME_DATA_DISPLAYMATRIX);
     /// Parsed Dolby Vision metadata, an `AVDOVIMetadata`
     /// (`libavutil/dovi_meta.h`).
-    pub const DOVI_METADATA: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOVI_METADATA);
+    pub const DOVI_METADATA: Self = Self(ffi::AV_FRAME_DATA_DOVI_METADATA);
     /// Raw Dolby Vision RPU bytes, NAL emulation bytes intact.
-    pub const DOVI_RPU_BUFFER: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOVI_RPU_BUFFER);
+    pub const DOVI_RPU_BUFFER: Self = Self(ffi::AV_FRAME_DATA_DOVI_RPU_BUFFER);
     /// Metadata for a downmix procedure, an `AVDownmixInfo`
     /// (`libavutil/downmix_info.h`).
-    pub const DOWNMIX_INFO: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_INFO);
+    pub const DOWNMIX_INFO: Self = Self(ffi::AV_FRAME_DATA_DOWNMIX_INFO);
     /// A downmix remixing matrix, an `AVDownmixMatrix`
     /// (`libavutil/downmix_info.h`).
-    pub const DOWNMIX_MATRIX: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX);
+    pub const DOWNMIX_MATRIX: Self = Self(ffi::AV_FRAME_DATA_DOWNMIX_MATRIX);
     /// HDR10+ dynamic metadata (SMPTE 2094-40), an `AVDynamicHDRPlus`.
-    pub const DYNAMIC_HDR_PLUS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
+    pub const DYNAMIC_HDR_PLUS: Self = Self(ffi::AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
     /// HDR dynamic metadata (SMPTE 2094-50), an `AVDynamicHDRSmpte2094App5`.
     pub const DYNAMIC_HDR_SMPTE_2094_APP5: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5);
+        Self(ffi::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5);
     /// HDR Vivid dynamic metadata (CUVA 005.1-2021), an `AVDynamicHDRVivid`.
-    pub const DYNAMIC_HDR_VIVID: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_DYNAMIC_HDR_VIVID);
+    pub const DYNAMIC_HDR_VIVID: Self = Self(ffi::AV_FRAME_DATA_DYNAMIC_HDR_VIVID);
     /// EXIF metadata bytes, starting with a TIFF header's byte-order mark.
-    pub const EXIF: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_EXIF);
+    pub const EXIF: Self = Self(ffi::AV_FRAME_DATA_EXIF);
     /// Film grain parameters, an `AVFilmGrainParams`; a frame may carry
     /// several alternative sets.
-    pub const FILM_GRAIN_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_FILM_GRAIN_PARAMS);
+    pub const FILM_GRAIN_PARAMS: Self = Self(ffi::AV_FRAME_DATA_FILM_GRAIN_PARAMS);
     /// The GOP timecode in 25-bit timecode format, as a 64-bit integer.
-    pub const GOP_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_GOP_TIMECODE);
+    pub const GOP_TIMECODE: Self = Self(ffi::AV_FRAME_DATA_GOP_TIMECODE);
     /// IAMF demixing info parameter data, an `AVIAMFParamDefinition`.
-    pub const IAMF_DEMIXING_INFO_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM);
+    pub const IAMF_DEMIXING_INFO_PARAM: Self = Self(ffi::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM);
     /// IAMF mix gain parameter data, an `AVIAMFParamDefinition`.
-    pub const IAMF_MIX_GAIN_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM);
+    pub const IAMF_MIX_GAIN_PARAM: Self = Self(ffi::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM);
     /// IAMF recon gain info parameter data, an `AVIAMFParamDefinition`.
     pub const IAMF_RECON_GAIN_INFO_PARAM: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM);
+        Self(ffi::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM);
     /// An ICC profile (ISO 15076-1) as opaque bytes, optionally named by the
     /// side data's `name` metadata entry.
-    pub const ICC_PROFILE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_ICC_PROFILE);
+    pub const ICC_PROFILE: Self = Self(ffi::AV_FRAME_DATA_ICC_PROFILE);
     /// Raw LCEVC payload bytes, NAL emulation bytes intact.
-    pub const LCEVC: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_LCEVC);
+    pub const LCEVC: Self = Self(ffi::AV_FRAME_DATA_LCEVC);
     /// Mastering display color volume, an `AVMasteringDisplayMetadata`.
     pub const MASTERING_DISPLAY_METADATA: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+        Self(ffi::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
     /// An `AVMatrixEncoding` value
     /// ([`MatrixEncoding`](super::channel_layout::MatrixEncoding)).
-    pub const MATRIX_ENCODING: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MATRIXENCODING);
+    pub const MATRIX_ENCODING: Self = Self(ffi::AV_FRAME_DATA_MATRIXENCODING);
     /// Motion vectors exported by some codecs, `AVMotionVector`s
     /// (`libavutil/motion_vector.h`).
-    pub const MOTION_VECTORS: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_MOTION_VECTORS);
+    pub const MOTION_VECTORS: Self = Self(ffi::AV_FRAME_DATA_MOTION_VECTORS);
     /// The `AVPanScan` struct defined in libavcodec.
-    pub const PAN_SCAN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN);
+    pub const PAN_SCAN: Self = Self(ffi::AV_FRAME_DATA_PANSCAN);
     /// Color information from a RAW camera codec, an `AVRawColorParams`
     /// (`libavutil/raw_color_params.h`).
-    pub const RAW_COLOR_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_RAW_COLOR_PARAMS);
+    pub const RAW_COLOR_PARAMS: Self = Self(ffi::AV_FRAME_DATA_RAW_COLOR_PARAMS);
     /// 3D reference display widths, viewing distances and stereo pairs, an
     /// `AV3DReferenceDisplaysInfo` (`libavutil/tdrdi.h`;
     /// `AV_FRAME_DATA_3D_REFERENCE_DISPLAYS`).
-    pub const REFERENCE_DISPLAYS_3D: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_3D_REFERENCE_DISPLAYS);
+    pub const REFERENCE_DISPLAYS_3D: Self = Self(ffi::AV_FRAME_DATA_3D_REFERENCE_DISPLAYS);
     /// Regions of interest, an array of `AVRegionOfInterest` whose length is
     /// the payload size over the first element's `self_size`.
-    pub const REGIONS_OF_INTEREST: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REGIONS_OF_INTEREST);
+    pub const REGIONS_OF_INTEREST: Self = Self(ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST);
     /// `ReplayGain` information, an `AVReplayGain`.
-    pub const REPLAY_GAIN: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_REPLAYGAIN);
+    pub const REPLAY_GAIN: Self = Self(ffi::AV_FRAME_DATA_REPLAYGAIN);
     /// SMPTE ST 12-1 timecodes: four `u32`, the first counting how many (1-3)
     /// of the others are used.
-    pub const S12M_TIMECODE: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_S12M_TIMECODE);
+    pub const S12M_TIMECODE: Self = Self(ffi::AV_FRAME_DATA_S12M_TIMECODE);
     /// An H.264 or H.265 user data unregistered SEI message: a 16-byte UUID
     /// followed by the payload bytes.
-    pub const SEI_UNREGISTERED: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SEI_UNREGISTERED);
+    pub const SEI_UNREGISTERED: Self = Self(ffi::AV_FRAME_DATA_SEI_UNREGISTERED);
     /// The number of samples to skip from the start and end of the frame,
     /// laid out as `AV_PKT_DATA_SKIP_SAMPLES`.
-    pub const SKIP_SAMPLES: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SKIP_SAMPLES);
+    pub const SKIP_SAMPLES: Self = Self(ffi::AV_FRAME_DATA_SKIP_SAMPLES);
     /// An `AVSphericalMapping` (`libavutil/spherical.h`).
-    pub const SPHERICAL: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_SPHERICAL);
+    pub const SPHERICAL: Self = Self(ffi::AV_FRAME_DATA_SPHERICAL);
     /// Stereoscopic 3D metadata, an `AVStereo3D` (`libavutil/stereo3d.h`).
-    pub const STEREO_3D: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_STEREO3D);
+    pub const STEREO_3D: Self = Self(ffi::AV_FRAME_DATA_STEREO3D);
     /// Encoding parameters of a video frame, an `AVVideoEncParams`.
-    pub const VIDEO_ENC_PARAMS: Self =
-        Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_ENC_PARAMS);
+    pub const VIDEO_ENC_PARAMS: Self = Self(ffi::AV_FRAME_DATA_VIDEO_ENC_PARAMS);
     /// Encoder hints about the changed and unchanged parts of a frame.
-    pub const VIDEO_HINT: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIDEO_HINT);
+    pub const VIDEO_HINT: Self = Self(ffi::AV_FRAME_DATA_VIDEO_HINT);
     /// The view ID of a multi-view video frame, as an `int`.
-    pub const VIEW_ID: Self = Self(ffi::AVFrameSideDataType::AV_FRAME_DATA_VIEW_ID);
+    pub const VIEW_ID: Self = Self(ffi::AV_FRAME_DATA_VIEW_ID);
 
     /// The side data type C encodes as `raw`, whatever its value.
     #[inline]
@@ -283,7 +270,7 @@ impl fmt::Debug for SideDataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("SideDataType").field(&self.0.0).finish(),
+            None => f.debug_tuple("SideDataType").field(&self.0).finish(),
         }
     }
 }
@@ -345,22 +332,22 @@ pub struct ActiveFormatDescription(ffi::AVActiveFormatDescription);
 
 impl ActiveFormatDescription {
     /// A 14:9 image, centred in the coded frame (code `1011`).
-    pub const ASPECT_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_14_9);
+    pub const ASPECT_14_9: Self = Self(ffi::AV_AFD_14_9);
     /// A 16:9 image, centred in the coded frame (code `1010`).
-    pub const ASPECT_16_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9);
+    pub const ASPECT_16_9: Self = Self(ffi::AV_AFD_16_9);
     /// A 16:9 image whose centred 14:9 part is safe to show alone (code
     /// `1110`).
-    pub const ASPECT_16_9_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_16_9_SP_14_9);
+    pub const ASPECT_16_9_SP_14_9: Self = Self(ffi::AV_AFD_16_9_SP_14_9);
     /// A 4:3 image, centred in the coded frame (code `1001`).
-    pub const ASPECT_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3);
+    pub const ASPECT_4_3: Self = Self(ffi::AV_AFD_4_3);
     /// A 4:3 image whose centred 14:9 part is safe to show alone (code
     /// `1101`).
-    pub const ASPECT_4_3_SP_14_9: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_4_3_SP_14_9);
+    pub const ASPECT_4_3_SP_14_9: Self = Self(ffi::AV_AFD_4_3_SP_14_9);
     /// The image fills the coded frame (code `1000`).
-    pub const SAME: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SAME);
+    pub const SAME: Self = Self(ffi::AV_AFD_SAME);
     /// A 16:9 image whose centred 4:3 part is safe to show alone (code
     /// `1111`).
-    pub const SP_4_3: Self = Self(ffi::AVActiveFormatDescription::AV_AFD_SP_4_3);
+    pub const SP_4_3: Self = Self(ffi::AV_AFD_SP_4_3);
 
     /// The description C encodes as `raw`, whatever its value.
     #[inline]
@@ -381,7 +368,7 @@ impl ActiveFormatDescription {
     #[inline]
     #[must_use]
     pub const fn from_byte(byte: u8) -> Self {
-        Self(ffi::AVActiveFormatDescription(byte as _))
+        Self(byte as _)
     }
 
     /// This description as a side-data payload byte, or `None` for a value
@@ -393,8 +380,8 @@ impl ActiveFormatDescription {
         reason = "checked to fit a byte just above"
     )]
     pub const fn to_byte(self) -> Option<u8> {
-        if self.0.0 <= u8::MAX as _ {
-            Some(self.0.0 as u8)
+        if self.0 <= u8::MAX as _ {
+            Some(self.0 as u8)
         } else {
             None
         }
@@ -421,7 +408,7 @@ impl fmt::Debug for ActiveFormatDescription {
             Some(name) => f.write_str(name),
             None => f
                 .debug_tuple("ActiveFormatDescription")
-                .field(&self.0.0)
+                .field(&self.0)
                 .finish(),
         }
     }
@@ -476,15 +463,14 @@ pub struct SideDataProps(ffi::AVSideDataProps);
 impl SideDataProps {
     /// The side data depends on the channel layout, and loses its meaning
     /// when the audio is downmixed or upmixed unless recomputed or adjusted.
-    pub const CHANNEL_DEPENDENT: Self =
-        Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT);
+    pub const CHANNEL_DEPENDENT: Self = Self(ffi::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT);
     /// The side data depends on the video color space, and loses its meaning
     /// when the color encoding changes (other primaries or transfer
     /// characteristics).
-    pub const COLOR_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_COLOR_DEPENDENT);
+    pub const COLOR_DEPENDENT: Self = Self(ffi::AV_SIDE_DATA_PROP_COLOR_DEPENDENT);
     /// The side data type can be used in stream-global structures; types
     /// without it are only meaningful per frame.
-    pub const GLOBAL: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL);
+    pub const GLOBAL: Self = Self(ffi::AV_SIDE_DATA_PROP_GLOBAL);
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 5] = [
         (Self::GLOBAL, "GLOBAL"),
@@ -495,10 +481,10 @@ impl SideDataProps {
     ];
     /// Several entries of the side data type can meaningfully be present in
     /// one side data array.
-    pub const MULTI: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_MULTI);
+    pub const MULTI: Self = Self(ffi::AV_SIDE_DATA_PROP_MULTI);
     /// The side data depends on the video dimensions, and loses its meaning
     /// when the image is rescaled or cropped unless recomputed or adjusted.
-    pub const SIZE_DEPENDENT: Self = Self(ffi::AVSideDataProps::AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
+    pub const SIZE_DEPENDENT: Self = Self(ffi::AV_SIDE_DATA_PROP_SIZE_DEPENDENT);
 
     /// The set with no flag.
     #[inline]
@@ -523,14 +509,14 @@ impl SideDataProps {
     #[inline]
     #[must_use]
     pub const fn bits(self) -> c_uint {
-        self.0.0
+        self.0
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
     #[must_use]
     pub const fn from_bits_retain(bits: c_uint) -> Self {
-        Self(ffi::AVSideDataProps(bits))
+        Self(bits)
     }
 
     /// The set with `bits`, or `None` when a bit has no constant.
@@ -2426,14 +2412,14 @@ impl<'a> FrameRef<'a> {
     /// [`PixelFormat::NONE`] when unknown.
     #[must_use]
     pub fn pixel_format(&self) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(self.format()))
+        PixelFormat::from_raw(self.format())
     }
 
     /// The format read as an audio frame's sample format;
     /// [`SampleFormat::NONE`] when unknown.
     #[must_use]
     pub fn sample_format(&self) -> SampleFormat {
-        SampleFormat::from_raw(ffi::AVSampleFormat(self.format()))
+        SampleFormat::from_raw(self.format())
     }
 
     /// Field: `AVFrame.pict_type`
@@ -3644,12 +3630,12 @@ impl FrameMut<'_> {
 
     /// Sets the format to a video frame's pixel format.
     pub fn set_pixel_format(&mut self, format: PixelFormat) {
-        self.set_format(format.into_raw().0);
+        self.set_format(format.into_raw());
     }
 
     /// Sets the format to an audio frame's sample format.
     pub fn set_sample_format(&mut self, format: SampleFormat) {
-        self.set_format(format.into_raw().0);
+        self.set_format(format.into_raw());
     }
 
     /// Field: `AVFrame.pict_type`
@@ -4465,7 +4451,7 @@ int_flags! {
         /// this way (or with planes placed at any offset by
         /// [`FrameMut::set_plane`]) to codecs or filters must check its
         /// alignment.
-        UNALIGNED = ffi::AV_FRAME_CROP_UNALIGNED.0,
+        UNALIGNED = ffi::AV_FRAME_CROP_UNALIGNED,
     }
 }
 
@@ -5778,7 +5764,7 @@ mod unit_tests {
         // C numbers its enumerators from 0 in declaration order; the table
         // lists them in that order, so each constant's value is its position.
         for (i, (t, _)) in NAMED.into_iter().enumerate() {
-            assert_eq!(t.into_raw().0 as usize, i, "{t:?}");
+            assert_eq!(t.into_raw() as usize, i, "{t:?}");
         }
     }
 
@@ -5792,7 +5778,7 @@ mod unit_tests {
     #[test]
     fn debug_shows_unnamed_values_raw() {
         for raw in [38, 39, 1 << 20, i32::MAX as u32, u32::MAX - 1, u32::MAX] {
-            let t = SideDataType::from_raw(ffi::AVFrameSideDataType(raw));
+            let t = SideDataType::from_raw(raw);
             assert_eq!(format!("{t:?}"), format!("SideDataType({raw})"));
         }
     }
@@ -5809,7 +5795,7 @@ mod unit_tests {
             i32::MIN.cast_unsigned(),
             u32::MAX,
         ] {
-            let c = ffi::AVFrameSideDataType(raw);
+            let c = raw;
             assert_eq!(SideDataType::from(c).into_raw(), c);
             assert_eq!(ffi::AVFrameSideDataType::from(SideDataType::from_raw(c)), c);
         }
@@ -5837,7 +5823,7 @@ mod unit_tests {
             )
             .collect();
         assert_eq!(set.len(), NAMED.len());
-        assert!(!set.contains(&SideDataType::from_raw(ffi::AVFrameSideDataType(38))));
+        assert!(!set.contains(&SideDataType::from_raw(38)));
     }
 
     /// Every named constant beside its name and its 4-bit code.
@@ -5862,7 +5848,7 @@ mod unit_tests {
     #[test]
     fn active_format_description_constants_are_the_named_codes() {
         for (afd, name, code) in AFD_NAMED {
-            assert_eq!(afd.into_raw().0, u32::from(code), "{name}");
+            assert_eq!(afd.into_raw(), u32::from(code), "{name}");
             assert_eq!(afd.to_byte(), Some(code), "{name}");
             assert_eq!(ActiveFormatDescription::from_byte(code), afd, "{name}");
             assert_eq!(format!("{afd:?}"), name);
@@ -5892,7 +5878,7 @@ mod unit_tests {
         for byte in 0..=u8::MAX {
             let afd = ActiveFormatDescription::from(byte);
             assert_eq!(afd, ActiveFormatDescription::from_byte(byte));
-            assert_eq!(afd.into_raw().0, u32::from(byte));
+            assert_eq!(afd.into_raw(), u32::from(byte));
             assert_eq!(afd.to_byte(), Some(byte));
             assert_eq!(
                 afd.constant_name().is_some(),
@@ -5904,10 +5890,10 @@ mod unit_tests {
     #[test]
     fn active_format_description_values_past_a_byte_have_no_byte() {
         for raw in [256, 0x1_08, i32::MAX as u32, u32::MAX] {
-            let afd = ActiveFormatDescription::from_raw(ffi::AVActiveFormatDescription(raw));
+            let afd = ActiveFormatDescription::from_raw(raw);
             assert_eq!(afd.to_byte(), None, "{raw}");
             assert_eq!(afd.constant_name(), None, "{raw}");
-            assert_eq!(afd.into_raw().0, raw);
+            assert_eq!(afd.into_raw(), raw);
             let back: ffi::AVActiveFormatDescription = afd.into();
             assert_eq!(ActiveFormatDescription::from(back), afd);
             assert_eq!(
@@ -5963,13 +5949,10 @@ mod unit_tests {
         let bits: Vec<c_uint> = SideDataProps::KNOWN.iter().map(|(p, _)| p.bits()).collect();
         assert_eq!(bits, [1, 2, 4, 8, 16]);
         assert_eq!(SideDataProps::all().bits(), 0x1F);
-        assert_eq!(
-            SideDataProps::GLOBAL.bits(),
-            ffi::AVSideDataProps::AV_SIDE_DATA_PROP_GLOBAL.0
-        );
+        assert_eq!(SideDataProps::GLOBAL.bits(), ffi::AV_SIDE_DATA_PROP_GLOBAL);
         assert_eq!(
             SideDataProps::CHANNEL_DEPENDENT.bits(),
-            ffi::AVSideDataProps::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT.0
+            ffi::AV_SIDE_DATA_PROP_CHANNEL_DEPENDENT
         );
     }
 
@@ -5991,7 +5974,7 @@ mod unit_tests {
             c_uint::MAX
         );
         let raw: ffi::AVSideDataProps = SideDataProps::from_bits_retain(0x8000_0005).into();
-        assert_eq!(raw.0, 0x8000_0005);
+        assert_eq!(raw, 0x8000_0005);
         assert_eq!(SideDataProps::from(raw).bits(), 0x8000_0005);
     }
 
@@ -6917,8 +6900,7 @@ mod unit_tests {
                 .unwrap();
         }
         let mut g = Frame::new().unwrap();
-        g.as_mut()
-            .set_format(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0);
+        g.as_mut().set_format(ffi::AV_PIX_FMT_GRAY8);
         g.as_mut().set_width(64);
         g.as_mut().set_height(64);
         let set_limit = |n: usize| {

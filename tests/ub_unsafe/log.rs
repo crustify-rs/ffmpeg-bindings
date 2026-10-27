@@ -139,7 +139,7 @@ unsafe extern "C" fn item_name(ctx: *mut c_void) -> *const c_char {
 
 /// Reports the highest category below `AV_CLASS_CATEGORY_NB`.
 unsafe extern "C" fn get_category(_: *mut c_void) -> ffi::AVClassCategory {
-    ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_INPUT
+    ffi::AV_CLASS_CATEGORY_DEVICE_INPUT
 }
 
 /// The classes the contexts use: plain, with callbacks, with a category C
@@ -151,7 +151,7 @@ fn classes() -> [ffi::AVClass; 5] {
         version: VERSION,
         log_level_offset_offset: offset_of!(Ctx, level_offset) as c_int,
         parent_log_context_offset: offset_of!(Ctx, parent) as c_int,
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER,
+        category: ffi::AV_CLASS_CATEGORY_MUXER,
         ..Default::default()
     };
     [
@@ -164,7 +164,7 @@ fn classes() -> [ffi::AVClass; 5] {
         },
         ffi::AVClass {
             class_name: c"bad-category".as_ptr(),
-            category: ffi::AVClassCategory(1000),
+            category: 1000,
             ..base
         },
         ffi::AVClass {
@@ -781,7 +781,7 @@ mod vlog {
 
     /// A category read from the context.
     unsafe extern "C" fn get_category(_ctx: *mut c_void) -> ffi::AVClassCategory {
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER
+        ffi::AV_CLASS_CATEGORY_FILTER
     }
 
     #[expect(
@@ -1194,7 +1194,7 @@ mod class_callbacks {
     unsafe extern "C" fn any_category(obj: *mut c_void) -> ffi::AVClassCategory {
         // SAFETY: `obj` is an `Obj`, whose first child slot holds the value.
         let v = unsafe { (*obj.cast::<Obj>()).children[0] }.addr();
-        ffi::AVClassCategory(v as u32)
+        v as u32
     }
 
     #[test]
@@ -1341,7 +1341,7 @@ mod default_category {
 
     static DEMUXER: Class = Class(ffi::AVClass {
         class_name: c"ub-unsafe-demuxer".as_ptr(),
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER,
+        category: ffi::AV_CLASS_CATEGORY_DEMUXER,
         // SAFETY: every other member is an integer, a nullable pointer or an
         // `Option` of a function pointer, for which all-zero is valid (NULL).
         ..unsafe { core::mem::zeroed() }
@@ -1418,7 +1418,7 @@ mod default_category {
         for v in values {
             let cls = Box::new(ffi::AVClass {
                 class_name: c"ub-unsafe-heap".as_ptr(),
-                category: ffi::AVClassCategory(v),
+                category: v,
                 ..Default::default()
             });
             let obj = Box::new(Obj::new(&raw const *cls));
@@ -1436,7 +1436,7 @@ mod default_category {
     fn object_class_switches_between_calls() {
         let other = ffi::AVClass {
             class_name: c"other".as_ptr(),
-            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
+            category: ffi::AV_CLASS_CATEGORY_ENCODER,
             ..Default::default()
         };
         let mut obj = Obj::new(&raw const DEMUXER.0);

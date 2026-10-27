@@ -14,7 +14,6 @@ use core::ffi::CStr;
 
 use ffmpeg_bindings::libavutil::libavutil::buffer::{BufferReference, BufferReferenceBox};
 use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
-use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
 use ffmpeg_bindings::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
 
@@ -96,8 +95,5 @@ pub(crate) const SAMPLE: [Spec<'static>; 6] = [
         (c"c", c"3"),
     ]),
     Spec::new(SideDataType::ICC_PROFILE, &[1, 2, 3, 4, 5, 6, 7]),
-    Spec::new(
-        SideDataType::from_raw(ffi::AVFrameSideDataType(u32::MAX)),
-        &[0xFF; 3],
-    ),
+    Spec::new(SideDataType::from_raw(u32::MAX), &[0xFF; 3]),
 ];

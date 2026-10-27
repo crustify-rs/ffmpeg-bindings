@@ -73,7 +73,7 @@ mod side_data_array_from_raw_parts {
             let kind = if i % 2 == 0 {
                 SideDataType::SEI_UNREGISTERED
             } else {
-                SideDataType::from_raw(ffi::AVFrameSideDataType(5000 + i as u32))
+                SideDataType::from_raw(5000 + i as u32)
             };
             push(
                 &mut parts,

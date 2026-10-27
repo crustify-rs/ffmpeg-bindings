@@ -49,7 +49,7 @@ fn options() -> [ffi::AVOption; 2] {
     let value = ffi::AVOption {
         name: c"value".as_ptr(),
         offset: offset_of!(Ctx, value) as c_int,
-        type_: ffi::AVOptionType::AV_OPT_TYPE_INT,
+        type_: ffi::AV_OPT_TYPE_INT,
         min: f64::from(c_int::MIN),
         max: f64::from(c_int::MAX),
         ..Default::default()
@@ -97,77 +97,47 @@ fn c_set_value(ctx: &mut Ctx, value: i64) -> (c_int, c_int) {
 
 /// Every category with a constant, against its raw C enumerator.
 const CATEGORIES: [(ClassCategory, ffi::AVClassCategory); 18] = [
-    (
-        ClassCategory::NA,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
-    ),
-    (
-        ClassCategory::INPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_INPUT,
-    ),
-    (
-        ClassCategory::OUTPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_OUTPUT,
-    ),
-    (
-        ClassCategory::MUXER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER,
-    ),
-    (
-        ClassCategory::DEMUXER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER,
-    ),
-    (
-        ClassCategory::ENCODER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
-    ),
-    (
-        ClassCategory::DECODER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER,
-    ),
-    (
-        ClassCategory::FILTER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER,
-    ),
+    (ClassCategory::NA, ffi::AV_CLASS_CATEGORY_NA),
+    (ClassCategory::INPUT, ffi::AV_CLASS_CATEGORY_INPUT),
+    (ClassCategory::OUTPUT, ffi::AV_CLASS_CATEGORY_OUTPUT),
+    (ClassCategory::MUXER, ffi::AV_CLASS_CATEGORY_MUXER),
+    (ClassCategory::DEMUXER, ffi::AV_CLASS_CATEGORY_DEMUXER),
+    (ClassCategory::ENCODER, ffi::AV_CLASS_CATEGORY_ENCODER),
+    (ClassCategory::DECODER, ffi::AV_CLASS_CATEGORY_DECODER),
+    (ClassCategory::FILTER, ffi::AV_CLASS_CATEGORY_FILTER),
     (
         ClassCategory::BITSTREAM_FILTER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_BITSTREAM_FILTER,
+        ffi::AV_CLASS_CATEGORY_BITSTREAM_FILTER,
     ),
-    (
-        ClassCategory::SWSCALER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_SWSCALER,
-    ),
+    (ClassCategory::SWSCALER, ffi::AV_CLASS_CATEGORY_SWSCALER),
     (
         ClassCategory::SWRESAMPLER,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_SWRESAMPLER,
+        ffi::AV_CLASS_CATEGORY_SWRESAMPLER,
     ),
-    (
-        ClassCategory::HWDEVICE,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_HWDEVICE,
-    ),
+    (ClassCategory::HWDEVICE, ffi::AV_CLASS_CATEGORY_HWDEVICE),
     (
         ClassCategory::DEVICE_VIDEO_OUTPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT,
     ),
     (
         ClassCategory::DEVICE_VIDEO_INPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT,
     ),
     (
         ClassCategory::DEVICE_AUDIO_OUTPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT,
     ),
     (
         ClassCategory::DEVICE_AUDIO_INPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT,
     ),
     (
         ClassCategory::DEVICE_OUTPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_OUTPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_OUTPUT,
     ),
     (
         ClassCategory::DEVICE_INPUT,
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_INPUT,
+        ffi::AV_CLASS_CATEGORY_DEVICE_INPUT,
     ),
 ];
 
@@ -180,7 +150,7 @@ fn named_categories_read_back_through_c() {
         let rust = c_category(&class(category.into(), &options));
         assert_eq!(rust, c, "{category:?}");
         assert_eq!(ClassCategory::from(rust), category);
-        assert_eq!(ClassCategory::from(c).value(), raw.0);
+        assert_eq!(ClassCategory::from(c).value(), raw);
     }
 }
 
@@ -191,12 +161,12 @@ fn unnamed_categories_read_back_through_c() {
     // The gap below the device categories, `AV_CLASS_CATEGORY_NB` and beyond:
     // C stores and returns them unchecked.
     for v in [12, 39, 46, 1000, c_uint::MAX] {
-        let c = c_category(&class(ffi::AVClassCategory(v), &options));
+        let c = c_category(&class(v, &options));
         let rust = ClassCategory::from(c_category(&class(
             ClassCategory::from_value(v).into(),
             &options,
         )));
-        assert_eq!(rust.value(), c.0);
+        assert_eq!(rust.value(), c);
         assert_eq!(rust.name(), None);
     }
 }
@@ -208,8 +178,8 @@ type Step = fn(&mut ClassStateFlags);
 #[cfg_attr(miri, ignore = "calls C")]
 fn state_flags_gate_non_runtime_options_as_in_c() {
     let options = options();
-    let class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
-    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let class = class(ffi::AV_CLASS_CATEGORY_NA, &options);
+    let initialized = ffi::AV_CLASS_STATE_INITIALIZED;
     let mut c = Ctx {
         class: &raw const class,
         state_flags: 0,
@@ -295,7 +265,7 @@ fn child_options() -> [ffi::AVOption; 2] {
     let value = ffi::AVOption {
         name: c"value".as_ptr(),
         offset: offset_of!(Child, value) as c_int,
-        type_: ffi::AVOptionType::AV_OPT_TYPE_INT,
+        type_: ffi::AV_OPT_TYPE_INT,
         min: f64::from(c_int::MIN),
         max: f64::from(c_int::MAX),
         ..Default::default()
@@ -397,7 +367,7 @@ fn state_flags_of_the_parent_gate_a_child_option_as_in_c() {
     let child_class = child_class(&options, false);
     let mut c = Family::new(&parent_class, &child_class);
     let mut rust = Family::new(&parent_class, &child_class);
-    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let initialized = ffi::AV_CLASS_STATE_INITIALIZED;
     let mut flags = ClassStateFlags::empty();
 
     // The child's class has no state flags, so C reads the parent's: each
@@ -440,7 +410,7 @@ fn state_flags_of_the_child_take_precedence_over_the_parent_as_in_c() {
     let child_class = child_class(&options, true);
     let mut c = Family::new(&parent_class, &child_class);
     let mut rust = Family::new(&parent_class, &child_class);
-    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let initialized = ffi::AV_CLASS_STATE_INITIALIZED;
 
     // The child's flag word is its `value` member: an initialized child
     // refuses the write whatever the parent says, and an uninitialized one
@@ -491,13 +461,13 @@ fn state_flags_of_the_child_take_precedence_over_the_parent_as_in_c() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn without_state_flags_nothing_gates_an_option_as_in_c() {
-    let initialized = ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED.0;
+    let initialized = ffi::AV_CLASS_STATE_INITIALIZED;
     let bits = [0, initialized, initialized | 0x80];
 
     // A direct context whose class locates no state flags: the word it
     // holds is never read, whatever it says.
     let options = options();
-    let mut class = class(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA, &options);
+    let mut class = class(ffi::AV_CLASS_CATEGORY_NA, &options);
     class.state_flags_offset = 0;
     let mut c = Ctx {
         class: &raw const class,
@@ -544,9 +514,9 @@ const DEVICE_EDGES: [c_uint; 12] = [0, 11, 12, 39, 40, 41, 42, 43, 44, 45, 46, c
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn device_predicates_match_the_c_macros() {
-    let named = CATEGORIES.iter().map(|&(_, raw)| raw.0);
+    let named = CATEGORIES.iter().map(|&(_, raw)| raw);
     for v in named.chain(DEVICE_EDGES) {
-        let raw = ffi::AVClassCategory(v);
+        let raw = v;
         // SAFETY: the macro shims compare a value; every category is valid.
         let (c_input, c_output) = (
             unsafe { ffi::crustify_AV_IS_INPUT_DEVICE(raw) } != 0,
@@ -1402,7 +1372,7 @@ fn log_class(name: &'static CStr) -> ffi::AVClass {
         version: VERSION,
         log_level_offset_offset: offset_of!(LogCtx, level_offset) as c_int,
         parent_log_context_offset: offset_of!(LogCtx, parent) as c_int,
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER,
+        category: ffi::AV_CLASS_CATEGORY_ENCODER,
         ..Default::default()
     }
 }
@@ -1719,7 +1689,7 @@ mod class {
         let raw = unsafe { k.read() };
         assert_eq!(c.name().map_or(ptr::null(), CStr::as_ptr), raw.class_name);
         assert_eq!(c.version(), raw.version);
-        assert_eq!(c.category().value(), raw.category.0);
+        assert_eq!(c.category().value(), raw.category);
         let offset = |o: Option<core::num::NonZeroI32>| o.map_or(0, |o| o.get());
         assert_eq!(
             offset(c.log_level_offset_offset()),
@@ -1746,7 +1716,7 @@ mod class {
         // SAFETY: as above; `av_default_get_category` reads the class's
         // `category`.
         let c_category = unsafe { ffi::av_default_get_category(fake.obj()) };
-        assert_eq!(c.category().value(), c_category.0);
+        assert_eq!(c.category().value(), c_category);
 
         let children = c_children(k);
         let rust: Vec<_> = c.child_classes().collect();
@@ -1981,7 +1951,7 @@ mod default_category {
     #[cfg_attr(miri, ignore = "calls C")]
     fn default_category_is_av_default_get_category() {
         let opts = options();
-        let unnamed = [17, 40, 46, 1000, u32::MAX].map(ffi::AVClassCategory);
+        let unnamed = [17, 40, 46, 1000, u32::MAX];
         for raw in CATEGORIES.iter().map(|&(_, raw)| raw).chain(unnamed) {
             let (theirs, ours) = (class(raw, &opts), class(raw, &opts));
             assert_eq!(
@@ -1989,7 +1959,7 @@ mod default_category {
                 ClassCategory::from(c_category(&theirs)),
                 "{raw:?}"
             );
-            assert_eq!(mine(&ours).value(), raw.0);
+            assert_eq!(mine(&ours).value(), raw);
         }
     }
 

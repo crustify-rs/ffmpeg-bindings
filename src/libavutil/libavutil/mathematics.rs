@@ -39,36 +39,36 @@ pub struct Rounding(ffi::AVRounding);
 
 impl Rounding {
     /// Round toward negative infinity (`AV_ROUND_DOWN`).
-    pub const DOWN: Self = Self(ffi::AVRounding::AV_ROUND_DOWN);
+    pub const DOWN: Self = Self(ffi::AV_ROUND_DOWN);
     /// Round away from zero (`AV_ROUND_INF`).
-    pub const INF: Self = Self(ffi::AVRounding::AV_ROUND_INF);
+    pub const INF: Self = Self(ffi::AV_ROUND_INF);
     /// Round to nearest, halfway cases away from zero (`AV_ROUND_NEAR_INF`).
-    pub const NEAR_INF: Self = Self(ffi::AVRounding::AV_ROUND_NEAR_INF);
+    pub const NEAR_INF: Self = Self(ffi::AV_ROUND_NEAR_INF);
     /// The `AV_ROUND_PASS_MINMAX` bit.
-    const PASS_MINMAX: u32 = ffi::AVRounding::AV_ROUND_PASS_MINMAX.0;
+    const PASS_MINMAX: u32 = ffi::AV_ROUND_PASS_MINMAX;
     /// Round toward positive infinity (`AV_ROUND_UP`).
-    pub const UP: Self = Self(ffi::AVRounding::AV_ROUND_UP);
+    pub const UP: Self = Self(ffi::AV_ROUND_UP);
     /// Round toward zero (`AV_ROUND_ZERO`).
-    pub const ZERO: Self = Self(ffi::AVRounding::AV_ROUND_ZERO);
+    pub const ZERO: Self = Self(ffi::AV_ROUND_ZERO);
 
     /// Returns this rounding with `AV_ROUND_PASS_MINMAX` set: a rescale passes
     /// `i64::MIN` and `i64::MAX` (and so `AV_NOPTS_VALUE`) through unchanged,
     /// and rounds every other value by this method.
     #[must_use]
     pub const fn pass_min_max(self) -> Self {
-        Self(ffi::AVRounding(self.0.0 | Self::PASS_MINMAX))
+        Self(self.0 | Self::PASS_MINMAX)
     }
 
     /// Whether `AV_ROUND_PASS_MINMAX` is set.
     #[must_use]
     pub const fn passes_min_max(self) -> bool {
-        self.0.0 & Self::PASS_MINMAX != 0
+        self.0 & Self::PASS_MINMAX != 0
     }
 
     /// The rounding method alone, with `AV_ROUND_PASS_MINMAX` cleared.
     #[must_use]
     pub const fn method(self) -> Self {
-        Self(ffi::AVRounding(self.0.0 & !Self::PASS_MINMAX))
+        Self(self.0 & !Self::PASS_MINMAX)
     }
 
     /// The C value, for a raw call.
@@ -81,7 +81,7 @@ impl Rounding {
     /// alone or with `AV_ROUND_PASS_MINMAX`.
     #[must_use]
     pub const fn from_raw(raw: ffi::AVRounding) -> Option<Self> {
-        match raw.0 & !Self::PASS_MINMAX {
+        match raw & !Self::PASS_MINMAX {
             0..=3 | 5 => Some(Self(raw)),
             _ => None,
         }
@@ -90,10 +90,10 @@ impl Rounding {
     /// The method's C name.
     const fn method_name(self) -> &'static str {
         match self.method().0 {
-            ffi::AVRounding::AV_ROUND_ZERO => "ZERO",
-            ffi::AVRounding::AV_ROUND_INF => "INF",
-            ffi::AVRounding::AV_ROUND_DOWN => "DOWN",
-            ffi::AVRounding::AV_ROUND_UP => "UP",
+            ffi::AV_ROUND_ZERO => "ZERO",
+            ffi::AV_ROUND_INF => "INF",
+            ffi::AV_ROUND_DOWN => "DOWN",
+            ffi::AV_ROUND_UP => "UP",
             _ => "NEAR_INF",
         }
     }
@@ -120,7 +120,7 @@ impl TryFrom<ffi::AVRounding> for Rounding {
     type Error = InvalidRounding;
 
     fn try_from(raw: ffi::AVRounding) -> Result<Self, Self::Error> {
-        Self::from_raw(raw).ok_or(InvalidRounding(raw.0))
+        Self::from_raw(raw).ok_or(InvalidRounding(raw))
     }
 }
 
@@ -424,9 +424,9 @@ mod unit_tests {
 
     #[test]
     fn methods_carry_the_c_values() {
-        let raw: Vec<u32> = METHODS.iter().map(|r| r.as_raw().0).collect();
+        let raw: Vec<u32> = METHODS.iter().map(|r| r.as_raw()).collect();
         assert_eq!(raw, [0, 1, 2, 3, 5]);
-        assert_eq!(Rounding::UP.pass_min_max().as_raw().0, 3 | 8192);
+        assert_eq!(Rounding::UP.pass_min_max().as_raw(), 3 | 8192);
         assert_eq!(size_of::<Rounding>(), size_of::<ffi::AVRounding>());
     }
 
@@ -447,10 +447,10 @@ mod unit_tests {
     fn from_raw_accepts_methods_with_or_without_the_flag() {
         for v in [0, 1, 2, 3, 5] {
             for raw in [v, v | 8192] {
-                let r = Rounding::from_raw(ffi::AVRounding(raw)).unwrap();
-                assert_eq!(r.as_raw().0, raw);
-                assert_eq!(Rounding::try_from(ffi::AVRounding(raw)), Ok(r));
-                assert_eq!(ffi::AVRounding::from(r), ffi::AVRounding(raw));
+                let r = Rounding::from_raw(raw).unwrap();
+                assert_eq!(r.as_raw(), raw);
+                assert_eq!(Rounding::try_from(raw), Ok(r));
+                assert_eq!(ffi::AVRounding::from(r), raw);
             }
         }
     }
@@ -470,11 +470,8 @@ mod unit_tests {
             1 << 31,
             u32::MAX,
         ] {
-            assert_eq!(Rounding::from_raw(ffi::AVRounding(raw)), None, "{raw:#x}");
-            assert_eq!(
-                Rounding::try_from(ffi::AVRounding(raw)),
-                Err(InvalidRounding(raw))
-            );
+            assert_eq!(Rounding::from_raw(raw), None, "{raw:#x}");
+            assert_eq!(Rounding::try_from(raw), Err(InvalidRounding(raw)));
         }
     }
 
@@ -548,7 +545,7 @@ mod unit_tests {
 
     #[test]
     fn invalid_rounding_reports_the_value() {
-        let e = Rounding::try_from(ffi::AVRounding(8196)).unwrap_err();
+        let e = Rounding::try_from(8196).unwrap_err();
         assert_eq!(e.to_string(), "invalid AVRounding value 0x2004");
         let _: &dyn std::error::Error = &e;
     }

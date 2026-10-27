@@ -23,17 +23,17 @@ pub struct HmacType(ffi::AVHMACType);
 
 impl HmacType {
     /// `AV_HMAC_MD5`.
-    pub const MD5: Self = Self(ffi::AVHMACType::AV_HMAC_MD5);
+    pub const MD5: Self = Self(ffi::AV_HMAC_MD5);
     /// `AV_HMAC_SHA1`.
-    pub const SHA1: Self = Self(ffi::AVHMACType::AV_HMAC_SHA1);
+    pub const SHA1: Self = Self(ffi::AV_HMAC_SHA1);
     /// `AV_HMAC_SHA224`.
-    pub const SHA224: Self = Self(ffi::AVHMACType::AV_HMAC_SHA224);
+    pub const SHA224: Self = Self(ffi::AV_HMAC_SHA224);
     /// `AV_HMAC_SHA256`.
-    pub const SHA256: Self = Self(ffi::AVHMACType::AV_HMAC_SHA256);
+    pub const SHA256: Self = Self(ffi::AV_HMAC_SHA256);
     /// `AV_HMAC_SHA384`.
-    pub const SHA384: Self = Self(ffi::AVHMACType::AV_HMAC_SHA384);
+    pub const SHA384: Self = Self(ffi::AV_HMAC_SHA384);
     /// `AV_HMAC_SHA512`.
-    pub const SHA512: Self = Self(ffi::AVHMACType::AV_HMAC_SHA512);
+    pub const SHA512: Self = Self(ffi::AV_HMAC_SHA512);
 
     /// Preserves a C algorithm value, including an unknown encoding.
     #[must_use]
@@ -283,7 +283,7 @@ mod unit_tests {
         assert_eq!(size_of::<HmacType>(), size_of::<ffi::AVHMACType>());
         assert_eq!(align_of::<HmacType>(), align_of::<ffi::AVHMACType>());
         for raw in [0, 1, 2, 3, 4, 5, 6, u32::MAX, 1 << 31] {
-            let c = ffi::AVHMACType(raw);
+            let c = raw;
             let value = HmacType::from(c);
             assert_eq!(ffi::AVHMACType::from(value), c);
             let copy = value;
@@ -309,7 +309,7 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn rejects_unknown_algorithm_and_raw_adoption_roundtrips() {
         assert!(matches!(
-            Hmac::new(HmacType::from_raw(ffi::AVHMACType(u32::MAX)), b"key"),
+            Hmac::new(HmacType::from_raw(u32::MAX), b"key"),
             Err(-12)
         ));
         let owner = Hmac::new(HmacType::SHA512, b"key").unwrap();

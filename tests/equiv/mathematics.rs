@@ -19,15 +19,14 @@ fn rescale(a: i64, b: i64, c: i64, rnd: ffi::AVRounding) -> i64 {
 /// Each rounding C accepts, spelled with C's constants, beside the same
 /// rounding built through the Rust API.
 fn roundings() -> Vec<(ffi::AVRounding, Rounding)> {
-    use ffi::AVRounding as C;
     let methods = [
-        (C::AV_ROUND_ZERO, Rounding::ZERO),
-        (C::AV_ROUND_INF, Rounding::INF),
-        (C::AV_ROUND_DOWN, Rounding::DOWN),
-        (C::AV_ROUND_UP, Rounding::UP),
-        (C::AV_ROUND_NEAR_INF, Rounding::NEAR_INF),
+        (ffi::AV_ROUND_ZERO, Rounding::ZERO),
+        (ffi::AV_ROUND_INF, Rounding::INF),
+        (ffi::AV_ROUND_DOWN, Rounding::DOWN),
+        (ffi::AV_ROUND_UP, Rounding::UP),
+        (ffi::AV_ROUND_NEAR_INF, Rounding::NEAR_INF),
     ];
-    let flagged = methods.map(|(c, r)| (C(c.0 | C::AV_ROUND_PASS_MINMAX.0), r.pass_min_max()));
+    let flagged = methods.map(|(c, r)| ((c | ffi::AV_ROUND_PASS_MINMAX), r.pass_min_max()));
     methods.into_iter().chain(flagged).collect()
 }
 
@@ -84,12 +83,12 @@ fn rust_accepts_exactly_what_c_accepts() {
         u32::MAX,
     ]);
     for raw in raws {
-        let c_accepts = rescale(1, 1, 1, ffi::AVRounding(raw)) != i64::MIN;
-        let rust_accepts = Rounding::try_from(ffi::AVRounding(raw)).is_ok();
+        let c_accepts = rescale(1, 1, 1, raw) != i64::MIN;
+        let rust_accepts = Rounding::try_from(raw).is_ok();
         assert_eq!(rust_accepts, c_accepts, "AVRounding({raw:#x})");
         // A rejection with the flag holds even for the values it would pass.
         if !c_accepts {
-            assert_eq!(rescale(i64::MAX, 1, 1, ffi::AVRounding(raw)), i64::MIN);
+            assert_eq!(rescale(i64::MAX, 1, 1, raw), i64::MIN);
         }
     }
 }
@@ -376,7 +375,7 @@ mod timestamps {
     /// or `None` for C's rejection, which is `INT64_MIN` except as the
     /// pass-through of `a == INT64_MIN`.
     fn expected(r: i64, a: i64, rnd: ffi::AVRounding, accepted: bool) -> Option<i64> {
-        let pass = rnd.0 & ffi::AVRounding::AV_ROUND_PASS_MINMAX.0 != 0;
+        let pass = rnd & ffi::AV_ROUND_PASS_MINMAX != 0;
         (r != i64::MIN || (a == i64::MIN && pass && accepted)).then_some(r)
     }
 
@@ -643,9 +642,7 @@ mod timestamps {
         let back = rescale_rational_rounded(there.unwrap(), q((1, 90000)), q((1, 1000)), pass);
         // For the unsafe operations below: `av_rescale_q_rnd` takes its arguments by value.
         let c = {
-            let raw = ffi::AVRounding(
-                ffi::AVRounding::AV_ROUND_NEAR_INF.0 | ffi::AVRounding::AV_ROUND_PASS_MINMAX.0,
-            );
+            let raw = ffi::AV_ROUND_NEAR_INF | ffi::AV_ROUND_PASS_MINMAX;
             // SAFETY: as the comment below states, for this part of the operation.
             let rescale_q_rnd =
                 unsafe { ffi::av_rescale_q_rnd(i64::MIN, c((1, 1000)), c((1, 90000)), raw) };

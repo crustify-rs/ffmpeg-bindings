@@ -313,7 +313,7 @@ static CLASS: Class = Class(ffi::AVClass {
     version: 0,
     log_level_offset_offset: 0,
     parent_log_context_offset: 0,
-    category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+    category: ffi::AV_CLASS_CATEGORY_NA,
     get_category: None,
     query_ranges: None,
     child_next: None,

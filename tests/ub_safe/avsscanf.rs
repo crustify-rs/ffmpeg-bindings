@@ -82,7 +82,7 @@ fn the_destination_limit_is_enforced() {
     // fails the same way, while ASan finds nothing and the values arrive.
     // The first four destinations travel in registers; the other tests
     // use at most three.
-    if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+    if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
         return;
     }
     let max = CString::new("%d".repeat(SCAN_MAX_ARGS)).unwrap();

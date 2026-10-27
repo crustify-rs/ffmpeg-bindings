@@ -346,7 +346,7 @@ fn planes_copy_on_many_threads() {
 mod images {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat;
+    use ffmpeg_bindings::libavutil::libavutil::ffi::AV_PIX_FMT_NB;
     use ffmpeg_bindings::libavutil::libavutil::imgutils::{
         Image, ImageCopyError, PlaneCopyError, Planes, PlanesMut, buffer_size,
         buffer_size_for_linesizes, check_fill_black, check_fill_color, check_sar,
@@ -363,7 +363,7 @@ mod images {
 
     /// Every pixel format these bindings know, by value.
     fn formats() -> impl Iterator<Item = PixelFormat> {
-        (0..AVPixelFormat::AV_PIX_FMT_NB.0).map(|raw| PixelFormat::from_raw(AVPixelFormat(raw)))
+        (0..AV_PIX_FMT_NB).map(PixelFormat::from_raw)
     }
 
     /// The formats an every-format sweep runs over: all of them, or, under
@@ -373,7 +373,7 @@ mod images {
     /// semi-planar, RGB in both byte orders, a palette, a bitstream, float,
     /// 16-bit and alpha planes, Bayer, XYZ and a hardware format.
     fn sweep_formats() -> Vec<PixelFormat> {
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             vec![
                 PixelFormat::YUV420P,
                 PixelFormat::YUYV422,
@@ -721,10 +721,10 @@ mod images {
             );
         }
         // Formats past the descriptor table, and unknown or hardware ones.
-        let nb = AVPixelFormat::AV_PIX_FMT_NB;
+        let nb = AV_PIX_FMT_NB;
         for f in [
             PixelFormat::from_raw(nb),
-            PixelFormat::from_raw(AVPixelFormat(i32::MAX)),
+            PixelFormat::from_raw(i32::MAX),
             PixelFormat::NONE,
             PixelFormat::VAAPI,
         ] {
@@ -874,10 +874,8 @@ mod pixel_steps {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_table_entry_has_steps() {
-        for raw in 0..ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
-            let d = PixelFormat::from_raw(ffi::AVPixelFormat(raw))
-                .descriptor()
-                .unwrap();
+        for raw in 0..ffi::AV_PIX_FMT_NB {
+            let d = PixelFormat::from_raw(raw).descriptor().unwrap();
             let s = max_pixel_steps(d).unwrap();
             assert!(s.components.iter().all(|&c| c < 4));
             assert!(s.steps.iter().all(|&st| st >= 0));

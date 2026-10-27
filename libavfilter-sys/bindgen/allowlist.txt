@@ -1,0 +1,20 @@
+# Agent-owned bindgen allowlist for libavfilter.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^AVBufferSrcParameters$
+type ^AVFilter$
+type ^AVFilterChain$
+type ^AVFilterChannelLayouts$
+type ^AVFilterContext$
+type ^AVFilterFormats$
+type ^AVFilterFormatsConfig$
+type ^AVFilterGraph$
+type ^AVFilterGraphSegment$
+type ^AVFilterInOut$
+type ^AVFilterLink$
+type ^AVFilterPad$
+type ^AVFilterPadParams$
+type ^AVFilterParams$
+type ^avfilter_action_func$
+type ^avfilter_execute_func$

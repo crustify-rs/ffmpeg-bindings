@@ -96,7 +96,7 @@ mod beyond_int_max {
     /// `BSan` cost grows with a 2 GiB allocation's history (see the campaign's
     /// test recipes); the plain and other sanitized runs cover these.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// A zeroed allocation, so only the pages written are ever mapped, with

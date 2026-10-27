@@ -72,7 +72,7 @@ const STANDARD_NAMES: [&str; 40] = [
 
 /// Whether this run is under `BSan`.
 pub(crate) fn under_bsan() -> bool {
-    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
 }
 
 /// Whether `av_channel_layout_from_string(description)` returns before its

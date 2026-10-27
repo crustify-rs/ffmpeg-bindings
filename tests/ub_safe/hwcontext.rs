@@ -47,7 +47,7 @@ mod device_type {
             u32::MAX - 1,
             u32::MAX,
         ]
-        .map(|raw| DeviceType::from_raw(ffi::AVHWDeviceType(raw)))
+        .map(DeviceType::from_raw)
         .into()
     }
 
@@ -157,7 +157,7 @@ mod transfer_direction {
         thread::scope(|s| {
             for _ in 0..4 {
                 s.spawn(|| {
-                    let raw: Vec<_> = dirs.iter().map(|d| d.into_raw().0).collect();
+                    let raw: Vec<_> = dirs.iter().map(|d| d.into_raw()).collect();
                     assert_eq!(raw, [0, 1]);
                 });
             }
@@ -254,14 +254,13 @@ mod contexts {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::dict::Dict;
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceReference, DeviceType, MapFlags};
 
     /// Every value 0..64, and the `unsigned` extremes.
     fn types() -> impl Iterator<Item = DeviceType> {
         (0..64)
             .chain([1 << 20, i32::MAX as u32, i32::MIN as u32, u32::MAX])
-            .map(|raw| DeviceType::from_raw(ffi::AVHWDeviceType(raw)))
+            .map(DeviceType::from_raw)
     }
 
     #[test]
@@ -305,11 +304,7 @@ mod contexts {
     fn the_backend_walk_ends_and_stays_ended() {
         let mut supported = DeviceType::supported();
         let walked: Vec<DeviceType> = supported.by_ref().collect();
-        assert!(
-            walked
-                .windows(2)
-                .all(|w| w[0].into_raw().0 < w[1].into_raw().0)
-        );
+        assert!(walked.windows(2).all(|w| w[0].into_raw() < w[1].into_raw()));
         assert!(supported.next().is_none());
         assert!(supported.next().is_none());
         let copy = DeviceType::supported();
@@ -386,13 +381,7 @@ mod frames_constraints {
     /// Format lists of every length shape: empty, one, a `NONE` inside, a
     /// `NONE` first, long.
     fn lists() -> Vec<Vec<PixelFormat>> {
-        let long: Vec<_> = (0..300)
-            .map(|i| {
-                PixelFormat::from_raw(ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(
-                    i % 200,
-                ))
-            })
-            .collect();
+        let long: Vec<_> = (0..300).map(|i| PixelFormat::from_raw(i % 200)).collect();
         vec![
             vec![],
             vec![PixelFormat::NV12],

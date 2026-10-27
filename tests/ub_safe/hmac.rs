@@ -2,7 +2,6 @@
     clippy::no_effect_underscore_binding,
     reason = "assertions keep the form of the C behaviour they check"
 )]
-use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::hmac::HmacType;
 
 #[test]
@@ -18,10 +17,7 @@ fn algorithms_and_unknown_values_are_plain_values() {
         assert_eq!(HmacType::from_raw(algorithm.into_raw()), algorithm);
     }
     for value in [6, 7, u32::MAX, 1 << 31] {
-        assert_eq!(
-            HmacType::from_raw(ffi::AVHMACType(value)).into_raw().0,
-            value
-        );
+        assert_eq!(HmacType::from_raw(value).into_raw(), value);
     }
 }
 

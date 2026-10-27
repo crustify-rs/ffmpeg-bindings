@@ -1,0 +1,1106 @@
+# Agent-owned bindgen allowlist for libavutil.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# libavutil/mem.h: the av_malloc family's void lifecycle (raw-lifetime void).
+function av_free
+function av_malloc
+function av_mallocz
+function av_malloc_array
+function av_calloc
+function av_memdup
+
+# libavutil/mem.h: the av_malloc family's string lifecycle (raw-lifetime string).
+function av_strdup
+function av_strndup
+
+# libavutil/mem.h: the allocation limit, which drives the string tier's
+# failure paths in equivalence tests.
+function av_max_alloc
+
+# libavutil/log.h, libavutil/opt.h: C readers of AVClassCategory and
+# AVClassStateFlags values, which drive the log.h type tier's equivalence tests.
+function av_default_get_category
+function av_opt_set_int
+
+# libavutil/mem.h: av_memcpy_backptr's 4-byte-period fill writes through
+# `union unaligned_64` (AV_WN64), the C reference for intreadwrite's
+# `Unaligned64` equivalence tests.
+function av_memcpy_backptr
+
+# libavutil/intfloat.h: the C reference for av_intfloat64's and
+# av_intfloat32's punning (equivalence tests; static inline, compiled by
+# bindgen's wrap_static_fns).
+function av_int2double
+function av_double2int
+function av_int2float
+function av_float2int
+
+# libavutil/avutil.h and avstring.h: C consumers of `AVMediaType` and
+# `AVEscapeMode`, which observe the encodings in equivalence tests.
+function av_get_media_type_string
+function av_escape
+
+# libavutil/mathematics.h: the AVRounding consumer whose INT64_MIN return
+# rejects invalid roundings, which equivalence tests compare against.
+function av_rescale_rnd
+
+# libavutil/bprint.h: automatic-storage init and fill, which observe the
+# FF_PAD_STRUCTURE size of AVBPrint in equivalence tests.
+function av_bprint_init
+function av_bprint_chars
+var AV_BPRINT_SIZE_AUTOMATIC
+
+# libavutil/bprint.h: AVBPrint's lifecycle (core wave 1, AVBPrint): the two
+# initialisers, the finalizer and the size_max special values; append_data and
+# clear are the C writers equivalence tests drive the safe getters with.
+function av_bprint_init_for_buffer
+function av_bprint_finalize
+function av_bprint_append_data
+function av_bprint_clear
+var AV_BPRINT_SIZE_COUNT_ONLY
+# The AVERROR(ENOMEM) av_bprint_finalize fails with.
+var ENOMEM
+
+# libavutil/bprint.h: the appenders and the completeness test (core wave 2;
+# av_bprint_is_complete is static inline, compiled by bindgen's
+# wrap_static_fns). av_vbprintf is reached through the crustify_av_vbprintf
+# shim; av_bprint_strftime brings in libc's `struct tm`.
+function av_bprintf
+function av_vbprintf
+function av_bprint_escape
+function av_bprint_get_buffer
+function av_bprint_is_complete
+function av_bprint_strftime
+
+# libavutil/opt.h, iamf.h: the C reader of AVClass.child_class_iterate and
+# public classes with option tables and child classes, which the AVClass
+# getters are compared against (core wave 1, AVClass).
+function av_opt_child_class_iterate
+function av_opt_child_next
+function av_iamf_audio_element_get_class
+function av_iamf_mix_presentation_get_class
+function av_iamf_param_definition_get_class
+
+# libavutil/opt.h: AVOptionRanges' lifecycle (core wave 0, AVOption / AVOptionRanges).
+function av_opt_query_ranges
+function av_opt_query_ranges_default
+function av_opt_freep_ranges
+var AV_OPT_SEARCH_CHILDREN
+var AV_OPT_SEARCH_FAKE_OBJ
+var AV_OPT_MULTI_COMPONENT_RANGE
+
+# libavutil/opt.h: option lookup and defaults, which the AVOption tests compare
+# the safe getters against.
+function av_opt_find
+function av_opt_next
+function av_opt_set_defaults2
+function av_opt_free
+
+# libavutil/opt.h: the C reader that accepts an option exactly when its type
+# carries AV_OPT_TYPE_FLAG_ARRAY, which the AVOptionType tests compare
+# OptionType::is_array against (options wave 0).
+function av_opt_get_array_size
+
+# libavutil/rational.h: AVRational's constructor (static inline, compiled by
+# bindgen's wrap_static_fns), and the C readers and writers of its fields
+# that equivalence tests compare the safe accessors against.
+function av_make_q
+function av_inv_q
+function av_q2d
+function av_cmp_q
+function av_reduce
+
+# libavutil/avutil.h: the C consumer of `AVPictureType`, which observes its
+# encoding in equivalence tests.
+function av_get_picture_type_char
+
+# libavutil/avstring.h: string helpers wrapped by core wave 0 (batch 14);
+# AV_UTF8_FLAG_* are av_utf8_decode's flags.
+function av_strlcat
+function av_strlcatf
+function av_strlcpy
+function av_strncasecmp
+function av_strnlen
+function av_strnstr
+function av_strstart
+function av_strtok
+function av_tolower
+function av_toupper
+function av_utf8_decode
+var AV_UTF8_FLAG_.*
+
+# libavutil/timestamp.h, time.h, common.h, avutil.h and version.c (core wave
+# 0, batch 14); the LIBAVUTIL_VERSION_* parts check avutil_version's value.
+function av_ts_make_string
+var AV_TS_MAX_STRING_SIZE
+function av_usleep
+function av_zero_extend_c
+function av_x_if_null
+function av_version_info
+function avutil_configuration
+function avutil_license
+function avutil_version
+var LIBAVUTIL_VERSION_(MAJOR|MINOR|MICRO)
+
+# libavutil/log.h: av_vlog is reached through the crustify_av_vlog shim; the
+# levels are its argument, and av_log, the callback setters and
+# av_log_format_line2 observe it in equivalence tests.
+var AV_LOG_(QUIET|PANIC|FATAL|ERROR|WARNING|INFO|VERBOSE|DEBUG|TRACE|MAX_OFFSET)
+function av_log
+function av_log_set_callback
+function av_log_default_callback
+function av_log_format_line2
+
+# libavutil/avstring.h, mathematics.h, cpu.h, log.h: core wave 0 batch 10's
+# exported symbols.
+function av_append_path_component
+function av_asprintf
+function av_basename
+function av_bessel_i0
+function av_compare_mod
+function av_cpu_count
+function av_cpu_force_count
+function av_cpu_max_align
+function av_default_item_name
+
+# libavutil/bswap.h, common.h: core wave 0 batch 10's header inlines (static
+# inline, compiled by bindgen's wrap_static_fns).
+function av_bswap16
+function av_bswap32
+function av_bswap64
+function av_ceil_log2_c
+function av_clip64_c
+function av_clip_c
+function av_clip_int16_c
+function av_clip_int8_c
+function av_clip_intp2_c
+function av_clip_uint16_c
+function av_clip_uint8_c
+function av_clip_uintp2_c
+function av_clipd_c
+function av_clipf_c
+function av_clipl_int32_c
+
+# libavutil/common.h, cpu.h: the C references av_ceil_log2_c and
+# av_cpu_max_align are compared against in batch 10's equivalence tests.
+function av_log2
+function av_get_cpu_flags
+function av_force_cpu_flags
+
+# Core wave 0, batch 11: avstring.h path and token helpers, and the ASCII digit
+# test (static inline, compiled by bindgen's wrap_static_fns).
+function av_dirname
+function av_get_token
+function av_isdigit
+
+# Core wave 0, batch 11: mem.h's dynamic arrays, reusable buffers and the
+# slot-clearing free.
+function av_dynarray_add
+function av_dynarray_add_nofree
+function av_dynarray2_add
+function av_fast_malloc
+function av_fast_mallocz
+function av_fast_realloc
+function av_freep
+
+# Core wave 0, batch 11: file.h's map/unmap pair; EINVAL is the error a log
+# offset is rejected with when it would overflow AV_LOG_ERROR (above), the
+# level av_file_map logs its failures at.
+function av_file_map
+function av_file_unmap
+var EINVAL
+
+# Core wave 0, batch 11: cpu.h's flag detection and override, with the flag
+# constants that read them.
+function av_force_cpu_flags
+function av_get_cpu_flags
+var AV_CPU_FLAG_.*
+
+# Core wave 0, batch 11: avutil.h's FourCC formatter and its buffer size,
+# mathematics.h's gcd, random_seed.h and time.h.
+function av_fourcc_make_string
+var AV_FOURCC_MAX_STRING_SIZE
+function av_gcd
+function av_get_random_seed
+function av_gettime
+function av_gettime_relative
+function av_gettime_relative_is_monotonic
+
+# libavutil core wave 0, batch 13: the safe wrappers' FFI calls.
+function av_parse_cpu_caps
+# libavutil/eval.h: how C's option evaluator reads a `+`/`-` operand of
+# av_parse_cpu_caps (a number, or one of the evaluator's constants), which
+# cpu.rs needs to truncate the operand as C does.
+function av_strtod
+var M_E
+var M_PI
+var M_PHI
+var FF_QP2LAMBDA
+function av_random_bytes
+function av_realloc
+function av_realloc_array
+function av_realloc_f
+function av_reallocp
+function av_reallocp_array
+function av_size_mult
+function av_rescale
+function av_sscanf
+function av_strcasecmp
+function av_strerror
+function av_strireplace
+function av_stristart
+function av_stristr
+# The alignment `av_realloc` blocks keep (it calls plain `realloc`), which
+# equivalence tests check.
+type max_align_t
+# libavutil/common.h: the C references for the native popcount and saturating
+# arithmetic (equivalence tests; static inline, compiled by bindgen's
+# wrap_static_fns).
+function av_popcount_c
+function av_popcount64_c
+function av_sat_add32_c
+function av_sat_add64_c
+function av_sat_dadd32_c
+function av_sat_dsub32_c
+function av_sat_sub32_c
+function av_sat_sub64_c
+
+# libavutil/avstring.h: locale-independent character classes (static inline,
+# compiled by bindgen's wrap_static_fns) and name/list matching (core wave 0,
+# batch 12).
+function av_isgraph
+function av_isspace
+function av_isxdigit
+function av_match_name
+function av_match_list
+
+# libavutil/common.h, intmath.c: integer helpers (core wave 0, batch 12).
+function av_log2_16bit
+function av_parity_c
+
+# libavutil/error.h: error descriptions (static inline; core wave 0, batch 12).
+function av_make_error_string
+var AV_ERROR_MAX_STRING_SIZE
+
+# libavutil/log.h: logging, its flags and callback (core wave 0, batch 12);
+# the levels, av_log, av_log_set_callback, av_log_default_callback and
+# av_log_format_line2 are listed above.
+function av_log_once
+function av_log_format_line
+function av_log_get_level
+function av_log_set_level
+function av_log_get_flags
+function av_log_set_flags
+var AV_LOG_SKIP_REPEATED
+var AV_LOG_PRINT_LEVEL
+var AV_LOG_PRINT_TIME
+var AV_LOG_PRINT_DATETIME
+
+# libavutil/timestamp.h: av_ts_make_time_string2 (core wave 1, batch 3).
+function av_ts_make_time_string2
+# Core wave 1, batch 2: rational.h arithmetic, comparison and conversion,
+# mathematics.h rescaling and timestamp helpers, avutil.h's time base,
+# avstring.h's escape flags and timestamp.h's time string (static inline,
+# compiled by bindgen's wrap_static_fns).
+function av_add_q
+function av_sub_q
+function av_mul_q
+function av_div_q
+function av_d2q
+function av_nearer_q
+function av_find_nearest_q_idx
+function av_q2intfloat
+function av_gcd_q
+function av_rescale_q
+function av_rescale_q_rnd
+function av_compare_ts
+function av_rescale_delta
+function av_add_stable
+function av_get_time_base_q
+var AV_TIME_BASE
+var AV_ESCAPE_FLAG_.*
+function av_ts_make_time_string
+
+# libavutil/samplefmt.h: C consumers of `AVSampleFormat` (formats wave 0,
+# batch 6), which observe its encoding in equivalence tests.
+function av_get_sample_fmt_name
+function av_get_sample_fmt
+function av_get_bytes_per_sample
+function av_sample_fmt_is_planar
+
+# libavutil/pixdesc.h: the C consumers of `AVColorSpace` and
+# `AVColorTransferCharacteristic` (formats wave 0, batch 3), which observe
+# their encodings in equivalence tests.
+function av_color_space_name
+function av_color_space_from_name
+function av_color_transfer_name
+function av_color_transfer_from_name
+
+# libavutil/pixdesc.h and channel_layout.h: C readers of `AVAlphaMode` and
+# `AVChannel`, which observe the encodings in equivalence tests (formats
+# wave 0, batch 0).
+function av_alpha_mode_name
+function av_alpha_mode_from_name
+function av_channel_name
+function av_channel_description
+function av_channel_from_string
+
+# libavutil/pixdesc.h: the C reader of `AVPixelFormat` values (formats wave 0,
+# batch 5), whose descriptor table names exactly the enumerators, in
+# equivalence tests.
+function av_get_pix_fmt_name
+
+# libavutil/pixdesc.h, frame.h: the C consumers of `AVColorPrimaries` and
+# `AVColorRange` (formats wave 0, batch 2) and the frame defaults C writes into
+# them, which observe their encodings in equivalence tests.
+function av_color_primaries_name
+function av_color_primaries_from_name
+function av_color_range_name
+function av_color_range_from_name
+function av_frame_alloc
+function av_frame_free
+
+# Formats wave 0, batch 4: C readers of AVComponentDescriptor (and the
+# descriptor table holding them), the equivalence reference for pixdesc.rs's
+# ComponentDescriptor.
+function av_pix_fmt_desc_next
+function av_get_padded_bits_per_pixel
+function av_read_image_line2
+
+# libavutil/channel_layout.h and pixdesc.h: C readers and writers of
+# `AVChannelLayout.order` and the `AVChromaLocation` names, which observe
+# `ChannelOrder`'s and `ChromaLocation`'s encodings in equivalence tests
+# (formats wave 0, batch 1).
+function av_channel_layout_check
+function av_channel_layout_from_mask
+function av_channel_layout_custom_init
+function av_channel_layout_from_string
+function av_channel_layout_uninit
+function av_chroma_location_name
+function av_chroma_location_from_name
+
+# libavutil/pixdesc.h: the color property name lookups (formats wave 0,
+# batch 7).
+function av_chroma_location_from_name
+function av_color_primaries_from_name
+function av_color_range_from_name
+function av_color_space_from_name
+function av_color_transfer_from_name
+# libavutil/imgutils.h: size checks and plane copies (formats wave 0,
+# batch 7).
+function av_image_check_size
+function av_image_copy_plane
+function av_image_copy_plane_uc_from
+# libavutil/csp.h, libavutil/pixelutils.h: the C producers of the
+# av_csp_trc_function, av_csp_eotf_function and av_pixelutils_sad_fn
+# pointers that the formats wave-0 batch-7 callback handles call in tests.
+function av_csp_trc_func_from_id
+function av_csp_trc_func_inv_from_id
+function av_csp_itu_eotf
+function av_csp_itu_eotf_inv
+function av_pixelutils_get_sad_fn
+
+# libavutil/csp.h: the C producer and reader of the `AVCIExy` coordinates in
+# its gamut descriptions (formats wave 1, batch 0), the equivalence reference
+# for csp.rs's CieXy.
+function av_csp_primaries_desc_from_id
+function av_csp_primaries_id_from_desc
+
+# libavutil/channel_layout.h, csp.h: the C readers and writers of a custom
+# layout's `AVChannelCustom` map and the C producer of `AVLumaCoefficients`,
+# which observe formats wave-1 batch-1's types in equivalence tests.
+function av_channel_layout_copy
+function av_channel_layout_describe
+function av_channel_layout_index_from_string
+function av_channel_layout_channel_from_index
+function av_channel_layout_channel_from_string
+function av_csp_luma_coeffs_from_avcsp
+
+# libavutil/channel_layout.h: the AVChannelLayout initialiser the formats
+# wave-2 batch-0 type run binds as ChannelLayout::default_for, and the C
+# readers (compare, retype, index_from_channel, ambisonic_order) that observe
+# its layouts in equivalence tests.
+function av_channel_layout_default
+function av_channel_layout_compare
+function av_channel_layout_retype
+function av_channel_layout_index_from_channel
+function av_channel_layout_ambisonic_order
+var AV_CHANNEL_LAYOUT_RETYPE_FLAG_.*
+
+# libavutil/samplefmt.h and pixdesc.h: the sample buffer routines and the
+# pixel format byte-order swap (formats wave 1, batch 5).
+function av_samples_get_buffer_size
+function av_samples_fill_arrays
+function av_samples_alloc
+function av_samples_alloc_array_and_samples
+function av_samples_copy
+function av_samples_set_silence
+function av_pix_fmt_swap_endianness
+
+# libavutil/pixdesc.h, csp.h, samplefmt.h: the formats wave-1 batch-3 symbols
+# not bound by an earlier batch, and the FF_LOSS_* flags av_get_pix_fmt_loss
+# and av_find_best_pix_fmt_of_2 report.
+function av_chroma_location_enum_to_pos
+function av_chroma_location_pos_to_enum
+function av_csp_approximate_trc_gamma
+function av_csp_approximate_eotf_gamma
+function av_find_best_pix_fmt_of_2
+function av_get_pix_fmt
+function av_get_pix_fmt_loss
+function av_get_alt_sample_fmt
+function av_get_packed_sample_fmt
+var FF_LOSS_.*
+
+# libavutil/pixdesc.h: the AV_PIX_FMT_FLAG_* bits behind `PixelFormatFlags`,
+# and the C producers and readers of whole AVPixFmtDescriptors, the
+# equivalence reference for pixdesc.rs's `PixelFormatDescriptor` (formats
+# wave 1, batch 2).
+var AV_PIX_FMT_FLAG_.*
+function av_pix_fmt_desc_get
+function av_pix_fmt_desc_get_id
+function av_get_bits_per_pixel
+function av_write_image_line2
+
+# libavutil/imgutils.h, pixdesc.h, samplefmt.h: image layout, allocation,
+# copies and fills, and the pixel and sample format queries (formats wave 1,
+# batch 4; av_image_copy2 is static inline, compiled by bindgen's
+# wrap_static_fns). imgutils.rs also reads the plane geometry it validates
+# slices against through batch 2's av_pix_fmt_desc_get and AV_PIX_FMT_FLAG_*.
+function av_get_pix_fmt_string
+function av_get_planar_sample_fmt
+function av_get_sample_fmt_string
+function av_image_alloc
+function av_image_check_sar
+function av_image_check_size2
+function av_image_copy
+function av_image_copy2
+function av_image_copy_to_buffer
+function av_image_copy_uc_from
+function av_image_fill_arrays
+function av_image_fill_black
+function av_image_fill_color
+function av_image_fill_linesizes
+function av_image_fill_plane_sizes
+function av_image_fill_pointers
+function av_image_get_buffer_size
+function av_image_get_linesize
+function av_pix_fmt_count_planes
+function av_pix_fmt_get_chroma_sub_sample
+var AVPALETTE_SIZE
+
+# libavutil/pixdesc.h, imgutils.h, channel_layout.h: the descriptor lookups,
+# image line readers and writers, per-plane pixel steps and channel name
+# appenders that formats wave 2, batch 1 wraps (the other symbols of that
+# batch are listed above).
+function av_read_image_line
+function av_write_image_line
+function av_image_fill_max_pixsteps
+function av_channel_name_bprint
+function av_channel_description_bprint
+
+# libavutil/channel_layout.h: the standard layout iterator and the channel
+# subset query (formats wave-3 batch 2).
+function av_channel_layout_standard
+function av_channel_layout_subset
+
+# libavutil/channel_layout.h: the layout description appender that formats
+# wave-3 batch 1 wraps (its other C readers are listed above).
+function av_channel_layout_describe_bprint
+
+# libavutil/dict.h: AVDictionary's lifecycle (options wave 0, AVDictionary):
+# the release and the deep copy, and AV_DICT_MULTIKEY, under which the copy
+# keeps duplicate keys. av_dict_set builds the safe constructor's entries;
+# av_dict_iterate, av_dict_count and av_dict_get_string are the C readers
+# equivalence tests observe dictionaries with, and the other flags select the
+# C reference copies they compare against.
+function av_dict_free
+function av_dict_copy
+function av_dict_set
+function av_dict_iterate
+function av_dict_count
+function av_dict_get_string
+var AV_DICT_.*
+
+# libavutil options wave 0, batch 4: parseutils.h's parsers, eval.h's
+# av_strtod (already above) and opt.h's av_set_options_string.
+function av_parse_color
+function av_parse_time
+function av_parse_video_size
+function av_set_options_string
+# libavutil/parseutils.h: enumerates the color table av_parse_color
+# matches, in its equivalence tests.
+function av_get_known_color_name
+# libavutil/dict.h: reads an AV_OPT_TYPE_DICT option's dictionary back in
+# av_set_options_string's equivalence tests.
+function av_dict_get
+
+# libavutil/eval.h: AVExpr's lifecycle (options wave 0, batch 1), and the
+# evaluator and counters that read a parsed tree, the C references for the
+# expression equivalence tests.
+function av_expr_parse
+function av_expr_free
+function av_expr_eval
+function av_expr_count_vars
+function av_expr_count_func
+
+# libavutil/opt.h, eval.h, parseutils.h: the option getters and setters on an
+# AVClass-enabled object, its lifecycle helpers, the key-value parsers and
+# serializer, and the option-string helpers of eval.h and parseutils.h (options
+# wave 0, batch 3). av_opt_find2 and av_opt_next locate an option and its
+# target as the setters do, so the wrappers can refuse values C would turn into
+# undefined behaviour; AV_OPT_FLAG_* and the ERANGE code are what they test.
+function av_expr_parse_and_eval
+function av_find_info_tag
+function av_opt_copy
+function av_opt_find2
+function av_opt_flag_is_set
+function av_opt_get
+function av_opt_get_array_size
+function av_opt_get_double
+function av_opt_get_image_size
+function av_opt_get_int
+function av_opt_get_key_value
+function av_opt_is_set_to_default_by_name
+function av_opt_serialize
+function av_opt_set
+function av_opt_set_bin
+function av_opt_set_defaults
+function av_opt_set_double
+function av_opt_set_from_string
+function av_opt_set_image_size
+function av_opt_show2
+var AV_OPT_FLAG_.*
+var AV_OPT_ALLOW_NULL
+var AV_OPT_SERIALIZE_.*
+var ERANGE
+
+# libavutil options wave 1, batch 0: dict.h's remaining writers (av_dict_set
+# with AV_DICT_* flags is above), and opt.h's typed getters on an
+# AVClass-enabled object.
+function av_dict_parse_string
+function av_dict_set_int
+function av_opt_get_array
+function av_opt_get_chlayout
+function av_opt_get_dict_val
+function av_opt_get_pixel_fmt
+function av_opt_get_q
+function av_opt_get_sample_fmt
+function av_opt_get_video_rate
+
+# libavutil/opt.h, parseutils.h: options wave 1, batch 1's typed option
+# setters, array editor and dictionary appliers (AV_OPT_ARRAY_REPLACE selects
+# av_opt_set_array's replacement), and the ratio, video rate and date helpers.
+function av_opt_set_array
+function av_opt_set_chlayout
+function av_opt_set_dict
+function av_opt_set_dict2
+function av_opt_set_dict_val
+function av_opt_set_pixel_fmt
+function av_opt_set_q
+function av_opt_set_sample_fmt
+function av_opt_set_video_rate
+var AV_OPT_ARRAY_REPLACE
+function av_parse_ratio
+function av_parse_video_rate
+function av_small_strptime
+function av_timegm
+
+# libavutil/opt.h: options wave 2, batch 0's numeric evaluators (one per
+# AV_OPT_TYPE they accept) and the per-option default check; the lookups,
+# option walk and range queries they sit beside are above.
+function av_opt_eval_double
+function av_opt_eval_flags
+function av_opt_eval_float
+function av_opt_eval_int
+function av_opt_eval_int64
+function av_opt_eval_q
+function av_opt_eval_uint
+function av_opt_is_set_to_default
+
+# libavutil/xtea.h: AVXTEA lifecycle and C readers for type equivalence tests.
+function av_xtea_alloc
+function av_xtea_init
+function av_xtea_le_init
+function av_xtea_crypt
+function av_xtea_le_crypt
+
+# Crypto wave 0, batch 7: AVSHA and AVSHA512 lifecycle; update/final
+# are C observation probes for the lifecycle equivalence tests.
+function av_sha_alloc
+function av_sha_init
+function av_sha_update
+function av_sha_final
+function av_sha512_alloc
+function av_sha512_init
+function av_sha512_update
+function av_sha512_final
+
+# Crypto wave 0, batch 2: CAST5 lifecycle and the C observations used by
+# constructor/reinitialization equivalence tests; CRC identifier lookup.
+function av_cast5_alloc
+function av_cast5_init
+function av_cast5_crypt
+function av_crc_get_table
+# Crypto wave 0, batch 4: opaque AVHashContext lifecycle and metadata;
+# update/final are the C observers for constructor/reset equivalence tests.
+type AVHashContext
+function av_hash_alloc
+function av_hash_freep
+function av_hash_init
+function av_hash_get_name
+function av_hash_get_size
+function av_hash_update
+function av_hash_final
+# C's consumer of AVHMACType in its enum equivalence tests.
+function av_hmac_alloc
+function av_hmac_free
+
+
+# libavutil crypto wave 0, batch 5: opaque MD5 and Murmur3 contexts,
+# allocation/initialization and the C operations exercised through their handles.
+function av_md5_alloc
+function av_md5_init
+function av_md5_update
+function av_md5_final
+function av_md5_sum
+function av_murmur3_alloc
+function av_murmur3_init
+function av_murmur3_init_seeded
+function av_murmur3_update
+function av_murmur3_final
+
+# libavutil crypto wave 0, batch 0: opaque AES types, lifecycle, and C
+# observers used by lifecycle equivalence tests. No private layout is imported.
+type ^AVAES$
+type ^AVAESCTR$
+function ^av_aes_alloc$
+function ^av_aes_init$
+function ^av_aes_crypt$
+function ^av_aes_ctr_alloc$
+function ^av_aes_ctr_init$
+function ^av_aes_ctr_free$
+function ^av_aes_ctr_crypt$
+function ^av_aes_ctr_get_iv$
+
+# libavutil crypto wave 0 batch 10: safe symbol boundaries and C references.
+function av_adler32_update
+var av_aes_size
+function av_base64_decode
+function av_base64_encode
+var av_camellia_size
+var av_cast5_size
+function av_crc
+function av_crc_init
+function av_hash_names
+function av_lzo1x_decode
+var av_md5_size
+var av_ripemd_size
+var av_sha512_size
+var av_sha_size
+var av_tea_size
+var av_twofish_size
+function av_uuid_copy
+function av_uuid_equal
+function av_uuid_nil
+function av_uuid_parse
+function av_uuid_parse_range
+function av_uuid_unparse
+function av_uuid_urn_parse
+var AV_LZO_(INPUT_PADDING|OUTPUT_PADDING|INPUT_DEPLETED|OUTPUT_FULL|INVALID_BACKPTR|ERROR)
+# crypto wave 0, batch 8: opaque TEA/Twofish lifecycle and the C readers
+# used to observe initialized contexts in equivalence tests.
+function av_tea_alloc
+function av_tea_init
+function av_tea_crypt
+function av_twofish_alloc
+function av_twofish_init
+function av_twofish_crypt
+
+# Crypto wave 0, batch 3: DES and HMAC lifecycle, plus their C observers
+# in equivalence tests. The public layouts are in api-types.txt already.
+function av_des_alloc
+function av_des_init
+function av_des_crypt
+function av_hmac_init
+function av_hmac_update
+function av_hmac_final
+# libavutil crypto wave 0, batch 1: Blowfish and Camellia lifecycle.
+function av_blowfish_alloc
+function av_blowfish_init
+function av_camellia_alloc
+function av_camellia_init
+# Reference-only observers for lifecycle/field equivalence tests.
+function av_blowfish_crypt_ecb
+function av_camellia_crypt
+# crypto wave 0, batch 6: RC4 and RIPEMD type lifecycle and C references.
+function av_rc4_alloc
+function av_rc4_init
+function av_rc4_crypt
+function av_ripemd_alloc
+function av_ripemd_init
+function av_ripemd_update
+function av_ripemd_final
+
+# Crypto wave 1, batch 0: remaining buffer and IV operations.
+function ^av_aes_ctr_increment_iv$
+function ^av_aes_ctr_set_full_iv$
+function ^av_aes_ctr_set_iv$
+function ^av_aes_ctr_set_random_iv$
+function ^av_blowfish_crypt$
+function ^av_cast5_crypt2$
+# Crypto wave 1 batch 1: remaining DES/hash/HMAC symbols.
+function ^av_des_mac$
+function ^av_hash_final_bin$
+function ^av_hash_final_hex$
+function ^av_hash_final_b64$
+function ^av_hmac_calc$
+
+# Buffer-frame wave 0, batch 2: C readers and writers of `AVFrameSideDataType`
+# (the descriptor table's names, and `AVFrameSideData.type` as the frame
+# side-data list stores and looks it up), which observe `SideDataType`'s
+# encodings in equivalence tests.
+function ^av_frame_side_data_name$
+function ^av_frame_new_side_data$
+function ^av_frame_get_side_data$
+function ^av_frame_remove_side_data$
+
+# libavutil/frame.h: the C copy of AV_FRAME_DATA_AFD side data, whose payload
+# byte holds an AVActiveFormatDescription; with batch 2's side-data store and
+# lookup above, the equivalence reference for frame.rs's
+# ActiveFormatDescription (buffer-frame wave 0, batch 0).
+function ^av_frame_copy_props$
+
+# Buffer-frame wave 0, batch 3: AVRefStructPool's lifecycle (constructor,
+# down-ref through av_refstruct_pool_uninit, up-ref) and its flags.
+function ^av_refstruct_pool_alloc$
+function ^av_refstruct_pool_uninit$
+function ^av_refstruct_ref$
+var ^AV_REFSTRUCT_POOL_FLAG_.*
+# C references for the pool and AVRefStructOpaque equivalence tests: entries,
+# the shared count, and the C consumers of an opaque (the static inline
+# av_refstruct_alloc_ext and av_refstruct_pool_alloc_ext build
+# `{ .nc = opaque }` in C).
+function ^av_refstruct_pool_get$
+function ^av_refstruct_unref$
+function ^av_refstruct_exclusive$
+function ^av_refstruct_alloc_ext_c$
+function ^av_refstruct_alloc_ext$
+function ^av_refstruct_pool_alloc_ext_c$
+function ^av_refstruct_pool_alloc_ext$
+# Buffer-frame wave 1, batch 1: the object allocation flag of
+# av_refstruct_alloc_ext_c (uninitialised storage for RefStructUnref's CAlloc).
+var ^AV_REFSTRUCT_FLAG_NO_ZEROING$
+
+# Buffer-frame wave 0, batch 4: C readers of AVSideDataDescriptor and of
+# AVSideDataProps bits (the static descriptor table and the side data array
+# routines that filter by props; `av_frame_side_data_name` is in batch 2's
+# block), the equivalence reference for frame.rs's SideDataDescriptor and
+# SideDataProps.
+function ^av_frame_side_data_desc$
+function ^av_frame_side_data_new$
+function ^av_frame_side_data_free$
+function ^av_frame_side_data_remove_by_props$
+
+# buffer-frame wave 0, batch 1: AVBufferPool's lifecycle (av_buffer_pool_init,
+# av_buffer_pool_init2, av_buffer_pool_uninit), and the AVBufferRef routines
+# the pool's equivalence and UB tests drive it with until AVBufferRef's own
+# wrapper lands.
+function ^av_buffer_pool_init$
+function ^av_buffer_pool_init2$
+function ^av_buffer_pool_uninit$
+function ^av_buffer_pool_get$
+function ^av_buffer_pool_buffer_get_opaque$
+function ^av_buffer_alloc$
+function ^av_buffer_create$
+function ^av_buffer_default_free$
+function ^av_buffer_unref$
+function ^av_buffer_ref$
+function ^av_buffer_get_ref_count$
+function ^av_buffer_is_writable$
+
+# buffer-frame wave 1, batch 0: AVBufferRef's zeroing constructor and the
+# read-only flag its av_buffer_create constructors pass (the rest of its
+# lifecycle, av_buffer_alloc/create/ref/unref, is in wave 0 batch 1's block).
+function ^av_buffer_allocz$
+var ^AV_BUFFER_FLAG_READONLY$
+
+# Buffer-frame wave 2, batch 1: the rest of buffer.h's AVBufferRef routines
+# (the opaque getter, and the writability, resize and replacement routines
+# that act on a reference slot).
+function ^av_buffer_get_opaque$
+function ^av_buffer_make_writable$
+function ^av_buffer_realloc$
+function ^av_buffer_replace$
+
+# Buffer-frame wave 0, batch 5: the rest of the RefStruct reference lifecycle
+# (av_refstruct_allocz is static inline, compiled by bindgen's
+# wrap_static_fns; av_refstruct_ref, _unref and _exclusive are above). Batch
+# 1's block above also binds av_buffer_default_free.
+function ^av_refstruct_allocz$
+function ^av_refstruct_ref_c$
+function ^av_refstruct_replace$
+
+# Buffer-frame wave 2, batch 0: the C readers and writers of AVFrameSideData's
+# fields that frame.rs's SideData and SideDataArray equivalence tests compare
+# against (clone copies data, size and metadata and references buf; add with
+# AV_FRAME_SIDE_DATA_FLAG_REPLACE replaces buf and frees metadata; get_c
+# looks entries up by type). av_frame_side_data_new and _free are in wave 0
+# batch 4's block.
+function ^av_frame_side_data_clone$
+function ^av_frame_side_data_add$
+function ^av_frame_side_data_get_c$
+var ^AV_FRAME_SIDE_DATA_FLAG_.*
+
+# Buffer-frame wave 3, batch 1: the rest of the side data array routines
+# frame.rs's SideDataArrayMut wraps (removal by type, and the static inline
+# lookup over mutable entries, compiled by bindgen's wrap_static_fns; _get_c,
+# _new, _clone and _remove_by_props are in earlier blocks).
+function ^av_frame_side_data_remove$
+function ^av_frame_side_data_get$
+
+# Buffer-frame wave 3, batch 0: AVFrame's lifecycle beyond av_frame_alloc and
+# av_frame_free (formats wave 0's block): its copy (av_frame_clone) and its
+# reset (av_frame_unref); the AV_FRAME_FLAG_* and FF_DECODE_ERROR_* bits of
+# its flags and decode_error_flags and its plane count; and the C readers of
+# its buffers and planes (av_frame_ref, av_frame_is_writable,
+# av_frame_get_plane_buffer) that frame.rs's Frame equivalence tests compare
+# against. av_frame_get_buffer and av_frame_copy rebuild, over zeroed bytes,
+# the copy av_frame_clone makes of data that is not reference counted.
+function ^av_frame_clone$
+function ^av_frame_unref$
+function ^av_frame_get_buffer$
+function ^av_frame_copy$
+function ^av_frame_ref$
+function ^av_frame_is_writable$
+function ^av_frame_get_plane_buffer$
+var ^AV_FRAME_FLAG_.*
+var ^FF_DECODE_ERROR_.*
+var ^AV_NUM_DATA_POINTERS$
+
+# Buffer-frame wave 4, batch 0: the rest of AVFrame's routines frame.rs wraps
+# (av_frame_replace, av_frame_move_ref, av_frame_apply_cropping and its
+# AV_FRAME_CROP_* flags, av_frame_new_side_data_from_buf), av_frame_make_writable
+# as the C reference its Rust composition is compared against, and ENOSYS, the
+# code the Rust copies give hardware frames until hwcontext.h is wrapped.
+function ^av_frame_replace$
+function ^av_frame_move_ref$
+function ^av_frame_apply_cropping$
+function ^av_frame_make_writable$
+function ^av_frame_new_side_data_from_buf$
+var ^AV_FRAME_CROP_.*
+var ^ENOSYS$
+# libavutil/hwcontext.h: the C readers and producers of `AVHWDeviceType`
+# values, which observe `DeviceType`'s encoding in equivalence tests
+# (hwcontext wave 0, batch 0).
+function ^av_hwdevice_find_type_by_name$
+function ^av_hwdevice_get_type_name$
+function ^av_hwdevice_iterate_types$
+
+# libavutil/hwcontext.h: transfers between hardware and software frames and
+# the formats they accept, which hwcontext.rs wraps (hwcontext wave 1,
+# batch 2).
+function ^av_hwframe_transfer_data$
+function ^av_hwframe_transfer_get_formats$
+
+# libavutil/hwcontext.h, hwcontext wave 1, batch 1: the device and frames
+# context lifecycle hwcontext.rs wraps (alloc, init, create, derive), the
+# hardware configuration allocator, hardware frame allocation and mapping, and
+# the AV_HWFRAME_MAP_* flags of the mappings.
+function ^av_hwdevice_ctx_alloc$
+function ^av_hwdevice_ctx_init$
+function ^av_hwdevice_ctx_create$
+function ^av_hwdevice_ctx_create_derived$
+function ^av_hwdevice_ctx_create_derived_opts$
+function ^av_hwdevice_hwconfig_alloc$
+function ^av_hwframe_ctx_alloc$
+function ^av_hwframe_ctx_init$
+function ^av_hwframe_ctx_create_derived$
+function ^av_hwframe_get_buffer$
+function ^av_hwframe_map$
+var ^AV_HWFRAME_MAP_.*
+
+# libavutil/hwcontext.h: AVHWFramesConstraints' constructor and releaser,
+# which the type run binds to its owner (hwcontext wave 1, batch 0).
+function ^av_hwdevice_get_hwframe_constraints$
+function ^av_hwframe_constraints_free$
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^AV3DReferenceDisplay$
+type ^AV3DReferenceDisplaysInfo$
+type ^AVActiveFormatDescription$
+type ^AVAdler$
+type ^AVAlphaMode$
+type ^AVAmbientViewingEnvironment$
+type ^AVAudioFifo$
+type ^AVBPrint$
+type ^AVBlowfish$
+type ^AVBuffer$
+type ^AVBufferPool$
+type ^AVBufferRef$
+type ^AVCIExy$
+type ^AVCRC$
+type ^AVCRCId$
+type ^AVChannel$
+type ^AVChannelCustom$
+type ^AVChannelLayout$
+type ^AVChannelOrder$
+type ^AVChromaLocation$
+type ^AVClass$
+type ^AVClassCategory$
+type ^AVClassStateFlags$
+type ^AVColorPrimaries$
+type ^AVColorPrimariesDesc$
+type ^AVColorRange$
+type ^AVColorSpace$
+type ^AVColorTransferCharacteristic$
+type ^AVComplexDouble$
+type ^AVComplexFloat$
+type ^AVComplexInt32$
+type ^AVComponentDescriptor$
+type ^AVContainerFifo$
+type ^AVContainerFifoFlags$
+type ^AVContentLightMetadata$
+type ^AVDES$
+type ^AVDOVIColorMetadata$
+type ^AVDOVICompression$
+type ^AVDOVIDataMapping$
+type ^AVDOVIDecoderConfigurationRecord$
+type ^AVDOVIDmData$
+type ^AVDOVIDmLevel1$
+type ^AVDOVIDmLevel10$
+type ^AVDOVIDmLevel11$
+type ^AVDOVIDmLevel2$
+type ^AVDOVIDmLevel254$
+type ^AVDOVIDmLevel255$
+type ^AVDOVIDmLevel3$
+type ^AVDOVIDmLevel4$
+type ^AVDOVIDmLevel5$
+type ^AVDOVIDmLevel6$
+type ^AVDOVIDmLevel8$
+type ^AVDOVIDmLevel9$
+type ^AVDOVIMappingMethod$
+type ^AVDOVIMetadata$
+type ^AVDOVINLQMethod$
+type ^AVDOVINLQParams$
+type ^AVDOVIReshapingCurve$
+type ^AVDOVIRpuDataHeader$
+type ^AVDetectionBBox$
+type ^AVDetectionBBoxHeader$
+type ^AVDictionary$
+type ^AVDictionaryEntry$
+type ^AVDownmixCoeff$
+type ^AVDownmixInfo$
+type ^AVDownmixMatrix$
+type ^AVDownmixType$
+type ^AVDynamicHDRPlus$
+type ^AVDynamicHDRSmpte2094App5$
+type ^AVDynamicHDRVivid$
+type ^AVEncryptionInfo$
+type ^AVEncryptionInitInfo$
+type ^AVEscapeMode$
+type ^AVExecutor$
+type ^AVExpr$
+type ^AVFifo$
+type ^AVFifoCB$
+type ^AVFilmGrainAOMParams$
+type ^AVFilmGrainH274Params$
+type ^AVFilmGrainParams$
+type ^AVFilmGrainParamsType$
+type ^AVFrame$
+type ^AVFrameSideData$
+type ^AVFrameSideDataType$
+type ^AVHDRPlusColorTransformParams$
+type ^AVHDRPlusOverlapProcessOption$
+type ^AVHDRPlusPercentile$
+type ^AVHDRVivid3SplineParams$
+type ^AVHDRVividColorToneMappingParams$
+type ^AVHDRVividColorTransformParams$
+type ^AVHMAC$
+type ^AVHMACType$
+type ^AVHWDeviceContext$
+type ^AVHWDeviceType$
+type ^AVHWFrameTransferDirection$
+type ^AVHWFramesConstraints$
+type ^AVHWFramesContext$
+type ^AVIAMFAmbisonicsMode$
+type ^AVIAMFAnimationType$
+type ^AVIAMFAudioElement$
+type ^AVIAMFAudioElementType$
+type ^AVIAMFDemixingInfo$
+type ^AVIAMFHeadphonesMode$
+type ^AVIAMFLayer$
+type ^AVIAMFMixGain$
+type ^AVIAMFMixPresentation$
+type ^AVIAMFParamDefinition$
+type ^AVIAMFParamDefinitionType$
+type ^AVIAMFReconGain$
+type ^AVIAMFSubmix$
+type ^AVIAMFSubmixElement$
+type ^AVIAMFSubmixLayout$
+type ^AVIAMFSubmixLayoutType$
+type ^AVLFG$
+type ^AVLumaCoefficients$
+type ^AVMasteringDisplayMetadata$
+type ^AVMatrixEncoding$
+type ^AVMediaType$
+type ^AVMotionVector$
+type ^AVOption$
+type ^AVOptionArrayDef$
+type ^AVOptionRange$
+type ^AVOptionRanges$
+type ^AVOptionType$
+type ^AVPictureType$
+type ^AVPixFmtDescriptor$
+type ^AVPixelFormat$
+type ^AVPrimaryCoefficients$
+type ^AVProResRawColorParams$
+type ^AVRC4$
+type ^AVRational$
+type ^AVRawColorParams$
+type ^AVRawColorParamsType$
+type ^AVRefStructOpaque$
+type ^AVRefStructPool$
+type ^AVRegionOfInterest$
+type ^AVReplayGain$
+type ^AVRounding$
+type ^AVSampleFormat$
+type ^AVSideDataDescriptor$
+type ^AVSideDataProps$
+type ^AVSphericalMapping$
+type ^AVSphericalProjection$
+type ^AVStereo3D$
+type ^AVStereo3DPrimaryEye$
+type ^AVStereo3DType$
+type ^AVStereo3DView$
+type ^AVSubsampleEncryptionInfo$
+type ^AVTXContext$
+type ^AVTXFlags$
+type ^AVTXType$
+type ^AVTask$
+type ^AVTaskCallbacks$
+type ^AVThreadMessageFlags$
+type ^AVThreadMessageQueue$
+type ^AVTimecode$
+type ^AVTimecodeFlag$
+type ^AVUUID$
+type ^AVVideoBlockParams$
+type ^AVVideoEncParams$
+type ^AVVideoEncParamsType$
+type ^AVVideoHint$
+type ^AVVideoHintType$
+type ^AVVideoRect$
+type ^AVWhitepointCoefficients$
+type ^AVXTEA$
+type ^av_alias16$
+type ^av_alias32$
+type ^av_alias64$
+type ^av_csp_eotf_function$
+type ^av_csp_trc_function$
+type ^av_intfloat32$
+type ^av_intfloat64$
+type ^av_pixelutils_sad_fn$
+type ^av_tx_fn$
+type ^ff_pad_helper_AVBPrint$
+type ^unaligned_16$
+type ^unaligned_32$
+type ^unaligned_64$

@@ -44,47 +44,59 @@ use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
 /// Every named constant beside its C enumerator and the name C gives it.
 const NAMED: [(DeviceType, C, Option<&str>); 15] = [
-    (DeviceType::NONE, C::AV_HWDEVICE_TYPE_NONE, None),
-    (DeviceType::VDPAU, C::AV_HWDEVICE_TYPE_VDPAU, Some("vdpau")),
-    (DeviceType::CUDA, C::AV_HWDEVICE_TYPE_CUDA, Some("cuda")),
-    (DeviceType::VAAPI, C::AV_HWDEVICE_TYPE_VAAPI, Some("vaapi")),
-    (DeviceType::DXVA2, C::AV_HWDEVICE_TYPE_DXVA2, Some("dxva2")),
-    (DeviceType::QSV, C::AV_HWDEVICE_TYPE_QSV, Some("qsv")),
+    (DeviceType::NONE, ffi::AV_HWDEVICE_TYPE_NONE, None),
+    (
+        DeviceType::VDPAU,
+        ffi::AV_HWDEVICE_TYPE_VDPAU,
+        Some("vdpau"),
+    ),
+    (DeviceType::CUDA, ffi::AV_HWDEVICE_TYPE_CUDA, Some("cuda")),
+    (
+        DeviceType::VAAPI,
+        ffi::AV_HWDEVICE_TYPE_VAAPI,
+        Some("vaapi"),
+    ),
+    (
+        DeviceType::DXVA2,
+        ffi::AV_HWDEVICE_TYPE_DXVA2,
+        Some("dxva2"),
+    ),
+    (DeviceType::QSV, ffi::AV_HWDEVICE_TYPE_QSV, Some("qsv")),
     (
         DeviceType::VIDEOTOOLBOX,
-        C::AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
+        ffi::AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
         Some("videotoolbox"),
     ),
     (
         DeviceType::D3D11VA,
-        C::AV_HWDEVICE_TYPE_D3D11VA,
+        ffi::AV_HWDEVICE_TYPE_D3D11VA,
         Some("d3d11va"),
     ),
-    (DeviceType::DRM, C::AV_HWDEVICE_TYPE_DRM, Some("drm")),
+    (DeviceType::DRM, ffi::AV_HWDEVICE_TYPE_DRM, Some("drm")),
     (
         DeviceType::OPENCL,
-        C::AV_HWDEVICE_TYPE_OPENCL,
+        ffi::AV_HWDEVICE_TYPE_OPENCL,
         Some("opencl"),
     ),
     (
         DeviceType::MEDIACODEC,
-        C::AV_HWDEVICE_TYPE_MEDIACODEC,
+        ffi::AV_HWDEVICE_TYPE_MEDIACODEC,
         Some("mediacodec"),
     ),
     (
         DeviceType::VULKAN,
-        C::AV_HWDEVICE_TYPE_VULKAN,
+        ffi::AV_HWDEVICE_TYPE_VULKAN,
         Some("vulkan"),
     ),
     (
         DeviceType::D3D12VA,
-        C::AV_HWDEVICE_TYPE_D3D12VA,
+        ffi::AV_HWDEVICE_TYPE_D3D12VA,
         Some("d3d12va"),
     ),
-    (DeviceType::AMF, C::AV_HWDEVICE_TYPE_AMF, Some("amf")),
+    (DeviceType::AMF, ffi::AV_HWDEVICE_TYPE_AMF, Some("amf")),
     (
         DeviceType::OHCODEC,
-        C::AV_HWDEVICE_TYPE_OHCODEC,
+        ffi::AV_HWDEVICE_TYPE_OHCODEC,
         Some("ohcodec"),
     ),
 ];
@@ -146,17 +158,17 @@ fn constants_are_the_c_enumerators() {
         assert_eq!(c_name(t.into_raw()), c_name(c));
         assert_eq!(c_name(t.into_raw()), name, "{t:?}");
     }
-    assert_eq!(DeviceType::default().into_raw(), C::AV_HWDEVICE_TYPE_NONE);
+    assert_eq!(DeviceType::default().into_raw(), ffi::AV_HWDEVICE_TYPE_NONE);
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn the_wrapper_names_exactly_what_c_names_and_none() {
     for raw in (0..=48).chain(UNNAMED) {
-        let t = DeviceType::from_raw(C(raw));
-        let c_names = c_name(C(raw)).is_some() || C(raw) == C::AV_HWDEVICE_TYPE_NONE;
+        let t = DeviceType::from_raw(raw);
+        let c_names = c_name(raw).is_some() || raw == ffi::AV_HWDEVICE_TYPE_NONE;
         assert_eq!(rust_names(t), c_names, "raw {raw}");
-        assert_eq!(t.into_raw().0, raw);
+        assert_eq!(t.into_raw(), raw);
     }
 }
 
@@ -187,7 +199,7 @@ fn backend_walk_agrees_for_rust_and_c_encodings() {
     let starts = NAMED
         .iter()
         .map(|&(t, c, _)| (t, c))
-        .chain(UNNAMED.map(|r| (DeviceType::from_raw(C(r)), C(r))));
+        .chain(UNNAMED.map(|r| (DeviceType::from_raw(r), r)));
     for (t, c) in starts {
         assert_eq!(c_next(t.into_raw()), c_next(c));
     }
@@ -199,7 +211,7 @@ fn backend_walk_agrees_for_rust_and_c_encodings() {
             break;
         }
         assert!(rust_names(next), "{next:?}");
-        assert!(next.into_raw().0 > prev.into_raw().0);
+        assert!(next.into_raw() > prev.into_raw());
         assert!(c_name(next.into_raw()).is_some());
         walked.push(next);
         prev = next;
@@ -259,11 +271,7 @@ fn rust_as_c(a: &HeapVec<DeviceType>) -> Vec<C> {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn storage_holds_the_same_values_and_names_after_each_write() {
-    let values: Vec<C> = NAMED
-        .iter()
-        .map(|&(_, c, _)| c)
-        .chain(UNNAMED.map(C))
-        .collect();
+    let values: Vec<C> = NAMED.iter().map(|&(_, c, _)| c).chain(UNNAMED).collect();
     let len = values.len();
     let mut rust = alloc_array_zeroed::<DeviceType>(len).unwrap();
     let mut c = CTypes::zeroed(len);
@@ -292,19 +300,19 @@ fn transfer_directions_are_the_c_enumerators() {
     use ffi::AVHWFrameTransferDirection as D;
     assert_eq!(
         TransferDirection::From.into_raw(),
-        D::AV_HWFRAME_TRANSFER_DIRECTION_FROM
+        ffi::AV_HWFRAME_TRANSFER_DIRECTION_FROM
     );
     assert_eq!(
         TransferDirection::To.into_raw(),
-        D::AV_HWFRAME_TRANSFER_DIRECTION_TO
+        ffi::AV_HWFRAME_TRANSFER_DIRECTION_TO
     );
     assert_eq!(
         D::from(TransferDirection::From),
-        D::AV_HWFRAME_TRANSFER_DIRECTION_FROM
+        ffi::AV_HWFRAME_TRANSFER_DIRECTION_FROM
     );
     assert_eq!(
         D::from(TransferDirection::To),
-        D::AV_HWFRAME_TRANSFER_DIRECTION_TO
+        ffi::AV_HWFRAME_TRANSFER_DIRECTION_TO
     );
 }
 
@@ -379,8 +387,8 @@ mod transfer {
             fx::new_context(
                 &INERT,
                 &YUV,
-                Fmt::AV_PIX_FMT_MEDIACODEC,
-                Fmt::AV_PIX_FMT_YUV420P,
+                ffi::AV_PIX_FMT_MEDIACODEC,
+                ffi::AV_PIX_FMT_YUV420P,
                 W,
                 H,
             )
@@ -516,7 +524,7 @@ mod transfer {
         {
             let mut p = list;
             // SAFETY: as the comment above this block states.
-            while unsafe { *p } != Fmt::AV_PIX_FMT_NONE {
+            while unsafe { *p } != ffi::AV_PIX_FMT_NONE {
                 // SAFETY: as the comment above this statement states.
                 out.push(PixelFormat::from_raw(unsafe { *p }));
                 // SAFETY: as the comment at the head of this block states.
@@ -556,12 +564,12 @@ mod transfer {
     #[cfg_attr(miri, ignore = "calls C")]
     fn downloads_match_c() {
         for (format, w, h) in [
-            (Fmt::AV_PIX_FMT_YUV420P, W, H),
-            (Fmt::AV_PIX_FMT_YUV420P, 10, 5),
-            (Fmt::AV_PIX_FMT_YUV420P, 1, 1),
-            (Fmt::AV_PIX_FMT_YUV420P, 0, 0),
-            (Fmt::AV_PIX_FMT_GRAY8, W, H),
-            (Fmt::AV_PIX_FMT_GRAY8, 3, 7),
+            (ffi::AV_PIX_FMT_YUV420P, W, H),
+            (ffi::AV_PIX_FMT_YUV420P, 10, 5),
+            (ffi::AV_PIX_FMT_YUV420P, 1, 1),
+            (ffi::AV_PIX_FMT_YUV420P, 0, 0),
+            (ffi::AV_PIX_FMT_GRAY8, W, H),
+            (ffi::AV_PIX_FMT_GRAY8, 3, 7),
         ] {
             let ctx = contexts(&YUV, W, H);
             let mut src = hw_frames(&ctx, 1);
@@ -595,7 +603,7 @@ mod transfer {
         for (w, h) in [(W, H), (9, 3), (0, 0)] {
             let ctx = contexts(&YUV, W, H);
             let mut dst = hw_frames(&ctx, 0);
-            let mut src = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 2);
+            let mut src = sw_frames(ffi::AV_PIX_FMT_YUV420P, W, H, 2);
             // SAFETY: frames this test owns; a write of its `width`.
             unsafe { (*src.0.0).width = w };
             // SAFETY: frames this test owns; a write of its `height`.
@@ -626,7 +634,7 @@ mod transfer {
                 // SAFETY: as the comment above this block states.
                 let f = unsafe { ffi::av_frame_alloc() };
                 // SAFETY: as the comment above this block states.
-                unsafe { (*f).format = Fmt::AV_PIX_FMT_YUV420P.0 };
+                unsafe { (*f).format = ffi::AV_PIX_FMT_YUV420P };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*f).width = W };
                 // SAFETY: as the comment above the previous write states.
@@ -709,15 +717,15 @@ mod transfer {
     #[cfg_attr(miri, ignore = "calls C")]
     fn downloads_into_new_buffers_match_c() {
         for (behaviour, format, w, h) in [
-            (&YUV, Fmt::AV_PIX_FMT_NONE, W, H),
-            (&YUV, Fmt::AV_PIX_FMT_NONE, 7, 3),
-            (&YUV, Fmt::AV_PIX_FMT_GRAY8, W, H),
-            (&GRAY_FIRST, Fmt::AV_PIX_FMT_NONE, 5, 8),
-            (&GRAY_FIRST, Fmt::AV_PIX_FMT_YUV420P, W, H),
-            (&EMPTY, Fmt::AV_PIX_FMT_NONE, W, H),
-            (&LISTING_FAILS, Fmt::AV_PIX_FMT_NONE, W, H),
-            (&TRANSFER_FAILS, Fmt::AV_PIX_FMT_NONE, W, H),
-            (&YUV, Fmt::AV_PIX_FMT_VAAPI, W, H),
+            (&YUV, ffi::AV_PIX_FMT_NONE, W, H),
+            (&YUV, ffi::AV_PIX_FMT_NONE, 7, 3),
+            (&YUV, ffi::AV_PIX_FMT_GRAY8, W, H),
+            (&GRAY_FIRST, ffi::AV_PIX_FMT_NONE, 5, 8),
+            (&GRAY_FIRST, ffi::AV_PIX_FMT_YUV420P, W, H),
+            (&EMPTY, ffi::AV_PIX_FMT_NONE, W, H),
+            (&LISTING_FAILS, ffi::AV_PIX_FMT_NONE, W, H),
+            (&TRANSFER_FAILS, ffi::AV_PIX_FMT_NONE, W, H),
+            (&YUV, ffi::AV_PIX_FMT_VAAPI, W, H),
         ] {
             let ctx = contexts(behaviour, W, H);
             let mut src = hw_frames(&ctx, 7);
@@ -733,7 +741,7 @@ mod transfer {
                 // SAFETY: as the comment above this block states.
                 let f = unsafe { ffi::av_frame_alloc() };
                 // SAFETY: as the comment above this block states.
-                unsafe { (*f).format = format.0 };
+                unsafe { (*f).format = format };
                 f
             });
             let mut r = Frame::new().unwrap();
@@ -745,7 +753,7 @@ mod transfer {
             if ret == 0 {
                 // C's bytes past the copied lines are uninitialised: compare
                 // the displayed image, which the transfer wrote.
-                let (c, r) = images(&dst, Fmt(c_shape.0), w, h);
+                let (c, r) = images(&dst, c_shape.0, w, h);
                 assert_eq!(r, c, "{format:?} {w}x{h}");
             }
         }
@@ -759,11 +767,11 @@ mod transfer {
             CFrame(unsafe { ffi::av_frame_alloc() }),
             Frame::new().unwrap(),
         );
-        let src = sw_frames(Fmt::AV_PIX_FMT_GRAY8, 4, 4, 1);
-        let mut counted = sw_frames(Fmt::AV_PIX_FMT_GRAY8, 4, 4, 0);
+        let src = sw_frames(ffi::AV_PIX_FMT_GRAY8, 4, 4, 1);
+        let mut counted = sw_frames(ffi::AV_PIX_FMT_GRAY8, 4, 4, 0);
         assert_eq!(transfer_both(&mut clean, &src), -(ffi::EINVAL as c_int));
         assert_eq!(transfer_both(&mut counted, &src), -(ffi::ENOSYS as c_int));
-        let (c, r) = images(&counted, Fmt::AV_PIX_FMT_GRAY8, 4, 4);
+        let (c, r) = images(&counted, ffi::AV_PIX_FMT_GRAY8, 4, 4);
         assert_eq!(r, c);
     }
 
@@ -772,10 +780,10 @@ mod transfer {
     fn transfer_errors_match_c() {
         let ctx = contexts(&TRANSFER_FAILS, W, H);
         let src = hw_frames(&ctx, 8);
-        let mut dst = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 0);
+        let mut dst = sw_frames(ffi::AV_PIX_FMT_YUV420P, W, H, 0);
         assert_eq!(transfer_both(&mut dst, &src), -5);
         let mut hw = hw_frames(&ctx, 9);
-        let up = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 1);
+        let up = sw_frames(ffi::AV_PIX_FMT_YUV420P, W, H, 1);
         assert_eq!(transfer_both(&mut hw, &up), -5);
         let (c, r) = surfaces(&hw);
         assert_eq!(r, c);
@@ -790,7 +798,7 @@ mod transfer {
         let (a, b) = (contexts(&YUV, W, H), contexts(&YUV, W, H));
         let mut ha = hw_frames(&a, 0);
         let mut hb = hw_frames(&b, 0);
-        let up = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 10);
+        let up = sw_frames(ffi::AV_PIX_FMT_YUV420P, W, H, 10);
         assert_eq!(transfer_both(&mut ha, &up), 0);
         let (c, r) = surfaces(&ha);
         assert_eq!(r, c);
@@ -801,7 +809,7 @@ mod transfer {
             Frame::new().unwrap(),
         );
         assert_eq!(transfer_both(&mut down, &ha), 0);
-        let (c, r) = images(&down, Fmt::AV_PIX_FMT_YUV420P, W, H);
+        let (c, r) = images(&down, ffi::AV_PIX_FMT_YUV420P, W, H);
         assert_eq!(r, c);
         assert_eq!(c, surfaces(&ha).0);
 
@@ -827,11 +835,11 @@ mod transfer {
         assert_eq!(r, c);
         assert_eq!(c, surfaces(&ha).0);
 
-        let mut again = sw_frames(Fmt::AV_PIX_FMT_YUV420P, W, H, 0);
+        let mut again = sw_frames(ffi::AV_PIX_FMT_YUV420P, W, H, 0);
         assert_eq!(transfer_both(&mut again, &hb), 0);
-        let (c, r) = images(&again, Fmt::AV_PIX_FMT_YUV420P, W, H);
+        let (c, r) = images(&again, ffi::AV_PIX_FMT_YUV420P, W, H);
         assert_eq!(r, c);
-        assert_eq!(c, images(&down, Fmt::AV_PIX_FMT_YUV420P, W, H).0);
+        assert_eq!(c, images(&down, ffi::AV_PIX_FMT_YUV420P, W, H).0);
     }
 }
 
@@ -863,7 +871,7 @@ mod contexts {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     use super::backend::{self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
-    use super::{C, NAMED, UNNAMED, c_find, c_name, c_next};
+    use super::{NAMED, UNNAMED, c_find, c_name, c_next};
 
     const ENOSYS: c_int = averror(ffi::ENOSYS);
 
@@ -1017,7 +1025,7 @@ mod contexts {
     }
 
     fn rust_dims(frame: &HardwareFrame) -> (c_int, c_int, c_int) {
-        (frame.format().into_raw().0, frame.width(), frame.height())
+        (frame.format().into_raw(), frame.width(), frame.height())
     }
 
     /// The frames context a C frame holds.
@@ -1037,12 +1045,8 @@ mod contexts {
     #[cfg_attr(miri, ignore = "calls C")]
     fn names_and_lookups_match_c() {
         for raw in (0..=48).chain(UNNAMED) {
-            let t = DeviceType::from_raw(C(raw));
-            assert_eq!(
-                t.name().map(|n| n.to_str().unwrap()),
-                c_name(C(raw)),
-                "{raw}"
-            );
+            let t = DeviceType::from_raw(raw);
+            assert_eq!(t.name().map(|n| n.to_str().unwrap()), c_name(raw), "{raw}");
         }
         let unknown: [&CStr; 6] = [c"", c"none", c"CUDA", c"vaapi ", c"vulkan2", c"\xff"];
         let names = NAMED.iter().filter_map(|&(t, _, _)| t.name());
@@ -1077,7 +1081,7 @@ mod contexts {
         let types = NAMED
             .iter()
             .map(|&(t, _, _)| t)
-            .chain(UNNAMED.map(|r| DeviceType::from_raw(C(r))));
+            .chain(UNNAMED.map(DeviceType::from_raw));
         for t in types {
             // SAFETY: by value.
             let c = unsafe { ffi::av_hwdevice_ctx_alloc(t.into_raw()) };
@@ -1387,13 +1391,13 @@ mod contexts {
             let mut r_maps = Vec::new();
             for format in formats {
                 for flags in flag_sets {
-                    let c = c_map(cs, format.into_raw().0, null_mut(), flags);
+                    let c = c_map(cs, format.into_raw(), null_mut(), flags);
                     let c_events = fx::take_events();
                     let rust = rs.map(format, flags);
                     assert_eq!(fx::take_events(), c_events);
                     match (c, rust) {
                         (Ok(c), Ok(r)) => {
-                            assert_eq!(c_dims(c), (r.format().into_raw().0, r.width(), r.height()));
+                            assert_eq!(c_dims(c), (r.format().into_raw(), r.width(), r.height()));
                             c_maps.push(c);
                             r_maps.push(r);
                         }
@@ -1466,7 +1470,7 @@ mod contexts {
             };
 
             // Into B's context.
-            let c = c_map(cs, Kind::B.format().0, cfb, flags);
+            let c = c_map(cs, Kind::B.format(), cfb, flags);
             let c_events = fx::take_events();
             let rust = rs.map_to(rfb.as_ref(), flags);
             assert_eq!(fx::take_events(), c_events, "{label}");
@@ -1513,7 +1517,7 @@ mod contexts {
                 assert_eq!(c2.as_ref().err(), r2.as_ref().err(), "{label}");
                 if let (Ok(c2), Ok(r2)) = (c2, r2) {
                     assert_eq!(c_dims(c2), rust_dims(&r2));
-                    let cu = c_map(c2, Kind::A.format().0, cfa, flags).unwrap();
+                    let cu = c_map(c2, Kind::A.format(), cfa, flags).unwrap();
                     let ru = r2.map_to(rfa.as_ref(), flags).unwrap();
                     assert_eq!(c_dims(cu), rust_dims(&ru));
                     assert_eq!(c_frames_of(cu), data(cfa));
@@ -1585,7 +1589,7 @@ mod contexts {
         let cs = c_get_buffer(cf).unwrap();
         let rs = rf.as_ref().get_buffer().unwrap();
         fx::take_events();
-        let c = c_map(cs, Kind::A.format().0, cf, MapFlags::READ).unwrap();
+        let c = c_map(cs, Kind::A.format(), cf, MapFlags::READ).unwrap();
         assert_eq!(fx::take_events(), [Event::MapFrom(Kind::A)]);
         assert_eq!(
             rs.map_to(rf.as_ref(), MapFlags::READ).err(),
@@ -1782,7 +1786,7 @@ mod hardware_frame_transfers {
         // image rows are then written inside its planes.
         {
             // SAFETY: as the comment above this block states.
-            unsafe { (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0 };
+            unsafe { (*c.0).format = ffi::AV_PIX_FMT_NV12 };
             // SAFETY: as the comment above this block states.
             unsafe { (*c.0).width = w };
             // SAFETY: as the comment above this block states.
@@ -1893,7 +1897,7 @@ mod hardware_frame_transfers {
                         let mut out = Vec::new();
                         let mut p = list;
                         // SAFETY: as the comment above this block states.
-                        while unsafe { *p } != ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                        while unsafe { *p } != ffi::AV_PIX_FMT_NONE {
                             // SAFETY: as the comment above this statement states.
                             out.push(PixelFormat::from_raw(unsafe { *p }));
                             // SAFETY: as the comment at the head of this block states.
@@ -1996,7 +2000,7 @@ mod hardware_frame_transfers {
         // Rust checks first.
         let ok = Contexts::new(Kind::A, FramesHwctx::default());
         let flags = MapFlags::READ | MapFlags::WRITE;
-        let fmt = ffi::AVPixelFormat::AV_PIX_FMT_VAAPI;
+        let fmt = ffi::AV_PIX_FMT_VAAPI;
         let mut c_derived = ptr::null_mut();
         // SAFETY: live device and frames contexts and a writable slot.
         let ret = unsafe {
@@ -2179,12 +2183,9 @@ mod device_context {
     #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores() {
         for (backend, t) in [
-            (
-                &hwdevice::FAKE_TYPE,
-                ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
-            ),
-            (&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VULKAN),
-            (&BARE_TYPE, ffi::AVHWDeviceType(99)),
+            (&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI),
+            (&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_VULKAN),
+            (&BARE_TYPE, 99),
         ] {
             let raw = hwdevice::fake_device_of(backend, t);
             // For the unsafe operations below: a live fake context, read before the builder adopts
@@ -2469,7 +2470,7 @@ mod frames_constraints {
         for bare in [false, true] {
             for nb_sw in [-1, 0, 1, 4] {
                 for ret in [0, 3, -12] {
-                    for config in [None, Some(ffi::AVPixelFormat::AV_PIX_FMT_CUDA)] {
+                    for config in [None, Some(ffi::AV_PIX_FMT_CUDA)] {
                         q.push(Query {
                             bare,
                             nb_sw,
@@ -2493,7 +2494,7 @@ mod frames_constraints {
 
     /// A raw fake device set up for `q` and initialised by C.
     fn c_device(q: Query, events: &Arc<Events>) -> *mut ffi::AVBufferRef {
-        let raw = hwdevice::fake_device_of(backend(q), ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VAAPI);
         // For the unsafe operations below: the only reference to a fresh fake context.
         {
             // SAFETY: as the comment above this block states.
@@ -2514,7 +2515,7 @@ mod frames_constraints {
 
     /// The same device through the wrapper.
     fn rust_device(q: Query, events: &Arc<Events>) -> DeviceReferenceBox {
-        let raw = hwdevice::fake_device_of(backend(q), ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VAAPI);
         // SAFETY: the only reference to a fresh, uninitialised fake context.
         let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
         // SAFETY: the fake backend's hardware context type, or none.
@@ -2539,7 +2540,7 @@ mod frames_constraints {
             let at = unsafe { list.add(v.len()) };
             // SAFETY: as above.
             let format = unsafe { at.read() };
-            if format == ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+            if format == ffi::AV_PIX_FMT_NONE {
                 break;
             }
             v.push(format);
@@ -2645,7 +2646,7 @@ mod frames_constraints {
                     let all = stored
                         .iter()
                         .map(|f| f.into_raw())
-                        .chain([ffi::AVPixelFormat::AV_PIX_FMT_NONE]);
+                        .chain([ffi::AV_PIX_FMT_NONE]);
                     for (i, f) in all.enumerate() {
                         // SAFETY: as the comment below states, for this part of the operation.
                         let list_add = unsafe { list.add(i) };
@@ -2840,7 +2841,7 @@ mod frames_constraints {
             .set_valid_hw_formats(Some(&[PixelFormat::CUDA]))
             .unwrap();
         let mut c = rust.into_c();
-        assert_eq!(c_view(c).0, Some(vec![ffi::AVPixelFormat::AV_PIX_FMT_CUDA]));
+        assert_eq!(c_view(c).0, Some(vec![ffi::AV_PIX_FMT_CUDA]));
         // SAFETY: the structure `into_c` gave up, with lists the setters
         // allocated, which C frees.
         unsafe { ffi::av_hwframe_constraints_free(&raw mut c) };
@@ -2860,17 +2861,17 @@ mod frames_constraints {
 
     fn steps() -> Vec<Step> {
         use Step::*;
-        use ffi::AVPixelFormat as F;
+
         vec![
             Plain,
             Config(None),
-            Config(Some(F::AV_PIX_FMT_CUDA)),
+            Config(Some(ffi::AV_PIX_FMT_CUDA)),
             Plain,
             Status(-12),
             Plain,
-            Config(Some(F::AV_PIX_FMT_VULKAN)),
+            Config(Some(ffi::AV_PIX_FMT_VULKAN)),
             Status(5),
-            Config(Some(F::AV_PIX_FMT_NONE)),
+            Config(Some(ffi::AV_PIX_FMT_NONE)),
             Config(None),
             Status(0),
             Plain,
@@ -3050,8 +3051,8 @@ mod frames_context {
         // SAFETY: callers pass live frames context references.
         let c = unsafe { *frames_ctx_4 };
         (
-            c.format.0,
-            c.sw_format.0,
+            c.format,
+            c.sw_format,
             c.width,
             c.height,
             c.initial_pool_size,
@@ -3065,8 +3066,8 @@ mod frames_context {
         // SAFETY: the test backends' frames struct is a `FramesHwctx`.
         let hw = unsafe { ctx.hwctx::<FramesHw>() };
         (
-            ctx.format().into_raw().0,
-            ctx.sw_format().into_raw().0,
+            ctx.format().into_raw(),
+            ctx.sw_format().into_raw(),
             ctx.width(),
             ctx.height(),
             ctx.initial_pool_size(),
@@ -3092,7 +3093,7 @@ mod frames_context {
         fn ok(kind: Kind, pool: c_int) -> Self {
             Self {
                 format: kind.format(),
-                sw_format: ffi::AVPixelFormat::AV_PIX_FMT_NV12,
+                sw_format: ffi::AV_PIX_FMT_NV12,
                 width: 64,
                 height: 32,
                 pool,
@@ -3199,7 +3200,7 @@ mod frames_context {
                 ..Fill::ok(kind, 1)
             },
             Fill {
-                format: ffi::AVPixelFormat::AV_PIX_FMT_NONE,
+                format: ffi::AV_PIX_FMT_NONE,
                 ..Fill::ok(kind, 0)
             },
             other,
@@ -3217,7 +3218,7 @@ mod frames_context {
                 ..Fill::ok(kind, 0)
             },
             Fill {
-                sw_format: ffi::AVPixelFormat(9999),
+                sw_format: 9999,
                 ..Fill::ok(kind, 0)
             },
             Fill {
@@ -3311,7 +3312,7 @@ mod frames_context {
             Fill::ok(kind, 5),
             Fill::ok(kind, i32::MIN),
             Fill {
-                format: ffi::AVPixelFormat::AV_PIX_FMT_NONE,
+                format: ffi::AV_PIX_FMT_NONE,
                 ..Fill::ok(kind, 0)
             },
             Fill {
@@ -3322,7 +3323,7 @@ mod frames_context {
             Fill {
                 width: 7,
                 height: 3,
-                sw_format: ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
+                sw_format: ffi::AV_PIX_FMT_YUV420P,
                 ..Fill::ok(kind, 1)
             },
         ] {
@@ -3613,7 +3614,7 @@ mod frames_context {
                         let rf = r.as_ref().get_buffer().unwrap();
                         // SAFETY: the frame C filled.
                         let shape = unsafe { fx::shape(cf) };
-                        let dims = (rf.format().into_raw().0, rf.width(), rf.height());
+                        let dims = (rf.format().into_raw(), rf.width(), rf.height());
                         assert_eq!((shape.format, shape.width, shape.height), dims);
                         held.push((cf, rf));
                         let (ca, ra) = counts();
@@ -3688,7 +3689,7 @@ mod frame_hw_frames_context {
             let f = unsafe { ffi::av_frame_alloc() };
             assert!(!f.is_null());
             // SAFETY: as the comment above this block states.
-            unsafe { (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_NV12.0 };
+            unsafe { (*f).format = ffi::AV_PIX_FMT_NV12 };
             // SAFETY: as the comment above this block states.
             unsafe { (*f).width = 64 };
             // SAFETY: as the comment above this block states.

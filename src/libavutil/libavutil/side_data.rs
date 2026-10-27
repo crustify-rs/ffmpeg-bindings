@@ -1258,7 +1258,7 @@ mod unit_tests {
     #[test]
     fn side_data_array_handles_lend_each_entry_once() {
         let blank = |t: u32| ffi::AVFrameSideData {
-            type_: ffi::AVFrameSideDataType(t),
+            type_: t,
             data: ptr::null_mut(),
             size: 0,
             metadata: ptr::null_mut(),
@@ -1276,22 +1276,16 @@ mod unit_tests {
         };
         let mut lent: Vec<SideDataMut<'_>> = array.iter_mut().collect();
         for (i, e) in lent.iter_mut().enumerate().rev() {
-            e.set_kind(SideDataType::from_raw(ffi::AVFrameSideDataType(
-                10 + i as u32,
-            )));
+            e.set_kind(SideDataType::from_raw(10 + i as u32));
         }
         drop(lent);
         let mut back = array.as_mut().into_iter();
         back.next_back().unwrap().set_kind(SideDataType::AFD);
         array.get_mut(0).unwrap().set_kind(SideDataType::A53_CC);
         assert!(array.get_mut(3).is_none());
-        let kinds: Vec<u32> = array
-            .as_ref()
-            .iter()
-            .map(|e| e.kind().into_raw().0)
-            .collect();
-        let afd = SideDataType::AFD.into_raw().0;
-        let a53 = SideDataType::A53_CC.into_raw().0;
+        let kinds: Vec<u32> = array.as_ref().iter().map(|e| e.kind().into_raw()).collect();
+        let afd = SideDataType::AFD.into_raw();
+        let a53 = SideDataType::A53_CC.into_raw();
         assert_eq!(kinds, [a53, 11, afd]);
         assert_eq!(array.len(), 3);
         assert!(array.as_ref().iter().rev().all(|e| e.data().is_empty()));

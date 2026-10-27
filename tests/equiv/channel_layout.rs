@@ -28,97 +28,116 @@ mod parser_inputs;
 
 /// Every named channel beside its C enumerator and C name.
 const CHANNEL_NAMED: [(Channel, ffi::AVChannel, &str); 41] = {
-    use ffi::AVChannel as C;
     [
-        (Channel::NONE, C::AV_CHAN_NONE, "NONE"),
-        (Channel::FRONT_LEFT, C::AV_CHAN_FRONT_LEFT, "FL"),
-        (Channel::FRONT_RIGHT, C::AV_CHAN_FRONT_RIGHT, "FR"),
-        (Channel::FRONT_CENTER, C::AV_CHAN_FRONT_CENTER, "FC"),
-        (Channel::LOW_FREQUENCY, C::AV_CHAN_LOW_FREQUENCY, "LFE"),
-        (Channel::BACK_LEFT, C::AV_CHAN_BACK_LEFT, "BL"),
-        (Channel::BACK_RIGHT, C::AV_CHAN_BACK_RIGHT, "BR"),
+        (Channel::NONE, ffi::AV_CHAN_NONE, "NONE"),
+        (Channel::FRONT_LEFT, ffi::AV_CHAN_FRONT_LEFT, "FL"),
+        (Channel::FRONT_RIGHT, ffi::AV_CHAN_FRONT_RIGHT, "FR"),
+        (Channel::FRONT_CENTER, ffi::AV_CHAN_FRONT_CENTER, "FC"),
+        (Channel::LOW_FREQUENCY, ffi::AV_CHAN_LOW_FREQUENCY, "LFE"),
+        (Channel::BACK_LEFT, ffi::AV_CHAN_BACK_LEFT, "BL"),
+        (Channel::BACK_RIGHT, ffi::AV_CHAN_BACK_RIGHT, "BR"),
         (
             Channel::FRONT_LEFT_OF_CENTER,
-            C::AV_CHAN_FRONT_LEFT_OF_CENTER,
+            ffi::AV_CHAN_FRONT_LEFT_OF_CENTER,
             "FLC",
         ),
         (
             Channel::FRONT_RIGHT_OF_CENTER,
-            C::AV_CHAN_FRONT_RIGHT_OF_CENTER,
+            ffi::AV_CHAN_FRONT_RIGHT_OF_CENTER,
             "FRC",
         ),
-        (Channel::BACK_CENTER, C::AV_CHAN_BACK_CENTER, "BC"),
-        (Channel::SIDE_LEFT, C::AV_CHAN_SIDE_LEFT, "SL"),
-        (Channel::SIDE_RIGHT, C::AV_CHAN_SIDE_RIGHT, "SR"),
-        (Channel::TOP_CENTER, C::AV_CHAN_TOP_CENTER, "TC"),
-        (Channel::TOP_FRONT_LEFT, C::AV_CHAN_TOP_FRONT_LEFT, "TFL"),
+        (Channel::BACK_CENTER, ffi::AV_CHAN_BACK_CENTER, "BC"),
+        (Channel::SIDE_LEFT, ffi::AV_CHAN_SIDE_LEFT, "SL"),
+        (Channel::SIDE_RIGHT, ffi::AV_CHAN_SIDE_RIGHT, "SR"),
+        (Channel::TOP_CENTER, ffi::AV_CHAN_TOP_CENTER, "TC"),
+        (Channel::TOP_FRONT_LEFT, ffi::AV_CHAN_TOP_FRONT_LEFT, "TFL"),
         (
             Channel::TOP_FRONT_CENTER,
-            C::AV_CHAN_TOP_FRONT_CENTER,
+            ffi::AV_CHAN_TOP_FRONT_CENTER,
             "TFC",
         ),
-        (Channel::TOP_FRONT_RIGHT, C::AV_CHAN_TOP_FRONT_RIGHT, "TFR"),
-        (Channel::TOP_BACK_LEFT, C::AV_CHAN_TOP_BACK_LEFT, "TBL"),
-        (Channel::TOP_BACK_CENTER, C::AV_CHAN_TOP_BACK_CENTER, "TBC"),
-        (Channel::TOP_BACK_RIGHT, C::AV_CHAN_TOP_BACK_RIGHT, "TBR"),
-        (Channel::STEREO_LEFT, C::AV_CHAN_STEREO_LEFT, "DL"),
-        (Channel::STEREO_RIGHT, C::AV_CHAN_STEREO_RIGHT, "DR"),
-        (Channel::WIDE_LEFT, C::AV_CHAN_WIDE_LEFT, "WL"),
-        (Channel::WIDE_RIGHT, C::AV_CHAN_WIDE_RIGHT, "WR"),
+        (
+            Channel::TOP_FRONT_RIGHT,
+            ffi::AV_CHAN_TOP_FRONT_RIGHT,
+            "TFR",
+        ),
+        (Channel::TOP_BACK_LEFT, ffi::AV_CHAN_TOP_BACK_LEFT, "TBL"),
+        (
+            Channel::TOP_BACK_CENTER,
+            ffi::AV_CHAN_TOP_BACK_CENTER,
+            "TBC",
+        ),
+        (Channel::TOP_BACK_RIGHT, ffi::AV_CHAN_TOP_BACK_RIGHT, "TBR"),
+        (Channel::STEREO_LEFT, ffi::AV_CHAN_STEREO_LEFT, "DL"),
+        (Channel::STEREO_RIGHT, ffi::AV_CHAN_STEREO_RIGHT, "DR"),
+        (Channel::WIDE_LEFT, ffi::AV_CHAN_WIDE_LEFT, "WL"),
+        (Channel::WIDE_RIGHT, ffi::AV_CHAN_WIDE_RIGHT, "WR"),
         (
             Channel::SURROUND_DIRECT_LEFT,
-            C::AV_CHAN_SURROUND_DIRECT_LEFT,
+            ffi::AV_CHAN_SURROUND_DIRECT_LEFT,
             "SDL",
         ),
         (
             Channel::SURROUND_DIRECT_RIGHT,
-            C::AV_CHAN_SURROUND_DIRECT_RIGHT,
+            ffi::AV_CHAN_SURROUND_DIRECT_RIGHT,
             "SDR",
         ),
-        (Channel::LOW_FREQUENCY_2, C::AV_CHAN_LOW_FREQUENCY_2, "LFE2"),
-        (Channel::TOP_SIDE_LEFT, C::AV_CHAN_TOP_SIDE_LEFT, "TSL"),
-        (Channel::TOP_SIDE_RIGHT, C::AV_CHAN_TOP_SIDE_RIGHT, "TSR"),
+        (
+            Channel::LOW_FREQUENCY_2,
+            ffi::AV_CHAN_LOW_FREQUENCY_2,
+            "LFE2",
+        ),
+        (Channel::TOP_SIDE_LEFT, ffi::AV_CHAN_TOP_SIDE_LEFT, "TSL"),
+        (Channel::TOP_SIDE_RIGHT, ffi::AV_CHAN_TOP_SIDE_RIGHT, "TSR"),
         (
             Channel::BOTTOM_FRONT_CENTER,
-            C::AV_CHAN_BOTTOM_FRONT_CENTER,
+            ffi::AV_CHAN_BOTTOM_FRONT_CENTER,
             "BFC",
         ),
         (
             Channel::BOTTOM_FRONT_LEFT,
-            C::AV_CHAN_BOTTOM_FRONT_LEFT,
+            ffi::AV_CHAN_BOTTOM_FRONT_LEFT,
             "BFL",
         ),
         (
             Channel::BOTTOM_FRONT_RIGHT,
-            C::AV_CHAN_BOTTOM_FRONT_RIGHT,
+            ffi::AV_CHAN_BOTTOM_FRONT_RIGHT,
             "BFR",
         ),
         (
             Channel::SIDE_SURROUND_LEFT,
-            C::AV_CHAN_SIDE_SURROUND_LEFT,
+            ffi::AV_CHAN_SIDE_SURROUND_LEFT,
             "SSL",
         ),
         (
             Channel::SIDE_SURROUND_RIGHT,
-            C::AV_CHAN_SIDE_SURROUND_RIGHT,
+            ffi::AV_CHAN_SIDE_SURROUND_RIGHT,
             "SSR",
         ),
         (
             Channel::TOP_SURROUND_LEFT,
-            C::AV_CHAN_TOP_SURROUND_LEFT,
+            ffi::AV_CHAN_TOP_SURROUND_LEFT,
             "TTL",
         ),
         (
             Channel::TOP_SURROUND_RIGHT,
-            C::AV_CHAN_TOP_SURROUND_RIGHT,
+            ffi::AV_CHAN_TOP_SURROUND_RIGHT,
             "TTR",
         ),
-        (Channel::BINAURAL_LEFT, C::AV_CHAN_BINAURAL_LEFT, "BIL"),
-        (Channel::BINAURAL_RIGHT, C::AV_CHAN_BINAURAL_RIGHT, "BIR"),
-        (Channel::UNUSED, C::AV_CHAN_UNUSED, "UNSD"),
-        (Channel::UNKNOWN, C::AV_CHAN_UNKNOWN, "UNK"),
-        (Channel::AMBISONIC_BASE, C::AV_CHAN_AMBISONIC_BASE, "AMBI0"),
-        (Channel::AMBISONIC_END, C::AV_CHAN_AMBISONIC_END, "AMBI1023"),
+        (Channel::BINAURAL_LEFT, ffi::AV_CHAN_BINAURAL_LEFT, "BIL"),
+        (Channel::BINAURAL_RIGHT, ffi::AV_CHAN_BINAURAL_RIGHT, "BIR"),
+        (Channel::UNUSED, ffi::AV_CHAN_UNUSED, "UNSD"),
+        (Channel::UNKNOWN, ffi::AV_CHAN_UNKNOWN, "UNK"),
+        (
+            Channel::AMBISONIC_BASE,
+            ffi::AV_CHAN_AMBISONIC_BASE,
+            "AMBI0",
+        ),
+        (
+            Channel::AMBISONIC_END,
+            ffi::AV_CHAN_AMBISONIC_END,
+            "AMBI1023",
+        ),
     ]
 };
 
@@ -176,8 +195,8 @@ fn values() -> Vec<ffi::AVChannel> {
     CHANNEL_NAMED
         .iter()
         .map(|&(_, c, _)| c)
-        .chain(CHANNEL_UNNAMED.map(ffi::AVChannel))
-        .chain([ffi::AVChannel(0x401), ffi::AVChannel(0x5AB)])
+        .chain(CHANNEL_UNNAMED)
+        .chain([0x401, 0x5AB])
         .collect()
 }
 
@@ -206,7 +225,7 @@ fn channel_default_is_what_c_returns_for_an_unknown_channel() {
             "{name}"
         );
     }
-    assert_eq!(Channel::default().into_raw(), ffi::AVChannel::AV_CHAN_NONE);
+    assert_eq!(Channel::default().into_raw(), ffi::AV_CHAN_NONE);
     assert_eq!(c_name(Channel::default().into_raw()), "NONE");
 }
 
@@ -214,9 +233,9 @@ fn channel_default_is_what_c_returns_for_an_unknown_channel() {
 #[cfg_attr(miri, ignore = "calls C")]
 fn channel_unnamed_values_are_held_unchanged() {
     for raw in CHANNEL_UNNAMED {
-        let ch = Channel::from_raw(ffi::AVChannel(raw));
+        let ch = Channel::from_raw(raw);
         assert!(CHANNEL_NAMED.iter().all(|&(n, _, _)| n != ch));
-        assert_eq!(ch.into_raw().0, raw);
+        assert_eq!(ch.into_raw(), raw);
         assert_eq!(format!("{ch:?}"), format!("Channel({raw})"));
         let name = c_name(ch.into_raw());
         assert_eq!(name, format!("USR{raw}"));
@@ -250,7 +269,7 @@ fn ambisonic_is_cs_ambi_mapping() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn ambisonic_index_is_some_exactly_where_c_names_an_ambi() {
-    let probes = values().into_iter().chain((-3..=0x900).map(ffi::AVChannel));
+    let probes = values().into_iter().chain(-3..=0x900);
     for c in probes {
         let ch = Channel::from_raw(c);
         let name = c_name(c);
@@ -265,7 +284,7 @@ fn channel_order_is_cs_id_order() {
     for &a in &values {
         for &b in &values {
             let (ra, rb) = (Channel::from_raw(a), Channel::from_raw(b));
-            assert_eq!(ra.cmp(&rb), a.0.cmp(&b.0), "{ra:?} vs {rb:?}");
+            assert_eq!(ra.cmp(&rb), a.cmp(&b), "{ra:?} vs {rb:?}");
         }
     }
 }
@@ -416,17 +435,17 @@ mod matrix_encoding {
     #[cfg_attr(miri, ignore = "calls C")]
     fn option_default_and_range_span_the_named_values() {
         let (default, min, max) = swr_option(c"matrix_encoding", None);
-        let default = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(default as u32));
+        let default = MatrixEncoding::from_raw(default as u32);
         assert_eq!(default, MatrixEncoding::NONE);
         assert_eq!(default, MatrixEncoding::default());
         assert_eq!(default.index(), Some(0));
         assert_eq!((min, max), (0.0, (MatrixEncoding::COUNT - 1) as f64));
         for v in min as u32..=max as u32 {
-            let e = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(v));
+            let e = MatrixEncoding::from_raw(v);
             assert_eq!(e.index(), Some(v as usize));
             assert!(!format!("{e:?}").starts_with("MatrixEncoding("), "{v}");
         }
-        let past = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(max as u32 + 1));
+        let past = MatrixEncoding::from_raw(max as u32 + 1);
         assert_eq!(past.index(), None);
     }
 
@@ -440,9 +459,9 @@ mod matrix_encoding {
         ];
         for (name, rust) in named {
             let (value, _, _) = swr_option(name, Some(c"matrix_encoding"));
-            let c = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(value as u32));
+            let c = MatrixEncoding::from_raw(value as u32);
             assert_eq!(c, rust, "{name:?}");
-            assert_eq!(i64::from(rust.into_raw().0), value);
+            assert_eq!(i64::from(rust.into_raw()), value);
             assert_eq!(format!("{c:?}"), name.to_str().unwrap().to_uppercase());
         }
     }
@@ -464,22 +483,10 @@ mod channel_order {
 
     /// Every named constant beside its C enumerator.
     const NAMED: [(ChannelOrder, ffi::AVChannelOrder); 4] = [
-        (
-            ChannelOrder::UNSPEC,
-            ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
-        ),
-        (
-            ChannelOrder::NATIVE,
-            ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE,
-        ),
-        (
-            ChannelOrder::CUSTOM,
-            ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
-        ),
-        (
-            ChannelOrder::AMBISONIC,
-            ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC,
-        ),
+        (ChannelOrder::UNSPEC, ffi::AV_CHANNEL_ORDER_UNSPEC),
+        (ChannelOrder::NATIVE, ffi::AV_CHANNEL_ORDER_NATIVE),
+        (ChannelOrder::CUSTOM, ffi::AV_CHANNEL_ORDER_CUSTOM),
+        (ChannelOrder::AMBISONIC, ffi::AV_CHANNEL_ORDER_AMBISONIC),
     ];
 
     /// Values C may store though it names none of them,
@@ -488,11 +495,7 @@ mod channel_order {
 
     /// Every order the tests compare, named first.
     fn values() -> Vec<ffi::AVChannelOrder> {
-        NAMED
-            .iter()
-            .map(|&(_, c)| c)
-            .chain(UNNAMED.map(ffi::AVChannelOrder))
-            .collect()
+        NAMED.iter().map(|&(_, c)| c).chain(UNNAMED).collect()
     }
 
     /// A C channel layout, uninitialised by `av_channel_layout_uninit` on drop.
@@ -550,7 +553,7 @@ mod channel_order {
     /// `av_channel_layout_check` for a layout whose order is `order` and whose
     /// mask or map is valid for that order, so only the order decides.
     fn c_accepts(order: ffi::AVChannelOrder) -> bool {
-        let l = if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+        let l = if order == ffi::AV_CHANNEL_ORDER_CUSTOM {
             let mut l = CLayout::zeroed();
             // SAFETY: `l.0` is a writable, zeroed layout holding no map.
             let ret = unsafe { ffi::av_channel_layout_custom_init(&raw mut l.0, 2) };
@@ -562,10 +565,10 @@ mod channel_order {
                 // SAFETY: as the comment below states, for this part of the operation.
                 let l_2_add = unsafe { l_2.add(i) };
                 // SAFETY: `custom_init` allocated a map of 2 entries.
-                unsafe { (*l_2_add).id = ffi::AVChannel(i as c_int) };
+                unsafe { (*l_2_add).id = i as c_int };
             }
             l
-        } else if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC {
+        } else if order == ffi::AV_CHANNEL_ORDER_AMBISONIC {
             CLayout::with(order, 4, 0)
         } else {
             CLayout::with(order, 2, 0b11)
@@ -583,7 +586,7 @@ mod channel_order {
         }
         // Unnamed values fall to `av_channel_layout_check`'s default arm.
         for raw in UNNAMED {
-            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(raw));
+            let order = ChannelOrder::from_raw(raw);
             assert!(NAMED.iter().all(|&(n, _)| n != order));
             assert!(!c_accepts(order.into_raw()), "raw {raw}");
             assert_eq!(format!("{order:?}"), format!("ChannelOrder({raw})"));
@@ -650,7 +653,7 @@ mod channel_order {
         assert_eq!(c.check(), 1);
 
         // An unnamed order written from Rust is one C rejects.
-        let unnamed = ChannelOrder::from_raw(ffi::AVChannelOrder(1 << 20));
+        let unnamed = ChannelOrder::from_raw(1 << 20);
         c.0.order = unnamed.into_raw();
         assert_eq!(c.order(), unnamed);
         assert_eq!(c.check(), 0);
@@ -809,7 +812,7 @@ mod channel_custom {
     impl Layout {
         fn zeroed() -> ffi::AVChannelLayout {
             ffi::AVChannelLayout {
-                order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+                order: ffi::AV_CHANNEL_ORDER_UNSPEC,
                 nb_channels: 0,
                 u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
                 opaque: ptr::null_mut(),
@@ -826,7 +829,7 @@ mod channel_custom {
                 unsafe { ffi::av_channel_layout_custom_init(&raw mut l, n) },
                 0
             );
-            assert_eq!(l.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+            assert_eq!(l.order, ffi::AV_CHANNEL_ORDER_CUSTOM);
             Self(l)
         }
 
@@ -845,7 +848,7 @@ mod channel_custom {
         fn adopt(map: ffmpeg_bindings::libavutil::libavutil::mem::HeapVec<ChannelCustom>) -> Self {
             let (p, n) = map.into_raw_parts();
             let mut l = Self::zeroed();
-            l.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM;
+            l.order = ffi::AV_CHANNEL_ORDER_CUSTOM;
             l.nb_channels = n as c_int;
             l.u.map = p.cast();
             Self(l)
@@ -856,7 +859,7 @@ mod channel_custom {
         }
 
         fn custom_map(&self) -> *mut ffi::AVChannelCustom {
-            assert_eq!(self.0.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+            assert_eq!(self.0.order, ffi::AV_CHANNEL_ORDER_CUSTOM);
             // SAFETY: a custom-order layout's union holds `map`.
             unsafe { self.0.u.map }
         }
@@ -973,11 +976,13 @@ mod channel_custom {
         let channel = PROBES
             .iter()
             // SAFETY: as above.
-            .map(|p| unsafe { ffi::av_channel_layout_channel_from_string(&raw const l.0, p.as_ptr()) }.0)
+            .map(|p| unsafe {
+                ffi::av_channel_layout_channel_from_string(&raw const l.0, p.as_ptr())
+            })
             .collect();
         let at = (0..=l.len() as c_uint)
             // SAFETY: `l.0` is a valid layout; C bounds-checks the index.
-            .map(|i| unsafe { ffi::av_channel_layout_channel_from_index(&raw const l.0, i) }.0)
+            .map(|i| unsafe { ffi::av_channel_layout_channel_from_index(&raw const l.0, i) })
             .collect();
         // SAFETY: `l.0` is a valid layout.
         let check = unsafe { ffi::av_channel_layout_check(&raw const l.0) };
@@ -991,7 +996,7 @@ mod channel_custom {
     }
 
     fn bytes(r: ffi::AVChannelCustom) -> (c_int, [c_char; 16], *mut c_void) {
-        (r.id.0, r.name, r.opaque)
+        (r.id, r.name, r.opaque)
     }
 
     /// The safe getters on every element of `l` against C's own reads.
@@ -1080,11 +1085,7 @@ mod channel_custom {
         ];
         for s in layouts {
             let l = Layout::parse(s);
-            assert_eq!(
-                l.0.order,
-                ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
-                "{s:?}"
-            );
+            assert_eq!(l.0.order, ffi::AV_CHANNEL_ORDER_CUSTOM, "{s:?}");
             assert_getters_read_c(&l, &format!("{s:?}"));
             for h in l.handles().iter() {
                 assert!(h.opaque().is_null());
@@ -1108,7 +1109,7 @@ mod channel_custom {
         let steps: Vec<(usize, Op<'_>)> = vec![
             (0, Op::Id(Channel::FRONT_LEFT)),
             (1, Op::Id(Channel::FRONT_RIGHT)),
-            (2, Op::Id(Channel::from_raw(ffi::AVChannel(63)))),
+            (2, Op::Id(Channel::from_raw(63))),
             (3, Op::Id(Channel::LOW_FREQUENCY)),
             (0, Op::Name(c"front")),
             (1, Op::Name(c"right")),
@@ -1261,7 +1262,7 @@ mod channel_names {
     }
 
     fn ch(id: c_int) -> Channel {
-        Channel::from_raw(ffi::AVChannel(id))
+        Channel::from_raw(id)
     }
 
     /// C's writer into a buffer of `size` bytes prefilled with 0xAA: its
@@ -1275,7 +1276,7 @@ mod channel_names {
         };
         // SAFETY: `p` is NULL with size 0, a count-only request, or valid
         // for `size` bytes of writes; C keeps no pointer.
-        let ret = unsafe { write(p, size, ffi::AVChannel(id)) };
+        let ret = unsafe { write(p, size, id) };
         (ret, buf)
     }
 
@@ -1334,13 +1335,13 @@ mod channel_names {
 
     fn c_from(name: &CStr) -> c_int {
         // SAFETY: `name` is a live NUL-terminated string, only read.
-        unsafe { ffi::av_channel_from_string(name.as_ptr()) }.0
+        unsafe { ffi::av_channel_from_string(name.as_ptr()) }
     }
 
     /// Both lookups of `name`; C's `NONE` (-1) is Rust's `None`.
     fn lookups(name: &CStr) -> (c_int, c_int) {
         (
-            Channel::from_name(name).map_or(-1, |c| c.into_raw().0),
+            Channel::from_name(name).map_or(-1, Channel::into_raw),
             c_from(name),
         )
     }
@@ -1547,9 +1548,9 @@ mod name_appenders {
             let c = CBuf::new(None);
             for (j, &id) in chunk.iter().enumerate() {
                 let (c_append, rust_append) = APPENDERS[(i + j) % 2];
-                rust_append(Channel::from_raw(ffi::AVChannel(id)), rust.as_mut());
+                rust_append(Channel::from_raw(id), rust.as_mut());
                 // SAFETY: an initialised buffer; any channel value.
-                unsafe { c_append(c.0, ffi::AVChannel(id)) };
+                unsafe { c_append(c.0, id) };
                 assert_eq!(rust_state(rust.as_ref()), c.state(), "{id}");
             }
         }
@@ -1565,9 +1566,9 @@ mod name_appenders {
                     let mut rust = BPrint::for_buffer(&mut rust_data).unwrap();
                     let c = CBuf::new(Some(&mut c_data));
                     for (c_append, rust_append) in APPENDERS {
-                        rust_append(Channel::from_raw(ffi::AVChannel(id)), rust.as_mut());
+                        rust_append(Channel::from_raw(id), rust.as_mut());
                         // SAFETY: an initialised buffer on `c_data`.
-                        unsafe { c_append(c.0, ffi::AVChannel(id)) };
+                        unsafe { c_append(c.0, id) };
                         assert_eq!(rust_state(rust.as_ref()), c.state(), "{id} {size}");
                     }
                 }
@@ -1580,7 +1581,7 @@ mod name_appenders {
     #[cfg_attr(miri, ignore = "calls C")]
     fn appended_names_are_the_channel_names() {
         for id in ids() {
-            let ch = Channel::from_raw(ffi::AVChannel(id));
+            let ch = Channel::from_raw(id);
             let mut b = BPrint::new(0, BPrint::SIZE_UNLIMITED).unwrap();
             ch.append_name(b.as_mut());
             assert_eq!(b.as_ref().as_bytes(), ch.name().as_bytes(), "{id}");
@@ -1622,7 +1623,7 @@ mod layout {
     impl CLayout {
         fn zeroed() -> Self {
             Self(ffi::AVChannelLayout {
-                order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
+                order: ffi::AV_CHANNEL_ORDER_UNSPEC,
                 nb_channels: 0,
                 u: ffi::AVChannelLayout__bindgen_ty_1 { mask: 0 },
                 opaque: ptr::null_mut(),
@@ -1665,7 +1666,7 @@ mod layout {
             .map(|&c| c as u8)
             .take_while(|&b| b != 0)
             .collect();
-        (e.id.0, bytes, e.opaque as usize)
+        (e.id, bytes, e.opaque as usize)
     }
 
     /// The raw fields of a layout: order, count, the mask (outside custom
@@ -1682,8 +1683,8 @@ mod layout {
     fn c_fields(p: *const ffi::AVChannelLayout) -> Fields {
         // SAFETY: `p` addresses a live, valid layout.
         let l = unsafe { p.read() };
-        let custom = l.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM;
-        let unspec = l.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
+        let custom = l.order == ffi::AV_CHANNEL_ORDER_CUSTOM;
+        let unspec = l.order == ffi::AV_CHANNEL_ORDER_UNSPEC;
         let map = custom.then(|| {
             // SAFETY: a custom layout's `u` holds the map.
             let map = unsafe { l.u.map };
@@ -1700,7 +1701,7 @@ mod layout {
         // its 8 bytes are the map pointer's, read as plain bits and unused.
         let mask = unsafe { l.u.mask };
         Fields {
-            order: l.order.0,
+            order: l.order,
             nb_channels: l.nb_channels,
             mask: (!custom && !unspec).then_some(mask),
             map,
@@ -1718,7 +1719,7 @@ mod layout {
                     .iter()
                     .map(|c| {
                         (
-                            c.id().into_raw().0,
+                            c.id().into_raw(),
                             c.name().as_bytes().to_vec(),
                             c.opaque() as usize,
                         )
@@ -1729,7 +1730,7 @@ mod layout {
             LayoutDetails::Unknown(order) => panic!("{order:?}"),
         };
         Fields {
-            order: l.order().into_raw().0,
+            order: l.order().into_raw(),
             nb_channels: l.channel_count(),
             mask,
             map,
@@ -1775,13 +1776,13 @@ mod layout {
             // SAFETY: as the comment above this block states.
             let at = unsafe {
                 (0..=n)
-                    .map(|i| ffi::av_channel_layout_channel_from_index(p, i).0)
+                    .map(|i| ffi::av_channel_layout_channel_from_index(p, i))
                     .collect()
             };
             // SAFETY: as the comment above this block states.
             let index = unsafe {
                 [0, 1, 3, 40, 63, 64, 0x400, 0x401, -1]
-                    .map(|ch| ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(ch)))
+                    .map(|ch| ffi::av_channel_layout_index_from_channel(p, ch))
                     .into()
             };
             // SAFETY: as the comment above this block states.
@@ -1887,7 +1888,7 @@ mod layout {
         if n > i64::from(c_int::MAX) / n || extra >= i64::from(c_int::MAX) - n * n {
             return (EINVAL, c);
         }
-        c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC;
+        c.0.order = ffi::AV_CHANNEL_ORDER_AMBISONIC;
         c.0.nb_channels = c_int::try_from(n * n + extra).unwrap();
         c.0.u.mask = mask;
         (0, c)
@@ -1998,7 +1999,7 @@ mod layout {
             Op::Opaque(p) => c.0.opaque = ptr::without_provenance_mut(p),
             Op::Unspecified(n) => {
                 let opaque = c.uninit_keeping_opaque();
-                c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC;
+                c.0.order = ffi::AV_CHANNEL_ORDER_UNSPEC;
                 c.0.nb_channels = n;
                 c.0.opaque = opaque;
             }
@@ -2044,7 +2045,7 @@ mod layout {
                         // SAFETY: as the comment above this block states.
                         let e = unsafe { c_3.add(i) };
                         // SAFETY: as the comment above this block states.
-                        unsafe { (*e).id = ffi::AVChannel(id) };
+                        unsafe { (*e).id = id };
                         // SAFETY: as the comment above this block states: the place of its name.
                         let name_ptr = unsafe { (&raw mut (*e).name).cast::<c_char>() };
                         // SAFETY: as the comment above this block states.
@@ -2054,24 +2055,20 @@ mod layout {
                 c.0.opaque = opaque;
             }
             Op::TakeCustomMap => {
-                if c.0.order != ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+                if c.0.order != ffi::AV_CHANNEL_ORDER_CUSTOM {
                     return Some(vec![]);
                 }
                 let taken = c_fields(&raw const c.0).map;
                 // SAFETY: a valid layout; C keeps the count and the user
                 // pointer and frees the map, lossily when it named channels.
                 let ret = unsafe {
-                    ffi::av_channel_layout_retype(
-                        &raw mut c.0,
-                        ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC,
-                        0,
-                    )
+                    ffi::av_channel_layout_retype(&raw mut c.0, ffi::AV_CHANNEL_ORDER_UNSPEC, 0)
                 };
                 assert!(ret >= 0, "{ret}");
                 return taken;
             }
             Op::Edit(i, id, name) => {
-                if c.0.order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM {
+                if c.0.order == ffi::AV_CHANNEL_ORDER_CUSTOM {
                     let i = i % c.0.nb_channels as usize;
                     // For the unsafe operations below: `i` is in bounds of the custom map.
                     {
@@ -2080,7 +2077,7 @@ mod layout {
                         // SAFETY: as the comment above this block states.
                         let e = unsafe { c_2.add(i) };
                         // SAFETY: as the comment above this block states.
-                        unsafe { (*e).id = ffi::AVChannel(id) };
+                        unsafe { (*e).id = id };
                         // SAFETY: as the comment above this block states: the place of its name.
                         let name_ptr = unsafe { (&raw mut (*e).name).cast::<c_char>() };
                         // SAFETY: as the comment above this block states.
@@ -2121,7 +2118,7 @@ mod layout {
                 .iter()
                 .map(|c| {
                     (
-                        c.id().into_raw().0,
+                        c.id().into_raw(),
                         c.name().as_bytes().to_vec(),
                         c.opaque() as usize,
                     )
@@ -2142,7 +2139,7 @@ mod layout {
             Op::CustomMap(chans) => {
                 let mut map = alloc_cell_array_zeroed::<ChannelCustom>(chans.len()).unwrap();
                 for (mut m, &(id, name)) in map.as_handles_mut().iter_mut().zip(chans) {
-                    m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                    m.set_id(Channel::from_raw(id));
                     m.set_name_truncated(name);
                 }
                 r.as_mut().set_custom_map(map).unwrap();
@@ -2158,7 +2155,7 @@ mod layout {
                 if let Some(mut map) = r.as_mut().custom_map_mut() {
                     let i = i % map.len();
                     let mut m = map.get_mut(i).unwrap();
-                    m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                    m.set_id(Channel::from_raw(id));
                     m.set_name_truncated(name);
                 }
             }
@@ -2248,7 +2245,7 @@ mod layout {
             };
             let mut map = alloc_cell_array_zeroed::<ChannelCustom>(elems.len()).unwrap();
             for (mut m, (id, name, _)) in map.as_handles_mut().iter_mut().zip(&elems) {
-                m.set_id(Channel::from_raw(ffi::AVChannel(*id)));
+                m.set_id(Channel::from_raw(*id));
                 assert_eq!(m.set_name(&CString::new(name.clone()).unwrap()), Ok(()));
             }
             let ours = ChannelLayout::from_custom_map(map).unwrap();
@@ -2273,7 +2270,7 @@ mod layout {
         let mut r = ChannelLayout::from_mask(0x3).unwrap();
         r.as_mut().set_native(0);
         let mut c = CLayout::zeroed();
-        c.0.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE;
+        c.0.order = ffi::AV_CHANNEL_ORDER_NATIVE;
         assert_twins(&r, &c, "empty native");
         for order in [
             0,
@@ -2341,7 +2338,7 @@ mod layout {
             assert_eq!(c_mask.count_ones(), 1, "{name}");
         }
         for id in 0..64 {
-            let ch = Channel::from_raw(ffi::AVChannel(id));
+            let ch = Channel::from_raw(id);
             let bit = ch.mask().unwrap();
             let l = ChannelLayout::from_mask(bit).unwrap();
             // SAFETY: a valid native layout C only reads.
@@ -2349,7 +2346,7 @@ mod layout {
                 unsafe { ffi::av_channel_layout_channel_from_index(rust_ptr(&l), 0) },
                 unsafe { ffi::av_channel_layout_index_from_channel(rust_ptr(&l), ch.into_raw()) },
             );
-            assert_eq!((at.0, index), (id, 0), "id {id}");
+            assert_eq!((at, index), (id, 0), "id {id}");
         }
     }
 
@@ -2562,14 +2559,12 @@ mod layout {
 
         pub(super) fn c_retype(c: &mut CLayout, order: c_uint, flags: c_int) -> c_int {
             // SAFETY: a valid layout C may convert in place.
-            unsafe {
-                ffi::av_channel_layout_retype(&raw mut c.0, ffi::AVChannelOrder(order), flags)
-            }
+            unsafe { ffi::av_channel_layout_retype(&raw mut c.0, order, flags) }
         }
 
         /// The safe call standing for `flags`, its result as C reports it.
         pub(super) fn rust_retype(r: &mut ChannelLayoutVal, order: c_uint, flags: c_int) -> c_int {
-            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(order));
+            let order = ChannelOrder::from_raw(order);
             let done = |res: Result<(), c_int>| res.map_or_else(|e| e, |()| 0);
             if flags & CANONICAL != 0 {
                 done(r.as_mut().canonicalize())
@@ -2894,7 +2889,7 @@ mod layout {
         }
 
         fn none_to_option(ch: ffi::AVChannel) -> Option<c_int> {
-            (ch != ffi::AVChannel::AV_CHAN_NONE).then_some(ch.0)
+            (ch != ffi::AV_CHAN_NONE).then_some(ch)
         }
 
         fn rust_reads(l: ChannelLayoutRef<'_>) -> Reads {
@@ -2914,14 +2909,12 @@ mod layout {
                 ambisonic_order: l.ambisonic_order(),
                 at: indices(l.channel_count())
                     .into_iter()
-                    .map(|i| l.channel(i as usize).map(|ch| ch.into_raw().0))
+                    .map(|i| l.channel(i as usize).map(Channel::into_raw))
                     .collect(),
-                index: IDS
-                    .map(|id| l.index_of(Channel::from_raw(ffi::AVChannel(id))))
-                    .into(),
+                index: IDS.map(|id| l.index_of(Channel::from_raw(id))).into(),
                 by_name: NAMES
                     .map(|s| {
-                        let ch = l.channel_by_name(s).map(|ch| ch.into_raw().0);
+                        let ch = l.channel_by_name(s).map(Channel::into_raw);
                         (l.index_by_name(s), ch)
                     })
                     .into(),
@@ -2989,26 +2982,36 @@ mod layout {
                     // SAFETY: as the comment above this statement states.
                     valid: unsafe { ffi::av_channel_layout_check(p) } == 1,
                     // SAFETY: as the comment above this statement states.
-                    ambisonic_order: u32::try_from(unsafe { ffi::av_channel_layout_ambisonic_order(p) }).ok(),
+                    ambisonic_order: u32::try_from(unsafe {
+                        ffi::av_channel_layout_ambisonic_order(p)
+                    })
+                    .ok(),
                     at: indices(nb)
                         .into_iter()
-                        // SAFETY: as the comment above this statement states.
-                        .map(|i| none_to_option(unsafe { ffi::av_channel_layout_channel_from_index(p, i) }))
+                        .map(|i| {
+                            // SAFETY: as the comment above this statement states.
+                            none_to_option(unsafe {
+                                ffi::av_channel_layout_channel_from_index(p, i)
+                            })
+                        })
                         .collect(),
                     index: IDS
                         .map(|id| {
                             let ret =
                                 // SAFETY: as the comment above this statement states.
-                                unsafe { ffi::av_channel_layout_index_from_channel(p, ffi::AVChannel(id)) };
+                                unsafe { ffi::av_channel_layout_index_from_channel(p, id) };
                             usize::try_from(ret).ok()
                         })
                         .into(),
                     by_name: NAMES
                         .map(|s| {
                             // SAFETY: as the comment at the head of this block states.
-                            let at = unsafe { ffi::av_channel_layout_index_from_string(p, s.as_ptr()) };
+                            let at =
+                                unsafe { ffi::av_channel_layout_index_from_string(p, s.as_ptr()) };
                             // SAFETY: as the comment at the head of this block states.
-                            let ch = unsafe { ffi::av_channel_layout_channel_from_string(p, s.as_ptr()) };
+                            let ch = unsafe {
+                                ffi::av_channel_layout_channel_from_string(p, s.as_ptr())
+                            };
                             (usize::try_from(at).ok(), none_to_option(ch))
                         })
                         .into(),

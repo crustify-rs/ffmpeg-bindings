@@ -32,6 +32,15 @@ libavdevice-sys = { workspace = true, optional = true }
 
 [dev-dependencies]
 trybuild.workspace = true
+# The campaign's tests and gates regenerate the bindings, and check them against the
+# committed ones; the crate's dependents build from the shipped bindings.
+libavutil-sys = { workspace = true, features = ["bindgen"] }
+libswresample-sys = { workspace = true, features = ["bindgen"] }
+libswscale-sys = { workspace = true, features = ["bindgen"] }
+libavcodec-sys = { workspace = true, features = ["bindgen"] }
+libavformat-sys = { workspace = true, features = ["bindgen"] }
+libavfilter-sys = { workspace = true, features = ["bindgen"] }
+libavdevice-sys = { workspace = true, features = ["bindgen"] }
 
 [lints]
 workspace = true
@@ -58,22 +67,24 @@ license = "LGPL-2.1-or-later"
 publish = false
 
 [workspace.dependencies]
-bindgen = { version = "0.73", features = ["experimental"] }
+# Pinned exactly: the committed bindings are its output.
+bindgen = { version = "=0.73.2", features = ["experimental"] }
 cc = "1.5"
+pkg-config = "0.3"
 ffibox = { git = "https://github.com/crustify-rs/ffibox", rev = "203b1a05269bdd549459a80d5d58d6c2f2689d01" }
 serde_json = "1"
 trybuild = "1"
-libavutil-sys = { path = "libavutil-sys" }
-libswresample-sys = { path = "libswresample-sys" }
-libswscale-sys = { path = "libswscale-sys" }
-libavcodec-sys = { path = "libavcodec-sys" }
-libavformat-sys = { path = "libavformat-sys" }
-libavfilter-sys = { path = "libavfilter-sys" }
-libavdevice-sys = { path = "libavdevice-sys" }
+libavutil-sys = { version = "0.1.0", path = "libavutil-sys" }
+libswresample-sys = { version = "0.1.0", path = "libswresample-sys" }
+libswscale-sys = { version = "0.1.0", path = "libswscale-sys" }
+libavcodec-sys = { version = "0.1.0", path = "libavcodec-sys" }
+libavformat-sys = { version = "0.1.0", path = "libavformat-sys" }
+libavfilter-sys = { version = "0.1.0", path = "libavfilter-sys" }
+libavdevice-sys = { version = "0.1.0", path = "libavdevice-sys" }
 # Wrappers of the out-of-tree libraries, each pinned to its side campaign's working branch
 # (`wrapper.pin` in crustify/artifacts/dependencies.json), and patched below to its clone
 # beside this repository while the campaign extends it.
-glibc-bindings = { git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
+glibc-bindings = { version = "0.1.0", git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
 
 [patch."https://github.com/crustify-rs/glibc-bindings"]
 glibc-bindings = { path = "../glibc-bindings" }

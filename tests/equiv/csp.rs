@@ -31,10 +31,10 @@ mod cie_xy {
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
     fn primaries() -> impl Iterator<Item = ffi::AVColorPrimaries> {
-        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
-        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
-        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
-        (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
+        let nb = ffi::AVCOL_PRI_NB;
+        let ext = ffi::AVCOL_PRI_EXT_BASE;
+        let ext_nb = ffi::AVCOL_PRI_EXT_NB;
+        (0..=nb).chain(ext..=ext_nb)
     }
 
     /// Copies of every gamut description C holds, with its primaries value.
@@ -166,7 +166,7 @@ mod cie_xy {
                 }
             }
             let id = c_id(&c);
-            if p.0 < ffi::AVColorPrimaries::AVCOL_PRI_NB.0 {
+            if p < ffi::AVCOL_PRI_NB {
                 // C identifies a gamut by the first table entry within its
                 // tolerance (SMPTE 240M is SMPTE 170M's twin).
                 // SAFETY: `av_csp_primaries_desc_from_id` takes any value.
@@ -201,7 +201,7 @@ mod cie_xy {
                     c_id(&c),
                     "{p:?} nudged {num}/{den}"
                 );
-                if num != r.num && p.0 < ffi::AVColorPrimaries::AVCOL_PRI_NB.0 {
+                if num != r.num && p < ffi::AVCOL_PRI_NB {
                     assert_ne!(c_id(&c), id, "{p:?}: the nudge leaves C's tolerance");
                 }
             }
@@ -272,8 +272,8 @@ mod luma_coefficients {
 
     /// Every colour space id, out-of-range ones on both sides included.
     fn spaces() -> impl Iterator<Item = ffi::AVColorSpace> {
-        let nb = ffi::AVColorSpace::AVCOL_SPC_NB.0 as i32;
-        (-2..nb + 3).map(|v| ffi::AVColorSpace(v as _))
+        let nb = ffi::AVCOL_SPC_NB as i32;
+        (-2..nb + 3).map(|v| v as _)
     }
 
     /// C's table entry for `csp`, if it has one, as a safe handle over C's
@@ -332,7 +332,7 @@ mod luma_coefficients {
         }
         // FCC, BT470BG, SMPTE170M, BT709, SMPTE240M, YCOCG, RGB, BT2020 x2.
         assert_eq!(found, 9);
-        let bt709 = c_entry(ffi::AVColorSpace::AVCOL_SPC_BT709).unwrap();
+        let bt709 = c_entry(ffi::AVCOL_SPC_BT709).unwrap();
         assert!((bt709.cr().get().to_f64() - 0.2126).abs() < 1e-9);
         assert!((bt709.cg().get().to_f64() - 0.7152).abs() < 1e-9);
         assert!((bt709.cb().get().to_f64() - 0.0722).abs() < 1e-9);
@@ -469,10 +469,10 @@ mod primary_coefficients {
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
     fn primaries() -> impl Iterator<Item = ffi::AVColorPrimaries> {
-        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
-        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
-        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
-        (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
+        let nb = ffi::AVCOL_PRI_NB;
+        let ext = ffi::AVCOL_PRI_EXT_BASE;
+        let ext_nb = ffi::AVCOL_PRI_EXT_NB;
+        (0..=nb).chain(ext..=ext_nb)
     }
 
     /// The primaries of C's description for `p`, if it has one, read in
@@ -593,9 +593,9 @@ mod primary_coefficients {
             // C hands out only described gamuts, red x numerator set.
             assert_ne!(entry.r().x().num(), 0);
         }
-        let bt709 = c_entry(ffi::AVColorPrimaries::AVCOL_PRI_BT709).unwrap();
+        let bt709 = c_entry(ffi::AVCOL_PRI_BT709).unwrap();
         assert!((bt709.g().y().get().to_f64() - 0.60).abs() < 1e-9);
-        assert!(c_entry(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED).is_none());
+        assert!(c_entry(ffi::AVCOL_PRI_UNSPECIFIED).is_none());
     }
 
     #[test]
@@ -721,7 +721,7 @@ mod color_transfer {
     }
 
     fn c(raw: u32) -> ffi::AVColorTransferCharacteristic {
-        ffi::AVColorTransferCharacteristic(raw)
+        raw
     }
 
     fn t(raw: u32) -> ColorTransfer {
@@ -878,7 +878,7 @@ mod luma_lookup {
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.
     fn values() -> impl Iterator<Item = u32> {
-        (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, u32::MAX - 1, 1 << 31])
+        (0..ffi::AVCOL_SPC_NB + 3).chain([u32::MAX, u32::MAX - 1, 1 << 31])
     }
 
     #[test]
@@ -887,8 +887,8 @@ mod luma_lookup {
         let mut found = 0;
         for raw in values() {
             // SAFETY: by value; C checks the value against its table.
-            let c = unsafe { ffi::av_csp_luma_coeffs_from_avcsp(ffi::AVColorSpace(raw)) };
-            let rust = ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients();
+            let c = unsafe { ffi::av_csp_luma_coeffs_from_avcsp(raw) };
+            let rust = ColorSpace::from_raw(raw).luma_coefficients();
             assert_eq!(rust.is_some(), !c.is_null(), "{raw}");
             if let Some(r) = rust {
                 // SAFETY: a non-NULL return is an entry of C's static table.
@@ -908,7 +908,7 @@ mod luma_lookup {
     #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_lookups_return_the_same_entry() {
         for raw in values() {
-            let cs = ColorSpace::from_raw(ffi::AVColorSpace(raw));
+            let cs = ColorSpace::from_raw(raw);
             let (a, b) = (cs.luma_coefficients(), cs.luma_coefficients());
             assert_eq!(a.map(|r| r.get()), b.map(|r| r.get()), "{raw}");
         }
@@ -941,10 +941,10 @@ mod color_primaries_descriptor {
     /// Every primaries value C may describe, past the end of both ranges
     /// included.
     fn primaries() -> impl Iterator<Item = ffi::AVColorPrimaries> {
-        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
-        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
-        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
-        (0..=nb).chain(ext..=ext_nb).map(ffi::AVColorPrimaries)
+        let nb = ffi::AVCOL_PRI_NB;
+        let ext = ffi::AVCOL_PRI_EXT_BASE;
+        let ext_nb = ffi::AVCOL_PRI_EXT_NB;
+        (0..=nb).chain(ext..=ext_nb)
     }
 
     /// C's description for `p`, if it has one, read in place in C's static
@@ -1086,11 +1086,11 @@ mod color_primaries_descriptor {
             assert_ne!(entry.primaries().r().x().num(), 0);
             assert_eq!(c_id_at(&rebuilt.into_raw()), c_id_at(d));
         }
-        let bt709 = c_entry(ffi::AVColorPrimaries::AVCOL_PRI_BT709).unwrap();
+        let bt709 = c_entry(ffi::AVCOL_PRI_BT709).unwrap();
         assert!((bt709.white_point().x().get().to_f64() - 0.3127).abs() < 1e-9);
-        let v_gamut = c_entry(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT).unwrap();
+        let v_gamut = c_entry(ffi::AVCOL_PRI_V_GAMUT).unwrap();
         assert!(v_gamut.primaries().b().y().num() < 0);
-        assert!(c_entry(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED).is_none());
+        assert!(c_entry(ffi::AVCOL_PRI_UNSPECIFIED).is_none());
     }
 
     #[test]
@@ -1127,7 +1127,7 @@ mod color_primaries_descriptor {
                 c.wp = white;
                 assert_eq!(rust_fields(rust.as_ref()), c_fields(&c), "{p:?} {step}");
                 assert_eq!(rust_id(&rust), c_id_at(&c), "{p:?} {step}");
-                if step == "far" && p.0 < ffi::AVColorPrimaries::AVCOL_PRI_NB.0 {
+                if step == "far" && p < ffi::AVCOL_PRI_NB {
                     assert_ne!(c_id_at(&c), id, "{p:?}: the nudge leaves C's tolerance");
                 }
             }
@@ -1316,9 +1316,9 @@ mod primaries_lookup {
     /// Every value C has a table slot for, its neighbours, and the extremes,
     /// as C's `unsigned` enum takes them.
     fn values() -> impl Iterator<Item = u32> {
-        let nb = ffi::AVColorPrimaries::AVCOL_PRI_NB.0;
-        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
-        let ext_nb = ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0;
+        let nb = ffi::AVCOL_PRI_NB;
+        let ext = ffi::AVCOL_PRI_EXT_BASE;
+        let ext_nb = ffi::AVCOL_PRI_EXT_NB;
         (0..nb + 3).chain(ext - 2..ext_nb + 3).chain([
             u32::MAX,
             u32::MAX - 1,
@@ -1331,7 +1331,7 @@ mod primaries_lookup {
     fn c_desc(raw: u32) -> Option<ffi::AVColorPrimariesDesc> {
         // SAFETY: by value; C checks the value against both tables and
         // returns NULL or a pointer into one of them.
-        let d = unsafe { ffi::av_csp_primaries_desc_from_id(ffi::AVColorPrimaries(raw)) };
+        let d = unsafe { ffi::av_csp_primaries_desc_from_id(raw) };
         // SAFETY: a non-NULL result is a live, initialised table entry; the
         // copy is plain data.
         (!d.is_null()).then(|| unsafe { d.read() })
@@ -1341,7 +1341,7 @@ mod primaries_lookup {
     fn c_identify(d: &ffi::AVColorPrimariesDesc) -> Option<ColorPrimaries> {
         // SAFETY: `d` is a live, initialised description C only reads.
         let id = unsafe { ffi::av_csp_primaries_id_from_desc(d) };
-        (id != ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED).then(|| ColorPrimaries::from_raw(id))
+        (id != ffi::AVCOL_PRI_UNSPECIFIED).then(|| ColorPrimaries::from_raw(id))
     }
 
     fn fields(d: &ffi::AVColorPrimariesDesc) -> [i32; 16] {
@@ -1386,7 +1386,7 @@ mod primaries_lookup {
     fn descriptors_are_cs_table_entries() {
         let mut found = 0;
         for raw in values() {
-            let rust = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).descriptor();
+            let rust = ColorPrimaries::from_raw(raw).descriptor();
             let c = c_desc(raw);
             assert_eq!(rust.is_some(), c.is_some(), "{raw}");
             if let (Some(r), Some(c)) = (rust, c) {
@@ -1402,7 +1402,7 @@ mod primaries_lookup {
     #[cfg_attr(miri, ignore = "calls C")]
     fn repeated_lookups_return_the_same_entry() {
         for raw in values() {
-            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            let p = ColorPrimaries::from_raw(raw);
             let (a, b) = (p.descriptor(), p.descriptor());
             assert_eq!(a.map(rust_fields), b.map(rust_fields), "{raw}");
         }
@@ -1414,9 +1414,7 @@ mod primaries_lookup {
         let mut ids = Vec::new();
         for raw in values() {
             let Some(c) = c_desc(raw) else { continue };
-            let rust = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw))
-                .descriptor()
-                .unwrap();
+            let rust = ColorPrimaries::from_raw(raw).descriptor().unwrap();
             let expect = c_identify(&c);
             // In place in C's table, from a copy, and from `av_malloc`
             // storage.
@@ -1432,7 +1430,7 @@ mod primaries_lookup {
         // identical entry SMPTE 170M comes first, and V-Gamut, which C does
         // not search.
         for (raw, id) in ids {
-            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            let p = ColorPrimaries::from_raw(raw);
             match p {
                 ColorPrimaries::SMPTE240M => assert_eq!(id, Some(ColorPrimaries::SMPTE170M)),
                 ColorPrimaries::V_GAMUT => assert_eq!(id, None),
@@ -1530,7 +1528,7 @@ mod primaries_lookup {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn reduced_sums_follow_c_not_exact_arithmetic() {
-        let bt709 = c_desc(ffi::AVColorPrimaries::AVCOL_PRI_BT709.0).unwrap();
+        let bt709 = c_desc(ffi::AVCOL_PRI_BT709).unwrap();
         let base = fields(&bt709);
         // Each part of the description, with the one coordinate at a random
         // large denominator placed one part short of, at, or past 1/1000

@@ -953,7 +953,7 @@ fn fast_buffer_failure_without_address_space_matches_c() {
     if std::env::var_os(ISOLATED).is_none() {
         if !cfg!(unix)
             || matches!(
-                std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref(),
+                std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref(),
                 Ok("asan-ubsan" | "tsan" | "bsan")
             )
         {

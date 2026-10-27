@@ -57,8 +57,8 @@ mod fixture {
         let buf = fx::new_context(
             &INERT,
             &YUV,
-            ffi::AVPixelFormat::AV_PIX_FMT_MEDIACODEC,
-            ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
+            ffi::AV_PIX_FMT_MEDIACODEC,
+            ffi::AV_PIX_FMT_YUV420P,
             W,
             H,
         );
@@ -379,7 +379,7 @@ mod frame_mut_transfer_data_from {
         for format in [
             PixelFormat::NONE,
             PixelFormat::VAAPI,
-            PixelFormat::from_raw(ffi::AVPixelFormat(9999)),
+            PixelFormat::from_raw(9999),
         ] {
             let mut f = packed(EXACT);
             f.as_mut().set_pixel_format(format);
@@ -681,8 +681,7 @@ mod device_context {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_have_no_hardware_context() {
-            let raw =
-                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_CUDA);
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let mut u = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert_eq!(u.context().device_type(), DeviceType::CUDA);
@@ -745,8 +744,7 @@ mod device_context {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_initialise_without_a_backend_call() {
-            let raw =
-                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
             // SAFETY: the bare backend has no `device_init`.
@@ -801,7 +799,7 @@ mod device_context {
             // `config`.
             unsafe {
                 let p = config.as_mut_ptr().cast::<FakeConfig>();
-                (*p).hw_format = ffi::AVPixelFormat::AV_PIX_FMT_VULKAN;
+                (*p).hw_format = ffi::AV_PIX_FMT_VULKAN;
             }
             let c = device.as_ref().frames_constraints_for_config(&config);
             let plain = device.as_ref().frames_constraints();
@@ -847,8 +845,7 @@ mod device_context {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_read_none() {
-            let raw =
-                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_QSV);
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
             // SAFETY: there is no hardware context to mistype.

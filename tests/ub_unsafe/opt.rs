@@ -525,7 +525,7 @@ mod set_options_string {
     const ERANGE: i32 = -34;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// The exclusive handle of `o`.
@@ -740,7 +740,7 @@ mod set_options_string {
         name: null(),
         help: null(),
         offset: 0,
-        type_: ffi::AVOptionType(0),
+        type_: 0,
         default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
         min: 0.0,
         max: 0.0,
@@ -765,7 +765,7 @@ mod set_options_string {
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        category: ffi::AV_CLASS_CATEGORY_NA,
         get_category: None,
         query_ranges: None,
         child_next: Some(child_next),
@@ -854,7 +854,7 @@ mod objects {
     const ERANGE: i32 = -34;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// The names of every `OBJ_CLASS` option, constants included, and two
@@ -1263,7 +1263,7 @@ mod log_contexts {
     const EINVAL: i32 = -22;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// A logging context: its class pointer, then a payload its class's
@@ -1294,7 +1294,7 @@ mod log_contexts {
         // SAFETY: as for `item_name`.
         let payload = unsafe { (*ctx.cast::<Ctx>()).payload };
         assert_eq!(payload, [1, 2]);
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER
+        ffi::AV_CLASS_CATEGORY_FILTER
     }
 
     /// A class without options, children or offsets, with `item_name` and
@@ -1312,7 +1312,7 @@ mod log_contexts {
                 | ffi::LIBAVUTIL_VERSION_MICRO) as i32,
             log_level_offset_offset: 0,
             parent_log_context_offset: 0,
-            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+            category: ffi::AV_CLASS_CATEGORY_NA,
             get_category,
             query_ranges: None,
             child_next: None,
@@ -1473,7 +1473,7 @@ mod previewed_values {
     const ERANGE: i32 = -34;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// An object with a flags array and a wide rational array, both with a
@@ -1505,7 +1505,7 @@ mod previewed_values {
             name: name.as_ptr(),
             help: null(),
             offset: offset as c_int,
-            type_: ffi::AVOptionType(base.0 | ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY.0),
+            type_: (base | ffi::AV_OPT_TYPE_FLAG_ARRAY),
             default_val: ffi::AVOption__bindgen_ty_1 {
                 arr: &raw const DEF.0,
             },
@@ -1520,14 +1520,14 @@ mod previewed_values {
         array(
             c"flags",
             offset_of!(Arrays, flags),
-            ffi::AVOptionType::AV_OPT_TYPE_FLAGS,
+            ffi::AV_OPT_TYPE_FLAGS,
             0.0,
             u32::MAX as f64,
         ),
         array(
             c"q",
             offset_of!(Arrays, q),
-            ffi::AVOptionType::AV_OPT_TYPE_RATIONAL,
+            ffi::AV_OPT_TYPE_RATIONAL,
             -1e300,
             1e300,
         ),
@@ -1535,7 +1535,7 @@ mod previewed_values {
             name: null(),
             help: null(),
             offset: 0,
-            type_: ffi::AVOptionType(0),
+            type_: 0,
             default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
             min: 0.0,
             max: 0.0,
@@ -1551,7 +1551,7 @@ mod previewed_values {
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        category: ffi::AV_CLASS_CATEGORY_NA,
         get_category: None,
         query_ranges: None,
         child_next: None,
@@ -1674,7 +1674,7 @@ mod typed_setters {
     const ERANGE: i32 = -34;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// The exclusive handle of the object at `obj`.
@@ -1712,7 +1712,7 @@ mod typed_setters {
         map.get_mut(0)
             .unwrap()
             .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
-                id: ffi::AVChannel::AV_CHAN_FRONT_LEFT,
+                id: ffi::AV_CHAN_FRONT_LEFT,
                 name: [b'n' as core::ffi::c_char; 16],
                 opaque: core::ptr::null_mut(),
             }));
@@ -1741,16 +1741,8 @@ mod typed_setters {
                         let _ = m.set_video_rate(name, Rational::new(q.0, q.1), f);
                     }
                     for p in [-2, -1, 0, 3, 1000, i32::MAX, i32::MIN] {
-                        let _ = m.set_pixel_format(
-                            name,
-                            PixelFormat::from_raw(ffi::AVPixelFormat(p)),
-                            f,
-                        );
-                        let _ = m.set_sample_format(
-                            name,
-                            SampleFormat::from_raw(ffi::AVSampleFormat(p)),
-                            f,
-                        );
+                        let _ = m.set_pixel_format(name, PixelFormat::from_raw(p), f);
+                        let _ = m.set_sample_format(name, SampleFormat::from_raw(p), f);
                     }
                     for l in &layouts {
                         let _ = m.set_channel_layout(name, l.as_ref(), f);
@@ -1812,14 +1804,8 @@ mod typed_setters {
             Rational::new(1, 0),
             Rational::new(i32::MIN, -1),
         ];
-        let pix = [
-            PixelFormat::NONE,
-            PixelFormat::from_raw(ffi::AVPixelFormat(3)),
-        ];
-        let samples = [
-            SampleFormat::S16,
-            SampleFormat::from_raw(ffi::AVSampleFormat(-7)),
-        ];
+        let pix = [PixelFormat::NONE, PixelFormat::from_raw(3)];
+        let samples = [SampleFormat::S16, SampleFormat::from_raw(-7)];
         let mut m = exclusive(o.as_obj());
         let rounds = if under_bsan() { 1 } else { 3 };
         for _ in 0..rounds {
@@ -2329,7 +2315,7 @@ mod lookups {
         // BSan misreads C's reads through glibc `strtod` / `strtol` end
         // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
         // and the fixture's defaults, as in the other object suites.
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             return;
         }
         let mut v = b"0*".to_vec();

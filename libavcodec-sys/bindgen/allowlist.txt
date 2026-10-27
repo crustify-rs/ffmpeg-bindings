@@ -1,0 +1,53 @@
+# Agent-owned bindgen allowlist for libavcodec.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^AVAudioServiceType$
+type ^AVBSFContext$
+type ^AVBSFList$
+type ^AVBitStreamFilter$
+type ^AVBitStreamFilterContext$
+type ^AVBitStreamFilterGraph$
+type ^AVBitStreamFilterLink$
+type ^AVBitStreamFilterPad$
+type ^AVCPBProperties$
+type ^AVCodec$
+type ^AVCodecConfig$
+type ^AVCodecContext$
+type ^AVCodecDescriptor$
+type ^AVCodecHWConfig$
+type ^AVCodecID$
+type ^AVCodecParameters$
+type ^AVCodecParser$
+type ^AVCodecParserContext$
+type ^AVDCT$
+type ^AVDVProfile$
+type ^AVDiracSeqHeader$
+type ^AVDiscard$
+type ^AVExifEntry$
+type ^AVExifHeaderMode$
+type ^AVExifMetadata$
+type ^AVFieldOrder$
+type ^AVHWAccel$
+type ^AVPacket$
+type ^AVPacketSideData$
+type ^AVPacketSideDataType$
+type ^AVPanScan$
+type ^AVPictureStructure$
+type ^AVProducerReferenceTime$
+type ^AVProfile$
+type ^AVRTCPSenderReport$
+type ^AVSideDataParamChangeFlags$
+type ^AVSmpte291mAnc8bit$
+type ^AVSmpte436mAncIterator$
+type ^AVSmpte436mCodedAnc$
+type ^AVSmpte436mPayloadSampleCoding$
+type ^AVSmpte436mWrappingType$
+type ^AVSubtitle$
+type ^AVSubtitleRect$
+type ^AVSubtitleType$
+type ^AVTiffDataType$
+type ^AVVorbisParseContext$
+type ^DiracParseCodes$
+type ^DiracVersionInfo$
+type ^RcOverride$

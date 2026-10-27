@@ -430,10 +430,10 @@ mod images {
     use super::{Ctx, captured, isolated};
     use crate::log::LogState;
 
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
 
     fn format(raw: c_int) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     /// Every pixel format value worth asking about.
@@ -446,7 +446,7 @@ mod images {
     /// hours: the image sweeps below then keep a few formats of each layout
     /// class and fewer sizes.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// One format of each layout class the image routines distinguish, for
@@ -455,24 +455,24 @@ mod images {
     /// bitstream, float, 16-bit and alpha planes, Bayer, XYZ and a hardware
     /// format.
     const BSAN_FORMATS: [ffi::AVPixelFormat; 18] = [
-        ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
-        ffi::AVPixelFormat::AV_PIX_FMT_YUYV422,
-        ffi::AVPixelFormat::AV_PIX_FMT_RGB24,
-        ffi::AVPixelFormat::AV_PIX_FMT_YUV410P,
-        ffi::AVPixelFormat::AV_PIX_FMT_GRAY8,
-        ffi::AVPixelFormat::AV_PIX_FMT_MONOWHITE,
-        ffi::AVPixelFormat::AV_PIX_FMT_PAL8,
-        ffi::AVPixelFormat::AV_PIX_FMT_UYVY422,
-        ffi::AVPixelFormat::AV_PIX_FMT_NV12,
-        ffi::AVPixelFormat::AV_PIX_FMT_RGB48BE,
-        ffi::AVPixelFormat::AV_PIX_FMT_YUVA444P16LE,
-        ffi::AVPixelFormat::AV_PIX_FMT_GBRAPF32LE,
-        ffi::AVPixelFormat::AV_PIX_FMT_BAYER_RGGB16BE,
-        ffi::AVPixelFormat::AV_PIX_FMT_XYZ12LE,
-        ffi::AVPixelFormat::AV_PIX_FMT_P010LE,
-        ffi::AVPixelFormat::AV_PIX_FMT_VUYA,
-        ffi::AVPixelFormat::AV_PIX_FMT_GBRP,
-        ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
+        ffi::AV_PIX_FMT_YUV420P,
+        ffi::AV_PIX_FMT_YUYV422,
+        ffi::AV_PIX_FMT_RGB24,
+        ffi::AV_PIX_FMT_YUV410P,
+        ffi::AV_PIX_FMT_GRAY8,
+        ffi::AV_PIX_FMT_MONOWHITE,
+        ffi::AV_PIX_FMT_PAL8,
+        ffi::AV_PIX_FMT_UYVY422,
+        ffi::AV_PIX_FMT_NV12,
+        ffi::AV_PIX_FMT_RGB48BE,
+        ffi::AV_PIX_FMT_YUVA444P16LE,
+        ffi::AV_PIX_FMT_GBRAPF32LE,
+        ffi::AV_PIX_FMT_BAYER_RGGB16BE,
+        ffi::AV_PIX_FMT_XYZ12LE,
+        ffi::AV_PIX_FMT_P010LE,
+        ffi::AV_PIX_FMT_VUYA,
+        ffi::AV_PIX_FMT_GBRP,
+        ffi::AV_PIX_FMT_VAAPI,
     ];
 
     /// The formats a sweep runs over: all of them, or [`BSAN_FORMATS`] and
@@ -481,7 +481,7 @@ mod images {
         if under_bsan() {
             [-2, -1, NB]
                 .into_iter()
-                .chain(BSAN_FORMATS.map(|f| f.0))
+                .chain(BSAN_FORMATS.map(|f| f))
                 .collect()
         } else {
             formats().collect()
@@ -498,7 +498,7 @@ mod images {
     /// re-computation: bitstream formats whose bit count is near `INT_MAX`.
     fn c_overflows(raw: c_int, width: c_int) -> bool {
         // SAFETY: by value; NULL or C's static table.
-        let desc = unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(raw)) };
+        let desc = unsafe { ffi::av_pix_fmt_desc_get(raw) };
         if desc.is_null() || width < 0 {
             return false;
         }
@@ -536,7 +536,7 @@ mod images {
                     continue;
                 }
                 for plane in 0..4 {
-                    let fmt = ffi::AVPixelFormat(raw);
+                    let fmt = raw;
                     // SAFETY: by value, a plane C indexes in bounds, and a
                     // width C's arithmetic does not overflow for.
                     let c = unsafe { ffi::av_image_get_linesize(fmt, w, plane) };
@@ -548,9 +548,7 @@ mod images {
                 }
                 let mut c = [-9; 4];
                 // SAFETY: the `int[4]` C writes; no overflow, as above.
-                let ret = unsafe {
-                    ffi::av_image_fill_linesizes(c.as_mut_ptr(), ffi::AVPixelFormat(raw), w)
-                };
+                let ret = unsafe { ffi::av_image_fill_linesizes(c.as_mut_ptr(), raw, w) };
                 assert_eq!(
                     fill_linesizes(format(raw), w),
                     result(ret).map(|_| c),
@@ -578,12 +576,7 @@ mod images {
                     // SAFETY: the arrays C writes and reads; a positive
                     // height.
                     let ret = unsafe {
-                        ffi::av_image_fill_plane_sizes(
-                            c.as_mut_ptr(),
-                            ffi::AVPixelFormat(raw),
-                            h,
-                            wide.as_ptr(),
-                        )
+                        ffi::av_image_fill_plane_sizes(c.as_mut_ptr(), raw, h, wide.as_ptr())
                     };
                     let rust = fill_plane_sizes(format(raw), h, wide);
                     assert_eq!(rust, result(ret).map(|_| c), "{raw} {h} {ls:?}");
@@ -592,7 +585,7 @@ mod images {
                     let size = unsafe {
                         ffi::av_image_fill_pointers(
                             data.as_mut_ptr(),
-                            ffi::AVPixelFormat(raw),
+                            raw,
                             h,
                             ptr::null_mut(),
                             ls.as_ptr(),
@@ -607,13 +600,7 @@ mod images {
                     let c = c_offsets(&buf, |p, data| {
                         // SAFETY: `buf` holds the size C returned.
                         unsafe {
-                            ffi::av_image_fill_pointers(
-                                data,
-                                ffi::AVPixelFormat(raw),
-                                h,
-                                p.cast_mut(),
-                                ls.as_ptr(),
-                            )
+                            ffi::av_image_fill_pointers(data, raw, h, p.cast_mut(), ls.as_ptr())
                         }
                     });
                     let planes = fill_pointers(&buf, format(raw), h, ls).unwrap();
@@ -681,9 +668,7 @@ mod images {
                 for align in [1usize, 4, 32, 64, 1 << 30] {
                     // SAFETY: by value; C checks the size first, which keeps
                     // its aligned linesizes in `int`.
-                    let c = unsafe {
-                        ffi::av_image_get_buffer_size(ffi::AVPixelFormat(raw), w, h, align as c_int)
-                    };
+                    let c = unsafe { ffi::av_image_get_buffer_size(raw, w, h, align as c_int) };
                     let rust = buffer_size(format(raw), w, h, align);
                     assert_eq!(rust, result(c).map(|s| s as usize), "{raw} {w}x{h} {align}");
                     let mut c_ls = [-9; 4];
@@ -694,7 +679,7 @@ mod images {
                             data.as_mut_ptr(),
                             c_ls.as_mut_ptr(),
                             ptr::null(),
-                            ffi::AVPixelFormat(raw),
+                            raw,
                             w,
                             h,
                             align as c_int,
@@ -714,7 +699,7 @@ mod images {
                                 data,
                                 ls.as_mut_ptr(),
                                 p,
-                                ffi::AVPixelFormat(raw),
+                                raw,
                                 w,
                                 h,
                                 align as c_int,
@@ -751,10 +736,10 @@ mod images {
         ];
         let fmts = [
             -1,
-            ffi::AVPixelFormat::AV_PIX_FMT_YUV420P.0,
-            ffi::AVPixelFormat::AV_PIX_FMT_RGBAF32LE.0,
-            ffi::AVPixelFormat::AV_PIX_FMT_MONOBLACK.0,
-            ffi::AVPixelFormat::AV_PIX_FMT_BGR4.0,
+            ffi::AV_PIX_FMT_YUV420P,
+            ffi::AV_PIX_FMT_RGBAF32LE,
+            ffi::AV_PIX_FMT_MONOBLACK,
+            ffi::AV_PIX_FMT_BGR4,
             NB,
         ];
         for w in dims {
@@ -768,14 +753,7 @@ mod images {
                         }
                         // SAFETY: a NULL log context; no overflow, as above.
                         let c = unsafe {
-                            ffi::av_image_check_size2(
-                                w,
-                                h,
-                                max,
-                                ffi::AVPixelFormat(raw),
-                                0,
-                                ptr::null_mut(),
-                            )
+                            ffi::av_image_check_size2(w, h, max, raw, 0, ptr::null_mut())
                         };
                         assert_eq!(rust, result(c).map(drop), "{w}x{h} {raw} {max}");
                     }
@@ -859,16 +837,7 @@ mod images {
         let mut c_ret = 0;
         let c = captured(|| {
             // SAFETY: a NULL context, and a format C has no linesize for.
-            c_ret = unsafe {
-                ffi::av_image_check_size2(
-                    w,
-                    1,
-                    i64::MAX,
-                    ffi::AVPixelFormat(-1),
-                    0,
-                    ptr::null_mut(),
-                )
-            }
+            c_ret = unsafe { ffi::av_image_check_size2(w, 1, i64::MAX, -1, 0, ptr::null_mut()) }
         });
         assert_eq!((rust_ret, rust), (result(c_ret).map(drop), c));
     }
@@ -892,7 +861,7 @@ mod images {
                     linesizes.as_mut_ptr(),
                     w,
                     h,
-                    ffi::AVPixelFormat(raw),
+                    raw,
                     align as c_int,
                 )
             };
@@ -1050,7 +1019,7 @@ mod images {
                     c_dst.linesizes.as_ptr(),
                     c_src.data.as_ptr().cast(),
                     c_src.linesizes.as_ptr(),
-                    ffi::AVPixelFormat(raw),
+                    raw,
                     cw,
                     ch,
                 );
@@ -1066,7 +1035,7 @@ mod images {
                 c_dst.linesizes.as_ptr(),
                 c_src.data.as_ptr(),
                 c_src.linesizes.as_ptr(),
-                ffi::AVPixelFormat(raw),
+                raw,
                 w,
                 h,
             );
@@ -1087,7 +1056,7 @@ mod images {
                     c_dl.as_ptr(),
                     c_src.data.as_ptr().cast(),
                     c_sl.as_ptr(),
-                    ffi::AVPixelFormat(raw),
+                    raw,
                     w,
                     h,
                 );
@@ -1099,9 +1068,7 @@ mod images {
         // Copies into a packed buffer.
         for buf_align in [1usize, 4, 32] {
             // SAFETY: by value.
-            let size = unsafe {
-                ffi::av_image_get_buffer_size(ffi::AVPixelFormat(raw), w, h, buf_align as c_int)
-            };
+            let size = unsafe { ffi::av_image_get_buffer_size(raw, w, h, buf_align as c_int) };
             let len = size.max(0) as usize + 3;
             let (mut c_buf, mut rust_buf) = (vec![0xA5u8; len], vec![0xA5u8; len]);
             // SAFETY: `c_buf` holds `len` bytes, which C checks the size
@@ -1112,7 +1079,7 @@ mod images {
                     len as c_int,
                     c_src.data.as_ptr().cast(),
                     c_src.linesizes.as_ptr(),
-                    ffi::AVPixelFormat(raw),
+                    raw,
                     w,
                     h,
                     buf_align as c_int,
@@ -1143,7 +1110,7 @@ mod images {
                     ffi::av_image_fill_color(
                         c_dst.data.as_ptr(),
                         dl.as_ptr(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         color.as_ptr(),
                         fw,
                         fh,
@@ -1158,7 +1125,7 @@ mod images {
                     ffi::av_image_fill_color(
                         ptr::null(),
                         ptr::null(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         color.as_ptr(),
                         fw,
                         0,
@@ -1178,7 +1145,7 @@ mod images {
                 ffi::av_image_fill_black(
                     c_dst.data.as_ptr(),
                     dl.as_ptr(),
-                    ffi::AVPixelFormat(raw),
+                    raw,
                     range.into_raw(),
                     w,
                     h,
@@ -1189,14 +1156,7 @@ mod images {
             assert_same(&c_dst, &dst, &format!("{what} black {range:?}"));
             // SAFETY: NULL planes only check the arguments.
             let c = unsafe {
-                ffi::av_image_fill_black(
-                    ptr::null(),
-                    ptr::null(),
-                    ffi::AVPixelFormat(raw),
-                    range.into_raw(),
-                    w,
-                    0,
-                )
+                ffi::av_image_fill_black(ptr::null(), ptr::null(), raw, range.into_raw(), w, 0)
             };
             assert_eq!(check_fill_black(format(raw), range, w), result(c).map(drop));
         }
@@ -1228,7 +1188,7 @@ mod images {
         // Row 0 last in each plane: C's negative linesizes from the last
         // row's address.
         let (w, h) = (9, 6);
-        let raw = ffi::AVPixelFormat::AV_PIX_FMT_YUV420P.0;
+        let raw = ffi::AV_PIX_FMT_YUV420P;
         let (mut c_src, _) = CImage::alloc(raw, w, h, 1).unwrap();
         let mut src = Image::alloc(w, h, format(raw), 1).unwrap();
         noise(&mut c_src, &mut src, 99);
@@ -1256,7 +1216,7 @@ mod images {
                 c_ls.as_ptr(),
                 c_src.data.as_ptr().cast(),
                 c_src.linesizes.as_ptr(),
-                ffi::AVPixelFormat(raw),
+                raw,
                 w,
                 h,
             );
@@ -1432,7 +1392,7 @@ mod images {
         let under_bsan = under_bsan();
         let mut x = 0x9E37_79B9u32;
         for (k, fmt) in formats.iter().enumerate() {
-            let raw = fmt.into_raw().0;
+            let raw = fmt.into_raw();
             for round in 0..if under_bsan { 3 } else { 24 } {
                 let w = 1 + (xorshift(&mut x) % 37) as c_int;
                 let h = 1 + (xorshift(&mut x) % 23) as c_int;
@@ -1459,7 +1419,7 @@ mod images {
                             dl.as_ptr(),
                             sp.as_ptr().cast(),
                             sl.as_ptr(),
-                            ffi::AVPixelFormat(raw),
+                            raw,
                             cw,
                             ch,
                         );
@@ -1493,7 +1453,7 @@ mod images {
                             dl.as_ptr(),
                             sp.as_ptr().cast(),
                             sl.as_ptr(),
-                            ffi::AVPixelFormat(raw),
+                            raw,
                             w,
                             h,
                         );
@@ -1512,7 +1472,7 @@ mod images {
                         ffi::av_image_fill_color(
                             dp.as_ptr(),
                             dl.as_ptr(),
-                            ffi::AVPixelFormat(raw),
+                            raw,
                             color.as_ptr(),
                             fw,
                             fh,
@@ -1529,7 +1489,7 @@ mod images {
                     ffi::av_image_fill_black(
                         dp.as_ptr(),
                         dl.as_ptr(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         ColorRange::MPEG.into_raw(),
                         w,
                         h,
@@ -1552,7 +1512,7 @@ mod images {
                         (size + 2) as c_int,
                         sp.as_ptr().cast(),
                         sl.as_ptr(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         w,
                         h,
                         align as c_int,
@@ -1574,7 +1534,7 @@ mod images {
                         cp.as_mut_ptr(),
                         cl.as_mut_ptr(),
                         c_out.as_ptr(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         w,
                         h,
                         align as c_int,
@@ -1588,7 +1548,7 @@ mod images {
                         dl.as_ptr(),
                         cp.as_ptr().cast(),
                         cl.as_ptr(),
-                        ffi::AVPixelFormat(raw),
+                        raw,
                         w,
                         h,
                     );
@@ -1611,15 +1571,15 @@ mod pixel_steps {
     use ffmpeg_bindings::libavutil::libavutil::imgutils::max_pixel_steps;
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
 
     fn format(raw: c_int) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     fn c_get(raw: c_int) -> *const ffi::AVPixFmtDescriptor {
         // SAFETY: by value; C range-checks it.
-        unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(raw)) }
+        unsafe { ffi::av_pix_fmt_desc_get(raw) }
     }
 
     #[test]

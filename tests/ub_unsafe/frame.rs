@@ -164,7 +164,7 @@ mod side_data_descriptor_from_raw {
         for t in (0..256).chain([c_uint::MAX >> 1, c_uint::MAX]) {
             // SAFETY: `av_frame_side_data_desc` takes any value and returns
             // NULL or a pointer into C's static, never-written table.
-            let p = unsafe { ffi::av_frame_side_data_desc(ffi::AVFrameSideDataType(t)) };
+            let p = unsafe { ffi::av_frame_side_data_desc(t) };
             if p.is_null() {
                 continue;
             }
@@ -176,10 +176,7 @@ mod side_data_descriptor_from_raw {
             assert!(!d.as_ref().name().unwrap().is_empty());
             adopted += 1;
         }
-        assert_eq!(
-            adopted,
-            ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX.0 + 1
-        );
+        assert_eq!(adopted, ffi::AV_FRAME_DATA_DOWNMIX_MATRIX + 1);
     }
 }
 

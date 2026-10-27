@@ -385,35 +385,35 @@ impl OptionType {
     /// (`AV_OPT_TYPE_FLAG_ARRAY`): the option's offset then names a pointer to
     /// elements of that type, immediately followed by an `unsigned int`
     /// element count. Not a type on its own.
-    pub const ARRAY: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY);
+    pub const ARRAY: Self = Self(ffi::AV_OPT_TYPE_FLAG_ARRAY);
     /// A `uint8_t *`, NULL or an array of the `av_malloc` family, immediately
     /// followed by an `int` holding its length in bytes.
-    pub const BINARY: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_BINARY);
+    pub const BINARY: Self = Self(ffi::AV_OPT_TYPE_BINARY);
     /// An `int` boolean, which may also be -1 for "auto".
-    pub const BOOL: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_BOOL);
+    pub const BOOL: Self = Self(ffi::AV_OPT_TYPE_BOOL);
     /// An `AVChannelLayout`.
-    pub const CHANNEL_LAYOUT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_CHLAYOUT);
+    pub const CHANNEL_LAYOUT: Self = Self(ffi::AV_OPT_TYPE_CHLAYOUT);
     /// A `uint8_t[4]` RGBA colour.
-    pub const COLOR: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_COLOR);
+    pub const COLOR: Self = Self(ffi::AV_OPT_TYPE_COLOR);
     /// A named constant of the options sharing its unit; it names no field
     /// of the object, and its offset is 0.
-    pub const CONST: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_CONST);
+    pub const CONST: Self = Self(ffi::AV_OPT_TYPE_CONST);
     /// An `AVDictionary *`.
-    pub const DICT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DICT);
+    pub const DICT: Self = Self(ffi::AV_OPT_TYPE_DICT);
     /// A `double`.
-    pub const DOUBLE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DOUBLE);
+    pub const DOUBLE: Self = Self(ffi::AV_OPT_TYPE_DOUBLE);
     /// An `int64_t` duration in microseconds.
-    pub const DURATION: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_DURATION);
+    pub const DURATION: Self = Self(ffi::AV_OPT_TYPE_DURATION);
     /// A set of named flags, stored as an `unsigned int`.
-    pub const FLAGS: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLAGS);
+    pub const FLAGS: Self = Self(ffi::AV_OPT_TYPE_FLAGS);
     /// A `float`.
-    pub const FLOAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_FLOAT);
+    pub const FLOAT: Self = Self(ffi::AV_OPT_TYPE_FLOAT);
     /// Two consecutive `int`s, a width and a height.
-    pub const IMAGE_SIZE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_IMAGE_SIZE);
+    pub const IMAGE_SIZE: Self = Self(ffi::AV_OPT_TYPE_IMAGE_SIZE);
     /// An `int`.
-    pub const INT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_INT);
+    pub const INT: Self = Self(ffi::AV_OPT_TYPE_INT);
     /// An `int64_t`.
-    pub const INT64: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_INT64);
+    pub const INT64: Self = Self(ffi::AV_OPT_TYPE_INT64);
     /// Every named value with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 21] = [
         (Self::FLAGS, "FLAGS"),
@@ -439,32 +439,32 @@ impl OptionType {
         (Self::ARRAY, "ARRAY"),
     ];
     /// An `enum AVPixelFormat`.
-    pub const PIXEL_FORMAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_PIXEL_FMT);
+    pub const PIXEL_FORMAT: Self = Self(ffi::AV_OPT_TYPE_PIXEL_FMT);
     /// An `AVRational`.
-    pub const RATIONAL: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_RATIONAL);
+    pub const RATIONAL: Self = Self(ffi::AV_OPT_TYPE_RATIONAL);
     /// An `enum AVSampleFormat`.
-    pub const SAMPLE_FORMAT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_SAMPLE_FMT);
+    pub const SAMPLE_FORMAT: Self = Self(ffi::AV_OPT_TYPE_SAMPLE_FMT);
     /// A `char *`, NULL or a string of the `av_malloc` family.
-    pub const STRING: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_STRING);
+    pub const STRING: Self = Self(ffi::AV_OPT_TYPE_STRING);
     /// An `unsigned int`.
-    pub const UINT: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_UINT);
+    pub const UINT: Self = Self(ffi::AV_OPT_TYPE_UINT);
     /// A `uint64_t`.
-    pub const UINT64: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_UINT64);
+    pub const UINT64: Self = Self(ffi::AV_OPT_TYPE_UINT64);
     /// An `AVRational` frame rate.
-    pub const VIDEO_RATE: Self = Self(ffi::AVOptionType::AV_OPT_TYPE_VIDEO_RATE);
+    pub const VIDEO_RATE: Self = Self(ffi::AV_OPT_TYPE_VIDEO_RATE);
 
     /// The type with the raw value `value`, named or not.
     #[inline]
     #[must_use]
     pub const fn from_value(value: c_uint) -> Self {
-        Self(ffi::AVOptionType(value))
+        Self(value)
     }
 
     /// The raw value C stores for this type.
     #[inline]
     #[must_use]
     pub const fn value(self) -> c_uint {
-        self.0.0
+        self.0
     }
 
     /// The name of this value's constant, or `None` for an unnamed value,
@@ -2910,7 +2910,7 @@ pub fn parse_key_value<'s>(
     let mut rest = opts.as_ptr();
     let (mut key, mut value) = (ptr::null_mut(), ptr::null_mut());
     let flags = if implicit_key {
-        ffi::AV_OPT_FLAG_IMPLICIT_KEY.0
+        ffi::AV_OPT_FLAG_IMPLICIT_KEY
     } else {
         0
     };
@@ -3020,7 +3020,7 @@ impl ObjectRef<'_> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
     /// (logged) for an option of another type, arrays included.
     pub fn get_pixel_format(&self, name: &CStr, flags: SearchFlags) -> Result<PixelFormat, i32> {
-        let (obj, mut out) = (self.as_ptr(), ffi::AVPixelFormat(0));
+        let (obj, mut out) = (self.as_ptr(), 0);
         // SAFETY: as for `get_rational`; `out` is a writable
         // `enum AVPixelFormat`, whose every value the newtype holds.
         let ret = unsafe { ffi::av_opt_get_pixel_fmt(obj, name.as_ptr(), flags.0, &raw mut out) };
@@ -3039,7 +3039,7 @@ impl ObjectRef<'_> {
     ///
     /// As [`get_pixel_format`](Self::get_pixel_format).
     pub fn get_sample_format(&self, name: &CStr, flags: SearchFlags) -> Result<SampleFormat, i32> {
-        let (obj, mut out) = (self.as_ptr(), ffi::AVSampleFormat(0));
+        let (obj, mut out) = (self.as_ptr(), 0);
         // SAFETY: as for `get_pixel_format`, for an `enum AVSampleFormat`.
         let ret = unsafe { ffi::av_opt_get_sample_fmt(obj, name.as_ptr(), flags.0, &raw mut out) };
         if ret < 0 {
@@ -3291,7 +3291,7 @@ unsafe impl element::Element for PixelFormat {
     const TYPE: OptionType = OptionType::PIXEL_FORMAT;
 
     fn zero() -> ffi::AVPixelFormat {
-        ffi::AVPixelFormat(0)
+        0
     }
 
     unsafe fn adopt(raw: ffi::AVPixelFormat) -> Self {
@@ -3307,7 +3307,7 @@ unsafe impl element::Element for SampleFormat {
     const TYPE: OptionType = OptionType::SAMPLE_FORMAT;
 
     fn zero() -> ffi::AVSampleFormat {
-        ffi::AVSampleFormat(0)
+        0
     }
 
     unsafe fn adopt(raw: ffi::AVSampleFormat) -> Self {
@@ -3591,7 +3591,7 @@ impl ObjectMut<'_> {
         // live for the exclusive borrow; the union member is read as the
         // pointer C's custom order stores.
         let (order, map) = (unsafe { order_ptr.read() }, unsafe { u_map_ptr.read() });
-        if order == ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM && map.is_null() {
+        if order == ffi::AV_CHANNEL_ORDER_CUSTOM && map.is_null() {
             // SAFETY: as the comment below states, for this part of the operation.
             let zeroed_2 = unsafe { core::mem::zeroed() };
             // SAFETY: as above, writable through the exclusive borrow; the
@@ -3726,7 +3726,7 @@ impl ObjectMut<'_> {
         // exclusive borrow keeps unwritten by anything else.
         let old = size.map(|p| unsafe { p.read() });
         let obj = self.as_mut_ptr();
-        let ty = ffi::AVOptionType::AV_OPT_TYPE_INT;
+        let ty = ffi::AV_OPT_TYPE_INT;
         // SAFETY: as for `set`; with a NULL `val` C only releases and shifts
         // elements of the array the object owns, after checking the range
         // against its count, and ignores `val_type`.
@@ -4774,37 +4774,37 @@ mod unit_tests {
     #[test]
     fn default_is_read_through_the_member_its_type_selects() {
         let ints = [
-            T::AV_OPT_TYPE_BOOL,
-            T::AV_OPT_TYPE_FLAGS,
-            T::AV_OPT_TYPE_INT,
-            T::AV_OPT_TYPE_UINT,
-            T::AV_OPT_TYPE_INT64,
-            T::AV_OPT_TYPE_UINT64,
-            T::AV_OPT_TYPE_DURATION,
-            T::AV_OPT_TYPE_PIXEL_FMT,
-            T::AV_OPT_TYPE_SAMPLE_FMT,
-            T::AV_OPT_TYPE_CONST,
+            ffi::AV_OPT_TYPE_BOOL,
+            ffi::AV_OPT_TYPE_FLAGS,
+            ffi::AV_OPT_TYPE_INT,
+            ffi::AV_OPT_TYPE_UINT,
+            ffi::AV_OPT_TYPE_INT64,
+            ffi::AV_OPT_TYPE_UINT64,
+            ffi::AV_OPT_TYPE_DURATION,
+            ffi::AV_OPT_TYPE_PIXEL_FMT,
+            ffi::AV_OPT_TYPE_SAMPLE_FMT,
+            ffi::AV_OPT_TYPE_CONST,
         ];
         for ty in ints {
             let o = option(ty, ffi::AVOption__bindgen_ty_1 { i64_: -3 });
             assert_default(o, OptionDefault::Int(-3));
         }
         for ty in [
-            T::AV_OPT_TYPE_DOUBLE,
-            T::AV_OPT_TYPE_FLOAT,
-            T::AV_OPT_TYPE_RATIONAL,
+            ffi::AV_OPT_TYPE_DOUBLE,
+            ffi::AV_OPT_TYPE_FLOAT,
+            ffi::AV_OPT_TYPE_RATIONAL,
         ] {
             let o = option(ty, ffi::AVOption__bindgen_ty_1 { dbl: 0.75 });
             assert_default(o, OptionDefault::Double(0.75));
         }
         let strings = [
-            T::AV_OPT_TYPE_STRING,
-            T::AV_OPT_TYPE_COLOR,
-            T::AV_OPT_TYPE_IMAGE_SIZE,
-            T::AV_OPT_TYPE_VIDEO_RATE,
-            T::AV_OPT_TYPE_BINARY,
-            T::AV_OPT_TYPE_CHLAYOUT,
-            T::AV_OPT_TYPE_DICT,
+            ffi::AV_OPT_TYPE_STRING,
+            ffi::AV_OPT_TYPE_COLOR,
+            ffi::AV_OPT_TYPE_IMAGE_SIZE,
+            ffi::AV_OPT_TYPE_VIDEO_RATE,
+            ffi::AV_OPT_TYPE_BINARY,
+            ffi::AV_OPT_TYPE_CHLAYOUT,
+            ffi::AV_OPT_TYPE_DICT,
         ];
         for ty in strings {
             let o = option(
@@ -4828,11 +4828,11 @@ mod unit_tests {
         // SAFETY: `def` is a live local, only read, that outlives the handle.
         let def_ref = unsafe { OptionArrayDefRef::from_ptr((&raw const def).cast_mut()) };
         for base in [
-            T::AV_OPT_TYPE_INT,
-            T::AV_OPT_TYPE_STRING,
-            T::AV_OPT_TYPE_DOUBLE,
+            ffi::AV_OPT_TYPE_INT,
+            ffi::AV_OPT_TYPE_STRING,
+            ffi::AV_OPT_TYPE_DOUBLE,
         ] {
-            let ty = T(base.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0);
+            let ty = base | ffi::AV_OPT_TYPE_FLAG_ARRAY;
             let o = option(
                 ty,
                 ffi::AVOption__bindgen_ty_1 {
@@ -4846,7 +4846,7 @@ mod unit_tests {
 
         // A type outside the enum reads no member: a pointer-sized garbage
         // `str` would otherwise be dereferenced.
-        for ty in [T(0), T(99), T(T::AV_OPT_TYPE_UINT.0 + 1)] {
+        for ty in [0, 99, (ffi::AV_OPT_TYPE_UINT + 1)] {
             let o = option(ty, ffi::AVOption__bindgen_ty_1 { i64_: 0x10 });
             assert_default(o, OptionDefault::Unsupported);
         }
@@ -5358,47 +5358,47 @@ mod unit_tests {
 
     /// Every named type, against its raw C enumerator.
     const TYPES: [(OptionType, T, &str); 21] = [
-        (OptionType::FLAGS, T::AV_OPT_TYPE_FLAGS, "FLAGS"),
-        (OptionType::INT, T::AV_OPT_TYPE_INT, "INT"),
-        (OptionType::INT64, T::AV_OPT_TYPE_INT64, "INT64"),
-        (OptionType::DOUBLE, T::AV_OPT_TYPE_DOUBLE, "DOUBLE"),
-        (OptionType::FLOAT, T::AV_OPT_TYPE_FLOAT, "FLOAT"),
-        (OptionType::STRING, T::AV_OPT_TYPE_STRING, "STRING"),
-        (OptionType::RATIONAL, T::AV_OPT_TYPE_RATIONAL, "RATIONAL"),
-        (OptionType::BINARY, T::AV_OPT_TYPE_BINARY, "BINARY"),
-        (OptionType::DICT, T::AV_OPT_TYPE_DICT, "DICT"),
-        (OptionType::UINT64, T::AV_OPT_TYPE_UINT64, "UINT64"),
-        (OptionType::CONST, T::AV_OPT_TYPE_CONST, "CONST"),
+        (OptionType::FLAGS, ffi::AV_OPT_TYPE_FLAGS, "FLAGS"),
+        (OptionType::INT, ffi::AV_OPT_TYPE_INT, "INT"),
+        (OptionType::INT64, ffi::AV_OPT_TYPE_INT64, "INT64"),
+        (OptionType::DOUBLE, ffi::AV_OPT_TYPE_DOUBLE, "DOUBLE"),
+        (OptionType::FLOAT, ffi::AV_OPT_TYPE_FLOAT, "FLOAT"),
+        (OptionType::STRING, ffi::AV_OPT_TYPE_STRING, "STRING"),
+        (OptionType::RATIONAL, ffi::AV_OPT_TYPE_RATIONAL, "RATIONAL"),
+        (OptionType::BINARY, ffi::AV_OPT_TYPE_BINARY, "BINARY"),
+        (OptionType::DICT, ffi::AV_OPT_TYPE_DICT, "DICT"),
+        (OptionType::UINT64, ffi::AV_OPT_TYPE_UINT64, "UINT64"),
+        (OptionType::CONST, ffi::AV_OPT_TYPE_CONST, "CONST"),
         (
             OptionType::IMAGE_SIZE,
-            T::AV_OPT_TYPE_IMAGE_SIZE,
+            ffi::AV_OPT_TYPE_IMAGE_SIZE,
             "IMAGE_SIZE",
         ),
         (
             OptionType::PIXEL_FORMAT,
-            T::AV_OPT_TYPE_PIXEL_FMT,
+            ffi::AV_OPT_TYPE_PIXEL_FMT,
             "PIXEL_FORMAT",
         ),
         (
             OptionType::SAMPLE_FORMAT,
-            T::AV_OPT_TYPE_SAMPLE_FMT,
+            ffi::AV_OPT_TYPE_SAMPLE_FMT,
             "SAMPLE_FORMAT",
         ),
         (
             OptionType::VIDEO_RATE,
-            T::AV_OPT_TYPE_VIDEO_RATE,
+            ffi::AV_OPT_TYPE_VIDEO_RATE,
             "VIDEO_RATE",
         ),
-        (OptionType::DURATION, T::AV_OPT_TYPE_DURATION, "DURATION"),
-        (OptionType::COLOR, T::AV_OPT_TYPE_COLOR, "COLOR"),
-        (OptionType::BOOL, T::AV_OPT_TYPE_BOOL, "BOOL"),
+        (OptionType::DURATION, ffi::AV_OPT_TYPE_DURATION, "DURATION"),
+        (OptionType::COLOR, ffi::AV_OPT_TYPE_COLOR, "COLOR"),
+        (OptionType::BOOL, ffi::AV_OPT_TYPE_BOOL, "BOOL"),
         (
             OptionType::CHANNEL_LAYOUT,
-            T::AV_OPT_TYPE_CHLAYOUT,
+            ffi::AV_OPT_TYPE_CHLAYOUT,
             "CHANNEL_LAYOUT",
         ),
-        (OptionType::UINT, T::AV_OPT_TYPE_UINT, "UINT"),
-        (OptionType::ARRAY, T::AV_OPT_TYPE_FLAG_ARRAY, "ARRAY"),
+        (OptionType::UINT, ffi::AV_OPT_TYPE_UINT, "UINT"),
+        (OptionType::ARRAY, ffi::AV_OPT_TYPE_FLAG_ARRAY, "ARRAY"),
     ];
 
     #[test]
@@ -5406,10 +5406,10 @@ mod unit_tests {
         assert_eq!(OptionType::KNOWN.len(), TYPES.len());
         for ((ty, raw, name), (known, known_name)) in TYPES.into_iter().zip(OptionType::KNOWN) {
             assert_eq!((ty, name), (known, known_name));
-            assert_eq!(ty.value(), raw.0);
+            assert_eq!(ty.value(), raw);
             assert_eq!(ffi::AVOptionType::from(ty), raw);
             assert_eq!(OptionType::from(raw), ty);
-            assert_eq!(OptionType::from_value(raw.0), ty);
+            assert_eq!(OptionType::from_value(raw), ty);
             assert_eq!(ty.name(), Some(name));
             assert_eq!(format!("{ty:?}"), format!("OptionType::{name}"));
         }
@@ -5462,7 +5462,7 @@ mod unit_tests {
         for i in 0..=NAMED {
             let o = entry(i);
             let raw = OPTIONS.0[i].type_;
-            assert_eq!(o.option_type().value(), raw.0);
+            assert_eq!(o.option_type().value(), raw);
         }
         let array = named(c"array").option_type();
         assert_eq!((array.base(), array.is_array()), (OptionType::INT, true));
@@ -5623,7 +5623,7 @@ mod unit_tests {
         use crate::libavutil::libavutil::log::Class;
 
         fn under_bsan() -> bool {
-            std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+            std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
         }
 
         /// The exclusive handle of a fixture object.
@@ -6091,7 +6091,7 @@ mod unit_tests {
                 c"other".as_ptr()
             }
             unsafe extern "C" fn category(_: *mut c_void) -> ffi::AVClassCategory {
-                ffi::AVClassCategory::AV_CLASS_CATEGORY_NA
+                ffi::AV_CLASS_CATEGORY_NA
             }
             // SAFETY: a copy of the live static class.
             let mut c = unsafe { BARE.as_ref().as_ptr().read() };
@@ -6553,7 +6553,7 @@ mod unit_tests {
             map.get_mut(0)
                 .unwrap()
                 .set(ChannelCustom::from_raw(ffi::AVChannelCustom {
-                    id: ffi::AVChannel::AV_CHAN_FRONT_LEFT,
+                    id: ffi::AV_CHAN_FRONT_LEFT,
                     name: [(b'n').cast_signed(); 16],
                     opaque: ptr::null_mut(),
                 }));
@@ -6635,14 +6635,8 @@ mod unit_tests {
             assert_eq!([1u8, 2, 3, 4].to_c(), [1, 2, 3, 4]);
             let q = Rational::from_raw(ffi::AVRational { num: 3, den: -7 });
             assert_eq!((q.to_c().num, q.to_c().den), (3, -7));
-            assert_eq!(
-                PixelFormat::NONE.to_c(),
-                ffi::AVPixelFormat::AV_PIX_FMT_NONE
-            );
-            assert_eq!(
-                SampleFormat::S16.to_c(),
-                ffi::AVSampleFormat::AV_SAMPLE_FMT_S16
-            );
+            assert_eq!(PixelFormat::NONE.to_c(), ffi::AV_PIX_FMT_NONE);
+            assert_eq!(SampleFormat::S16.to_c(), ffi::AV_SAMPLE_FMT_S16);
             assert!(None::<DictionaryRef<'_>>.to_c().is_null());
         }
 
@@ -6821,7 +6815,7 @@ mod unit_tests {
             // failed copy leaves.
             unsafe {
                 (*p).layout = ffi::AVChannelLayout {
-                    order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+                    order: ffi::AV_CHANNEL_ORDER_CUSTOM,
                     nb_channels: 3,
                     opaque: ptr::dangling_mut(),
                     ..Default::default()
@@ -6837,7 +6831,7 @@ mod unit_tests {
             obj.reset_unmapped_layout(c"layout", 0);
             // SAFETY: as above.
             let l = unsafe { (*p).layout };
-            assert_eq!(l.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+            assert_eq!(l.order, ffi::AV_CHANNEL_ORDER_UNSPEC);
             assert_eq!(l.nb_channels, 0);
             assert!(l.opaque.is_null());
             // A custom layout with a map is left alone.
@@ -6885,15 +6879,9 @@ mod unit_tests {
                     (*p).layout.nb_channels
                 });
                 if p == o.child() {
-                    assert_eq!(
-                        (order, n),
-                        (ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC, 0)
-                    );
+                    assert_eq!((order, n), (ffi::AV_CHANNEL_ORDER_UNSPEC, 0));
                 } else {
-                    assert_eq!(
-                        (order, n),
-                        (ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE, 2)
-                    );
+                    assert_eq!((order, n), (ffi::AV_CHANNEL_ORDER_NATIVE, 2));
                 }
             }
             let got = obj.as_ref().get(c"layout", SearchFlags::CHILDREN).unwrap();
@@ -7076,7 +7064,7 @@ mod unit_tests {
                     2 => c.parent_log_context_offset = 8,
                     3 => {
                         unsafe extern "C" fn cat(_: *mut c_void) -> ffi::AVClassCategory {
-                            ffi::AVClassCategory::AV_CLASS_CATEGORY_NA
+                            ffi::AV_CLASS_CATEGORY_NA
                         }
                         c.get_category = Some(cat);
                     }
@@ -7204,7 +7192,7 @@ mod unit_tests {
                     min: 0.0,
                     max: 10.0,
                     flags: flags.cast_signed(),
-                    unit: if ty == T::AV_OPT_TYPE_INT || ty == T::AV_OPT_TYPE_CONST {
+                    unit: if ty == ffi::AV_OPT_TYPE_INT || ty == ffi::AV_OPT_TYPE_CONST {
                         c"u".as_ptr()
                     } else {
                         ptr::null()
@@ -7214,36 +7202,36 @@ mod unit_tests {
                 opt(
                     c"size",
                     offset_of!(Plain, size),
-                    T::AV_OPT_TYPE_IMAGE_SIZE,
+                    ffi::AV_OPT_TYPE_IMAGE_SIZE,
                     0,
                     0,
                 ),
                 opt(
                     c"rate",
                     offset_of!(Plain, rate),
-                    T::AV_OPT_TYPE_VIDEO_RATE,
+                    ffi::AV_OPT_TYPE_VIDEO_RATE,
                     0,
                     0,
                 ),
                 opt(
                     c"color",
                     offset_of!(Plain, color),
-                    T::AV_OPT_TYPE_COLOR,
+                    ffi::AV_OPT_TYPE_COLOR,
                     0,
                     0,
                 ),
                 opt(
                     c"text",
                     offset_of!(Plain, text),
-                    T::AV_OPT_TYPE_STRING,
+                    ffi::AV_OPT_TYPE_STRING,
                     0,
                     0,
                 ),
-                opt(c"n", offset_of!(Plain, n), T::AV_OPT_TYPE_INT, 0, 0),
+                opt(c"n", offset_of!(Plain, n), ffi::AV_OPT_TYPE_INT, 0, 0),
                 opt(
                     c"old",
                     0,
-                    T::AV_OPT_TYPE_CONST,
+                    ffi::AV_OPT_TYPE_CONST,
                     ffi::AV_OPT_FLAG_DEPRECATED,
                     3,
                 ),

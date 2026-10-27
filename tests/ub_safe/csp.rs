@@ -809,7 +809,6 @@ mod color_transfer {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::csp::{EotfFunction, TrcFunction};
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorTransfer;
 
     fn transfers() -> Vec<ColorTransfer> {
@@ -823,7 +822,7 @@ mod color_transfer {
                 u32::MAX - 1,
                 u32::MAX,
             ])
-            .map(|r| ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(r)))
+            .map(ColorTransfer::from_raw)
             .collect()
     }
 
@@ -930,7 +929,7 @@ mod luma_lookup {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::ColorSpace;
 
     fn values() -> impl Iterator<Item = u32> {
-        (0..ffi::AVColorSpace::AVCOL_SPC_NB.0 + 3).chain([u32::MAX, 1 << 31, (1 << 31) - 1])
+        (0..ffi::AVCOL_SPC_NB + 3).chain([u32::MAX, 1 << 31, (1 << 31) - 1])
     }
 
     #[test]
@@ -939,7 +938,7 @@ mod luma_lookup {
         static KEPT: OnceLock<Vec<LumaCoefficientsRef<'static>>> = OnceLock::new();
         let kept = KEPT.get_or_init(|| {
             values()
-                .filter_map(|raw| ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients())
+                .filter_map(|raw| ColorSpace::from_raw(raw).luma_coefficients())
                 .collect()
         });
         assert!(!kept.is_empty());
@@ -954,7 +953,7 @@ mod luma_lookup {
                         assert!(sum > 0.9, "{sum}");
                     }
                     for raw in values() {
-                        let _ = ColorSpace::from_raw(ffi::AVColorSpace(raw)).luma_coefficients();
+                        let _ = ColorSpace::from_raw(raw).luma_coefficients();
                     }
                 });
             }
@@ -1304,9 +1303,9 @@ mod primaries_lookup {
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
 
     fn values() -> impl Iterator<Item = u32> {
-        let ext = ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE.0;
-        (0..ffi::AVColorPrimaries::AVCOL_PRI_NB.0 + 3)
-            .chain(ext - 1..ffi::AVColorPrimaries::AVCOL_PRI_EXT_NB.0 + 3)
+        let ext = ffi::AVCOL_PRI_EXT_BASE;
+        (0..ffi::AVCOL_PRI_NB + 3)
+            .chain(ext - 1..ffi::AVCOL_PRI_EXT_NB + 3)
             .chain([u32::MAX, 1 << 31, (1 << 31) - 1])
     }
 
@@ -1314,7 +1313,7 @@ mod primaries_lookup {
         static KEPT: OnceLock<Vec<ColorPrimariesDescriptorRef<'static>>> = OnceLock::new();
         KEPT.get_or_init(|| {
             values()
-                .filter_map(|raw| ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).descriptor())
+                .filter_map(|raw| ColorPrimaries::from_raw(raw).descriptor())
                 .collect()
         })
     }
@@ -1387,7 +1386,7 @@ mod primaries_lookup {
                         assert_ne!(d.primaries().r().x().num(), 0);
                     }
                     for raw in values() {
-                        let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+                        let p = ColorPrimaries::from_raw(raw);
                         let _ = p.descriptor().map(|d| d.identify());
                     }
                 });

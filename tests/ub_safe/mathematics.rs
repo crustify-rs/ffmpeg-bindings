@@ -11,7 +11,6 @@
     reason = "assertions keep the form of the C behaviour they check"
 )]
 
-use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mathematics::{InvalidRounding, Rounding};
 
 const METHODS: [Rounding; 5] = [
@@ -34,9 +33,9 @@ fn edge_values() -> impl Iterator<Item = u32> {
 #[test]
 fn conversions_never_panic_and_round_trip() {
     for raw in edge_values() {
-        match Rounding::try_from(ffi::AVRounding(raw)) {
+        match Rounding::try_from(raw) {
             Ok(r) => {
-                assert_eq!(r.as_raw().0, raw);
+                assert_eq!(r.as_raw(), raw);
                 assert_eq!(Rounding::from_raw(r.into()), Some(r));
                 assert!(METHODS.contains(&r.method()));
                 assert_eq!(r.passes_min_max(), raw & 8192 != 0);
@@ -44,7 +43,7 @@ fn conversions_never_panic_and_round_trip() {
             }
             Err(e) => {
                 assert_eq!(e, InvalidRounding(raw));
-                assert!(Rounding::from_raw(ffi::AVRounding(raw)).is_none());
+                assert!(Rounding::from_raw(raw).is_none());
                 assert!(e.to_string().contains("invalid AVRounding"));
             }
         }
@@ -75,7 +74,7 @@ fn roundings_cross_threads() {
     std::thread::scope(|s| {
         let shared = &all;
         let workers: Vec<_> = (0..4)
-            .map(|_| s.spawn(move || shared.iter().map(|r| r.method().as_raw().0).sum::<u32>()))
+            .map(|_| s.spawn(move || shared.iter().map(|r| r.method().as_raw()).sum::<u32>()))
             .collect();
         for w in workers {
             assert_eq!(w.join().unwrap(), 2 * (1 + 2 + 3 + 5));

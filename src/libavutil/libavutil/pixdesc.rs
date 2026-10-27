@@ -80,46 +80,46 @@ pub struct ColorSpace(ffi::AVColorSpace);
 
 impl ColorSpace {
     /// ITU-R BT.2020 constant luminance.
-    pub const BT2020_CL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_CL);
+    pub const BT2020_CL: Self = Self(ffi::AVCOL_SPC_BT2020_CL);
     /// ITU-R BT.2020 non-constant luminance.
-    pub const BT2020_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT2020_NCL);
+    pub const BT2020_NCL: Self = Self(ffi::AVCOL_SPC_BT2020_NCL);
     /// ITU-R BT.470 BG; also BT.601-6 625, BT.1358 625, BT.1700 625 PAL and
     /// SECAM, and IEC 61966-2-4 xvYCC601.
-    pub const BT470BG: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT470BG);
+    pub const BT470BG: Self = Self(ffi::AVCOL_SPC_BT470BG);
     /// ITU-R BT.709; also BT.1361, IEC 61966-2-4 xvYCC709 and SMPTE RP 177
     /// Annex B.
-    pub const BT709: Self = Self(ffi::AVColorSpace::AVCOL_SPC_BT709);
+    pub const BT709: Self = Self(ffi::AVCOL_SPC_BT709);
     /// Chromaticity-derived constant luminance.
-    pub const CHROMA_DERIVED_CL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_CHROMA_DERIVED_CL);
+    pub const CHROMA_DERIVED_CL: Self = Self(ffi::AVCOL_SPC_CHROMA_DERIVED_CL);
     /// Chromaticity-derived non-constant luminance.
-    pub const CHROMA_DERIVED_NCL: Self = Self(ffi::AVColorSpace::AVCOL_SPC_CHROMA_DERIVED_NCL);
+    pub const CHROMA_DERIVED_NCL: Self = Self(ffi::AVCOL_SPC_CHROMA_DERIVED_NCL);
     /// FCC Title 47 Code of Federal Regulations 73.682 (a)(20).
-    pub const FCC: Self = Self(ffi::AVColorSpace::AVCOL_SPC_FCC);
+    pub const FCC: Self = Self(ffi::AVCOL_SPC_FCC);
     /// ITU-R BT.2100-0 `ICtCp`.
-    pub const ICTCP: Self = Self(ffi::AVColorSpace::AVCOL_SPC_ICTCP);
+    pub const ICTCP: Self = Self(ffi::AVCOL_SPC_ICTCP);
     /// SMPTE ST 2128 IPT-C2.
-    pub const IPT_C2: Self = Self(ffi::AVColorSpace::AVCOL_SPC_IPT_C2);
+    pub const IPT_C2: Self = Self(ffi::AVCOL_SPC_IPT_C2);
     /// Reserved for future use by ITU-T and ISO/IEC.
-    pub const RESERVED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RESERVED);
+    pub const RESERVED: Self = Self(ffi::AVCOL_SPC_RESERVED);
     /// GBR order of the RGB coefficients; also IEC 61966-2-1 (sRGB), YZX and
     /// ST 428-1.
-    pub const RGB: Self = Self(ffi::AVColorSpace::AVCOL_SPC_RGB);
+    pub const RGB: Self = Self(ffi::AVCOL_SPC_RGB);
     /// SMPTE 170 M; also ITU-R BT.601-6 525, BT.1358 525 and BT.1700 NTSC.
-    pub const SMPTE170M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE170M);
+    pub const SMPTE170M: Self = Self(ffi::AVCOL_SPC_SMPTE170M);
     /// SMPTE 2085, Y'D'zD'x.
-    pub const SMPTE2085: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE2085);
+    pub const SMPTE2085: Self = Self(ffi::AVCOL_SPC_SMPTE2085);
     /// SMPTE 240 M.
-    pub const SMPTE240M: Self = Self(ffi::AVColorSpace::AVCOL_SPC_SMPTE240M);
+    pub const SMPTE240M: Self = Self(ffi::AVCOL_SPC_SMPTE240M);
     /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorSpace::AVCOL_SPC_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVCOL_SPC_UNSPECIFIED);
     /// `YCgCo`, used by Dirac / VC-2 and H.264 `FRext`.
-    pub const YCGCO: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO);
+    pub const YCGCO: Self = Self(ffi::AVCOL_SPC_YCGCO);
     /// YCgCo-R, even addition of bits.
-    pub const YCGCO_RE: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO_RE);
+    pub const YCGCO_RE: Self = Self(ffi::AVCOL_SPC_YCGCO_RE);
     /// YCgCo-R, odd addition of bits.
-    pub const YCGCO_RO: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCGCO_RO);
+    pub const YCGCO_RO: Self = Self(ffi::AVCOL_SPC_YCGCO_RO);
     /// Another name for [`YCGCO`](Self::YCGCO).
-    pub const YCOCG: Self = Self(ffi::AVColorSpace::AVCOL_SPC_YCOCG);
+    pub const YCOCG: Self = Self(ffi::AVCOL_SPC_YCOCG);
 
     /// The colour space C encodes as `raw`, whatever its value.
     #[inline]
@@ -173,7 +173,7 @@ impl fmt::Debug for ColorSpace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ColorSpace").field(&self.0.0).finish(),
+            None => f.debug_tuple("ColorSpace").field(&self.0).finish(),
         }
     }
 }
@@ -234,53 +234,53 @@ pub struct ColorTransfer(ffi::AVColorTransferCharacteristic);
 
 impl ColorTransfer {
     /// ARIB STD-B67, known as hybrid log-gamma (HLG).
-    pub const ARIB_STD_B67: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_ARIB_STD_B67);
+    pub const ARIB_STD_B67: Self = Self(ffi::AVCOL_TRC_ARIB_STD_B67);
     /// ITU-R BT.1361 extended colour gamut.
-    pub const BT1361_ECG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT1361_ECG);
+    pub const BT1361_ECG: Self = Self(ffi::AVCOL_TRC_BT1361_ECG);
     /// ITU-R BT.2020 for 10-bit systems.
-    pub const BT2020_10: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_10);
+    pub const BT2020_10: Self = Self(ffi::AVCOL_TRC_BT2020_10);
     /// ITU-R BT.2020 for 12-bit systems.
-    pub const BT2020_12: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT2020_12);
+    pub const BT2020_12: Self = Self(ffi::AVCOL_TRC_BT2020_12);
     /// ITU-R BT.709; also BT.1361.
-    pub const BT709: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_BT709);
+    pub const BT709: Self = Self(ffi::AVCOL_TRC_BT709);
     /// The first of FFmpeg's extensions beyond ISO/IEC 23091-2; the value of
     /// [`V_LOG`](Self::V_LOG).
-    pub const EXT_BASE: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_BASE);
+    pub const EXT_BASE: Self = Self(ffi::AVCOL_TRC_EXT_BASE);
     /// Gamma 2.2: ITU-R BT.470 M; also BT.1700 625 PAL and SECAM.
-    pub const GAMMA22: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_GAMMA22);
+    pub const GAMMA22: Self = Self(ffi::AVCOL_TRC_GAMMA22);
     /// Gamma 2.8: ITU-R BT.470 BG.
-    pub const GAMMA28: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_GAMMA28);
+    pub const GAMMA28: Self = Self(ffi::AVCOL_TRC_GAMMA28);
     /// IEC 61966-2-1 (sRGB or sYCC).
-    pub const IEC61966_2_1: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_1);
+    pub const IEC61966_2_1: Self = Self(ffi::AVCOL_TRC_IEC61966_2_1);
     /// IEC 61966-2-4.
-    pub const IEC61966_2_4: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_IEC61966_2_4);
+    pub const IEC61966_2_4: Self = Self(ffi::AVCOL_TRC_IEC61966_2_4);
     /// Linear transfer characteristics.
-    pub const LINEAR: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LINEAR);
+    pub const LINEAR: Self = Self(ffi::AVCOL_TRC_LINEAR);
     /// Logarithmic transfer characteristic (100:1 range).
-    pub const LOG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LOG);
+    pub const LOG: Self = Self(ffi::AVCOL_TRC_LOG);
     /// Logarithmic transfer characteristic (100 * sqrt(10) : 1 range).
-    pub const LOG_SQRT: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_LOG_SQRT);
+    pub const LOG_SQRT: Self = Self(ffi::AVCOL_TRC_LOG_SQRT);
     /// Reserved.
-    pub const RESERVED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED);
+    pub const RESERVED: Self = Self(ffi::AVCOL_TRC_RESERVED);
     /// Reserved.
-    pub const RESERVED0: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_RESERVED0);
+    pub const RESERVED0: Self = Self(ffi::AVCOL_TRC_RESERVED0);
     /// SMPTE 170 M; also ITU-R BT.601-6 525 or 625, BT.1358 525 or 625 and
     /// BT.1700 NTSC.
-    pub const SMPTE170M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE170M);
+    pub const SMPTE170M: Self = Self(ffi::AVCOL_TRC_SMPTE170M);
     /// SMPTE ST 2084 (PQ) for 10-, 12-, 14- and 16-bit systems.
-    pub const SMPTE2084: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE2084);
+    pub const SMPTE2084: Self = Self(ffi::AVCOL_TRC_SMPTE2084);
     /// SMPTE 240 M.
-    pub const SMPTE240M: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE240M);
+    pub const SMPTE240M: Self = Self(ffi::AVCOL_TRC_SMPTE240M);
     /// SMPTE ST 428-1.
-    pub const SMPTE428: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTE428);
+    pub const SMPTE428: Self = Self(ffi::AVCOL_TRC_SMPTE428);
     /// Another name for [`SMPTE2084`](Self::SMPTE2084).
-    pub const SMPTEST2084: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTEST2084);
+    pub const SMPTEST2084: Self = Self(ffi::AVCOL_TRC_SMPTEST2084);
     /// Another name for [`SMPTE428`](Self::SMPTE428).
-    pub const SMPTEST428_1: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_SMPTEST428_1);
+    pub const SMPTEST428_1: Self = Self(ffi::AVCOL_TRC_SMPTEST428_1);
     /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVCOL_TRC_UNSPECIFIED);
     /// Panasonic V-Log, an FFmpeg extension.
-    pub const V_LOG: Self = Self(ffi::AVColorTransferCharacteristic::AVCOL_TRC_V_LOG);
+    pub const V_LOG: Self = Self(ffi::AVCOL_TRC_V_LOG);
 
     /// The transfer characteristic C encodes as `raw`, whatever its value.
     #[inline]
@@ -337,7 +337,7 @@ impl fmt::Debug for ColorTransfer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ColorTransfer").field(&self.0.0).finish(),
+            None => f.debug_tuple("ColorTransfer").field(&self.0).finish(),
         }
     }
 }
@@ -395,11 +395,11 @@ pub struct AlphaMode(ffi::AVAlphaMode);
 
 impl AlphaMode {
     /// The alpha channel is multiplied into the colour values.
-    pub const PREMULTIPLIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_PREMULTIPLIED);
+    pub const PREMULTIPLIED: Self = Self(ffi::AVALPHA_MODE_PREMULTIPLIED);
     /// The alpha channel is independent of the colour values.
-    pub const STRAIGHT: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_STRAIGHT);
+    pub const STRAIGHT: Self = Self(ffi::AVALPHA_MODE_STRAIGHT);
     /// Unknown alpha handling, or no alpha channel.
-    pub const UNSPECIFIED: Self = Self(ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVALPHA_MODE_UNSPECIFIED);
 
     /// The alpha mode C encodes as `raw`, whatever its value.
     #[inline]
@@ -437,7 +437,7 @@ impl fmt::Debug for AlphaMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("AlphaMode").field(&self.0.0).finish(),
+            None => f.debug_tuple("AlphaMode").field(&self.0).finish(),
         }
     }
 }
@@ -540,7 +540,7 @@ macro_rules! pixel_formats {
         impl PixelFormat {
             $(
                 $(#[$meta])*
-                pub const $name: Self = Self(ffi::AVPixelFormat::$c);
+                pub const $name: Self = Self(ffi::$c);
             )*
 
             /// The name of the constant this value equals, if any: the
@@ -1229,7 +1229,7 @@ impl PixelFormat {
     /// little-endian ones: `AV_PIX_FMT_BGRA64`, in native byte order.
     pub const BGRA64: Self = native_endian(Self::BGRA64BE, Self::BGRA64LE);
     /// Another name for [`GBRP`](Self::GBRP) (`AV_PIX_FMT_GBR24P`).
-    pub const GBR24P: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GBR24P);
+    pub const GBR24P: Self = Self(ffi::AV_PIX_FMT_GBR24P);
     /// [`GBRAP10BE`](Self::GBRAP10BE) on big-endian targets and [`GBRAP10LE`](Self::GBRAP10LE)
     /// on little-endian ones: `AV_PIX_FMT_GBRAP10`, in native byte order.
     pub const GBRAP10: Self = native_endian(Self::GBRAP10BE, Self::GBRAP10LE);
@@ -1298,7 +1298,7 @@ impl PixelFormat {
     /// little-endian ones: `AV_PIX_FMT_GRAY32`, in native byte order.
     pub const GRAY32: Self = native_endian(Self::GRAY32BE, Self::GRAY32LE);
     /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_GRAY8A`).
-    pub const GRAY8A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A);
+    pub const GRAY8A: Self = Self(ffi::AV_PIX_FMT_GRAY8A);
     /// [`GRAY9BE`](Self::GRAY9BE) on big-endian targets and [`GRAY9LE`](Self::GRAY9LE) on
     /// little-endian ones: `AV_PIX_FMT_GRAY9`, in native byte order.
     pub const GRAY9: Self = native_endian(Self::GRAY9BE, Self::GRAY9LE);
@@ -1414,7 +1414,7 @@ impl PixelFormat {
     /// little-endian ones: `AV_PIX_FMT_Y216`, in native byte order.
     pub const Y216: Self = native_endian(Self::Y216BE, Self::Y216LE);
     /// Another name for [`YA8`](Self::YA8) (`AV_PIX_FMT_Y400A`).
-    pub const Y400A: Self = Self(ffi::AVPixelFormat::AV_PIX_FMT_Y400A);
+    pub const Y400A: Self = Self(ffi::AV_PIX_FMT_Y400A);
     /// [`YA16BE`](Self::YA16BE) on big-endian targets and [`YA16LE`](Self::YA16LE) on
     /// little-endian ones: `AV_PIX_FMT_YA16`, in native byte order.
     pub const YA16: Self = native_endian(Self::YA16BE, Self::YA16LE);
@@ -1557,7 +1557,7 @@ impl fmt::Debug for PixelFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("PixelFormat").field(&self.0.0).finish(),
+            None => f.debug_tuple("PixelFormat").field(&self.0).finish(),
         }
     }
 }
@@ -1617,44 +1617,44 @@ pub struct ColorPrimaries(ffi::AVColorPrimaries);
 
 impl ColorPrimaries {
     /// ITU-R BT.2020.
-    pub const BT2020: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
+    pub const BT2020: Self = Self(ffi::AVCOL_PRI_BT2020);
     /// ITU-R BT.470 System B, G, also ITU-R BT.601-6 625 / BT.1358 625 /
     /// BT.1700 625 PAL & SECAM.
-    pub const BT470BG: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470BG);
+    pub const BT470BG: Self = Self(ffi::AVCOL_PRI_BT470BG);
     /// ITU-R BT.470 System M, also FCC Title 47 CFR 73.682 (a)(20).
-    pub const BT470M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT470M);
+    pub const BT470M: Self = Self(ffi::AVCOL_PRI_BT470M);
     /// ITU-R BT.709, also ITU-R BT.1361 / IEC 61966-2-4 / SMPTE RP 177 Annex B.
-    pub const BT709: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_BT709);
+    pub const BT709: Self = Self(ffi::AVCOL_PRI_BT709);
     /// EBU Tech. 3213-E, one of the JEDEC P22 group phosphors.
-    pub const EBU3213: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EBU3213);
+    pub const EBU3213: Self = Self(ffi::AVCOL_PRI_EBU3213);
     /// The first of FFmpeg's extensions, which are not part of H.273; the
     /// same value as [`V_GAMUT`](Self::V_GAMUT).
-    pub const EXT_BASE: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE);
+    pub const EXT_BASE: Self = Self(ffi::AVCOL_PRI_EXT_BASE);
     /// Generic film: colour filters using Illuminant C.
-    pub const FILM: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_FILM);
+    pub const FILM: Self = Self(ffi::AVCOL_PRI_FILM);
     /// The same value as [`EBU3213`](Self::EBU3213).
-    pub const JEDEC_P22: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22);
+    pub const JEDEC_P22: Self = Self(ffi::AVCOL_PRI_JEDEC_P22);
     /// Reserved code point 3.
-    pub const RESERVED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED);
+    pub const RESERVED: Self = Self(ffi::AVCOL_PRI_RESERVED);
     /// Reserved code point 0; the value of a zero-filled field.
-    pub const RESERVED0: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0);
+    pub const RESERVED0: Self = Self(ffi::AVCOL_PRI_RESERVED0);
     /// SMPTE 170M, also ITU-R BT.601-6 525 / BT.1358 525 / BT.1700 NTSC.
-    pub const SMPTE170M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE170M);
+    pub const SMPTE170M: Self = Self(ffi::AVCOL_PRI_SMPTE170M);
     /// SMPTE 240M, identical to [`SMPTE170M`](Self::SMPTE170M); also called
     /// "SMPTE C" even though it uses D65.
-    pub const SMPTE240M: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE240M);
+    pub const SMPTE240M: Self = Self(ffi::AVCOL_PRI_SMPTE240M);
     /// SMPTE ST 428-1 (CIE 1931 XYZ).
-    pub const SMPTE428: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE428);
+    pub const SMPTE428: Self = Self(ffi::AVCOL_PRI_SMPTE428);
     /// SMPTE ST 431-2 (2011) / DCI P3.
-    pub const SMPTE431: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE431);
+    pub const SMPTE431: Self = Self(ffi::AVCOL_PRI_SMPTE431);
     /// SMPTE ST 432-1 (2010) / P3 D65 / Display P3.
-    pub const SMPTE432: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTE432);
+    pub const SMPTE432: Self = Self(ffi::AVCOL_PRI_SMPTE432);
     /// The same value as [`SMPTE428`](Self::SMPTE428).
-    pub const SMPTEST428_1: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1);
+    pub const SMPTEST428_1: Self = Self(ffi::AVCOL_PRI_SMPTEST428_1);
     /// Unspecified.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVCOL_PRI_UNSPECIFIED);
     /// Panasonic V-Gamut.
-    pub const V_GAMUT: Self = Self(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT);
+    pub const V_GAMUT: Self = Self(ffi::AVCOL_PRI_V_GAMUT);
 
     /// The primaries C encodes as `raw`, whatever its value.
     #[inline]
@@ -1705,7 +1705,7 @@ impl fmt::Debug for ColorPrimaries {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ColorPrimaries").field(&self.0.0).finish(),
+            None => f.debug_tuple("ColorPrimaries").field(&self.0).finish(),
         }
     }
 }
@@ -1769,13 +1769,13 @@ pub struct ColorRange(ffi::AVColorRange);
 impl ColorRange {
     /// Full range: `(2^n - 1) * E` for RGB and luma, e.g. 0-255 at 8 bits,
     /// and `(2^n - 1) * E + 2^(n - 1)` for chroma, e.g. 1-255 at 8 bits.
-    pub const JPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_JPEG);
+    pub const JPEG: Self = Self(ffi::AVCOL_RANGE_JPEG);
     /// Narrow or limited range: `(219 * E + 16) * 2^(n-8)` for luma, e.g.
     /// 16-235 at 8 bits, and `(224 * E + 128) * 2^(n-8)` for chroma, e.g.
     /// 16-240 at 8 bits.
-    pub const MPEG: Self = Self(ffi::AVColorRange::AVCOL_RANGE_MPEG);
+    pub const MPEG: Self = Self(ffi::AVCOL_RANGE_MPEG);
     /// Unspecified; the value of a zero-filled field.
-    pub const UNSPECIFIED: Self = Self(ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVCOL_RANGE_UNSPECIFIED);
 
     /// The range C encodes as `raw`, whatever its value.
     #[inline]
@@ -1813,7 +1813,7 @@ impl fmt::Debug for ColorRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ColorRange").field(&self.0.0).finish(),
+            None => f.debug_tuple("ColorRange").field(&self.0).finish(),
         }
     }
 }
@@ -1882,19 +1882,19 @@ pub struct ChromaLocation(ffi::AVChromaLocation);
 
 impl ChromaLocation {
     /// Position 6.
-    pub const BOTTOM: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOM);
+    pub const BOTTOM: Self = Self(ffi::AVCHROMA_LOC_BOTTOM);
     /// Position 5.
-    pub const BOTTOMLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT);
+    pub const BOTTOMLEFT: Self = Self(ffi::AVCHROMA_LOC_BOTTOMLEFT);
     /// Position 2: MPEG-1 4:2:0, JPEG 4:2:0, H.263 4:2:0.
-    pub const CENTER: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_CENTER);
+    pub const CENTER: Self = Self(ffi::AVCHROMA_LOC_CENTER);
     /// Position 1: MPEG-2/4 4:2:0, the H.264 default for 4:2:0.
-    pub const LEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_LEFT);
+    pub const LEFT: Self = Self(ffi::AVCHROMA_LOC_LEFT);
     /// Position 4.
-    pub const TOP: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOP);
+    pub const TOP: Self = Self(ffi::AVCHROMA_LOC_TOP);
     /// Position 3: ITU-R 601, SMPTE 274M 296M S314M (DV 4:1:1), MPEG-2 4:2:2.
-    pub const TOPLEFT: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT);
+    pub const TOPLEFT: Self = Self(ffi::AVCHROMA_LOC_TOPLEFT);
     /// Unknown or undefined (position 0).
-    pub const UNSPECIFIED: Self = Self(ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED);
+    pub const UNSPECIFIED: Self = Self(ffi::AVCHROMA_LOC_UNSPECIFIED);
 
     /// The chroma location C encodes as `raw`, whatever its value.
     #[inline]
@@ -1936,7 +1936,7 @@ impl fmt::Debug for ChromaLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ChromaLocation").field(&self.0.0).finish(),
+            None => f.debug_tuple("ChromaLocation").field(&self.0).finish(),
         }
     }
 }
@@ -2874,7 +2874,7 @@ impl ColorRange {
         // SAFETY: `name` is a live NUL-terminated string, which C only
         // compares during the call.
         let ret = unsafe { ffi::av_color_range_from_name(name.as_ptr()) };
-        found(ret).map(|raw| Self::from_raw(ffi::AVColorRange(raw)))
+        found(ret).map(Self::from_raw)
     }
 }
 
@@ -2889,7 +2889,7 @@ impl ColorPrimaries {
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) };
-        found(ret).map(|raw| Self::from_raw(ffi::AVColorPrimaries(raw)))
+        found(ret).map(Self::from_raw)
     }
 }
 
@@ -2904,7 +2904,7 @@ impl ColorTransfer {
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_transfer_from_name(name.as_ptr()) };
-        found(ret).map(|raw| Self::from_raw(ffi::AVColorTransferCharacteristic(raw)))
+        found(ret).map(Self::from_raw)
     }
 }
 
@@ -2917,7 +2917,7 @@ impl ColorSpace {
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_color_space_from_name(name.as_ptr()) };
-        found(ret).map(|raw| Self::from_raw(ffi::AVColorSpace(raw)))
+        found(ret).map(Self::from_raw)
     }
 }
 
@@ -2930,7 +2930,7 @@ impl ChromaLocation {
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
         let ret = unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) };
-        found(ret).map(|raw| Self::from_raw(ffi::AVChromaLocation(raw)))
+        found(ret).map(Self::from_raw)
     }
 }
 
@@ -3116,7 +3116,7 @@ impl AlphaMode {
         let ret = unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) };
         // C returns its `AVERROR(EINVAL)` through the unsigned enum: read
         // the bits back as the `int` they were.
-        found(ret.0.cast_signed()).map(|raw| Self::from_raw(ffi::AVAlphaMode(raw)))
+        found(ret.cast_signed()).map(Self::from_raw)
     }
 }
 
@@ -3423,7 +3423,7 @@ impl PixelFormat {
     /// );
     /// ```
     pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
-        if buf.is_empty() || self.into_raw().0 >= ffi::AVPixelFormat::AV_PIX_FMT_NB.0 {
+        if buf.is_empty() || self.into_raw() >= ffi::AV_PIX_FMT_NB {
             // C's `snprintf` writes nothing into an empty buffer, and C
             // indexes its table without a bound check.
             return None;
@@ -4526,7 +4526,7 @@ mod unit_tests {
             assert_eq!(f.swap_endianness(), None, "{f:?}");
         }
         for raw in [c_int::MIN, -2, 100_000, c_int::MAX] {
-            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            let f = PixelFormat::from_raw(raw);
             assert_eq!(f.swap_endianness(), None, "{raw}");
         }
     }
@@ -4553,18 +4553,9 @@ mod unit_tests {
         assert_eq!(ChromaLocation::TOPLEFT.name(), Some(c"topleft"));
         assert_eq!(AlphaMode::STRAIGHT.name(), Some(c"straight"));
         assert_eq!(PixelFormat::RGB48LE.name(), Some(c"rgb48le"));
-        assert_eq!(
-            ColorPrimaries::from_raw(ffi::AVColorPrimaries(13)).name(),
-            None
-        );
-        assert_eq!(
-            ColorRange::from_raw(ffi::AVColorRange(u32::MAX)).name(),
-            None
-        );
-        assert_eq!(
-            PixelFormat::from_raw(ffi::AVPixelFormat(i32::MIN)).name(),
-            None
-        );
+        assert_eq!(ColorPrimaries::from_raw(13).name(), None);
+        assert_eq!(ColorRange::from_raw(u32::MAX).name(), None);
+        assert_eq!(PixelFormat::from_raw(i32::MIN).name(), None);
     }
 
     #[test]
@@ -5033,14 +5024,14 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn describe_refuses_values_past_the_table_untouched() {
         let mut buf = [b'x'; 40];
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         for raw in [nb, nb + 1, c_int::MAX] {
-            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            let f = PixelFormat::from_raw(raw);
             assert_eq!(f.describe(&mut buf), None);
         }
         assert_eq!(PixelFormat::YUV420P.describe(&mut []), None);
         assert_eq!(buf, [b'x'; 40]);
-        let last = PixelFormat::from_raw(ffi::AVPixelFormat(nb - 1));
+        let last = PixelFormat::from_raw(nb - 1);
         assert!(last.describe(&mut buf).is_some());
     }
 
@@ -5049,7 +5040,7 @@ mod unit_tests {
     fn describe_prints_headers_for_negatives_and_truncates() {
         let mut buf = [b'x'; 40];
         for raw in [c_int::MIN, -2, -1] {
-            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            let f = PixelFormat::from_raw(raw);
             assert_eq!(f.describe(&mut buf), Some(c"name nb_components nb_bits"));
         }
         assert_eq!(PixelFormat::RGB24.describe(&mut buf[..4]), Some(c"rgb"));
@@ -5071,7 +5062,7 @@ mod unit_tests {
         assert_eq!(PixelFormat::YUV410P.chroma_subsampling(), Some((2, 2)));
         assert_eq!(PixelFormat::RGB24.chroma_subsampling(), Some((0, 0)));
         assert_eq!(PixelFormat::NONE.chroma_subsampling(), None);
-        let nb = PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_NB);
+        let nb = PixelFormat::from_raw(ffi::AV_PIX_FMT_NB);
         assert_eq!(nb.plane_count(), None);
         assert_eq!(nb.chroma_subsampling(), None);
     }
@@ -5518,7 +5509,7 @@ mod unit_tests {
         #[test]
         fn color_space_constants_are_the_declared_values_and_distinct() {
             for (i, (c, _)) in COLOR_SPACE_NAMED.iter().enumerate() {
-                assert_eq!(c.into_raw().0, i as c_uint);
+                assert_eq!(c.into_raw(), i as c_uint);
             }
             assert_eq!(ColorSpace::YCOCG, ColorSpace::YCGCO);
         }
@@ -5533,10 +5524,10 @@ mod unit_tests {
 
         #[test]
         fn color_space_debug_shows_unnamed_values_raw() {
-            let nb = ColorSpace::from_raw(ffi::AVColorSpace::AVCOL_SPC_NB);
+            let nb = ColorSpace::from_raw(ffi::AVCOL_SPC_NB);
             assert_eq!(format!("{nb:?}"), "ColorSpace(18)");
             for raw in [19, 255, 256, 1 << 31, c_uint::MAX] {
-                let c = ColorSpace::from_raw(ffi::AVColorSpace(raw));
+                let c = ColorSpace::from_raw(raw);
                 assert_eq!(format!("{c:?}"), format!("ColorSpace({raw})"));
             }
         }
@@ -5544,13 +5535,13 @@ mod unit_tests {
         #[test]
         fn color_space_default_is_unspecified() {
             assert_eq!(ColorSpace::default(), ColorSpace::UNSPECIFIED);
-            assert_eq!(ColorSpace::default().into_raw().0, 2);
+            assert_eq!(ColorSpace::default().into_raw(), 2);
         }
 
         #[test]
         fn color_space_raw_conversions_round_trip_every_value() {
             for raw in [0, 2, 17, 18, 256, 1 << 31, c_uint::MAX] {
-                let c = ffi::AVColorSpace(raw);
+                let c = raw;
                 assert_eq!(ColorSpace::from(c).into_raw(), c);
                 assert_eq!(ffi::AVColorSpace::from(ColorSpace::from_raw(c)), c);
             }
@@ -5596,9 +5587,9 @@ mod unit_tests {
         fn color_transfer_constants_are_the_declared_values_and_distinct() {
             // The standard values run 0..=18, then the extensions start at 256.
             for (i, (t, _)) in COLOR_TRANSFER_NAMED[..19].iter().enumerate() {
-                assert_eq!(t.into_raw().0, i as c_uint);
+                assert_eq!(t.into_raw(), i as c_uint);
             }
-            assert_eq!(ColorTransfer::V_LOG.into_raw().0, 256);
+            assert_eq!(ColorTransfer::V_LOG.into_raw(), 256);
             assert_eq!(ColorTransfer::EXT_BASE, ColorTransfer::V_LOG);
             assert_eq!(ColorTransfer::SMPTEST2084, ColorTransfer::SMPTE2084);
             assert_eq!(ColorTransfer::SMPTEST428_1, ColorTransfer::SMPTE428);
@@ -5616,13 +5607,12 @@ mod unit_tests {
 
         #[test]
         fn color_transfer_debug_shows_unnamed_values_raw() {
-            let nb = ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic::AVCOL_TRC_NB);
+            let nb = ColorTransfer::from_raw(ffi::AVCOL_TRC_NB);
             assert_eq!(format!("{nb:?}"), "ColorTransfer(19)");
-            let ext_nb =
-                ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_NB);
+            let ext_nb = ColorTransfer::from_raw(ffi::AVCOL_TRC_EXT_NB);
             assert_eq!(format!("{ext_nb:?}"), "ColorTransfer(257)");
             for raw in [20, 255, 258, 1 << 31, c_uint::MAX] {
-                let t = ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw));
+                let t = ColorTransfer::from_raw(raw);
                 assert_eq!(format!("{t:?}"), format!("ColorTransfer({raw})"));
             }
         }
@@ -5630,13 +5620,13 @@ mod unit_tests {
         #[test]
         fn color_transfer_default_is_unspecified() {
             assert_eq!(ColorTransfer::default(), ColorTransfer::UNSPECIFIED);
-            assert_eq!(ColorTransfer::default().into_raw().0, 2);
+            assert_eq!(ColorTransfer::default().into_raw(), 2);
         }
 
         #[test]
         fn color_transfer_raw_conversions_round_trip_every_value() {
             for raw in [0, 2, 18, 19, 256, 257, 1 << 31, c_uint::MAX] {
-                let c = ffi::AVColorTransferCharacteristic(raw);
+                let c = raw;
                 assert_eq!(ColorTransfer::from(c).into_raw(), c);
                 assert_eq!(
                     ffi::AVColorTransferCharacteristic::from(ColorTransfer::from_raw(c)),
@@ -5663,9 +5653,9 @@ mod unit_tests {
 
         #[test]
         fn alpha_mode_constants_are_the_c_enumerators() {
-            let raw = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw().0);
+            let raw = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw());
             assert_eq!(raw, [0, 1, 2]);
-            assert_eq!(ffi::AVAlphaMode::AVALPHA_MODE_NB.0, 3);
+            assert_eq!(ffi::AVALPHA_MODE_NB, 3);
         }
 
         #[test]
@@ -5678,7 +5668,7 @@ mod unit_tests {
         #[test]
         fn alpha_mode_debug_shows_unnamed_values_raw() {
             for raw in ALPHA_MODE_UNNAMED {
-                let m = AlphaMode::from_raw(ffi::AVAlphaMode(raw));
+                let m = AlphaMode::from_raw(raw);
                 assert_eq!(format!("{m:?}"), format!("AlphaMode({raw})"));
             }
         }
@@ -5686,14 +5676,14 @@ mod unit_tests {
         #[test]
         fn alpha_mode_default_is_the_zeroed_value() {
             assert_eq!(AlphaMode::default(), AlphaMode::UNSPECIFIED);
-            assert_eq!(AlphaMode::default().into_raw().0, 0);
+            assert_eq!(AlphaMode::default().into_raw(), 0);
         }
 
         #[test]
         fn alpha_mode_raw_conversions_round_trip_every_value() {
-            let named = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw().0);
+            let named = ALPHA_MODE_NAMED.map(|(m, _)| m.into_raw());
             for raw in named.into_iter().chain(ALPHA_MODE_UNNAMED) {
-                let c = ffi::AVAlphaMode(raw);
+                let c = raw;
                 assert_eq!(AlphaMode::from(c).into_raw(), c);
                 assert_eq!(ffi::AVAlphaMode::from(AlphaMode::from_raw(c)), c);
             }
@@ -5719,18 +5709,15 @@ mod unit_tests {
         fn pixel_format_every_enumerator_has_one_distinct_name() {
             // The enumerators run densely from `AV_PIX_FMT_NONE` (-1) up to
             // `AV_PIX_FMT_NB`, which names none.
-            let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+            let nb = ffi::AV_PIX_FMT_NB;
             let mut names = HashSet::new();
             for raw in -1..nb {
-                let name = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).constant_name();
+                let name = PixelFormat::from_raw(raw).constant_name();
                 let name = name.unwrap_or_else(|| panic!("raw {raw} has no name"));
                 assert!(names.insert(name), "{name} names two values");
             }
             assert_eq!(names.len(), (nb + 1) as usize);
-            assert_eq!(
-                PixelFormat::from_raw(ffi::AVPixelFormat(nb)).constant_name(),
-                None
-            );
+            assert_eq!(PixelFormat::from_raw(nb).constant_name(), None);
         }
 
         #[test]
@@ -5757,9 +5744,9 @@ mod unit_tests {
 
         #[test]
         fn pixel_format_debug_shows_unnamed_values_raw() {
-            let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+            let nb = ffi::AV_PIX_FMT_NB;
             for raw in [c_int::MIN, -2, nb, nb + 1, c_int::MAX] {
-                let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+                let f = PixelFormat::from_raw(raw);
                 assert_eq!(format!("{f:?}"), format!("PixelFormat({raw})"));
             }
         }
@@ -5799,7 +5786,7 @@ mod unit_tests {
         #[test]
         fn pixel_format_raw_conversions_round_trip_every_value() {
             for raw in [c_int::MIN, -2, -1, 0, 1, 267, 268, c_int::MAX] {
-                let c = ffi::AVPixelFormat(raw);
+                let c = raw;
                 assert_eq!(PixelFormat::from(c).into_raw(), c);
                 assert_eq!(ffi::AVPixelFormat::from(PixelFormat::from_raw(c)), c);
             }
@@ -5808,7 +5795,7 @@ mod unit_tests {
         #[test]
         fn pixel_format_default_is_none() {
             assert_eq!(PixelFormat::default(), PixelFormat::NONE);
-            assert_eq!(PixelFormat::default().into_raw().0, -1);
+            assert_eq!(PixelFormat::default().into_raw(), -1);
             assert_eq!(format!("{:?}", PixelFormat::default()), "NONE");
         }
 
@@ -5871,7 +5858,7 @@ mod unit_tests {
         fn color_primaries_debug_shows_unnamed_values_raw() {
             // The H.273 gap, both `NB` values, and the far ends of `c_uint`.
             for raw in [13, 21, 23, 255, 257, 1 << 31, c_uint::MAX] {
-                let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+                let p = ColorPrimaries::from_raw(raw);
                 assert_eq!(format!("{p:?}"), format!("ColorPrimaries({raw})"));
             }
         }
@@ -5888,7 +5875,7 @@ mod unit_tests {
         #[test]
         fn color_primaries_raw_conversions_round_trip_every_value() {
             for raw in [0, 1, 12, 13, 22, 23, 256, 257, 1 << 31, c_uint::MAX] {
-                let c = ffi::AVColorPrimaries(raw);
+                let c = raw;
                 assert_eq!(ColorPrimaries::from(c).into_raw(), c);
                 assert_eq!(ffi::AVColorPrimaries::from(ColorPrimaries::from_raw(c)), c);
             }
@@ -5897,7 +5884,7 @@ mod unit_tests {
         #[test]
         fn color_primaries_default_is_unspecified_not_zero() {
             assert_eq!(ColorPrimaries::default(), ColorPrimaries::UNSPECIFIED);
-            assert_ne!(ColorPrimaries::default().into_raw().0, 0);
+            assert_ne!(ColorPrimaries::default().into_raw(), 0);
         }
 
         #[test]
@@ -5917,7 +5904,7 @@ mod unit_tests {
         #[test]
         fn color_range_debug_shows_unnamed_values_raw() {
             for raw in [3, 4, 1 << 20, 1 << 31, c_uint::MAX] {
-                let r = ColorRange::from_raw(ffi::AVColorRange(raw));
+                let r = ColorRange::from_raw(raw);
                 assert_eq!(format!("{r:?}"), format!("ColorRange({raw})"));
             }
         }
@@ -5925,7 +5912,7 @@ mod unit_tests {
         #[test]
         fn color_range_constants_are_distinct_and_ordered() {
             for (i, (r, _)) in RANGE_NAMED.iter().enumerate() {
-                assert_eq!(r.into_raw().0 as usize, i);
+                assert_eq!(r.into_raw() as usize, i);
                 for (s, _) in &RANGE_NAMED[i + 1..] {
                     assert_ne!(r, s);
                 }
@@ -5935,7 +5922,7 @@ mod unit_tests {
         #[test]
         fn color_range_raw_conversions_round_trip_every_value() {
             for raw in [0, 1, 2, 3, 1 << 31, c_uint::MAX] {
-                let c = ffi::AVColorRange(raw);
+                let c = raw;
                 assert_eq!(ColorRange::from(c).into_raw(), c);
                 assert_eq!(ffi::AVColorRange::from(ColorRange::from_raw(c)), c);
             }
@@ -5944,7 +5931,7 @@ mod unit_tests {
         #[test]
         fn color_range_default_is_the_zero_value() {
             assert_eq!(ColorRange::default(), ColorRange::UNSPECIFIED);
-            assert_eq!(ColorRange::default().into_raw().0, 0);
+            assert_eq!(ColorRange::default().into_raw(), 0);
         }
 
         const CHROMA_LOCATION_NAMED: [(ChromaLocation, &str); 7] = [
@@ -5983,9 +5970,9 @@ mod unit_tests {
         #[test]
         fn chroma_location_constants_are_the_numbered_positions() {
             for (i, (loc, _)) in CHROMA_LOCATION_NAMED.iter().enumerate() {
-                assert_eq!(loc.into_raw().0, i as c_uint);
+                assert_eq!(loc.into_raw(), i as c_uint);
             }
-            let nb = ffi::AVChromaLocation::AVCHROMA_LOC_NB.0;
+            let nb = ffi::AVCHROMA_LOC_NB;
             assert_eq!(nb as usize, CHROMA_LOCATION_NAMED.len());
             assert!(CHROMA_LOCATION_UNNAMED.contains(&nb));
         }
@@ -6001,7 +5988,7 @@ mod unit_tests {
         #[test]
         fn chroma_location_debug_shows_unnamed_values_raw() {
             for raw in CHROMA_LOCATION_UNNAMED {
-                let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+                let loc = ChromaLocation::from_raw(raw);
                 assert_eq!(loc.constant_name(), None);
                 assert_eq!(format!("{loc:?}"), format!("ChromaLocation({raw})"));
                 assert!(CHROMA_LOCATION_NAMED.iter().all(|&(n, _)| n != loc));
@@ -6011,17 +5998,17 @@ mod unit_tests {
         #[test]
         fn chroma_location_default_is_the_zeroed_value() {
             assert_eq!(ChromaLocation::default(), ChromaLocation::UNSPECIFIED);
-            assert_eq!(ChromaLocation::default().into_raw().0, 0);
+            assert_eq!(ChromaLocation::default().into_raw(), 0);
         }
 
         #[test]
         fn chroma_location_raw_conversions_round_trip_every_value() {
             let all = CHROMA_LOCATION_NAMED
-                .map(|(l, _)| l.into_raw().0)
+                .map(|(l, _)| l.into_raw())
                 .into_iter()
                 .chain(CHROMA_LOCATION_UNNAMED);
             for raw in all {
-                let c = ffi::AVChromaLocation(raw);
+                let c = raw;
                 assert_eq!(ChromaLocation::from(c).into_raw(), c);
                 assert_eq!(ffi::AVChromaLocation::from(ChromaLocation::from_raw(c)), c);
                 assert_eq!(ChromaLocation::from_raw(c), ChromaLocation::from(c));
@@ -6035,17 +6022,14 @@ mod unit_tests {
             let all: Vec<ChromaLocation> = CHROMA_LOCATION_NAMED
                 .map(|(v, _)| v)
                 .into_iter()
-                .chain(
-                    CHROMA_LOCATION_UNNAMED
-                        .map(|r| ChromaLocation::from_raw(ffi::AVChromaLocation(r))),
-                )
+                .chain(CHROMA_LOCATION_UNNAMED.map(ChromaLocation::from_raw))
                 .collect();
             for v in &all {
                 assert_eq!(v.clone().into_raw(), v.into_raw());
             }
             let set: HashSet<ChromaLocation> = all.iter().copied().collect();
             assert_eq!(set.len(), all.len());
-            assert!(set.contains(&ChromaLocation::from_raw(ffi::AVChromaLocation(4))));
+            assert!(set.contains(&ChromaLocation::from_raw(4)));
             assert!(set.contains(&ChromaLocation::TOP));
         }
     }

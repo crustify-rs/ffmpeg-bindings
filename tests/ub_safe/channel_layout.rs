@@ -97,7 +97,7 @@ fn channel_sample() -> Vec<Channel> {
         i32::MAX - 1,
         i32::MAX,
     ]
-    .map(|raw| Channel::from_raw(ffi::AVChannel(raw)))
+    .map(Channel::from_raw)
     .into()
 }
 
@@ -197,8 +197,8 @@ mod matrix_encoding {
     #[test]
     fn every_raw_value_converts_indexes_and_formats() {
         for raw in raws() {
-            let e = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(raw));
-            assert_eq!(e.into_raw().0, raw);
+            let e = MatrixEncoding::from_raw(raw);
+            assert_eq!(e.into_raw(), raw);
             let back: ffi::AVMatrixEncoding = e.into();
             assert_eq!(MatrixEncoding::from(back), e);
             match e.index() {
@@ -213,7 +213,7 @@ mod matrix_encoding {
     #[cfg_attr(miri, ignore = "calls C")]
     fn heap_arrays_read_any_stored_value() {
         let named = alloc_array_from_fn(MatrixEncoding::COUNT, |i| {
-            MatrixEncoding::from_raw(ffi::AVMatrixEncoding(i as u32))
+            MatrixEncoding::from_raw(i as u32)
         })
         .unwrap();
         let idx: Vec<Option<usize>> = named.as_slice().iter().map(|e| e.index()).collect();
@@ -223,7 +223,7 @@ mod matrix_encoding {
         );
         let mut zeroed = alloc_array_zeroed::<MatrixEncoding>(3).unwrap();
         assert!(zeroed.as_slice().iter().all(|&e| e == MatrixEncoding::NONE));
-        zeroed.as_mut_slice()[2] = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(u32::MAX));
+        zeroed.as_mut_slice()[2] = MatrixEncoding::from_raw(u32::MAX);
         let copy = zeroed.clone();
         drop(zeroed);
         assert_eq!(copy.as_slice()[2].index(), None);
@@ -231,9 +231,7 @@ mod matrix_encoding {
 
     #[test]
     fn values_cross_threads() {
-        let all: Vec<MatrixEncoding> = raws()
-            .map(|r| MatrixEncoding::from_raw(ffi::AVMatrixEncoding(r)))
-            .collect();
+        let all: Vec<MatrixEncoding> = raws().map(MatrixEncoding::from_raw).collect();
         let shared = &all;
         thread::scope(|s| {
             for _ in 0..4 {
@@ -265,7 +263,7 @@ mod channel_order {
     /// extremes, which C may store in `AVChannelLayout.order`.
     fn sample() -> Vec<ChannelOrder> {
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 1 << 31, u32::MAX - 1, u32::MAX]
-            .map(|raw| ChannelOrder::from_raw(ffi::AVChannelOrder(raw)))
+            .map(ChannelOrder::from_raw)
             .into()
     }
 
@@ -377,7 +375,7 @@ mod channel_custom {
     }
 
     fn fill(m: &mut ChannelCustomMut<'_>, id: i32, name: &CStr, opaque: usize) {
-        m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+        m.set_id(Channel::from_raw(id));
         m.set_name_truncated(name);
         m.set_opaque(dangling(opaque));
     }
@@ -415,7 +413,7 @@ mod channel_custom {
     #[cfg_attr(miri, ignore = "calls C")]
     fn unterminated_name_fields_read_within_the_field() {
         let raw = ffi::AVChannelCustom {
-            id: ffi::AVChannel(i32::MIN),
+            id: i32::MIN,
             name: [b'z' as core::ffi::c_char; 16],
             opaque: dangling(usize::MAX),
         };
@@ -531,7 +529,7 @@ mod channel_custom {
             assert!(handles.get_mut(N).is_none());
         }
         for (i, h) in a.as_handles().iter().enumerate() {
-            assert_eq!(h.id().into_raw().0, i as i32);
+            assert_eq!(h.id().into_raw(), i as i32);
             assert_eq!(h.name().as_bytes().len(), (i * 4).min(ChannelName::MAX_LEN));
             assert_eq!(h.opaque().addr(), i);
         }
@@ -597,10 +595,7 @@ mod channel_custom {
             let mut m = boxed.as_mut();
             s.spawn(move || m.set_name(c"boxed").unwrap());
         });
-        let ids: Vec<i32> = values
-            .iter()
-            .map(|v| v.as_ref().id().into_raw().0)
-            .collect();
+        let ids: Vec<i32> = values.iter().map(|v| v.as_ref().id().into_raw()).collect();
         assert_eq!(ids, [0, 1, 2, 3]);
         assert_eq!(boxed.as_ref().name(), c"boxed");
     }
@@ -647,14 +642,13 @@ mod channel_names {
     use std::thread;
 
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::Channel;
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
 
     fn ids() -> Vec<Channel> {
         (-4..70)
             .chain(1020..1030)
             .chain(2040..2060)
             .chain([i32::MAX, i32::MIN, i32::MIN + 1])
-            .map(|id| Channel::from_raw(ffi::AVChannel(id)))
+            .map(Channel::from_raw)
             .collect()
     }
 
@@ -932,7 +926,7 @@ mod layout {
     fn map(n: usize) -> HeapVec<ChannelCustom> {
         let mut map = alloc_cell_array_zeroed::<ChannelCustom>(n).unwrap();
         for (i, mut m) in map.as_handles_mut().iter_mut().enumerate() {
-            m.set_id(Channel::from_raw(ffi::AVChannel(i as i32)));
+            m.set_id(Channel::from_raw(i as i32));
             let _ = m.set_name_truncated(&CString::new(format!("{i:015}")).unwrap());
         }
         map
@@ -1033,7 +1027,7 @@ mod layout {
             assert_eq!(map.len(), 3);
             assert!(map.get_mut(3).is_none());
             for (i, mut m) in map.iter_mut().enumerate() {
-                m.set_id(Channel::from_raw(ffi::AVChannel(i32::MAX - i as i32)));
+                m.set_id(Channel::from_raw(i32::MAX - i as i32));
                 assert!(!m.set_name_truncated(c"0123456789abcdefghijklmnop"));
                 m.set_opaque(dangling(i + 1));
             }
@@ -1050,7 +1044,7 @@ mod layout {
             map.slice(1..)
                 .unwrap()
                 .iter()
-                .all(|c| c.id().into_raw().0 < i32::MAX)
+                .all(|c| c.id().into_raw() < i32::MAX)
         );
         assert!(map.slice(..4).is_none());
     }
@@ -1113,7 +1107,7 @@ mod layout {
                     let i = (arg as usize) % map.len();
                     map.get_mut(i)
                         .unwrap()
-                        .set_id(Channel::from_raw(ffi::AVChannel(arg as i32)));
+                        .set_id(Channel::from_raw(arg as i32));
                 }
             }
         }
@@ -1146,7 +1140,7 @@ mod layout {
     #[cfg_attr(miri, ignore = "calls C")]
     fn unterminated_names_in_a_map_are_read_within_the_field() {
         let raw = ffi::AVChannelCustom {
-            id: ffi::AVChannel(3),
+            id: 3,
             name: [b'x' as core::ffi::c_char; 16],
             opaque: dangling(8),
         };
@@ -1258,7 +1252,7 @@ mod layout {
                 s.spawn(move || {
                     let mut map = m.custom_map_mut().unwrap();
                     for mut c in map.iter_mut() {
-                        c.set_id(Channel::from_raw(ffi::AVChannel(i as i32)));
+                        c.set_id(Channel::from_raw(i as i32));
                     }
                     m.set_opaque(dangling(i + 1));
                     if i % 2 == 0 {
@@ -1300,7 +1294,7 @@ mod layout {
             0x7FF,
             i32::MAX,
         ] {
-            let ch = Channel::from_raw(ffi::AVChannel(raw));
+            let ch = Channel::from_raw(raw);
             assert_eq!(ch.mask().is_some(), (0..64).contains(&raw), "{raw}");
         }
         let mut all = 0;
@@ -1383,14 +1377,14 @@ mod layout {
         fn orders() -> impl Iterator<Item = ChannelOrder> {
             [0, 1, 2, 3, 4, 7, u32::MAX]
                 .into_iter()
-                .map(|o| ChannelOrder::from_raw(ffi::AVChannelOrder(o)))
+                .map(ChannelOrder::from_raw)
         }
 
         /// A map of exactly `ids.len()` unnamed channels.
         fn ids_map(ids: &[i32]) -> HeapVec<ChannelCustom> {
             let mut map = alloc_cell_array_zeroed::<ChannelCustom>(ids.len()).unwrap();
             for (mut m, &id) in map.as_handles_mut().iter_mut().zip(ids) {
-                m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                m.set_id(Channel::from_raw(id));
             }
             map
         }
@@ -1400,7 +1394,7 @@ mod layout {
             let mut map = ids_map(ids);
             let last = ids.len() - 1;
             let raw = ffi::AVChannelCustom {
-                id: ffi::AVChannel(ids[last]),
+                id: (ids[last]),
                 name: [b'x' as core::ffi::c_char; 16],
                 opaque: dangling(8),
             };
@@ -1719,7 +1713,7 @@ mod layout {
                 i32::MAX,
                 i32::MIN,
             ]
-            .map(|id| Channel::from_raw(ffi::AVChannel(id)))
+            .map(Channel::from_raw)
             .into()
         }
 
@@ -1853,10 +1847,10 @@ mod layout {
         fn unterminated_at_block_end(ids: &[i32]) -> ChannelLayoutVal {
             let mut map = alloc_cell_array_zeroed::<ChannelCustom>(ids.len()).unwrap();
             for (i, (mut m, &id)) in map.as_handles_mut().iter_mut().zip(ids).enumerate() {
-                m.set_id(Channel::from_raw(ffi::AVChannel(id)));
+                m.set_id(Channel::from_raw(id));
                 if i + 1 == ids.len() {
                     m.set(ChannelCustom::from_raw(ffi::AVChannelCustom {
-                        id: ffi::AVChannel(id),
+                        id,
                         name: [b'x' as c_char; 16],
                         opaque: dangling(usize::MAX),
                     }));
@@ -1889,7 +1883,7 @@ mod layout {
                         assert_eq!(r.channel_by_name(name), None, "{name:?}");
                     }
                 }
-                let last = Channel::from_raw(ffi::AVChannel(*ids.last().unwrap()));
+                let last = Channel::from_raw(*ids.last().unwrap());
                 let name = last.name();
                 assert_eq!(r.index_by_name(&name), Some(ids.len() - 1));
                 assert_eq!(r.channel_by_name(&name), Some(last));
@@ -1938,7 +1932,7 @@ mod layout {
                     let r = l.as_ref();
                     let i = (next() % 80) as usize;
                     let _ = (r.channel(i), r.is_valid(), r.ambisonic_order());
-                    let _ = r.index_of(Channel::from_raw(ffi::AVChannel(next() as i32 % 0x900)));
+                    let _ = r.index_of(Channel::from_raw(next() as i32 % 0x900));
                     let name: &CStr = &names[next() as usize % names.len()];
                     let _ = (r.index_by_name(name), r.channel_by_name(name));
                     let _ = r == other.as_ref();

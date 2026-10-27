@@ -610,7 +610,7 @@ mod realloc {
 /// Whether this run is under `BSan`, whose runtime makes exhaustive loops over
 /// FFI calls take minutes.
 fn under_bsan() -> bool {
-    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
 }
 
 /// Accepted copies read and write inside the buffer; rejected ones touch
@@ -722,7 +722,7 @@ fn oversized_back_references_are_rejected() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn back_references_past_the_doubling_bound_stay_inside() {
-    let variant = std::env::var("CRUSTIFY_FFMPEG_VARIANT");
+    let variant = std::env::var("CRUSTIFY_BUILD_VARIANT");
     if matches!(variant.as_deref(), Ok("bsan" | "tsan")) {
         return;
     }

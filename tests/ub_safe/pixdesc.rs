@@ -417,13 +417,12 @@ mod color_names {
 mod swap_endianness {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     fn values() -> impl Iterator<Item = PixelFormat> {
         (-4..300)
             .chain([i32::MIN, i32::MIN + 1, 1 << 24, i32::MAX - 1, i32::MAX])
-            .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+            .map(PixelFormat::from_raw)
     }
 
     #[test]
@@ -483,27 +482,26 @@ mod names_and_positions {
     }
 
     fn signed_values() -> impl Iterator<Item = i32> {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         (-3..nb + 3).chain([i32::MIN, i32::MIN + 1, 1 << 16, i32::MAX])
     }
 
     /// Every name any getter returns for `raw`.
     fn names(raw: u32) -> [Option<&'static CStr>; 6] {
         [
-            ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
-            ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
-            ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
-            ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
-            ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
-            AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
+            ColorRange::from_raw(raw).name(),
+            ColorPrimaries::from_raw(raw).name(),
+            ColorTransfer::from_raw(raw).name(),
+            ColorSpace::from_raw(raw).name(),
+            ChromaLocation::from_raw(raw).name(),
+            AlphaMode::from_raw(raw).name(),
         ]
     }
 
     /// Every name a getter returns, kept for the whole test.
     fn all_names() -> Vec<&'static CStr> {
         let props = unsigned_values().flat_map(names).flatten();
-        let formats =
-            signed_values().filter_map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)).name());
+        let formats = signed_values().filter_map(|r| PixelFormat::from_raw(r).name());
         props.chain(formats).collect()
     }
 
@@ -518,13 +516,13 @@ mod names_and_positions {
             for name in names(raw).into_iter().flatten() {
                 assert!(!name.is_empty() && name.to_str().is_ok());
             }
-            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            let loc = ChromaLocation::from_raw(raw);
             if let Some((x, y)) = loc.position() {
                 assert!([0, 128, 256].contains(&x) && [0, 128, 256].contains(&y));
             }
         }
         for raw in signed_values() {
-            if let Some(name) = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name() {
+            if let Some(name) = PixelFormat::from_raw(raw).name() {
                 assert!(name.to_bytes().len() < 32);
             }
         }
@@ -585,16 +583,14 @@ mod names_and_positions {
     #[cfg_attr(miri, ignore = "calls C")]
     fn calls_run_on_many_threads() {
         let expect: Vec<_> = unsigned_values().map(names).collect();
-        let formats: Vec<_> = signed_values()
-            .map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)))
-            .collect();
+        let formats: Vec<_> = signed_values().map(PixelFormat::from_raw).collect();
         thread::scope(|s| {
             for t in 0..8 {
                 let (expect, formats) = (&expect, &formats);
                 s.spawn(move || {
                     for (raw, e) in unsigned_values().zip(expect).skip(t) {
                         assert_eq!(&names(raw), e);
-                        let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+                        let loc = ChromaLocation::from_raw(raw);
                         if let Some((x, y)) = loc.position() {
                             assert_eq!(ChromaLocation::from_position(x, y), Some(loc));
                         }
@@ -625,10 +621,10 @@ mod pixel_format_loss {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::{Loss, PixelFormat};
 
     fn formats() -> Vec<PixelFormat> {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         (-2..nb + 2)
             .chain([i32::MIN, i32::MAX])
-            .map(|r| PixelFormat::from_raw(ffi::AVPixelFormat(r)))
+            .map(PixelFormat::from_raw)
             .collect()
     }
 
@@ -1116,10 +1112,10 @@ mod pixel_format_queries {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     fn values() -> impl Iterator<Item = PixelFormat> {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         (-3..nb + 3)
             .chain([i32::MIN, i32::MAX])
-            .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+            .map(PixelFormat::from_raw)
     }
 
     #[test]
@@ -1167,10 +1163,10 @@ mod descriptor_table {
         PixelFormatFlags, descriptors,
     };
 
-    const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: i32 = ffi::AV_PIX_FMT_NB;
 
     fn format(raw: i32) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     #[test]
@@ -1286,7 +1282,7 @@ mod image_lines {
         write_image_line, write_image_line_u16,
     };
 
-    const NB: i32 = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: i32 = ffi::AV_PIX_FMT_NB;
     /// The largest plane the searches try.
     const CAP: usize = 1 << 12;
 
@@ -1295,7 +1291,7 @@ mod image_lines {
     static PROBE: [u8; CAP] = [0x5A; CAP];
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// Planes with `lens` bytes, plane `p`'s rows `linesize` apart.
@@ -1409,7 +1405,7 @@ mod image_lines {
             &[(0, 0, 1), (3, 1, 4), (1, 2, 9)]
         };
         for raw in 0..NB {
-            let Some(d) = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor() else {
+            let Some(d) = PixelFormat::from_raw(raw).descriptor() else {
                 continue;
             };
             if under_bsan() && raw % 8 != 0 {
@@ -1571,7 +1567,7 @@ mod color_space_and_transfer {
     /// Named colour spaces, `AVCOL_SPC_NB` and values C may store unnamed.
     fn space_sample() -> Vec<ColorSpace> {
         [0, 1, 2, 8, 17, 18, 19, 256, 1 << 31, u32::MAX]
-            .map(|raw| ColorSpace::from_raw(ffi::AVColorSpace(raw)))
+            .map(ColorSpace::from_raw)
             .into()
     }
 
@@ -1579,7 +1575,7 @@ mod color_space_and_transfer {
     /// base and values C may store unnamed.
     fn transfer_sample() -> Vec<ColorTransfer> {
         [0, 1, 2, 16, 18, 19, 255, 256, 257, 1 << 31, u32::MAX]
-            .map(|raw| ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)))
+            .map(ColorTransfer::from_raw)
             .into()
     }
 
@@ -1695,7 +1691,7 @@ mod alpha_mode {
     /// Named modes, `AVALPHA_MODE_NB`, `AVERROR(EINVAL)` and the extremes.
     fn alpha_mode_sample() -> Vec<AlphaMode> {
         [0, 1, 2, 3, 0xFFFF_FFEA, 1 << 31, u32::MAX]
-            .map(|raw| AlphaMode::from_raw(ffi::AVAlphaMode(raw)))
+            .map(AlphaMode::from_raw)
             .into()
     }
 
@@ -1768,7 +1764,7 @@ mod pixel_format {
 
     /// Named formats, `AV_PIX_FMT_NB` and its neighbours, and the `int` extremes.
     fn sample() -> Vec<PixelFormat> {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         [
             i32::MIN,
             -2,
@@ -1783,7 +1779,7 @@ mod pixel_format {
             1 << 30,
             i32::MAX,
         ]
-        .map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)))
+        .map(PixelFormat::from_raw)
         .into()
     }
 
@@ -1876,14 +1872,14 @@ mod color_primaries_and_range {
     /// Named primaries, the H.273 gap, both `NB` values and `u32::MAX`.
     fn primaries_sample() -> Vec<ColorPrimaries> {
         [0, 1, 2, 9, 12, 13, 22, 23, 255, 256, 257, 1 << 31, u32::MAX]
-            .map(|raw| ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)))
+            .map(ColorPrimaries::from_raw)
             .into()
     }
 
     /// Named ranges, `NB` and the far end of the encoding.
     fn range_sample() -> Vec<ColorRange> {
         [0, 1, 2, 3, 4, 1 << 31, u32::MAX]
-            .map(|raw| ColorRange::from_raw(ffi::AVColorRange(raw)))
+            .map(ColorRange::from_raw)
             .into()
     }
 
@@ -1991,7 +1987,7 @@ mod chroma_location {
     /// extremes, which C may store in `AVFrame.chroma_location`.
     fn sample() -> Vec<ChromaLocation> {
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 1 << 31, u32::MAX - 1, u32::MAX]
-            .map(|raw| ChromaLocation::from_raw(ffi::AVChromaLocation(raw)))
+            .map(ChromaLocation::from_raw)
             .into()
     }
 

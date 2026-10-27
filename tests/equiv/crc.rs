@@ -14,14 +14,14 @@ use ffmpeg_bindings::libavutil::libavutil::ffi;
 #[cfg_attr(miri, ignore = "calls C")]
 fn constants_and_lookup_selection_match_c() {
     for (id, raw) in [
-        (CrcId::ATM_8, ffi::AVCRCId::AV_CRC_8_ATM),
-        (CrcId::ANSI_16, ffi::AVCRCId::AV_CRC_16_ANSI),
-        (CrcId::CCITT_16, ffi::AVCRCId::AV_CRC_16_CCITT),
-        (CrcId::IEEE_32, ffi::AVCRCId::AV_CRC_32_IEEE),
-        (CrcId::IEEE_32_LE, ffi::AVCRCId::AV_CRC_32_IEEE_LE),
-        (CrcId::ANSI_16_LE, ffi::AVCRCId::AV_CRC_16_ANSI_LE),
-        (CrcId::IEEE_24, ffi::AVCRCId::AV_CRC_24_IEEE),
-        (CrcId::EBU_8, ffi::AVCRCId::AV_CRC_8_EBU),
+        (CrcId::ATM_8, ffi::AV_CRC_8_ATM),
+        (CrcId::ANSI_16, ffi::AV_CRC_16_ANSI),
+        (CrcId::CCITT_16, ffi::AV_CRC_16_CCITT),
+        (CrcId::IEEE_32, ffi::AV_CRC_32_IEEE),
+        (CrcId::IEEE_32_LE, ffi::AV_CRC_32_IEEE_LE),
+        (CrcId::ANSI_16_LE, ffi::AV_CRC_16_ANSI_LE),
+        (CrcId::IEEE_24, ffi::AV_CRC_24_IEEE),
+        (CrcId::EBU_8, ffi::AV_CRC_8_EBU),
     ] {
         assert_eq!(id.into_raw(), raw);
         // SAFETY: both arguments are valid value encodings; C bounds-checks
@@ -34,7 +34,7 @@ fn constants_and_lookup_selection_match_c() {
         assert_eq!(actual, reference);
     }
     for raw in [8, 9, u32::MAX] {
-        let id = CrcId::from_raw(ffi::AVCRCId(raw));
+        let id = CrcId::from_raw(raw);
         // SAFETY: C rejects out-of-range values before table indexing.
         let table = unsafe { ffi::av_crc_get_table(id.into_raw()) };
         assert!(table.is_null());
@@ -174,7 +174,7 @@ fn standard_table_sequences_match_c() {
         }
     }
     for id in [8, 9, u32::MAX] {
-        let id = CrcId::from_raw(ffi::AVCRCId(id));
+        let id = CrcId::from_raw(id);
         assert!(get_table(id).is_none());
         // SAFETY: every enum encoding is validated by C, which returns NULL
         // rather than indexing a table for an unsupported identifier.

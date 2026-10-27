@@ -200,14 +200,14 @@ pub(crate) struct FakeConfig {
 }
 
 /// The hardware format the fake backend lists without a configuration.
-pub(crate) const HW_FORMAT: ffi::AVPixelFormat = ffi::AVPixelFormat::AV_PIX_FMT_VAAPI;
+pub(crate) const HW_FORMAT: ffi::AVPixelFormat = ffi::AV_PIX_FMT_VAAPI;
 
 /// The software formats the fake backend can list.
 pub(crate) const SW_FORMATS: [ffi::AVPixelFormat; 4] = [
-    ffi::AVPixelFormat::AV_PIX_FMT_NV12,
-    ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
-    ffi::AVPixelFormat::AV_PIX_FMT_P010LE,
-    ffi::AVPixelFormat::AV_PIX_FMT_RGB0,
+    ffi::AV_PIX_FMT_NV12,
+    ffi::AV_PIX_FMT_YUV420P,
+    ffi::AV_PIX_FMT_P010LE,
+    ffi::AV_PIX_FMT_RGB0,
 ];
 
 /// The sizes the fake backend's constraints give: min width and height, max
@@ -259,11 +259,7 @@ fn c_list(formats: &[ffi::AVPixelFormat]) -> *mut ffi::AVPixelFormat {
     let list = unsafe { ffi::av_malloc_array(n, size_of::<ffi::AVPixelFormat>()) }
         .cast::<ffi::AVPixelFormat>();
     if !list.is_null() {
-        for (i, &f) in formats
-            .iter()
-            .chain(&[ffi::AVPixelFormat::AV_PIX_FMT_NONE])
-            .enumerate()
-        {
+        for (i, &f) in formats.iter().chain(&[ffi::AV_PIX_FMT_NONE]).enumerate() {
             // SAFETY: `i` is within the block `list` points to, as the operation below
             // relies on, so the offset stays in bounds; nothing is accessed here.
             let list_at = unsafe { list.add(i) };
@@ -343,7 +339,7 @@ pub(crate) struct Formats(pub [ffi::AVPixelFormat; 2]);
 // SAFETY: plain values, never written.
 unsafe impl Sync for Formats {}
 
-pub(crate) static PIX_FMTS: Formats = Formats([HW_FORMAT, ffi::AVPixelFormat::AV_PIX_FMT_NONE]);
+pub(crate) static PIX_FMTS: Formats = Formats([HW_FORMAT, ffi::AV_PIX_FMT_NONE]);
 
 /// A backend table, shareable as C's `const` ones are.
 pub(crate) struct Backend(pub HwContextType);
@@ -352,7 +348,7 @@ unsafe impl Sync for Backend {}
 
 /// The fake backend.
 pub(crate) static FAKE_TYPE: Backend = Backend(HwContextType {
-    type_: ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
+    type_: ffi::AV_HWDEVICE_TYPE_VAAPI,
     name: NAME.as_ptr(),
     pix_fmts: &raw const PIX_FMTS.0[0],
     device_hwctx_size: size_of::<FakeHwctx>(),
@@ -405,7 +401,7 @@ pub(crate) static CLASS: Class = Class(ffi::AVClass {
     version: 0,
     log_level_offset_offset: 0,
     parent_log_context_offset: 0,
-    category: ffi::AVClassCategory::AV_CLASS_CATEGORY_HWDEVICE,
+    category: ffi::AV_CLASS_CATEGORY_HWDEVICE,
     get_category: None,
     query_ranges: None,
     child_next: None,
@@ -510,7 +506,7 @@ pub(crate) fn fake_device_of(
 
 /// [`fake_device_of`] the fake backend, as a VAAPI device.
 pub(crate) fn fake_device() -> *mut ffi::AVBufferRef {
-    fake_device_of(&FAKE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI)
+    fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI)
 }
 
 /// The private data [`set_foreign_free`] stores, as a backend's

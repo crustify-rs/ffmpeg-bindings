@@ -149,7 +149,7 @@ fn listed_numbers_agree() {
 /// while the byte C reads lies inside the live string (`ASan` agrees). The
 /// exhaustive sweeps skip under `BSan`; the listed inputs still run.
 fn under_bsan() -> bool {
-    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
 }
 
 /// Every string of up to four bytes over the bytes that steer C's number
@@ -580,7 +580,7 @@ mod expr {
     /// `av_expr_parse` calls from pure C, the second from a deeper frame, trip it
     /// at some depths. The tests that parse return early under it.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// A tiny xorshift generator, so the random corpus is reproducible.
@@ -937,7 +937,7 @@ mod expressions {
     }
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     const CONSTS: [(&CStr, f64); 3] = [(c"A", 3.0), (c"B", -0.5), (c"W", 1920.0)];

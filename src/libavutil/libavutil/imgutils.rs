@@ -2123,7 +2123,7 @@ mod unit_tests {
         assert!(hw.has(ffi::AV_PIX_FMT_FLAG_HWACCEL));
         assert_eq!(hw.planes(), 0);
         assert!(Geometry::of(PixelFormat::NONE).is_none());
-        let nb = PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_NB);
+        let nb = PixelFormat::from_raw(ffi::AV_PIX_FMT_NB);
         assert!(Geometry::of(nb).is_none());
     }
 
@@ -2141,7 +2141,7 @@ mod unit_tests {
         assert!(bgr4.linesize_overflows(536_870_911, 0));
         // C rejects the width before rounding.
         assert!(!bgr4.linesize_overflows(536_870_912, 0));
-        let xv30 = Geometry::of(PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_XV30BE));
+        let xv30 = Geometry::of(PixelFormat::from_raw(ffi::AV_PIX_FMT_XV30BE));
         assert!(
             (0..c_int::MAX)
                 .step_by(1 << 16)

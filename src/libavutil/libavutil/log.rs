@@ -57,36 +57,31 @@ pub struct ClassCategory(ffi::AVClassCategory);
 
 impl ClassCategory {
     /// `AV_CLASS_CATEGORY_BITSTREAM_FILTER`.
-    pub const BITSTREAM_FILTER: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_BITSTREAM_FILTER);
+    pub const BITSTREAM_FILTER: Self = Self(ffi::AV_CLASS_CATEGORY_BITSTREAM_FILTER);
     /// `AV_CLASS_CATEGORY_DECODER`.
-    pub const DECODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER);
+    pub const DECODER: Self = Self(ffi::AV_CLASS_CATEGORY_DECODER);
     /// `AV_CLASS_CATEGORY_DEMUXER`.
-    pub const DEMUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEMUXER);
+    pub const DEMUXER: Self = Self(ffi::AV_CLASS_CATEGORY_DEMUXER);
     /// `AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT`.
-    pub const DEVICE_AUDIO_INPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT);
+    pub const DEVICE_AUDIO_INPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_AUDIO_INPUT);
     /// `AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT`.
-    pub const DEVICE_AUDIO_OUTPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT);
+    pub const DEVICE_AUDIO_OUTPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_AUDIO_OUTPUT);
     /// `AV_CLASS_CATEGORY_DEVICE_INPUT`.
-    pub const DEVICE_INPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_INPUT);
+    pub const DEVICE_INPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_INPUT);
     /// `AV_CLASS_CATEGORY_DEVICE_OUTPUT`.
-    pub const DEVICE_OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_OUTPUT);
+    pub const DEVICE_OUTPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_OUTPUT);
     /// `AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT`.
-    pub const DEVICE_VIDEO_INPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT);
+    pub const DEVICE_VIDEO_INPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT);
     /// `AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT`.
-    pub const DEVICE_VIDEO_OUTPUT: Self =
-        Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT);
+    pub const DEVICE_VIDEO_OUTPUT: Self = Self(ffi::AV_CLASS_CATEGORY_DEVICE_VIDEO_OUTPUT);
     /// `AV_CLASS_CATEGORY_ENCODER`.
-    pub const ENCODER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_ENCODER);
+    pub const ENCODER: Self = Self(ffi::AV_CLASS_CATEGORY_ENCODER);
     /// `AV_CLASS_CATEGORY_FILTER`.
-    pub const FILTER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_FILTER);
+    pub const FILTER: Self = Self(ffi::AV_CLASS_CATEGORY_FILTER);
     /// `AV_CLASS_CATEGORY_HWDEVICE`.
-    pub const HWDEVICE: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_HWDEVICE);
+    pub const HWDEVICE: Self = Self(ffi::AV_CLASS_CATEGORY_HWDEVICE);
     /// `AV_CLASS_CATEGORY_INPUT`.
-    pub const INPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_INPUT);
+    pub const INPUT: Self = Self(ffi::AV_CLASS_CATEGORY_INPUT);
     /// Every named category with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 18] = [
         (Self::NA, "NA"),
@@ -109,28 +104,28 @@ impl ClassCategory {
         (Self::DEVICE_INPUT, "DEVICE_INPUT"),
     ];
     /// `AV_CLASS_CATEGORY_MUXER`.
-    pub const MUXER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER);
+    pub const MUXER: Self = Self(ffi::AV_CLASS_CATEGORY_MUXER);
     /// `AV_CLASS_CATEGORY_NA`.
-    pub const NA: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_NA);
+    pub const NA: Self = Self(ffi::AV_CLASS_CATEGORY_NA);
     /// `AV_CLASS_CATEGORY_OUTPUT`.
-    pub const OUTPUT: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_OUTPUT);
+    pub const OUTPUT: Self = Self(ffi::AV_CLASS_CATEGORY_OUTPUT);
     /// `AV_CLASS_CATEGORY_SWRESAMPLER`.
-    pub const SWRESAMPLER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWRESAMPLER);
+    pub const SWRESAMPLER: Self = Self(ffi::AV_CLASS_CATEGORY_SWRESAMPLER);
     /// `AV_CLASS_CATEGORY_SWSCALER`.
-    pub const SWSCALER: Self = Self(ffi::AVClassCategory::AV_CLASS_CATEGORY_SWSCALER);
+    pub const SWSCALER: Self = Self(ffi::AV_CLASS_CATEGORY_SWSCALER);
 
     /// The category with the raw value `value`, named or not.
     #[inline]
     #[must_use]
     pub const fn from_value(value: c_uint) -> Self {
-        Self(ffi::AVClassCategory(value))
+        Self(value)
     }
 
     /// The raw value C stores for this category.
     #[inline]
     #[must_use]
     pub const fn value(self) -> c_uint {
-        self.0.0
+        self.0
     }
 
     /// The name of this category's constant, or `None` for an unnamed value.
@@ -215,7 +210,7 @@ pub struct ClassStateFlags(ffi::AVClassStateFlags);
 impl ClassStateFlags {
     /// Initialization has finished and the object is in its runtime stage, so
     /// only options flagged as runtime parameters can still be set on it.
-    pub const INITIALIZED: Self = Self(ffi::AVClassStateFlags::AV_CLASS_STATE_INITIALIZED);
+    pub const INITIALIZED: Self = Self(ffi::AV_CLASS_STATE_INITIALIZED);
     /// Every named flag with its constant's name, in declaration order.
     const KNOWN: [(Self, &'static str); 1] = [(Self::INITIALIZED, "INITIALIZED")];
 
@@ -242,14 +237,14 @@ impl ClassStateFlags {
     #[inline]
     #[must_use]
     pub const fn bits(self) -> c_uint {
-        self.0.0
+        self.0
     }
 
     /// The set with exactly `bits`, named or not.
     #[inline]
     #[must_use]
     pub const fn from_bits_retain(bits: c_uint) -> Self {
-        Self(ffi::AVClassStateFlags(bits))
+        Self(bits)
     }
 
     /// The set with `bits`, or `None` when a bit has no constant.
@@ -1640,7 +1635,7 @@ mod unit_tests {
             let c = ClassCategory::from_value(v);
             assert_eq!(c.value(), v);
             let raw: ffi::AVClassCategory = c.into();
-            assert_eq!(raw.0, v);
+            assert_eq!(raw, v);
             assert_eq!(ClassCategory::from(raw), c);
         }
     }
@@ -1721,7 +1716,7 @@ mod unit_tests {
         );
 
         let raw: ffi::AVClassStateFlags = ClassStateFlags::from_bits_retain(5).into();
-        assert_eq!(raw.0, 5);
+        assert_eq!(raw, 5);
         assert_eq!(ClassStateFlags::from(raw).bits(), 5);
     }
 
@@ -2078,7 +2073,7 @@ mod unit_tests {
     }
 
     unsafe extern "C" fn unit_category(_: *mut c_void) -> ffi::AVClassCategory {
-        ffi::AVClassCategory::AV_CLASS_CATEGORY_DECODER
+        ffi::AV_CLASS_CATEGORY_DECODER
     }
 
     unsafe extern "C" fn unit_child_next(obj: *mut c_void, prev: *mut c_void) -> *mut c_void {
@@ -2092,7 +2087,7 @@ mod unit_tests {
         version: 0,
         log_level_offset_offset: 0,
         parent_log_context_offset: 0,
-        category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+        category: ffi::AV_CLASS_CATEGORY_NA,
         get_category: None,
         query_ranges: None,
         child_next: None,
@@ -2125,7 +2120,7 @@ mod unit_tests {
             version: 0x0001_0203,
             log_level_offset_offset: 8,
             parent_log_context_offset: -16,
-            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_MUXER,
+            category: ffi::AV_CLASS_CATEGORY_MUXER,
             get_category: Some(unit_category),
             query_ranges: None,
             child_next: Some(unit_child_next),

@@ -48,7 +48,7 @@ mod side_data_type {
             u32::MAX - 1,
             u32::MAX,
         ]
-        .map(|raw| SideDataType::from_raw(ffi::AVFrameSideDataType(raw)))
+        .map(SideDataType::from_raw)
         .into()
     }
 
@@ -145,8 +145,8 @@ mod active_format_description {
     #[test]
     fn every_raw_value_converts_and_formats() {
         for raw in raws() {
-            let afd = Afd::from_raw(ffi::AVActiveFormatDescription(raw));
-            assert_eq!(afd.into_raw().0, raw);
+            let afd = Afd::from_raw(raw);
+            assert_eq!(afd.into_raw(), raw);
             let back: ffi::AVActiveFormatDescription = afd.into();
             assert_eq!(Afd::from(back), afd);
             match afd.to_byte() {
@@ -170,7 +170,7 @@ mod active_format_description {
         let mut zeroed = alloc_array_zeroed::<Afd>(3).unwrap();
         assert!(zeroed.as_slice().iter().all(|&a| a == Afd::from_byte(0)));
         zeroed.as_mut_slice()[1] = Afd::SP_4_3;
-        zeroed.as_mut_slice()[2] = Afd::from_raw(ffi::AVActiveFormatDescription(u32::MAX));
+        zeroed.as_mut_slice()[2] = Afd::from_raw(u32::MAX);
         let copy = zeroed.clone();
         drop(zeroed);
         assert_eq!(copy.as_slice()[1], Afd::SP_4_3);
@@ -179,9 +179,7 @@ mod active_format_description {
 
     #[test]
     fn values_cross_threads() {
-        let all: Vec<Afd> = raws()
-            .map(|r| Afd::from_raw(ffi::AVActiveFormatDescription(r)))
-            .collect();
+        let all: Vec<Afd> = raws().map(Afd::from_raw).collect();
         let shared = &all;
         thread::scope(|s| {
             for _ in 0..4 {
@@ -777,8 +775,8 @@ mod frame_type {
             assert_eq!(r.linesizes()[7], v.wrapping_add(7));
             assert_eq!(r.flags().bits(), v);
             assert_eq!(r.decode_error_flags().bits(), v);
-            assert_eq!(r.pixel_format().into_raw().0, v);
-            assert_eq!(r.sample_format().into_raw().0, v);
+            assert_eq!(r.pixel_format().into_raw(), v);
+            assert_eq!(r.sample_format().into_raw(), v);
         }
         for v in [i64::MIN, -1, 0, i64::MAX] {
             let mut m = f.as_mut();
@@ -1111,9 +1109,7 @@ mod frame_type {
         f.as_mut().set_width(16);
         f.as_mut().set_height(16);
         assert!(f.as_ref().try_clone().is_none());
-        f.as_mut().set_pixel_format(PixelFormat::from_raw(
-            ffmpeg_bindings::libavutil::libavutil::ffi::AVPixelFormat(-77),
-        ));
+        f.as_mut().set_pixel_format(PixelFormat::from_raw(-77));
         assert!(f.as_ref().try_clone().is_none());
         f.as_mut().set_sample_format(SampleFormat::S16);
         f.as_mut().set_width(0);

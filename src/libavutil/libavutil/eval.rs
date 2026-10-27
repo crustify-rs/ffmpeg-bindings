@@ -949,7 +949,7 @@ mod unit_tests {
     /// `av_expr_parse` calls from pure C, the second from a deeper frame, trip it
     /// at some depths. The tests that parse return early under it.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// Evaluates `e` with `consts` and no opaque pointer.

@@ -35,106 +35,115 @@ mod side_data_type {
 
     /// Every named constant beside its C enumerator, in declaration order.
     const NAMED: [(SideDataType, C); 38] = [
-        (SideDataType::PAN_SCAN, C::AV_FRAME_DATA_PANSCAN),
-        (SideDataType::A53_CC, C::AV_FRAME_DATA_A53_CC),
-        (SideDataType::STEREO_3D, C::AV_FRAME_DATA_STEREO3D),
+        (SideDataType::PAN_SCAN, ffi::AV_FRAME_DATA_PANSCAN),
+        (SideDataType::A53_CC, ffi::AV_FRAME_DATA_A53_CC),
+        (SideDataType::STEREO_3D, ffi::AV_FRAME_DATA_STEREO3D),
         (
             SideDataType::MATRIX_ENCODING,
-            C::AV_FRAME_DATA_MATRIXENCODING,
+            ffi::AV_FRAME_DATA_MATRIXENCODING,
         ),
-        (SideDataType::DOWNMIX_INFO, C::AV_FRAME_DATA_DOWNMIX_INFO),
-        (SideDataType::REPLAY_GAIN, C::AV_FRAME_DATA_REPLAYGAIN),
-        (SideDataType::DISPLAY_MATRIX, C::AV_FRAME_DATA_DISPLAYMATRIX),
-        (SideDataType::AFD, C::AV_FRAME_DATA_AFD),
+        (SideDataType::DOWNMIX_INFO, ffi::AV_FRAME_DATA_DOWNMIX_INFO),
+        (SideDataType::REPLAY_GAIN, ffi::AV_FRAME_DATA_REPLAYGAIN),
+        (
+            SideDataType::DISPLAY_MATRIX,
+            ffi::AV_FRAME_DATA_DISPLAYMATRIX,
+        ),
+        (SideDataType::AFD, ffi::AV_FRAME_DATA_AFD),
         (
             SideDataType::MOTION_VECTORS,
-            C::AV_FRAME_DATA_MOTION_VECTORS,
+            ffi::AV_FRAME_DATA_MOTION_VECTORS,
         ),
-        (SideDataType::SKIP_SAMPLES, C::AV_FRAME_DATA_SKIP_SAMPLES),
+        (SideDataType::SKIP_SAMPLES, ffi::AV_FRAME_DATA_SKIP_SAMPLES),
         (
             SideDataType::AUDIO_SERVICE_TYPE,
-            C::AV_FRAME_DATA_AUDIO_SERVICE_TYPE,
+            ffi::AV_FRAME_DATA_AUDIO_SERVICE_TYPE,
         ),
         (
             SideDataType::MASTERING_DISPLAY_METADATA,
-            C::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA,
+            ffi::AV_FRAME_DATA_MASTERING_DISPLAY_METADATA,
         ),
-        (SideDataType::GOP_TIMECODE, C::AV_FRAME_DATA_GOP_TIMECODE),
-        (SideDataType::SPHERICAL, C::AV_FRAME_DATA_SPHERICAL),
+        (SideDataType::GOP_TIMECODE, ffi::AV_FRAME_DATA_GOP_TIMECODE),
+        (SideDataType::SPHERICAL, ffi::AV_FRAME_DATA_SPHERICAL),
         (
             SideDataType::CONTENT_LIGHT_LEVEL,
-            C::AV_FRAME_DATA_CONTENT_LIGHT_LEVEL,
+            ffi::AV_FRAME_DATA_CONTENT_LIGHT_LEVEL,
         ),
-        (SideDataType::ICC_PROFILE, C::AV_FRAME_DATA_ICC_PROFILE),
-        (SideDataType::S12M_TIMECODE, C::AV_FRAME_DATA_S12M_TIMECODE),
+        (SideDataType::ICC_PROFILE, ffi::AV_FRAME_DATA_ICC_PROFILE),
+        (
+            SideDataType::S12M_TIMECODE,
+            ffi::AV_FRAME_DATA_S12M_TIMECODE,
+        ),
         (
             SideDataType::DYNAMIC_HDR_PLUS,
-            C::AV_FRAME_DATA_DYNAMIC_HDR_PLUS,
+            ffi::AV_FRAME_DATA_DYNAMIC_HDR_PLUS,
         ),
         (
             SideDataType::REGIONS_OF_INTEREST,
-            C::AV_FRAME_DATA_REGIONS_OF_INTEREST,
+            ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST,
         ),
         (
             SideDataType::VIDEO_ENC_PARAMS,
-            C::AV_FRAME_DATA_VIDEO_ENC_PARAMS,
+            ffi::AV_FRAME_DATA_VIDEO_ENC_PARAMS,
         ),
         (
             SideDataType::SEI_UNREGISTERED,
-            C::AV_FRAME_DATA_SEI_UNREGISTERED,
+            ffi::AV_FRAME_DATA_SEI_UNREGISTERED,
         ),
         (
             SideDataType::FILM_GRAIN_PARAMS,
-            C::AV_FRAME_DATA_FILM_GRAIN_PARAMS,
+            ffi::AV_FRAME_DATA_FILM_GRAIN_PARAMS,
         ),
         (
             SideDataType::DETECTION_BBOXES,
-            C::AV_FRAME_DATA_DETECTION_BBOXES,
+            ffi::AV_FRAME_DATA_DETECTION_BBOXES,
         ),
         (
             SideDataType::DOVI_RPU_BUFFER,
-            C::AV_FRAME_DATA_DOVI_RPU_BUFFER,
+            ffi::AV_FRAME_DATA_DOVI_RPU_BUFFER,
         ),
-        (SideDataType::DOVI_METADATA, C::AV_FRAME_DATA_DOVI_METADATA),
+        (
+            SideDataType::DOVI_METADATA,
+            ffi::AV_FRAME_DATA_DOVI_METADATA,
+        ),
         (
             SideDataType::DYNAMIC_HDR_VIVID,
-            C::AV_FRAME_DATA_DYNAMIC_HDR_VIVID,
+            ffi::AV_FRAME_DATA_DYNAMIC_HDR_VIVID,
         ),
         (
             SideDataType::AMBIENT_VIEWING_ENVIRONMENT,
-            C::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT,
+            ffi::AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT,
         ),
-        (SideDataType::VIDEO_HINT, C::AV_FRAME_DATA_VIDEO_HINT),
-        (SideDataType::LCEVC, C::AV_FRAME_DATA_LCEVC),
-        (SideDataType::VIEW_ID, C::AV_FRAME_DATA_VIEW_ID),
+        (SideDataType::VIDEO_HINT, ffi::AV_FRAME_DATA_VIDEO_HINT),
+        (SideDataType::LCEVC, ffi::AV_FRAME_DATA_LCEVC),
+        (SideDataType::VIEW_ID, ffi::AV_FRAME_DATA_VIEW_ID),
         (
             SideDataType::REFERENCE_DISPLAYS_3D,
-            C::AV_FRAME_DATA_3D_REFERENCE_DISPLAYS,
+            ffi::AV_FRAME_DATA_3D_REFERENCE_DISPLAYS,
         ),
-        (SideDataType::EXIF, C::AV_FRAME_DATA_EXIF),
+        (SideDataType::EXIF, ffi::AV_FRAME_DATA_EXIF),
         (
             SideDataType::DYNAMIC_HDR_SMPTE_2094_APP5,
-            C::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5,
+            ffi::AV_FRAME_DATA_DYNAMIC_HDR_SMPTE_2094_APP5,
         ),
         (
             SideDataType::IAMF_MIX_GAIN_PARAM,
-            C::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM,
+            ffi::AV_FRAME_DATA_IAMF_MIX_GAIN_PARAM,
         ),
         (
             SideDataType::IAMF_DEMIXING_INFO_PARAM,
-            C::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM,
+            ffi::AV_FRAME_DATA_IAMF_DEMIXING_INFO_PARAM,
         ),
         (
             SideDataType::IAMF_RECON_GAIN_INFO_PARAM,
-            C::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM,
+            ffi::AV_FRAME_DATA_IAMF_RECON_GAIN_INFO_PARAM,
         ),
         (
             SideDataType::RAW_COLOR_PARAMS,
-            C::AV_FRAME_DATA_RAW_COLOR_PARAMS,
+            ffi::AV_FRAME_DATA_RAW_COLOR_PARAMS,
         ),
         (
             SideDataType::DOWNMIX_MATRIX,
-            C::AV_FRAME_DATA_DOWNMIX_MATRIX,
+            ffi::AV_FRAME_DATA_DOWNMIX_MATRIX,
         ),
     ];
 
@@ -183,9 +192,9 @@ mod side_data_type {
     #[cfg_attr(miri, ignore = "calls C")]
     fn the_wrapper_names_exactly_what_c_names() {
         for raw in (0..=96).chain(UNNAMED) {
-            let t = SideDataType::from_raw(C(raw));
-            assert_eq!(rust_names(t), c_name(C(raw)).is_some(), "raw {raw}");
-            assert_eq!(t.into_raw().0, raw);
+            let t = SideDataType::from_raw(raw);
+            assert_eq!(rust_names(t), c_name(raw).is_some(), "raw {raw}");
+            assert_eq!(t.into_raw(), raw);
         }
     }
 
@@ -276,7 +285,7 @@ mod side_data_type {
         let values: Vec<SideDataType> = NAMED
             .iter()
             .map(|&(t, _)| t)
-            .chain(UNNAMED.map(|r| SideDataType::from_raw(C(r))))
+            .chain(UNNAMED.map(SideDataType::from_raw))
             .collect();
         let mut frame = Frame::new();
         let mut model: Vec<SideDataType> = Vec::new();
@@ -322,13 +331,9 @@ mod side_data_type {
         assert!(
             a.as_slice()
                 .iter()
-                .all(|&t| t.into_raw() == C::AV_FRAME_DATA_PANSCAN)
+                .all(|&t| t.into_raw() == ffi::AV_FRAME_DATA_PANSCAN)
         );
-        let values: Vec<C> = NAMED
-            .iter()
-            .map(|&(_, c)| c)
-            .chain(UNNAMED.map(C))
-            .collect();
+        let values: Vec<C> = NAMED.iter().map(|&(_, c)| c).chain(UNNAMED).collect();
         for (slot, &c) in a.as_mut_slice().iter_mut().zip(&values) {
             *slot = c.into();
         }
@@ -361,13 +366,13 @@ mod active_format_description {
 
     /// Every named constant beside its C enumerator.
     const NAMED: [(Afd, CAfd); 7] = [
-        (Afd::SAME, CAfd::AV_AFD_SAME),
-        (Afd::ASPECT_4_3, CAfd::AV_AFD_4_3),
-        (Afd::ASPECT_16_9, CAfd::AV_AFD_16_9),
-        (Afd::ASPECT_14_9, CAfd::AV_AFD_14_9),
-        (Afd::ASPECT_4_3_SP_14_9, CAfd::AV_AFD_4_3_SP_14_9),
-        (Afd::ASPECT_16_9_SP_14_9, CAfd::AV_AFD_16_9_SP_14_9),
-        (Afd::SP_4_3, CAfd::AV_AFD_SP_4_3),
+        (Afd::SAME, ffi::AV_AFD_SAME),
+        (Afd::ASPECT_4_3, ffi::AV_AFD_4_3),
+        (Afd::ASPECT_16_9, ffi::AV_AFD_16_9),
+        (Afd::ASPECT_14_9, ffi::AV_AFD_14_9),
+        (Afd::ASPECT_4_3_SP_14_9, ffi::AV_AFD_4_3_SP_14_9),
+        (Afd::ASPECT_16_9_SP_14_9, ffi::AV_AFD_16_9_SP_14_9),
+        (Afd::SP_4_3, ffi::AV_AFD_SP_4_3),
     ];
 
     /// A frame from `av_frame_alloc`, freed with `av_frame_free` on drop.
@@ -394,9 +399,7 @@ mod active_format_description {
         fn add_afd(&mut self, byte: u8) {
             // SAFETY: `self.0` is a live frame we own; NULL on failure,
             // checked below.
-            let sd = unsafe {
-                ffi::av_frame_new_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1)
-            };
+            let sd = unsafe { ffi::av_frame_new_side_data(self.0, ffi::AV_FRAME_DATA_AFD, 1) };
             assert!(!sd.is_null());
             // For the unsafe operations below: `sd` is the live entry C just added to our frame;
             // its `data` is a writable `av_buffer_alloc` block of `size` bytes.
@@ -433,14 +436,12 @@ mod active_format_description {
         /// C's own view of the AFD byte: the payload converted to the enum,
         /// as `(enum AVActiveFormatDescription)sd->data[0]` reads it.
         fn afd_as_c_enum(&self) -> CAfd {
-            ffi::AVActiveFormatDescription(self.afd().into())
+            self.afd().into()
         }
 
         fn afd_entry(&self) -> *mut ffi::AVFrameSideData {
             // SAFETY: `self.0` is a live frame.
-            let sd = unsafe {
-                ffi::av_frame_get_side_data(self.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD)
-            };
+            let sd = unsafe { ffi::av_frame_get_side_data(self.0, ffi::AV_FRAME_DATA_AFD) };
             assert!(!sd.is_null());
             // SAFETY: `sd` is to a live object, as the access below relies on,
             // so the place of its `size` field is in bounds; nothing is accessed here.
@@ -467,8 +468,8 @@ mod active_format_description {
             assert_eq!(Afd::from(c), afd);
             // C's implicit `uint8_t` conversion of each enumerator, as
             // mpeg12dec stores `*sd->data = s1->afd`.
-            assert_eq!(afd.to_byte(), Some(c.0 as u8));
-            assert_eq!(Afd::from_byte(c.0 as u8), afd);
+            assert_eq!(afd.to_byte(), Some(c as u8));
+            assert_eq!(Afd::from_byte(c as u8), afd);
         }
     }
 
@@ -520,10 +521,7 @@ mod active_format_description {
             copy.set_afd(Afd::SP_4_3.to_byte().unwrap());
             let again = copy.copy_props_c();
             drop(copy);
-            assert_eq!(
-                again.afd_as_c_enum(),
-                ffi::AVActiveFormatDescription::AV_AFD_SP_4_3
-            );
+            assert_eq!(again.afd_as_c_enum(), ffi::AV_AFD_SP_4_3);
             assert_eq!(Afd::from_byte(again.afd()), Afd::SP_4_3);
         }
     }
@@ -558,7 +556,7 @@ mod side_data_descriptor {
     fn c_entry(t: c_uint) -> Option<ffi::AVSideDataDescriptor> {
         // SAFETY: `av_frame_side_data_desc` takes any value and returns NULL
         // or a pointer into C's static, never-written table.
-        let p = unsafe { ffi::av_frame_side_data_desc(ffi::AVFrameSideDataType(t)) };
+        let p = unsafe { ffi::av_frame_side_data_desc(t) };
         // SAFETY: a non-null `p` points to a live entry of that table.
         (!p.is_null()).then(|| unsafe { p.read() })
     }
@@ -572,7 +570,7 @@ mod side_data_descriptor {
     /// C's name for `t`, through the routine that reads it from the table.
     fn c_name(t: c_uint) -> Option<&'static CStr> {
         // SAFETY: takes any value; returns NULL or a table string literal.
-        let p = unsafe { ffi::av_frame_side_data_name(ffi::AVFrameSideDataType(t)) };
+        let p = unsafe { ffi::av_frame_side_data_name(t) };
         // SAFETY: a non-null `p` is a literal in C's static table.
         (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
     }
@@ -586,10 +584,7 @@ mod side_data_descriptor {
     #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores_for_every_type() {
         let n = described();
-        assert_eq!(
-            n,
-            ffi::AVFrameSideDataType::AV_FRAME_DATA_DOWNMIX_MATRIX.0 + 1
-        );
+        assert_eq!(n, ffi::AV_FRAME_DATA_DOWNMIX_MATRIX + 1);
         for t in types() {
             let (c, r) = (c_entry(t), rust_entry(t));
             assert_eq!(c.is_some(), t < n, "type {t}");
@@ -657,15 +652,8 @@ mod side_data_descriptor {
         /// `av_frame_side_data_new` with no flag; whether C returned an entry.
         fn add(&mut self, t: c_uint) -> bool {
             // SAFETY: `sd` and `nb` are an array C built (or NULL and 0).
-            let e = unsafe {
-                ffi::av_frame_side_data_new(
-                    &raw mut self.sd,
-                    &raw mut self.nb,
-                    ffi::AVFrameSideDataType(t),
-                    4,
-                    0,
-                )
-            };
+            let e =
+                unsafe { ffi::av_frame_side_data_new(&raw mut self.sd, &raw mut self.nb, t, 4, 0) };
             !e.is_null()
         }
 
@@ -690,7 +678,7 @@ mod side_data_descriptor {
                     // SAFETY: `i < nb`, so `sd[i]` is an initialised entry.
                     let sd = unsafe { sd_add.read() };
                     // SAFETY: as above; `sd` is a live entry C owns.
-                    unsafe { (*sd).type_.0 }
+                    unsafe { (*sd).type_ }
                 })
                 .collect();
             v.sort_unstable();
@@ -779,7 +767,7 @@ mod side_data_descriptor {
             .filter(|&t| rust_entry(t).unwrap().as_ref().props().is_empty())
             .chain([38, 1000, c_uint::MAX])
             .collect();
-        assert!(bare.contains(&ffi::AVFrameSideDataType::AV_FRAME_DATA_A53_CC.0));
+        assert!(bare.contains(&ffi::AV_FRAME_DATA_A53_CC));
         assert_eq!(model, bare);
     }
 
@@ -937,7 +925,7 @@ mod region_of_interest {
                 ffi::av_frame_side_data_new(
                     &raw mut array.sd,
                     &raw mut array.nb,
-                    ffi::AVFrameSideDataType::AV_FRAME_DATA_REGIONS_OF_INTEREST,
+                    ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST,
                     size,
                     0,
                 )
@@ -1267,7 +1255,7 @@ mod frame_type {
                     let e = unsafe { *at };
                     // SAFETY: as above: reads of the entry's fields.
                     let (kind, data, size, metadata) = (
-                        unsafe { (*e).type_.0 },
+                        unsafe { (*e).type_ },
                         unsafe { (*e).data },
                         unsafe { (*e).size },
                         unsafe { (*e).metadata },
@@ -1287,7 +1275,7 @@ mod frame_type {
                     x.height.into(),
                     x.nb_samples.into(),
                     x.format.into(),
-                    x.pict_type.0.into(),
+                    x.pict_type.into(),
                     x.sample_aspect_ratio.num.into(),
                     x.sample_aspect_ratio.den.into(),
                     x.pts,
@@ -1298,11 +1286,11 @@ mod frame_type {
                     x.repeat_pict.into(),
                     x.sample_rate.into(),
                     x.flags.into(),
-                    x.color_range.0.into(),
-                    x.color_primaries.0.into(),
-                    x.color_trc.0.into(),
-                    x.colorspace.0.into(),
-                    x.chroma_location.0.into(),
+                    x.color_range.into(),
+                    x.color_primaries.into(),
+                    x.color_trc.into(),
+                    x.colorspace.into(),
+                    x.chroma_location.into(),
                     x.best_effort_timestamp,
                     x.decode_error_flags.into(),
                     x.crop_top as i64,
@@ -1310,10 +1298,10 @@ mod frame_type {
                     x.crop_left as i64,
                     x.crop_right as i64,
                     x.duration,
-                    x.alpha_mode.0.into(),
+                    x.alpha_mode.into(),
                 ],
                 linesize: x.linesize,
-                layout: (x.ch_layout.order.0, x.ch_layout.nb_channels),
+                layout: (x.ch_layout.order, x.ch_layout.nb_channels),
                 opaque: x.opaque.addr(),
                 planes: x.data.iter().map(|&p| c_at(&bufs, p)).collect(),
                 extended,
@@ -1374,7 +1362,7 @@ mod frame_type {
                 r.height().into(),
                 r.sample_count().into(),
                 r.format().into(),
-                r.picture_type().into_raw().0.into(),
+                r.picture_type().into_raw().into(),
                 sar.num.into(),
                 sar.den.into(),
                 r.pts(),
@@ -1385,11 +1373,11 @@ mod frame_type {
                 r.repeat_pict().into(),
                 r.sample_rate().into(),
                 r.flags().bits().into(),
-                r.color_range().into_raw().0.into(),
-                r.color_primaries().into_raw().0.into(),
-                r.color_transfer().into_raw().0.into(),
-                r.color_space().into_raw().0.into(),
-                r.chroma_location().into_raw().0.into(),
+                r.color_range().into_raw().into(),
+                r.color_primaries().into_raw().into(),
+                r.color_transfer().into_raw().into(),
+                r.color_space().into_raw().into(),
+                r.chroma_location().into_raw().into(),
                 r.best_effort_timestamp(),
                 r.decode_error_flags().bits().into(),
                 r.crop_top() as i64,
@@ -1397,10 +1385,10 @@ mod frame_type {
                 r.crop_left() as i64,
                 r.crop_right() as i64,
                 r.duration(),
-                r.alpha_mode().into_raw().0.into(),
+                r.alpha_mode().into_raw().into(),
             ],
             linesize: r.linesizes(),
-            layout: (layout.order().into_raw().0, layout.channel_count()),
+            layout: (layout.order().into_raw(), layout.channel_count()),
             opaque: r.opaque().addr(),
             planes: (0..NUM_DATA_POINTERS).map(|i| at(r.plane(i))).collect(),
             extended: r.has_extended_data().then(|| {
@@ -1415,13 +1403,7 @@ mod frame_type {
             side_data: r
                 .side_data()
                 .iter()
-                .map(|e| {
-                    (
-                        e.kind().into_raw().0,
-                        e.data().to_vec(),
-                        pairs(e.metadata()),
-                    )
-                })
+                .map(|e| (e.kind().into_raw(), e.data().to_vec(), pairs(e.metadata())))
                 .collect(),
             metadata: pairs(r.metadata()),
             opaque_ref: r
@@ -1931,7 +1913,7 @@ mod frame_type {
                     .as_mut()
                     .side_data_mut()
                     .add(
-                        SideDataType::from_raw(ffi::AVFrameSideDataType(kind)),
+                        SideDataType::from_raw(kind),
                         rust_buffer(&bytes),
                         SideDataFlags::NONE,
                     )
@@ -1951,7 +1933,7 @@ mod frame_type {
                         ffi::av_frame_side_data_add(
                             side_data_ptr,
                             nb_side_data_ptr,
-                            ffi::AVFrameSideDataType(kind),
+                            kind,
                             &raw mut slot,
                             0,
                         )
@@ -2034,7 +2016,7 @@ mod frame_type {
                 m.set_height(w >> 3);
                 m.set_sample_count(w >> 5);
                 m.set_format(w % 200);
-                m.set_picture_type(PictureType::from_raw(ffi::AVPictureType(w as u32 % 9)));
+                m.set_picture_type(PictureType::from_raw(w as u32 % 9));
                 m.set_sample_aspect_ratio(Rational::new(w, 7));
                 m.set_pts(v);
                 m.set_packet_dts(v ^ 1);
@@ -2043,17 +2025,11 @@ mod frame_type {
                 m.set_repeat_pict(w & 3);
                 m.set_sample_rate(w >> 1);
                 m.set_flags(FrameFlags::from_bits_retain(w));
-                m.set_color_range(ColorRange::from_raw(ffi::AVColorRange(w as u32 % 4)));
-                m.set_color_primaries(ColorPrimaries::from_raw(ffi::AVColorPrimaries(
-                    w as u32 % 23,
-                )));
-                m.set_color_transfer(ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(
-                    w as u32 % 19,
-                )));
-                m.set_color_space(ColorSpace::from_raw(ffi::AVColorSpace(w as u32 % 18)));
-                m.set_chroma_location(ChromaLocation::from_raw(ffi::AVChromaLocation(
-                    w as u32 % 7,
-                )));
+                m.set_color_range(ColorRange::from_raw(w as u32 % 4));
+                m.set_color_primaries(ColorPrimaries::from_raw(w as u32 % 23));
+                m.set_color_transfer(ColorTransfer::from_raw(w as u32 % 19));
+                m.set_color_space(ColorSpace::from_raw(w as u32 % 18));
+                m.set_chroma_location(ChromaLocation::from_raw(w as u32 % 7));
                 m.set_best_effort_timestamp(!v);
                 m.set_decode_error_flags(DecodeErrorFlags::from_bits_retain(w & 15));
                 m.set_crop_top(v as usize);
@@ -2061,7 +2037,7 @@ mod frame_type {
                 m.set_crop_left(3);
                 m.set_crop_right(v as usize & 0xFFFF);
                 m.set_duration(v >> 4);
-                m.set_alpha_mode(AlphaMode::from_raw(ffi::AVAlphaMode(w as u32 % 3)));
+                m.set_alpha_mode(AlphaMode::from_raw(w as u32 % 3));
                 m.set_linesize(w as usize & 7, w);
                 m.set_opaque(ptr::without_provenance_mut(v as usize));
                 // SAFETY: plain fields of the live frame.
@@ -2071,7 +2047,7 @@ mod frame_type {
                     x.height = w >> 3;
                     x.nb_samples = w >> 5;
                     x.format = w % 200;
-                    x.pict_type = ffi::AVPictureType(w as u32 % 9);
+                    x.pict_type = w as u32 % 9;
                     x.sample_aspect_ratio = ffi::AVRational { num: w, den: 7 };
                     x.pts = v;
                     x.pkt_dts = v ^ 1;
@@ -2080,11 +2056,11 @@ mod frame_type {
                     x.repeat_pict = w & 3;
                     x.sample_rate = w >> 1;
                     x.flags = w;
-                    x.color_range = ffi::AVColorRange(w as u32 % 4);
-                    x.color_primaries = ffi::AVColorPrimaries(w as u32 % 23);
-                    x.color_trc = ffi::AVColorTransferCharacteristic(w as u32 % 19);
-                    x.colorspace = ffi::AVColorSpace(w as u32 % 18);
-                    x.chroma_location = ffi::AVChromaLocation(w as u32 % 7);
+                    x.color_range = w as u32 % 4;
+                    x.color_primaries = w as u32 % 23;
+                    x.color_trc = w as u32 % 19;
+                    x.colorspace = w as u32 % 18;
+                    x.chroma_location = w as u32 % 7;
                     x.best_effort_timestamp = !v;
                     x.decode_error_flags = w & 15;
                     x.crop_top = v as usize;
@@ -2092,7 +2068,7 @@ mod frame_type {
                     x.crop_left = 3;
                     x.crop_right = v as usize & 0xFFFF;
                     x.duration = v >> 4;
-                    x.alpha_mode = ffi::AVAlphaMode(w as u32 % 3);
+                    x.alpha_mode = w as u32 % 3;
                     x.linesize[w as usize & 7] = w;
                     x.opaque = ptr::without_provenance_mut(v as usize);
                 }
@@ -2110,7 +2086,7 @@ mod frame_type {
                 // For the unsafe operations below: plain fields of the live frame.
                 {
                     // SAFETY: as the comment above this block states.
-                    unsafe { (*f).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0 };
+                    unsafe { (*f).format = ffi::AV_PIX_FMT_GRAY8 };
                     // SAFETY: as the comment above this block states.
                     unsafe { (*f).width = 4 };
                     // SAFETY: as the comment above this block states.
@@ -2220,7 +2196,7 @@ mod frame_type {
             // For the unsafe operations below: the same fields of the C frame.
             {
                 // SAFETY: as the comment above this block states.
-                unsafe { (*c.0).format = ffi::AVPixelFormat::AV_PIX_FMT_GRAY8.0 };
+                unsafe { (*c.0).format = ffi::AV_PIX_FMT_GRAY8 };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*c.0).width = w };
                 // SAFETY: as the comment above this block states.
@@ -2297,7 +2273,7 @@ mod frame_type {
                 {
                     let f = c.0;
                     // SAFETY: as the comment above this block states.
-                    unsafe { (*f).format = ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P.0 };
+                    unsafe { (*f).format = ffi::AV_SAMPLE_FMT_U8P };
                     // SAFETY: as the comment above this block states.
                     unsafe { (*f).nb_samples = samples as c_int };
                     // SAFETY: as the comment above this block states.
@@ -2415,7 +2391,7 @@ mod frame_routines {
             // For the unsafe operations below: the same fields of the live C frame.
             {
                 // SAFETY: as the comment above this block states.
-                unsafe { (*p.c.0).format = format.into_raw().0 };
+                unsafe { (*p.c.0).format = format.into_raw() };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*p.c.0).width = w };
                 // SAFETY: as the comment above this block states.
@@ -2437,11 +2413,11 @@ mod frame_routines {
             // layout has no map.
             {
                 // SAFETY: as the comment above this block states.
-                unsafe { (*p.c.0).format = format.into_raw().0 };
+                unsafe { (*p.c.0).format = format.into_raw() };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*p.c.0).nb_samples = samples };
                 // SAFETY: as the comment above this block states.
-                unsafe { (*p.c.0).ch_layout.order = ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC };
+                unsafe { (*p.c.0).ch_layout.order = ffi::AV_CHANNEL_ORDER_UNSPEC };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*p.c.0).ch_layout.nb_channels = channels };
             }
@@ -2605,7 +2581,7 @@ mod frame_routines {
         // C's refusals.
         let refused: [Make; 7] = [
             || Pair::video(PixelFormat::NONE, 4, 4),
-            || Pair::video(PixelFormat::from_raw(ffi::AVPixelFormat(100_000)), 4, 4),
+            || Pair::video(PixelFormat::from_raw(100_000), 4, 4),
             || Pair::video(PixelFormat::VAAPI, 4, 4),
             || Pair::video(PixelFormat::GRAY8, 1 << 20, 1 << 20),
             || Pair::video(PixelFormat::GRAY8, 0, 4),
@@ -2749,18 +2725,14 @@ mod frame_routines {
             // SAFETY: as the comment above this block states.
             unsafe { (*f).metadata = c_dict(&pairs) };
             // SAFETY: as the comment above this block states.
-            let e = unsafe {
-                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 1)
-            };
+            let e = unsafe { ffi::av_frame_new_side_data(f, ffi::AV_FRAME_DATA_AFD, 1) };
             // SAFETY: as the comment above this block states: a read of the new entry's
             // payload pointer.
             let payload = unsafe { (*e).data };
             // SAFETY: as the comment above this block states.
             unsafe { *payload = k as u8 };
             // SAFETY: as the comment above this block states.
-            let e = unsafe {
-                ffi::av_frame_new_side_data(f, ffi::AVFrameSideDataType::AV_FRAME_DATA_PANSCAN, 20)
-            };
+            let e = unsafe { ffi::av_frame_new_side_data(f, ffi::AV_FRAME_DATA_PANSCAN, 20) };
             // SAFETY: as the comment below states, for this part of the operation.
             let data_5 = unsafe { (*e).data };
             // SAFETY: as the comment above this block states.
@@ -3268,9 +3240,7 @@ mod frame_routines {
         // For the unsafe operations below: as above.
         {
             // SAFETY: as the comment above this block states.
-            let e = unsafe {
-                ffi::av_frame_new_side_data(p.c.0, ffi::AVFrameSideDataType::AV_FRAME_DATA_AFD, 4)
-            };
+            let e = unsafe { ffi::av_frame_new_side_data(p.c.0, ffi::AV_FRAME_DATA_AFD, 4) };
             // SAFETY: as the comment below states, for this part of the operation.
             let data_2 = unsafe { (*e).data };
             // SAFETY: as the comment above this block states.

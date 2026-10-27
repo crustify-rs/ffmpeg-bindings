@@ -86,87 +86,87 @@ pub struct Channel(ffi::AVChannel);
 
 impl Channel {
     /// The Ambisonic component with ACN index 0.
-    pub const AMBISONIC_BASE: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_BASE);
+    pub const AMBISONIC_BASE: Self = Self(ffi::AV_CHAN_AMBISONIC_BASE);
     /// The last Ambisonic component, ACN index 1023 (order-32 harmonics).
-    pub const AMBISONIC_END: Self = Self(ffi::AVChannel::AV_CHAN_AMBISONIC_END);
+    pub const AMBISONIC_END: Self = Self(ffi::AV_CHAN_AMBISONIC_END);
     /// Back center (`BC`).
-    pub const BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_BACK_CENTER);
+    pub const BACK_CENTER: Self = Self(ffi::AV_CHAN_BACK_CENTER);
     /// Back left (`BL`).
-    pub const BACK_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BACK_LEFT);
+    pub const BACK_LEFT: Self = Self(ffi::AV_CHAN_BACK_LEFT);
     /// Back right (`BR`).
-    pub const BACK_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BACK_RIGHT);
+    pub const BACK_RIGHT: Self = Self(ffi::AV_CHAN_BACK_RIGHT);
     /// Binaural left (`BIL`).
-    pub const BINAURAL_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_LEFT);
+    pub const BINAURAL_LEFT: Self = Self(ffi::AV_CHAN_BINAURAL_LEFT);
     /// Binaural right (`BIR`).
-    pub const BINAURAL_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BINAURAL_RIGHT);
+    pub const BINAURAL_RIGHT: Self = Self(ffi::AV_CHAN_BINAURAL_RIGHT);
     /// Bottom front center (`BFC`).
-    pub const BOTTOM_FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_CENTER);
+    pub const BOTTOM_FRONT_CENTER: Self = Self(ffi::AV_CHAN_BOTTOM_FRONT_CENTER);
     /// Bottom front left (`BFL`).
-    pub const BOTTOM_FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_LEFT);
+    pub const BOTTOM_FRONT_LEFT: Self = Self(ffi::AV_CHAN_BOTTOM_FRONT_LEFT);
     /// Bottom front right (`BFR`).
-    pub const BOTTOM_FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_BOTTOM_FRONT_RIGHT);
+    pub const BOTTOM_FRONT_RIGHT: Self = Self(ffi::AV_CHAN_BOTTOM_FRONT_RIGHT);
     /// Front center (`FC`).
-    pub const FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_CENTER);
+    pub const FRONT_CENTER: Self = Self(ffi::AV_CHAN_FRONT_CENTER);
     /// Front left (`FL`).
-    pub const FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT);
+    pub const FRONT_LEFT: Self = Self(ffi::AV_CHAN_FRONT_LEFT);
     /// Front left-of-center (`FLC`).
-    pub const FRONT_LEFT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_LEFT_OF_CENTER);
+    pub const FRONT_LEFT_OF_CENTER: Self = Self(ffi::AV_CHAN_FRONT_LEFT_OF_CENTER);
     /// Front right (`FR`).
-    pub const FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT);
+    pub const FRONT_RIGHT: Self = Self(ffi::AV_CHAN_FRONT_RIGHT);
     /// Front right-of-center (`FRC`).
-    pub const FRONT_RIGHT_OF_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_FRONT_RIGHT_OF_CENTER);
+    pub const FRONT_RIGHT_OF_CENTER: Self = Self(ffi::AV_CHAN_FRONT_RIGHT_OF_CENTER);
     /// Low frequency (`LFE`).
-    pub const LOW_FREQUENCY: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY);
+    pub const LOW_FREQUENCY: Self = Self(ffi::AV_CHAN_LOW_FREQUENCY);
     /// Second low frequency (`LFE2`).
-    pub const LOW_FREQUENCY_2: Self = Self(ffi::AVChannel::AV_CHAN_LOW_FREQUENCY_2);
+    pub const LOW_FREQUENCY_2: Self = Self(ffi::AV_CHAN_LOW_FREQUENCY_2);
     /// Invalid channel index.
-    pub const NONE: Self = Self(ffi::AVChannel::AV_CHAN_NONE);
+    pub const NONE: Self = Self(ffi::AV_CHAN_NONE);
     /// Side left (`SL`).
-    pub const SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_LEFT);
+    pub const SIDE_LEFT: Self = Self(ffi::AV_CHAN_SIDE_LEFT);
     /// Side right (`SR`).
-    pub const SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_RIGHT);
+    pub const SIDE_RIGHT: Self = Self(ffi::AV_CHAN_SIDE_RIGHT);
     /// Side surround left, +90 degrees (`SSL`).
-    pub const SIDE_SURROUND_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_SURROUND_LEFT);
+    pub const SIDE_SURROUND_LEFT: Self = Self(ffi::AV_CHAN_SIDE_SURROUND_LEFT);
     /// Side surround right, -90 degrees (`SSR`).
-    pub const SIDE_SURROUND_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SIDE_SURROUND_RIGHT);
+    pub const SIDE_SURROUND_RIGHT: Self = Self(ffi::AV_CHAN_SIDE_SURROUND_RIGHT);
     /// Stereo downmix left (`DL`).
-    pub const STEREO_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_LEFT);
+    pub const STEREO_LEFT: Self = Self(ffi::AV_CHAN_STEREO_LEFT);
     /// Stereo downmix right (`DR`).
-    pub const STEREO_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_STEREO_RIGHT);
+    pub const STEREO_RIGHT: Self = Self(ffi::AV_CHAN_STEREO_RIGHT);
     /// Surround direct left (`SDL`).
-    pub const SURROUND_DIRECT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_LEFT);
+    pub const SURROUND_DIRECT_LEFT: Self = Self(ffi::AV_CHAN_SURROUND_DIRECT_LEFT);
     /// Surround direct right (`SDR`).
-    pub const SURROUND_DIRECT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_SURROUND_DIRECT_RIGHT);
+    pub const SURROUND_DIRECT_RIGHT: Self = Self(ffi::AV_CHAN_SURROUND_DIRECT_RIGHT);
     /// Top back center (`TBC`).
-    pub const TOP_BACK_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_CENTER);
+    pub const TOP_BACK_CENTER: Self = Self(ffi::AV_CHAN_TOP_BACK_CENTER);
     /// Top back left (`TBL`).
-    pub const TOP_BACK_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_LEFT);
+    pub const TOP_BACK_LEFT: Self = Self(ffi::AV_CHAN_TOP_BACK_LEFT);
     /// Top back right (`TBR`).
-    pub const TOP_BACK_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_BACK_RIGHT);
+    pub const TOP_BACK_RIGHT: Self = Self(ffi::AV_CHAN_TOP_BACK_RIGHT);
     /// Top center (`TC`).
-    pub const TOP_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_CENTER);
+    pub const TOP_CENTER: Self = Self(ffi::AV_CHAN_TOP_CENTER);
     /// Top front center (`TFC`).
-    pub const TOP_FRONT_CENTER: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_CENTER);
+    pub const TOP_FRONT_CENTER: Self = Self(ffi::AV_CHAN_TOP_FRONT_CENTER);
     /// Top front left (`TFL`).
-    pub const TOP_FRONT_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_LEFT);
+    pub const TOP_FRONT_LEFT: Self = Self(ffi::AV_CHAN_TOP_FRONT_LEFT);
     /// Top front right (`TFR`).
-    pub const TOP_FRONT_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_FRONT_RIGHT);
+    pub const TOP_FRONT_RIGHT: Self = Self(ffi::AV_CHAN_TOP_FRONT_RIGHT);
     /// Top side left (`TSL`).
-    pub const TOP_SIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_LEFT);
+    pub const TOP_SIDE_LEFT: Self = Self(ffi::AV_CHAN_TOP_SIDE_LEFT);
     /// Top side right (`TSR`).
-    pub const TOP_SIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SIDE_RIGHT);
+    pub const TOP_SIDE_RIGHT: Self = Self(ffi::AV_CHAN_TOP_SIDE_RIGHT);
     /// Top surround left, +110 degrees (`TTL`).
-    pub const TOP_SURROUND_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SURROUND_LEFT);
+    pub const TOP_SURROUND_LEFT: Self = Self(ffi::AV_CHAN_TOP_SURROUND_LEFT);
     /// Top surround right, -110 degrees (`TTR`).
-    pub const TOP_SURROUND_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_TOP_SURROUND_RIGHT);
+    pub const TOP_SURROUND_RIGHT: Self = Self(ffi::AV_CHAN_TOP_SURROUND_RIGHT);
     /// A channel with data at an unknown position.
-    pub const UNKNOWN: Self = Self(ffi::AVChannel::AV_CHAN_UNKNOWN);
+    pub const UNKNOWN: Self = Self(ffi::AV_CHAN_UNKNOWN);
     /// An empty channel that can be safely skipped.
-    pub const UNUSED: Self = Self(ffi::AVChannel::AV_CHAN_UNUSED);
+    pub const UNUSED: Self = Self(ffi::AV_CHAN_UNUSED);
     /// Wide left (`WL`).
-    pub const WIDE_LEFT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_LEFT);
+    pub const WIDE_LEFT: Self = Self(ffi::AV_CHAN_WIDE_LEFT);
     /// Wide right (`WR`).
-    pub const WIDE_RIGHT: Self = Self(ffi::AVChannel::AV_CHAN_WIDE_RIGHT);
+    pub const WIDE_RIGHT: Self = Self(ffi::AV_CHAN_WIDE_RIGHT);
 
     /// The channel C encodes as `raw`, whatever its value.
     #[inline]
@@ -187,9 +187,9 @@ impl Channel {
     #[inline]
     #[must_use]
     pub const fn ambisonic(acn: u16) -> Option<Self> {
-        let base = Self::AMBISONIC_BASE.0.0;
-        if acn as i32 <= Self::AMBISONIC_END.0.0 - base {
-            Some(Self(ffi::AVChannel(base + acn as i32)))
+        let base = Self::AMBISONIC_BASE.0;
+        if acn as i32 <= Self::AMBISONIC_END.0 - base {
+            Some(Self(base + acn as i32))
         } else {
             None
         }
@@ -206,8 +206,8 @@ impl Channel {
         reason = "within the checked ambisonic range, which is below 2^16"
     )]
     pub const fn ambisonic_index(self) -> Option<u16> {
-        let (raw, base) = (self.0.0, Self::AMBISONIC_BASE.0.0);
-        if raw >= base && raw <= Self::AMBISONIC_END.0.0 {
+        let (raw, base) = (self.0, Self::AMBISONIC_BASE.0);
+        if raw >= base && raw <= Self::AMBISONIC_END.0 {
             Some((raw - base) as u16)
         } else {
             None
@@ -232,7 +232,7 @@ impl Channel {
     #[inline]
     #[must_use]
     pub const fn mask(self) -> Option<u64> {
-        let id = self.0.0;
+        let id = self.0;
         if id >= 0 && id < 64 {
             Some(1 << id)
         } else {
@@ -304,7 +304,7 @@ impl fmt::Debug for Channel {
         } else if let Some(acn) = self.ambisonic_index() {
             f.debug_tuple("AMBISONIC").field(&acn).finish()
         } else {
-            f.debug_tuple("Channel").field(&self.0.0).finish()
+            f.debug_tuple("Channel").field(&self.0).finish()
         }
     }
 }
@@ -319,7 +319,7 @@ impl PartialOrd for Channel {
 impl Ord for Channel {
     #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.0.0.cmp(&other.0.0)
+        self.0.cmp(&other.0)
     }
 }
 
@@ -388,22 +388,21 @@ impl MatrixEncoding {
     /// The number of encodings from [`NONE`](Self::NONE) to
     /// [`DOLBY_HEADPHONE`](Self::DOLBY_HEADPHONE) (`AV_MATRIX_ENCODING_NB`):
     /// the length of an array indexed by [`index`](Self::index).
-    pub const COUNT: usize = ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB.0 as usize;
+    pub const COUNT: usize = ffi::AV_MATRIX_ENCODING_NB as usize;
     /// Dolby Surround.
-    pub const DOLBY: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBY);
+    pub const DOLBY: Self = Self(ffi::AV_MATRIX_ENCODING_DOLBY);
     /// Dolby Digital EX.
-    pub const DOLBY_EX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYEX);
+    pub const DOLBY_EX: Self = Self(ffi::AV_MATRIX_ENCODING_DOLBYEX);
     /// Dolby Headphone.
-    pub const DOLBY_HEADPHONE: Self =
-        Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DOLBYHEADPHONE);
+    pub const DOLBY_HEADPHONE: Self = Self(ffi::AV_MATRIX_ENCODING_DOLBYHEADPHONE);
     /// Dolby Pro Logic II.
-    pub const DPLII: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLII);
+    pub const DPLII: Self = Self(ffi::AV_MATRIX_ENCODING_DPLII);
     /// Dolby Pro Logic `IIx`.
-    pub const DPLIIX: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIX);
+    pub const DPLIIX: Self = Self(ffi::AV_MATRIX_ENCODING_DPLIIX);
     /// Dolby Pro Logic `IIz`.
-    pub const DPLIIZ: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_DPLIIZ);
+    pub const DPLIIZ: Self = Self(ffi::AV_MATRIX_ENCODING_DPLIIZ);
     /// No matrixed encoding.
-    pub const NONE: Self = Self(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NONE);
+    pub const NONE: Self = Self(ffi::AV_MATRIX_ENCODING_NONE);
 
     /// The encoding C encodes as `raw`, whatever its value.
     #[inline]
@@ -424,7 +423,7 @@ impl MatrixEncoding {
     #[inline]
     #[must_use]
     pub const fn index(self) -> Option<usize> {
-        let raw = self.0.0 as usize;
+        let raw = self.0 as usize;
         if raw < Self::COUNT { Some(raw) } else { None }
     }
 
@@ -454,7 +453,7 @@ impl fmt::Debug for MatrixEncoding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("MatrixEncoding").field(&self.0.0).finish(),
+            None => f.debug_tuple("MatrixEncoding").field(&self.0).finish(),
         }
     }
 }
@@ -513,16 +512,16 @@ impl ChannelOrder {
     /// Each channel is one spherical harmonic of the sound field, in ACN
     /// order (SN3D normalization); the mask, if any, marks the trailing
     /// non-diegetic channels.
-    pub const AMBISONIC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_AMBISONIC);
+    pub const AMBISONIC: Self = Self(ffi::AV_CHANNEL_ORDER_AMBISONIC);
     /// The channels are listed one by one in the layout's map, in any order,
     /// with unused or repeated channels and 64 or more of them allowed.
-    pub const CUSTOM: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM);
+    pub const CUSTOM: Self = Self(ffi::AV_CHANNEL_ORDER_CUSTOM);
     /// The channels are those set in the layout's mask, in the order of the
     /// `AVChannel` values; up to 63 distinct channels.
-    pub const NATIVE: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_NATIVE);
+    pub const NATIVE: Self = Self(ffi::AV_CHANNEL_ORDER_NATIVE);
     /// Only the channel count is known, not which channels they are or their
     /// order.
-    pub const UNSPEC: Self = Self(ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+    pub const UNSPEC: Self = Self(ffi::AV_CHANNEL_ORDER_UNSPEC);
 
     /// The channel order C encodes as `raw`, whatever its value.
     #[inline]
@@ -561,7 +560,7 @@ impl fmt::Debug for ChannelOrder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("ChannelOrder").field(&self.0.0).finish(),
+            None => f.debug_tuple("ChannelOrder").field(&self.0).finish(),
         }
     }
 }
@@ -3004,7 +3003,7 @@ mod unit_tests {
     ];
 
     fn channel(raw: c_int) -> Channel {
-        Channel::from_raw(ffi::AVChannel(raw))
+        Channel::from_raw(raw)
     }
 
     #[test]
@@ -3017,10 +3016,10 @@ mod unit_tests {
     #[test]
     fn channel_constants_have_the_header_values() {
         for (ch, raw, _) in CHANNEL_NAMED {
-            assert_eq!(ch.into_raw().0, raw, "{ch:?}");
+            assert_eq!(ch.into_raw(), raw, "{ch:?}");
         }
-        assert_eq!(Channel::AMBISONIC_BASE.into_raw().0, 0x400);
-        assert_eq!(Channel::AMBISONIC_END.into_raw().0, 0x7FF);
+        assert_eq!(Channel::AMBISONIC_BASE.into_raw(), 0x400);
+        assert_eq!(Channel::AMBISONIC_END.into_raw(), 0x7FF);
     }
 
     #[test]
@@ -3071,7 +3070,7 @@ mod unit_tests {
         for acn in 0..=1023 {
             let ch = Channel::ambisonic(acn).unwrap();
             assert_eq!(ch.ambisonic_index(), Some(acn));
-            assert_eq!(ch.into_raw().0, 0x400 + c_int::from(acn));
+            assert_eq!(ch.into_raw(), 0x400 + c_int::from(acn));
         }
     }
 
@@ -3097,7 +3096,7 @@ mod unit_tests {
         raws.sort_unstable();
         channels.sort_unstable();
         assert_eq!(
-            channels.iter().map(|c| c.into_raw().0).collect::<Vec<_>>(),
+            channels.iter().map(|c| c.into_raw()).collect::<Vec<_>>(),
             raws
         );
         assert!(Channel::NONE < Channel::FRONT_LEFT);
@@ -3108,7 +3107,7 @@ mod unit_tests {
     fn channel_raw_conversions_round_trip_every_value() {
         let named = CHANNEL_NAMED.iter().map(|&(_, raw, _)| raw);
         for raw in named.chain(CHANNEL_UNNAMED).chain([0x400, 0x5AB, 0x7FF]) {
-            let c = ffi::AVChannel(raw);
+            let c = raw;
             assert_eq!(Channel::from(c).into_raw(), c);
             assert_eq!(ffi::AVChannel::from(Channel::from_raw(c)), c);
         }
@@ -3117,7 +3116,7 @@ mod unit_tests {
     #[test]
     fn channel_default_is_none() {
         assert_eq!(Channel::default(), Channel::NONE);
-        assert_eq!(Channel::default().into_raw().0, -1);
+        assert_eq!(Channel::default().into_raw(), -1);
         assert_eq!(Channel::default().ambisonic_index(), None);
         assert_eq!(format!("{:?}", Channel::default()), "NONE");
     }
@@ -3143,8 +3142,8 @@ mod unit_tests {
 
     #[test]
     fn matrix_encoding_unnamed_values_have_no_index_and_debug_as_raw() {
-        let nb = MatrixEncoding::from_raw(ffi::AVMatrixEncoding::AV_MATRIX_ENCODING_NB);
-        let huge = MatrixEncoding::from_raw(ffi::AVMatrixEncoding(u32::MAX));
+        let nb = MatrixEncoding::from_raw(ffi::AV_MATRIX_ENCODING_NB);
+        let huge = MatrixEncoding::from_raw(u32::MAX);
         for e in [nb, huge] {
             assert_eq!(e.index(), None);
             assert_eq!(e.name(), None);
@@ -3174,7 +3173,7 @@ mod unit_tests {
     #[test]
     fn matrix_encoding_default_is_none_the_zeroed_value() {
         assert_eq!(MatrixEncoding::default(), MatrixEncoding::NONE);
-        assert_eq!(MatrixEncoding::default().into_raw().0, 0);
+        assert_eq!(MatrixEncoding::default().into_raw(), 0);
         assert_eq!(MatrixEncoding::default().index(), Some(0));
         assert_eq!(format!("{:?}", MatrixEncoding::default()), "NONE");
     }
@@ -3209,9 +3208,9 @@ mod unit_tests {
     #[test]
     fn channel_order_constants_are_distinct_and_in_c_order() {
         for (i, (order, _)) in CHANNEL_ORDER_NAMED.iter().enumerate() {
-            assert_eq!(order.into_raw().0, i as c_uint);
+            assert_eq!(order.into_raw(), i as c_uint);
         }
-        let nb = ffi::AVChannelOrder::FF_CHANNEL_ORDER_NB.0;
+        let nb = ffi::FF_CHANNEL_ORDER_NB;
         assert_eq!(nb as usize, CHANNEL_ORDER_NAMED.len());
         assert!(CHANNEL_ORDER_UNNAMED.contains(&nb));
     }
@@ -3227,7 +3226,7 @@ mod unit_tests {
     #[test]
     fn channel_order_debug_shows_unnamed_values_raw() {
         for raw in CHANNEL_ORDER_UNNAMED {
-            let order = ChannelOrder::from_raw(ffi::AVChannelOrder(raw));
+            let order = ChannelOrder::from_raw(raw);
             assert_eq!(order.name(), None);
             assert_eq!(format!("{order:?}"), format!("ChannelOrder({raw})"));
             assert!(CHANNEL_ORDER_NAMED.iter().all(|&(n, _)| n != order));
@@ -3237,17 +3236,17 @@ mod unit_tests {
     #[test]
     fn channel_order_default_is_the_zeroed_value() {
         assert_eq!(ChannelOrder::default(), ChannelOrder::UNSPEC);
-        assert_eq!(ChannelOrder::default().into_raw().0, 0);
+        assert_eq!(ChannelOrder::default().into_raw(), 0);
     }
 
     #[test]
     fn channel_order_raw_conversions_round_trip_every_value() {
         let all = CHANNEL_ORDER_NAMED
-            .map(|(o, _)| o.into_raw().0)
+            .map(|(o, _)| o.into_raw())
             .into_iter()
             .chain(CHANNEL_ORDER_UNNAMED);
         for raw in all {
-            let c = ffi::AVChannelOrder(raw);
+            let c = raw;
             assert_eq!(ChannelOrder::from(c).into_raw(), c);
             assert_eq!(ffi::AVChannelOrder::from(ChannelOrder::from_raw(c)), c);
             assert_eq!(ChannelOrder::from_raw(c), ChannelOrder::from(c));
@@ -3261,14 +3260,14 @@ mod unit_tests {
         let all: Vec<ChannelOrder> = CHANNEL_ORDER_NAMED
             .map(|(v, _)| v)
             .into_iter()
-            .chain(CHANNEL_ORDER_UNNAMED.map(|r| ChannelOrder::from_raw(ffi::AVChannelOrder(r))))
+            .chain(CHANNEL_ORDER_UNNAMED.map(ChannelOrder::from_raw))
             .collect();
         for v in &all {
             assert_eq!(v.clone().into_raw(), v.into_raw());
         }
         let set: HashSet<ChannelOrder> = all.iter().copied().collect();
         assert_eq!(set.len(), all.len());
-        assert!(set.contains(&ChannelOrder::from_raw(ffi::AVChannelOrder(2))));
+        assert!(set.contains(&ChannelOrder::from_raw(2)));
         assert!(set.contains(&ChannelOrder::CUSTOM));
     }
 
@@ -3283,7 +3282,7 @@ mod unit_tests {
             *nul = 0;
         }
         ffi::AVChannelCustom {
-            id: ffi::AVChannel(id),
+            id,
             name: field,
             opaque: ptr::without_provenance_mut(opaque),
         }
@@ -3291,7 +3290,7 @@ mod unit_tests {
 
     /// Every byte of a raw channel, as a comparable tuple.
     fn channel_custom_bytes(r: ffi::AVChannelCustom) -> (c_int, [c_char; 16], *mut c_void) {
-        (r.id.0, r.name, r.opaque)
+        (r.id, r.name, r.opaque)
     }
 
     #[test]
@@ -3319,7 +3318,7 @@ mod unit_tests {
         assert!(d.as_ref().name().is_empty());
         assert!(d.as_ref().opaque().is_null());
         let n = ChannelCustom::new(Channel::LOW_FREQUENCY);
-        assert_eq!(n.into_raw().id, ffi::AVChannel::AV_CHAN_LOW_FREQUENCY);
+        assert_eq!(n.into_raw().id, ffi::AV_CHAN_LOW_FREQUENCY);
         assert_eq!(n.into_raw().name, [0; 16]);
         assert_ne!(n, d);
         assert_eq!(ChannelCustom::new(Channel::UNKNOWN), d);
@@ -3333,7 +3332,7 @@ mod unit_tests {
         assert_eq!(back.id, raw.id);
         assert_eq!(back.name, raw.name);
         assert_eq!(back.opaque, raw.opaque);
-        assert_eq!(ch.as_ref().id(), Channel::from_raw(ffi::AVChannel(-7)));
+        assert_eq!(ch.as_ref().id(), Channel::from_raw(-7));
         assert_eq!(ch.as_ref().name(), c"abc");
         assert_eq!(ch.as_ref().name(), *c"abc");
         assert!(ch.as_ref().name() != *c"ab");
@@ -3345,15 +3344,15 @@ mod unit_tests {
     fn channel_custom_setters_write_each_field_alone() {
         let mut ch = ChannelCustom::from_raw(channel_custom_raw(1, b"x", 0, 0));
         let mut m = ch.as_mut();
-        m.set_id(Channel::from_raw(ffi::AVChannel(c_int::MAX)));
+        m.set_id(Channel::from_raw(c_int::MAX));
         assert_eq!(m.as_ref().name(), c"x");
         let mut cookie = 5u64;
         m.set_opaque((&raw mut cookie).cast());
-        assert_eq!(m.as_ref().id().into_raw().0, c_int::MAX);
+        assert_eq!(m.as_ref().id().into_raw(), c_int::MAX);
         assert_eq!(m.as_ref().name(), c"x");
         assert_eq!(m.set_name(c"rear"), Ok(()));
         assert_eq!(m.as_ref().opaque(), (&raw mut cookie).cast());
-        assert_eq!(m.as_ref().id().into_raw().0, c_int::MAX);
+        assert_eq!(m.as_ref().id().into_raw(), c_int::MAX);
         m.set_opaque(ptr::null_mut());
         assert!(ch.as_ref().opaque().is_null());
         assert_eq!(ch.as_ref().name(), c"rear");
@@ -3539,7 +3538,7 @@ mod unit_tests {
         let mut m = unsafe { ChannelCustomMut::from_ptr(&raw mut raw) }.unwrap();
         m.set_id(Channel::FRONT_CENTER);
         assert_eq!(m.set_name(c"centre"), Ok(()));
-        assert_eq!(raw.id, ffi::AVChannel::AV_CHAN_FRONT_CENTER);
+        assert_eq!(raw.id, ffi::AV_CHAN_FRONT_CENTER);
         // SAFETY: as above, for a shared handle.
         let r = unsafe { ChannelCustomRef::from_ptr(&raw mut raw) }.unwrap();
         assert_eq!(r.name(), c"centre");
@@ -3596,13 +3595,9 @@ mod unit_tests {
             (Channel::NONE, c"NONE", c"none"),
             (Channel::UNKNOWN, c"UNK", c"unknown"),
             (Channel::UNUSED, c"UNSD", c"unused"),
+            (Channel::from_raw(500), c"USR500", c"user 500"),
             (
-                Channel::from_raw(ffi::AVChannel(500)),
-                c"USR500",
-                c"user 500",
-            ),
-            (
-                Channel::from_raw(ffi::AVChannel(i32::MIN)),
+                Channel::from_raw(i32::MIN),
                 c"USR-2147483648",
                 c"user -2147483648",
             ),
@@ -3634,10 +3629,7 @@ mod unit_tests {
     fn from_name_reads_cs_none_as_not_found() {
         assert_eq!(Channel::from_name(c"FC"), Some(Channel::FRONT_CENTER));
         assert_eq!(Channel::from_name(c"AMBI2"), Channel::ambisonic(2));
-        assert_eq!(
-            Channel::from_name(c"USR7"),
-            Some(Channel::from_raw(ffi::AVChannel(7)))
-        );
+        assert_eq!(Channel::from_name(c"USR7"), Some(Channel::from_raw(7)));
         assert_eq!(Channel::from_name(c"UNSD"), Some(Channel::UNUSED));
         for name in [c"", c"NONE", c"fc", c"AMBI1024", c"USR-1", c"USR7x"] {
             assert_eq!(Channel::from_name(name), None, "{name:?}");
@@ -3651,7 +3643,7 @@ mod unit_tests {
         let raw = unsafe { l.as_ptr().read() };
         // SAFETY: every bit pattern of the union's 8 bytes is a `u64`.
         let mask = unsafe { raw.u.mask };
-        (raw.order.0, raw.nb_channels, mask, raw.opaque as usize)
+        (raw.order, raw.nb_channels, mask, raw.opaque as usize)
     }
 
     /// A custom map of `ids`, each named `n<i>`.
@@ -3678,7 +3670,7 @@ mod unit_tests {
     /// a stale stack shadow there as a use after free (see
     /// `tests/common/channel_layout.rs`).
     fn c_parser_takes_numbers() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() != Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() != Ok("bsan")
     }
 
     #[test]
@@ -3742,12 +3734,7 @@ mod unit_tests {
         // `into_inner` gave up disposal: hand the map back to an owner.
         // SAFETY: `value` came out of `into_inner`, the sole owner of its map.
         drop(unsafe { ChannelLayoutVal::new(value) });
-        let unknown = ChannelLayout::masked(
-            ChannelOrder::from_raw(ffi::AVChannelOrder(9)),
-            0,
-            0,
-            ptr::null_mut(),
-        );
+        let unknown = ChannelLayout::masked(ChannelOrder::from_raw(9), 0, 0, ptr::null_mut());
         // SAFETY: `masked` builds a layout with no map.
         let unknown = unsafe { ChannelLayout::from_parts(unknown) };
         assert_eq!(
@@ -3770,11 +3757,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_custom_map_moves_in_and_out_keeping_the_user_pointer() {
-        let ids = [
-            Channel::FRONT_LEFT,
-            Channel::from_raw(ffi::AVChannel(70)),
-            Channel::UNKNOWN,
-        ];
+        let ids = [Channel::FRONT_LEFT, Channel::from_raw(70), Channel::UNKNOWN];
         let mut l = ChannelLayout::from_custom_map(named_map(&ids)).unwrap();
         l.as_mut().set_opaque(cookie(16));
         assert_eq!(l.as_ref().order(), ChannelOrder::CUSTOM);
@@ -3901,7 +3884,7 @@ mod unit_tests {
     #[cfg_attr(miri, ignore = "calls C")]
     fn channel_layout_mapless_custom_state_is_read_as_empty_and_not_copied() {
         let mut raw = ffi::AVChannelLayout {
-            order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+            order: ffi::AV_CHANNEL_ORDER_CUSTOM,
             nb_channels: 2,
             u: ffi::AVChannelLayout__bindgen_ty_1 {
                 map: ptr::null_mut(),
@@ -3924,7 +3907,7 @@ mod unit_tests {
             assert_eq!(layout_raw(dst.as_ref()), (1, 2, 0x3, 0));
             assert!(m.take_custom_map().is_none());
         }
-        assert_eq!(raw.order, ffi::AVChannelOrder::AV_CHANNEL_ORDER_UNSPEC);
+        assert_eq!(raw.order, ffi::AV_CHANNEL_ORDER_UNSPEC);
         assert_eq!((raw.nb_channels, raw.opaque), (2, cookie(48)));
     }
 
@@ -3934,7 +3917,7 @@ mod unit_tests {
     fn channel_layout_negative_custom_count_reads_as_empty() {
         let mut map = named_map(&[Channel::FRONT_LEFT]);
         let mut raw = ffi::AVChannelLayout {
-            order: ffi::AVChannelOrder::AV_CHANNEL_ORDER_CUSTOM,
+            order: ffi::AV_CHANNEL_ORDER_CUSTOM,
             nb_channels: -1,
             u: ffi::AVChannelLayout__bindgen_ty_1 {
                 map: map.as_handles_mut().as_mut_ptr(),
@@ -4332,7 +4315,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn inconsistent_native_and_ambisonic_counts_read_as_c_reads_them() {
-        let user50 = Channel::from_raw(ffi::AVChannel(50));
+        let user50 = Channel::from_raw(50);
         let wide = raw_layout(ChannelOrder::NATIVE, 3, 1 | 1 << 50);
         let r = wide.as_ref();
         assert_eq!(r.channel(1), Some(user50));

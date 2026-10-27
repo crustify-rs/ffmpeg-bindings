@@ -223,7 +223,7 @@ mod owners {
     };
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// `size_max` values at every boundary `av_bprint_init` distinguishes.

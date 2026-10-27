@@ -22,71 +22,19 @@ use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
 /// Every named constant beside its C enumerator and C name.
 const NAMED: [(SampleFormat, ffi::AVSampleFormat, Option<&CStr>); 13] = [
-    (
-        SampleFormat::NONE,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE,
-        None,
-    ),
-    (
-        SampleFormat::U8,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_U8,
-        Some(c"u8"),
-    ),
-    (
-        SampleFormat::S16,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S16,
-        Some(c"s16"),
-    ),
-    (
-        SampleFormat::S32,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S32,
-        Some(c"s32"),
-    ),
-    (
-        SampleFormat::FLT,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_FLT,
-        Some(c"flt"),
-    ),
-    (
-        SampleFormat::DBL,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_DBL,
-        Some(c"dbl"),
-    ),
-    (
-        SampleFormat::U8P,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P,
-        Some(c"u8p"),
-    ),
-    (
-        SampleFormat::S16P,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P,
-        Some(c"s16p"),
-    ),
-    (
-        SampleFormat::S32P,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S32P,
-        Some(c"s32p"),
-    ),
-    (
-        SampleFormat::FLTP,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_FLTP,
-        Some(c"fltp"),
-    ),
-    (
-        SampleFormat::DBLP,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_DBLP,
-        Some(c"dblp"),
-    ),
-    (
-        SampleFormat::S64,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S64,
-        Some(c"s64"),
-    ),
-    (
-        SampleFormat::S64P,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S64P,
-        Some(c"s64p"),
-    ),
+    (SampleFormat::NONE, ffi::AV_SAMPLE_FMT_NONE, None),
+    (SampleFormat::U8, ffi::AV_SAMPLE_FMT_U8, Some(c"u8")),
+    (SampleFormat::S16, ffi::AV_SAMPLE_FMT_S16, Some(c"s16")),
+    (SampleFormat::S32, ffi::AV_SAMPLE_FMT_S32, Some(c"s32")),
+    (SampleFormat::FLT, ffi::AV_SAMPLE_FMT_FLT, Some(c"flt")),
+    (SampleFormat::DBL, ffi::AV_SAMPLE_FMT_DBL, Some(c"dbl")),
+    (SampleFormat::U8P, ffi::AV_SAMPLE_FMT_U8P, Some(c"u8p")),
+    (SampleFormat::S16P, ffi::AV_SAMPLE_FMT_S16P, Some(c"s16p")),
+    (SampleFormat::S32P, ffi::AV_SAMPLE_FMT_S32P, Some(c"s32p")),
+    (SampleFormat::FLTP, ffi::AV_SAMPLE_FMT_FLTP, Some(c"fltp")),
+    (SampleFormat::DBLP, ffi::AV_SAMPLE_FMT_DBLP, Some(c"dblp")),
+    (SampleFormat::S64, ffi::AV_SAMPLE_FMT_S64, Some(c"s64")),
+    (SampleFormat::S64P, ffi::AV_SAMPLE_FMT_S64P, Some(c"s64p")),
 ];
 
 /// Values C may store though it names none of them, `AV_SAMPLE_FMT_NB` included.
@@ -176,11 +124,7 @@ fn c_values(c: &CFormats) -> Vec<ffi::AVSampleFormat> {
 }
 
 fn all_values() -> Vec<ffi::AVSampleFormat> {
-    NAMED
-        .iter()
-        .map(|&(_, c, _)| c)
-        .chain(UNNAMED.map(ffi::AVSampleFormat))
-        .collect()
+    NAMED.iter().map(|&(_, c, _)| c).chain(UNNAMED).collect()
 }
 
 #[test]
@@ -193,10 +137,7 @@ fn constants_are_the_c_enumerators() {
         assert_eq!(c_name(f.into_raw()), name);
         assert_eq!(c_properties(f.into_raw()), c_properties(c));
     }
-    assert_eq!(
-        SampleFormat::COUNT,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_NB.0 as usize
-    );
+    assert_eq!(SampleFormat::COUNT, ffi::AV_SAMPLE_FMT_NB as usize);
 }
 
 #[test]
@@ -214,15 +155,15 @@ fn c_parses_each_name_back_to_its_constant() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn index_is_some_exactly_where_c_knows_the_format() {
-    let all = all_values().into_iter().map(|c| c.0);
+    let all = all_values().into_iter();
     for raw in all.chain(-3..=16) {
-        let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+        let f = SampleFormat::from_raw(raw);
         let known = f.index().is_some();
         assert_eq!(known, c_name(f.into_raw()).is_some(), "raw {raw}");
         // C's per-format table answers 0 bytes for every value it does not hold.
         let (bytes, _) = c_properties(f.into_raw());
         assert_eq!(known, bytes > 0, "raw {raw}");
-        assert_eq!(f.into_raw().0, raw);
+        assert_eq!(f.into_raw(), raw);
     }
 }
 
@@ -309,11 +250,11 @@ fn none_terminated_lists_end_where_c_ends_them() {
     // A C-built list in the shape of `AVCodec.sample_fmts`, read through the
     // Rust type up to its terminator, against C's own walk of the same block.
     let list = [
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_FLTP,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_S16,
-        ffi::AVSampleFormat(42),
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE,
-        ffi::AVSampleFormat::AV_SAMPLE_FMT_U8,
+        ffi::AV_SAMPLE_FMT_FLTP,
+        ffi::AV_SAMPLE_FMT_S16,
+        42,
+        ffi::AV_SAMPLE_FMT_NONE,
+        ffi::AV_SAMPLE_FMT_U8,
     ];
     let mut c = CFormats::zeroed(list.len());
     for (i, &v) in list.iter().enumerate() {
@@ -321,7 +262,7 @@ fn none_terminated_lists_end_where_c_ends_them() {
     }
     let c_walk: Vec<_> = (0..c.1)
         .map(|i| c.get(i))
-        .take_while(|&v| v != ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE)
+        .take_while(|&v| v != ffi::AV_SAMPLE_FMT_NONE)
         .collect();
     let rust = HeapVec::from_slice(&list.map(SampleFormat::from_raw)).unwrap();
     let rust_walk: Vec<_> = rust
@@ -365,11 +306,8 @@ fn default_is_the_format_c_gives_a_fresh_frame() {
         unsafe { ffi::av_frame_free(&raw mut f) };
         format
     };
-    assert_eq!(SampleFormat::default().into_raw().0, format);
-    assert_eq!(
-        SampleFormat::from_raw(ffi::AVSampleFormat(format)),
-        SampleFormat::default()
-    );
+    assert_eq!(SampleFormat::default().into_raw(), format);
+    assert_eq!(SampleFormat::from_raw(format), SampleFormat::default());
     assert_eq!(c_name(SampleFormat::default().into_raw()), None);
     // ... and what C parses an unknown name as.
     assert_eq!(
@@ -1000,7 +938,7 @@ mod sample_format_forms {
     }
 
     fn fmt(raw: c_int) -> SampleFormat {
-        SampleFormat::from_raw(ffi::AVSampleFormat(raw))
+        SampleFormat::from_raw(raw)
     }
 
     /// A Rust result as C's raw value; `None` is C's `NONE` (-1).
@@ -1008,22 +946,22 @@ mod sample_format_forms {
         if let Some(f) = f {
             assert_ne!(f, SampleFormat::NONE);
         }
-        f.map_or(-1, |f| f.into_raw().0)
+        f.map_or(-1, SampleFormat::into_raw)
     }
 
     fn c_alt(raw: c_int, planar: c_int) -> c_int {
         // SAFETY: two integers by value; C bounds-checks the table index.
-        unsafe { ffi::av_get_alt_sample_fmt(ffi::AVSampleFormat(raw), planar) }.0
+        unsafe { ffi::av_get_alt_sample_fmt(raw, planar) }
     }
 
     fn c_packed(raw: c_int) -> c_int {
         // SAFETY: as above.
-        unsafe { ffi::av_get_packed_sample_fmt(ffi::AVSampleFormat(raw)) }.0
+        unsafe { ffi::av_get_packed_sample_fmt(raw) }
     }
 
     fn c_bytes(raw: c_int) -> c_int {
         // SAFETY: as above.
-        unsafe { ffi::av_get_bytes_per_sample(ffi::AVSampleFormat(raw)) }
+        unsafe { ffi::av_get_bytes_per_sample(raw) }
     }
 
     #[test]
@@ -1084,14 +1022,10 @@ mod lookups {
     fn name_matches_c() {
         for raw in values() {
             // SAFETY: by value; C returns NULL or a static string.
-            let c = unsafe { ffi::av_get_sample_fmt_name(ffi::AVSampleFormat(raw)) };
+            let c = unsafe { ffi::av_get_sample_fmt_name(raw) };
             // SAFETY: a non-NULL `c` is a static NUL-terminated string.
             let c = (!c.is_null()).then(|| unsafe { CStr::from_ptr(c) });
-            assert_eq!(
-                SampleFormat::from_raw(ffi::AVSampleFormat(raw)).name(),
-                c,
-                "{raw}"
-            );
+            assert_eq!(SampleFormat::from_raw(raw).name(), c, "{raw}");
         }
     }
 
@@ -1105,8 +1039,7 @@ mod lookups {
         for name in names {
             // SAFETY: a live NUL-terminated string C only compares.
             let c = unsafe { ffi::av_get_sample_fmt(name.as_ptr()) };
-            let c =
-                (c != ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE).then_some(SampleFormat::from_raw(c));
+            let c = (c != ffi::AV_SAMPLE_FMT_NONE).then_some(SampleFormat::from_raw(c));
             assert_eq!(SampleFormat::from_name(name), c, "{name:?}");
         }
     }
@@ -1115,14 +1048,13 @@ mod lookups {
     #[cfg_attr(miri, ignore = "calls C")]
     fn planar_matches_c_twice() {
         for raw in values() {
-            let mut rust = Some(SampleFormat::from_raw(ffi::AVSampleFormat(raw)));
-            let mut c = ffi::AVSampleFormat(raw);
+            let mut rust = Some(SampleFormat::from_raw(raw));
+            let mut c = raw;
             for _ in 0..2 {
                 // SAFETY: by value; C range-checks it.
                 c = unsafe { ffi::av_get_planar_sample_fmt(c) };
                 rust = rust.and_then(SampleFormat::planar);
-                let expect = (c != ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE)
-                    .then_some(SampleFormat::from_raw(c));
+                let expect = (c != ffi::AV_SAMPLE_FMT_NONE).then_some(SampleFormat::from_raw(c));
                 assert_eq!(rust, expect, "{raw}");
             }
         }
@@ -1136,16 +1068,12 @@ mod lookups {
             let mut c_buf = [b'#'; 24];
             // Shrinking buffers, each written over the previous text.
             for size in (0..=c_buf.len()).rev() {
-                let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+                let f = SampleFormat::from_raw(raw);
                 let rust = f.describe(&mut rust_buf[..size]).map(CStr::to_owned);
                 // SAFETY: `size` writable bytes; C writes nothing for values
                 // past its table and returns `c_buf`.
                 let ret = unsafe {
-                    ffi::av_get_sample_fmt_string(
-                        c_buf.as_mut_ptr().cast(),
-                        size as c_int,
-                        ffi::AVSampleFormat(raw),
-                    )
+                    ffi::av_get_sample_fmt_string(c_buf.as_mut_ptr().cast(), size as c_int, raw)
                 };
                 assert_eq!(ret.cast::<u8>(), c_buf.as_mut_ptr());
                 assert_eq!(rust_buf, c_buf, "{raw} {size}");

@@ -211,12 +211,12 @@ mod pixel_format_descriptor_from_raw {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn c_table_entries_adopt_and_read_back() {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         let mut empty = 0;
         for fmt in 0..nb {
             // SAFETY: `av_pix_fmt_desc_get` takes any value and returns NULL
             // or a pointer into C's static table.
-            let p = unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(fmt)) };
+            let p = unsafe { ffi::av_pix_fmt_desc_get(fmt) };
             assert!(!p.is_null());
             // SAFETY: `p` points to a live descriptor in C's static,
             // never-written table.
@@ -232,7 +232,7 @@ mod pixel_format_descriptor_from_raw {
         }
         // Out-of-range formats have no entry to adopt.
         // SAFETY: as above.
-        assert!(unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(nb)) }.is_null());
+        assert!(unsafe { ffi::av_pix_fmt_desc_get(nb) }.is_null());
         assert!(empty < nb as usize);
     }
 }

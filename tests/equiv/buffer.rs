@@ -1479,7 +1479,7 @@ mod mutation {
     /// reaches all three of C's paths the test counts; seed 1 misses the
     /// same-buffer assignment.
     fn seeds() -> core::ops::RangeInclusive<u64> {
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             2..=2
         } else {
             1..=16

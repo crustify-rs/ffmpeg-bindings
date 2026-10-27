@@ -17,34 +17,18 @@ use ffmpeg_bindings::libavutil::libavutil::utils::{MediaType, PictureType};
 
 /// Every named constant beside its C enumerator and C name.
 const NAMED: [(MediaType, ffi::AVMediaType, Option<&str>); 6] = [
-    (
-        MediaType::UNKNOWN,
-        ffi::AVMediaType::AVMEDIA_TYPE_UNKNOWN,
-        None,
-    ),
-    (
-        MediaType::VIDEO,
-        ffi::AVMediaType::AVMEDIA_TYPE_VIDEO,
-        Some("video"),
-    ),
-    (
-        MediaType::AUDIO,
-        ffi::AVMediaType::AVMEDIA_TYPE_AUDIO,
-        Some("audio"),
-    ),
-    (
-        MediaType::DATA,
-        ffi::AVMediaType::AVMEDIA_TYPE_DATA,
-        Some("data"),
-    ),
+    (MediaType::UNKNOWN, ffi::AVMEDIA_TYPE_UNKNOWN, None),
+    (MediaType::VIDEO, ffi::AVMEDIA_TYPE_VIDEO, Some("video")),
+    (MediaType::AUDIO, ffi::AVMEDIA_TYPE_AUDIO, Some("audio")),
+    (MediaType::DATA, ffi::AVMEDIA_TYPE_DATA, Some("data")),
     (
         MediaType::SUBTITLE,
-        ffi::AVMediaType::AVMEDIA_TYPE_SUBTITLE,
+        ffi::AVMEDIA_TYPE_SUBTITLE,
         Some("subtitle"),
     ),
     (
         MediaType::ATTACHMENT,
-        ffi::AVMediaType::AVMEDIA_TYPE_ATTACHMENT,
+        ffi::AVMEDIA_TYPE_ATTACHMENT,
         Some("attachment"),
     ),
 ];
@@ -127,24 +111,21 @@ fn constants_are_the_c_enumerators() {
         assert_eq!(c_name(t.into_raw()), c_name(c));
         assert_eq!(c_name(t.into_raw()), name);
     }
-    assert_eq!(
-        MediaType::COUNT,
-        ffi::AVMediaType::AVMEDIA_TYPE_NB.0 as usize
-    );
+    assert_eq!(MediaType::COUNT, ffi::AVMEDIA_TYPE_NB as usize);
 }
 
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn index_is_some_exactly_where_c_names_the_type() {
-    let all = NAMED.iter().map(|&(_, c, _)| c.0).chain(UNNAMED);
+    let all = NAMED.iter().map(|&(_, c, _)| c).chain(UNNAMED);
     for raw in all.chain(-3..=8) {
-        let t = MediaType::from_raw(ffi::AVMediaType(raw));
+        let t = MediaType::from_raw(raw);
         assert_eq!(
             t.index().is_some(),
             c_name(t.into_raw()).is_some(),
             "raw {raw}"
         );
-        assert_eq!(t.into_raw().0, raw);
+        assert_eq!(t.into_raw(), raw);
     }
 }
 
@@ -162,11 +143,7 @@ fn zeroed_storage_reads_as_c_zeroed_storage() {
 #[test]
 #[cfg_attr(miri, ignore = "calls C")]
 fn writes_through_each_side_agree_after_every_step() {
-    let values: Vec<ffi::AVMediaType> = NAMED
-        .iter()
-        .map(|&(_, c, _)| c)
-        .chain(UNNAMED.map(ffi::AVMediaType))
-        .collect();
+    let values: Vec<ffi::AVMediaType> = NAMED.iter().map(|&(_, c, _)| c).chain(UNNAMED).collect();
     let len = values.len();
     let mut rust = alloc_array_zeroed::<MediaType>(len).unwrap();
     let mut c = CTypes::zeroed(len);
@@ -196,7 +173,7 @@ fn values_c_writes_are_read_back_unchanged() {
     let values: Vec<_> = NAMED
         .map(|(_, c, _)| c)
         .into_iter()
-        .chain(UNNAMED.map(ffi::AVMediaType))
+        .chain(UNNAMED)
         .collect();
     let mut c = CTypes::zeroed(values.len());
     for (i, &v) in values.iter().enumerate() {
@@ -223,7 +200,7 @@ fn clone_copies_the_c_encoding() {
     let src: Vec<MediaType> = NAMED
         .map(|(t, _, _)| t)
         .into_iter()
-        .chain(UNNAMED.map(|r| ffi::AVMediaType(r).into()))
+        .chain(UNNAMED.map(Into::into))
         .collect();
     let rust = HeapVec::from_slice(&src).unwrap();
     let copy = rust.clone();
@@ -237,30 +214,14 @@ fn clone_copies_the_c_encoding() {
 
 /// Every named picture type beside its C enumerator and C letter.
 const PICTURE_NAMED: [(PictureType, ffi::AVPictureType, u8); 8] = [
-    (
-        PictureType::NONE,
-        ffi::AVPictureType::AV_PICTURE_TYPE_NONE,
-        b'?',
-    ),
-    (PictureType::I, ffi::AVPictureType::AV_PICTURE_TYPE_I, b'I'),
-    (PictureType::P, ffi::AVPictureType::AV_PICTURE_TYPE_P, b'P'),
-    (PictureType::B, ffi::AVPictureType::AV_PICTURE_TYPE_B, b'B'),
-    (PictureType::S, ffi::AVPictureType::AV_PICTURE_TYPE_S, b'S'),
-    (
-        PictureType::SI,
-        ffi::AVPictureType::AV_PICTURE_TYPE_SI,
-        b'i',
-    ),
-    (
-        PictureType::SP,
-        ffi::AVPictureType::AV_PICTURE_TYPE_SP,
-        b'p',
-    ),
-    (
-        PictureType::BI,
-        ffi::AVPictureType::AV_PICTURE_TYPE_BI,
-        b'b',
-    ),
+    (PictureType::NONE, ffi::AV_PICTURE_TYPE_NONE, b'?'),
+    (PictureType::I, ffi::AV_PICTURE_TYPE_I, b'I'),
+    (PictureType::P, ffi::AV_PICTURE_TYPE_P, b'P'),
+    (PictureType::B, ffi::AV_PICTURE_TYPE_B, b'B'),
+    (PictureType::S, ffi::AV_PICTURE_TYPE_S, b'S'),
+    (PictureType::SI, ffi::AV_PICTURE_TYPE_SI, b'i'),
+    (PictureType::SP, ffi::AV_PICTURE_TYPE_SP, b'p'),
+    (PictureType::BI, ffi::AV_PICTURE_TYPE_BI, b'b'),
 ];
 
 /// Values C may store in an `enum AVPictureType` though it names none of
@@ -279,7 +240,7 @@ fn picture_values() -> Vec<ffi::AVPictureType> {
     PICTURE_NAMED
         .iter()
         .map(|&(_, c, _)| c)
-        .chain(PICTURE_UNNAMED.map(ffi::AVPictureType))
+        .chain(PICTURE_UNNAMED)
         .collect()
 }
 
@@ -293,10 +254,10 @@ fn picture_type_constants_are_the_c_enumerators() {
         assert_eq!(c_letter(t.into_raw()), letter);
     }
     for raw in PICTURE_UNNAMED {
-        let t = PictureType::from_raw(ffi::AVPictureType(raw));
+        let t = PictureType::from_raw(raw);
         assert!(PICTURE_NAMED.iter().all(|&(n, _, _)| n != t));
         assert_eq!(c_letter(t.into_raw()), b'?', "raw {raw}");
-        assert_eq!(t.into_raw().0, raw);
+        assert_eq!(t.into_raw(), raw);
     }
 }
 
@@ -447,10 +408,7 @@ mod names {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn as_str_is_av_get_media_type_string() {
-        let values = NAMED
-            .iter()
-            .map(|&(_, raw, _)| raw)
-            .chain(UNNAMED.map(ffi::AVMediaType));
+        let values = NAMED.iter().map(|&(_, raw, _)| raw).chain(UNNAMED);
         for raw in values {
             assert_eq!(MediaType::from_raw(raw).as_str(), c_name(raw), "{raw:?}");
         }

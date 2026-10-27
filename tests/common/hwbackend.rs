@@ -227,16 +227,16 @@ impl Kind {
     /// The device type the backend implements.
     pub(crate) fn device_type(self) -> ffi::AVHWDeviceType {
         match self {
-            Kind::A => ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
-            Kind::B => ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
+            Kind::A => ffi::AV_HWDEVICE_TYPE_VAAPI,
+            Kind::B => ffi::AV_HWDEVICE_TYPE_DRM,
         }
     }
 
     /// The backend's hardware pixel format.
     pub(crate) fn format(self) -> ffi::AVPixelFormat {
         match self {
-            Kind::A => ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
-            Kind::B => ffi::AVPixelFormat::AV_PIX_FMT_DRM_PRIME,
+            Kind::A => ffi::AV_PIX_FMT_VAAPI,
+            Kind::B => ffi::AV_PIX_FMT_DRM_PRIME,
         }
     }
 
@@ -294,14 +294,8 @@ pub(crate) struct Shared<T>(pub T);
 // read it.
 unsafe impl<T> Sync for Shared<T> {}
 
-static FORMATS_A: [ffi::AVPixelFormat; 2] = [
-    ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
-    ffi::AVPixelFormat::AV_PIX_FMT_NONE,
-];
-static FORMATS_B: [ffi::AVPixelFormat; 2] = [
-    ffi::AVPixelFormat::AV_PIX_FMT_DRM_PRIME,
-    ffi::AVPixelFormat::AV_PIX_FMT_NONE,
-];
+static FORMATS_A: [ffi::AVPixelFormat; 2] = [ffi::AV_PIX_FMT_VAAPI, ffi::AV_PIX_FMT_NONE];
+static FORMATS_B: [ffi::AVPixelFormat; 2] = [ffi::AV_PIX_FMT_DRM_PRIME, ffi::AV_PIX_FMT_NONE];
 
 /// A class for the test device contexts, as `hwdevice_ctx_class` is for
 /// C's.
@@ -314,7 +308,7 @@ pub(crate) static DEVICE_CLASS: Shared<ffi::AVClass> = Shared(ffi::AVClass {
 });
 
 pub(crate) static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
-    type_: ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
+    type_: ffi::AV_HWDEVICE_TYPE_VAAPI,
     name: c"test-a".as_ptr(),
     pix_fmts: (&raw const FORMATS_A).cast(),
     device_hwctx_size: size_of::<DeviceHwctx>(),
@@ -338,7 +332,7 @@ pub(crate) static BACKEND_A: Shared<HwContextType> = Shared(HwContextType {
 });
 
 pub(crate) static BACKEND_B: Shared<HwContextType> = Shared(HwContextType {
-    type_: ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
+    type_: ffi::AV_HWDEVICE_TYPE_DRM,
     name: c"test-b".as_ptr(),
     pix_fmts: (&raw const FORMATS_B).cast(),
     device_hwctx_size: size_of::<DeviceHwctx>(),
@@ -448,7 +442,7 @@ unsafe extern "C" fn frames_get_buffer(ctx: *mut FramesCtx, frame: *mut ffi::AVF
     // SAFETY: as above: reads of the context's pool and geometry.
     let (pool, format, width, height) = (
         unsafe { (*ctx).pool },
-        unsafe { (*ctx).format.0 },
+        unsafe { (*ctx).format },
         unsafe { (*ctx).width },
         unsafe { (*ctx).height },
     );
@@ -608,8 +602,8 @@ unsafe extern "C" fn map_from(
         return unsafe { map_frame(dst_frames, dst, src) };
     }
     // SAFETY: as above: reads of the software format and `dst`'s format.
-    let (sw, format) = (unsafe { (*ctx).sw_format.0 }, unsafe { (*dst).format });
-    if format == ffi::AVPixelFormat::AV_PIX_FMT_NONE.0 {
+    let (sw, format) = (unsafe { (*ctx).sw_format }, unsafe { (*dst).format });
+    if format == ffi::AV_PIX_FMT_NONE {
         // SAFETY: as above: `dst` takes the software format.
         unsafe { (*dst).format = sw };
     } else if format != sw {
@@ -683,7 +677,7 @@ unsafe extern "C" fn transfer_get_formats(
         // SAFETY: as the comment below states, for this part of the operation.
         let list_add = unsafe { list.add(1) };
         // SAFETY: as the comment above this block states.
-        unsafe { list_add.write(ffi::AVPixelFormat::AV_PIX_FMT_NONE) };
+        unsafe { list_add.write(ffi::AV_PIX_FMT_NONE) };
         // SAFETY: as the comment above this block states.
         unsafe { formats.write(list) };
         0
@@ -945,7 +939,7 @@ pub(crate) unsafe fn fill_frames(
         // SAFETY: as the comment above this block states.
         unsafe { (*ctx).format = kind.format() };
         // SAFETY: as the comment above this block states.
-        unsafe { (*ctx).sw_format = ffi::AVPixelFormat::AV_PIX_FMT_NV12 };
+        unsafe { (*ctx).sw_format = ffi::AV_PIX_FMT_NV12 };
         // SAFETY: as the comment above this block states.
         unsafe { (*ctx).width = width };
         // SAFETY: as the comment above this block states.

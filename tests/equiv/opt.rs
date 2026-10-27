@@ -610,12 +610,12 @@ mod option_type {
         assert_eq!(rust.len(), c_side.len());
         for ((name, ty), (c_name, raw)) in rust.iter().zip(&c_side) {
             assert_eq!(name, c_name);
-            assert_eq!(ty.value(), raw.0);
+            assert_eq!(ty.value(), *raw);
             assert_eq!(ffi::AVOptionType::from(*ty), *raw);
             // libavutil's `TYPE_BASE` and its array test.
-            let flag = ffi::AVOptionType::AV_OPT_TYPE_FLAG_ARRAY.0;
-            assert_eq!(ty.base().value(), raw.0 & !flag);
-            assert_eq!(ty.is_array(), raw.0 & flag != 0);
+            let flag = ffi::AV_OPT_TYPE_FLAG_ARRAY;
+            assert_eq!(ty.base().value(), raw & !flag);
+            assert_eq!(ty.is_array(), raw & flag != 0);
         }
         rust.into_iter().map(|(_, ty)| ty).collect()
     }
@@ -727,7 +727,7 @@ mod set_options_string {
     const NOT_FOUND: i32 = -i32::from_le_bytes([0xF8, b'O', b'P', b'T']);
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// What C reads of `o` and its child: every option but the named
@@ -737,7 +737,7 @@ mod set_options_string {
     fn observe(o: &Owned, mask: bool) -> Vec<(i32, Option<Vec<u8>>)> {
         let names = OBJ_OPTIONS.0[..OBJ_OPTIONS.0.len() - 1]
             .iter()
-            .filter(|o| o.type_ != ffi::AVOptionType::AV_OPT_TYPE_CONST)
+            .filter(|o| o.type_ != ffi::AV_OPT_TYPE_CONST)
             // SAFETY: every name of the static table is a literal.
             .map(|o| unsafe { CStr::from_ptr(o.name) });
         let mut seen = Vec::new();
@@ -1016,7 +1016,6 @@ mod array_def {
     use core::ptr;
     use std::ffi::CString;
 
-    use ffi::AVOptionType as T;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::opt::{OptionArrayDef, OptionArrayDefMut};
 
@@ -1047,7 +1046,7 @@ mod array_def {
                 name: c"a".as_ptr(),
                 help: ptr::null(),
                 offset: offset_of!(Obj, elems) as c_int,
-                type_: T(T::AV_OPT_TYPE_STRING.0 | T::AV_OPT_TYPE_FLAG_ARRAY.0),
+                type_: (ffi::AV_OPT_TYPE_STRING | ffi::AV_OPT_TYPE_FLAG_ARRAY),
                 default_val: ffi::AVOption__bindgen_ty_1 { arr: def },
                 min: 0.0,
                 max: 0.0,
@@ -1235,7 +1234,7 @@ mod objects {
     const ERANGE: i32 = -34;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// Every option name of `OBJ_CLASS`, constants included, and one that
@@ -1926,7 +1925,7 @@ mod objects {
                     let (mut rest, mut key, mut val) =
                         (opts.as_ptr(), ptr::null_mut(), ptr::null_mut());
                     let flags = if implicit {
-                        ffi::AV_OPT_FLAG_IMPLICIT_KEY.0
+                        ffi::AV_OPT_FLAG_IMPLICIT_KEY
                     } else {
                         0
                     };
@@ -2213,7 +2212,7 @@ mod objects {
             alias(
                 c"imax",
                 int,
-                T::AV_OPT_TYPE_INT,
+                ffi::AV_OPT_TYPE_INT,
                 Some(i32::MAX.into()),
                 0.0,
                 imin,
@@ -2223,7 +2222,7 @@ mod objects {
             alias(
                 c"imin",
                 int,
-                T::AV_OPT_TYPE_INT,
+                ffi::AV_OPT_TYPE_INT,
                 Some(i32::MIN.into()),
                 0.0,
                 imin,
@@ -2233,7 +2232,7 @@ mod objects {
             alias(
                 c"named",
                 int,
-                T::AV_OPT_TYPE_INT,
+                ffi::AV_OPT_TYPE_INT,
                 Some(7),
                 0.0,
                 -10.0,
@@ -2243,7 +2242,7 @@ mod objects {
             alias(
                 c"u32",
                 uint,
-                T::AV_OPT_TYPE_UINT,
+                ffi::AV_OPT_TYPE_UINT,
                 Some(u32::MAX.into()),
                 0.0,
                 0.0,
@@ -2253,7 +2252,7 @@ mod objects {
             alias(
                 c"i64max",
                 int64,
-                T::AV_OPT_TYPE_INT64,
+                ffi::AV_OPT_TYPE_INT64,
                 Some(i64::MAX),
                 0.0,
                 i64::MIN as f64,
@@ -2263,7 +2262,7 @@ mod objects {
             alias(
                 c"i64min",
                 int64,
-                T::AV_OPT_TYPE_INT64,
+                ffi::AV_OPT_TYPE_INT64,
                 Some(i64::MIN),
                 0.0,
                 i64::MIN as f64,
@@ -2273,7 +2272,7 @@ mod objects {
             alias(
                 c"fmax",
                 flt,
-                T::AV_OPT_TYPE_FLOAT,
+                ffi::AV_OPT_TYPE_FLOAT,
                 None,
                 fmax,
                 -fmax,
@@ -2283,7 +2282,7 @@ mod objects {
             alias(
                 c"fmin",
                 flt,
-                T::AV_OPT_TYPE_FLOAT,
+                ffi::AV_OPT_TYPE_FLOAT,
                 None,
                 fmin,
                 -fmin,
@@ -2293,7 +2292,7 @@ mod objects {
             alias(
                 c"dmin",
                 dbl,
-                T::AV_OPT_TYPE_DOUBLE,
+                ffi::AV_OPT_TYPE_DOUBLE,
                 None,
                 f64::MIN_POSITIVE,
                 -f64::MIN_POSITIVE,
@@ -2303,7 +2302,7 @@ mod objects {
             alias(
                 c"dmax",
                 dbl,
-                T::AV_OPT_TYPE_DOUBLE,
+                ffi::AV_OPT_TYPE_DOUBLE,
                 None,
                 -f64::MAX,
                 f64::MIN,
@@ -2313,7 +2312,7 @@ mod objects {
             alias(
                 c"dint",
                 dbl,
-                T::AV_OPT_TYPE_DOUBLE,
+                ffi::AV_OPT_TYPE_DOUBLE,
                 None,
                 imax,
                 imin,
@@ -2323,7 +2322,7 @@ mod objects {
             alias(
                 c"dlow",
                 dbl,
-                T::AV_OPT_TYPE_DOUBLE,
+                ffi::AV_OPT_TYPE_DOUBLE,
                 None,
                 imin,
                 i64::MIN as f64,
@@ -2333,7 +2332,7 @@ mod objects {
             alias(
                 c"hexflags",
                 offset_of!(Obj, flags),
-                T::AV_OPT_TYPE_FLAGS,
+                ffi::AV_OPT_TYPE_FLAGS,
                 Some(0x40),
                 0.0,
                 0.0,
@@ -2343,7 +2342,7 @@ mod objects {
             alias(
                 c"auto",
                 offset_of!(Obj, boolean),
-                T::AV_OPT_TYPE_BOOL,
+                ffi::AV_OPT_TYPE_BOOL,
                 Some(-1),
                 0.0,
                 -1.0,
@@ -2353,7 +2352,7 @@ mod objects {
             alias(
                 c"forever",
                 offset_of!(Obj, duration),
-                T::AV_OPT_TYPE_DURATION,
+                ffi::AV_OPT_TYPE_DURATION,
                 Some(i64::MAX),
                 0.0,
                 0.0,
@@ -2363,7 +2362,7 @@ mod objects {
             alias(
                 c"long",
                 offset_of!(Obj, duration),
-                T::AV_OPT_TYPE_DURATION,
+                ffi::AV_OPT_TYPE_DURATION,
                 Some(3_723_000_001),
                 0.0,
                 0.0,
@@ -2373,7 +2372,7 @@ mod objects {
             alias(
                 c"negative",
                 offset_of!(Obj, duration),
-                T::AV_OPT_TYPE_DURATION,
+                ffi::AV_OPT_TYPE_DURATION,
                 Some(-61_500_000),
                 0.0,
                 i64::MIN as f64,
@@ -2383,7 +2382,7 @@ mod objects {
             alias(
                 c"nopix",
                 offset_of!(Obj, pix),
-                T::AV_OPT_TYPE_PIXEL_FMT,
+                ffi::AV_OPT_TYPE_PIXEL_FMT,
                 Some(-1),
                 0.0,
                 -1.0,
@@ -2393,7 +2392,7 @@ mod objects {
             alias(
                 c"nosample",
                 offset_of!(Obj, sample),
-                T::AV_OPT_TYPE_SAMPLE_FMT,
+                ffi::AV_OPT_TYPE_SAMPLE_FMT,
                 Some(-1),
                 0.0,
                 -1.0,
@@ -2403,7 +2402,7 @@ mod objects {
             alias(
                 c"third",
                 offset_of!(Obj, q),
-                T::AV_OPT_TYPE_RATIONAL,
+                ffi::AV_OPT_TYPE_RATIONAL,
                 None,
                 1.0 / 3.0,
                 0.0,
@@ -2579,7 +2578,7 @@ mod getters {
     /// Under `BSan`, C's number parses misreport (`av_strtod`'s end pointer):
     /// the object suites return early, as the wave-0 ones do.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     fn obj(p: *mut c_void) -> ObjectRef<'static> {
@@ -2704,26 +2703,26 @@ mod getters {
             ));
         }
 
-        let mut p = ffi::AVPixelFormat(0);
+        let mut p = 0;
         // SAFETY: as above.
         let ret = unsafe { ffi::av_opt_get_pixel_fmt(c, n, cf, &raw mut p) };
-        cs.push(format!("pix {ret} {:?}", (ret >= 0).then_some(p.0)));
+        cs.push(format!("pix {ret} {:?}", (ret >= 0).then_some(p)));
         let v = r.get_pixel_format(name, rf);
         rs.push(format!(
             "pix {} {:?}",
             code(&v),
-            v.ok().map(|p| ffi::AVPixelFormat::from(p).0)
+            v.ok().map(ffi::AVPixelFormat::from)
         ));
 
-        let mut f = ffi::AVSampleFormat(0);
+        let mut f = 0;
         // SAFETY: as above.
         let ret = unsafe { ffi::av_opt_get_sample_fmt(c, n, cf, &raw mut f) };
-        cs.push(format!("sample {ret} {:?}", (ret >= 0).then_some(f.0)));
+        cs.push(format!("sample {ret} {:?}", (ret >= 0).then_some(f)));
         let v = r.get_sample_format(name, rf);
         rs.push(format!(
             "sample {} {:?}",
             code(&v),
-            v.ok().map(|f| ffi::AVSampleFormat::from(f).0)
+            v.ok().map(ffi::AVSampleFormat::from)
         ));
 
         // SAFETY: an all-zero layout is the empty one C takes as output.
@@ -2875,7 +2874,7 @@ mod getters {
         // of `count` elements of `ty` whenever C writes (a range within the
         // array); the binary array is empty, so C reads no binary element.
         let ret = unsafe { ffi::av_opt_get_array(c, n, 0, start, count, ty, out.cast()) };
-        let what = format!("{name:?} {start}+{count} as {}", ty.0);
+        let what = format!("{name:?} {start}+{count} as {ty}");
         assert_eq!(code(&rust), ret, "{what}");
         if ret < 0 {
             return;
@@ -2892,7 +2891,6 @@ mod getters {
 
     /// Every element type over every range of each array.
     fn arrays_agree(c: *mut c_void, r: ObjectRef<'_>, names: &[&CStr]) {
-        use ffi::AVOptionType as T;
         for &name in names {
             let size = r.get_array_size(name, SearchFlags::NONE).unwrap_or(2) as u32;
             let ranges = [
@@ -2913,7 +2911,7 @@ mod getters {
                             r,
                             name,
                             range,
-                            T::$ty,
+                            ffi::$ty,
                             size_of::<$t>(),
                             // SAFETY: an element C wrote, of this type.
                             |p| format!("{:?}", unsafe { p.cast::<$t>().read() }),
@@ -2930,7 +2928,7 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_FLOAT,
+                    ffi::AV_OPT_TYPE_FLOAT,
                     4,
                     // SAFETY: an element C wrote, of this type.
                     |p| format!("{:#x}", unsafe { p.cast::<f32>().read() }.to_bits()),
@@ -2941,7 +2939,7 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_DOUBLE,
+                    ffi::AV_OPT_TYPE_DOUBLE,
                     8,
                     // SAFETY: as above.
                     |p| format!("{:#x}", unsafe { p.cast::<f64>().read() }.to_bits()),
@@ -2952,7 +2950,7 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_RATIONAL,
+                    ffi::AV_OPT_TYPE_RATIONAL,
                     8,
                     |p| {
                         // SAFETY: an element C wrote, of this type.
@@ -2966,29 +2964,29 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_PIXEL_FMT,
+                    ffi::AV_OPT_TYPE_PIXEL_FMT,
                     4,
                     // SAFETY: as above.
                     |p| format!("{}", unsafe { p.cast::<c_int>().read() }),
-                    |v| format!("{}", ffi::AVPixelFormat::from(*v).0),
+                    |v| format!("{}", ffi::AVPixelFormat::from(*v)),
                 );
                 array_case::<SampleFormat>(
                     c,
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_SAMPLE_FMT,
+                    ffi::AV_OPT_TYPE_SAMPLE_FMT,
                     4,
                     // SAFETY: as above.
                     |p| format!("{}", unsafe { p.cast::<c_int>().read() }),
-                    |v| format!("{}", ffi::AVSampleFormat::from(*v).0),
+                    |v| format!("{}", ffi::AVSampleFormat::from(*v)),
                 );
                 array_case::<Option<HeapString>>(
                     c,
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_STRING,
+                    ffi::AV_OPT_TYPE_STRING,
                     8,
                     |p| {
                         // SAFETY: a string element C wrote: NULL or one we own.
@@ -3008,7 +3006,7 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_DICT,
+                    ffi::AV_OPT_TYPE_DICT,
                     8,
                     |p| {
                         let slot = p.cast::<*mut ffi::AVDictionary>();
@@ -3025,7 +3023,7 @@ mod getters {
                     r,
                     name,
                     range,
-                    T::AV_OPT_TYPE_CHLAYOUT,
+                    ffi::AV_OPT_TYPE_CHLAYOUT,
                     size_of::<ffi::AVChannelLayout>(),
                     |p| {
                         let l = p.cast::<ffi::AVChannelLayout>();
@@ -3141,7 +3139,6 @@ mod typed_setters {
     use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
     use core::ptr;
 
-    use ffi::AVOptionType as T;
     use ffmpeg_bindings::libavutil::libavutil::channel_layout::{ChannelLayout, ChannelLayoutVal};
     use ffmpeg_bindings::libavutil::libavutil::dict::{Dict, DictionaryRef};
     use ffmpeg_bindings::libavutil::libavutil::ffi;
@@ -3160,7 +3157,7 @@ mod typed_setters {
     const ENOMEM: i32 = -12;
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     fn flags_of(children: bool) -> (c_int, SearchFlags) {
@@ -3334,7 +3331,7 @@ mod typed_setters {
                         flags,
                         start,
                         $n as c_uint,
-                        T::$ty,
+                        ffi::$ty,
                         $v,
                     )
                 }
@@ -3425,12 +3422,12 @@ mod typed_setters {
             ),
             Vals::Pix(v) => edit!(
                 &v.iter()
-                    .map(|&p| PixelFormat::from_raw(ffi::AVPixelFormat(p)))
+                    .map(|&p| PixelFormat::from_raw(p))
                     .collect::<Vec<_>>()
             ),
             Vals::Sample(v) => edit!(
                 &v.iter()
-                    .map(|&s| SampleFormat::from_raw(ffi::AVSampleFormat(s)))
+                    .map(|&s| SampleFormat::from_raw(s))
                     .collect::<Vec<_>>()
             ),
             Vals::Size(v) => edit!(v),
@@ -3478,15 +3475,11 @@ mod typed_setters {
             },
             Op::Pix(name, p, c) => {
                 // SAFETY: as the comment at the head of this block states.
-                unsafe {
-                    ffi::av_opt_set_pixel_fmt(obj, n(name), ffi::AVPixelFormat(p), flags_of(c).0)
-                }
+                unsafe { ffi::av_opt_set_pixel_fmt(obj, n(name), p, flags_of(c).0) }
             }
             Op::Sample(name, s, c) => {
                 // SAFETY: as the comment at the head of this block states.
-                unsafe {
-                    ffi::av_opt_set_sample_fmt(obj, n(name), ffi::AVSampleFormat(s), flags_of(c).0)
-                }
+                unsafe { ffi::av_opt_set_sample_fmt(obj, n(name), s, flags_of(c).0) }
             }
             Op::Layout(name, desc, c) => {
                 let l = c_layout(desc);
@@ -3515,7 +3508,7 @@ mod typed_setters {
                     flags_of(c).0,
                     start,
                     count,
-                    T::AV_OPT_TYPE_INT,
+                    ffi::AV_OPT_TYPE_INT,
                     ptr::null(),
                 )
             },
@@ -3545,16 +3538,12 @@ mod typed_setters {
             Op::Rate(name, (num, den), c) => {
                 code(m.set_video_rate(name, Rational::new(num, den), flags_of(c).1))
             }
-            Op::Pix(name, p, c) => code(m.set_pixel_format(
-                name,
-                PixelFormat::from_raw(ffi::AVPixelFormat(p)),
-                flags_of(c).1,
-            )),
-            Op::Sample(name, s, c) => code(m.set_sample_format(
-                name,
-                SampleFormat::from_raw(ffi::AVSampleFormat(s)),
-                flags_of(c).1,
-            )),
+            Op::Pix(name, p, c) => {
+                code(m.set_pixel_format(name, PixelFormat::from_raw(p), flags_of(c).1))
+            }
+            Op::Sample(name, s, c) => {
+                code(m.set_sample_format(name, SampleFormat::from_raw(s), flags_of(c).1))
+            }
             Op::Layout(name, desc, c) => {
                 let l = ChannelLayout::parse(desc).unwrap();
                 code(m.set_channel_layout(name, l.as_ref(), flags_of(c).1))
@@ -4015,7 +4004,7 @@ mod typed_setters {
                         REPLACE,
                         0,
                         1,
-                        T::AV_OPT_TYPE_CHLAYOUT,
+                        ffi::AV_OPT_TYPE_CHLAYOUT,
                         c_layouts.as_ptr().cast(),
                     )
                 },
@@ -4026,7 +4015,7 @@ mod typed_setters {
                         CHILDREN,
                         0,
                         1,
-                        T::AV_OPT_TYPE_DICT,
+                        ffi::AV_OPT_TYPE_DICT,
                         c_dicts.as_ptr().cast(),
                     )
                 },
@@ -4107,7 +4096,7 @@ mod rational_array_conversion {
         // SAFETY: a live fixture object; `n` is a writable `unsigned`.
         let ret = unsafe { ffi::av_opt_get_array_size(obj, name.as_ptr(), 0, &raw mut n) };
         let mut out = vec![0i64; n as usize];
-        let ty = ffi::AVOptionType::AV_OPT_TYPE_INT64;
+        let ty = ffi::AV_OPT_TYPE_INT64;
         // SAFETY: `out` holds `n` zeroed `int64_t`s, the range lies in the
         // array, and integer elements convert to `int64_t` without UB.
         let got = unsafe {
@@ -4134,7 +4123,7 @@ mod rational_array_conversion {
         // SAFETY: a live fixture object reached through this handle only.
         let mut m = unsafe { ObjectMut::from_ptr(r.as_obj()) }.unwrap();
         for name in [c"ints", c"i64s"] {
-            let ty = ffi::AVOptionType::AV_OPT_TYPE_RATIONAL;
+            let ty = ffi::AV_OPT_TYPE_RATIONAL;
             // SAFETY: a live fixture object and `QS.len()` `AVRational`s.
             let cret = unsafe {
                 ffi::av_opt_set_array(
@@ -4216,7 +4205,7 @@ mod lookups {
     fn c_ident(o: *const ffi::AVOption) -> Option<Ident> {
         // SAFETY: NULL or an entry of a live static table.
         let o = unsafe { o.as_ref() }?;
-        Some((o.name, o.help, o.unit, o.offset, o.type_.0, o.flags))
+        Some((o.name, o.help, o.unit, o.offset, o.type_, o.flags))
     }
 
     /// The entry behind `o`, through the safe getters.
@@ -4718,7 +4707,7 @@ mod lookups {
         // BSan misreads C's reads through glibc `strtod` / `strtol` end
         // pointers (`eval.c:120`, `parseutils.c:166`) in these evaluations
         // and the fixture's defaults, as in the other object suites.
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             return;
         }
         /// `head`, padded with `fill` to `pad` bytes, then `tail`.
@@ -4794,7 +4783,7 @@ mod lookups {
                 name: c"dict".as_ptr(),
                 help: ptr::null(),
                 offset: core::mem::offset_of!(DictObj, dict) as c_int,
-                type_: ffi::AVOptionType::AV_OPT_TYPE_DICT,
+                type_: ffi::AV_OPT_TYPE_DICT,
                 default_val: ffi::AVOption__bindgen_ty_1 {
                     str_: c"nokey".as_ptr(),
                 },
@@ -4807,7 +4796,7 @@ mod lookups {
                 name: ptr::null(),
                 help: ptr::null(),
                 offset: 0,
-                type_: ffi::AVOptionType(0),
+                type_: 0,
                 default_val: ffi::AVOption__bindgen_ty_1 { i64_: 0 },
                 min: 0.0,
                 max: 0.0,
@@ -4822,7 +4811,7 @@ mod lookups {
             version: 0,
             log_level_offset_offset: 0,
             parent_log_context_offset: 0,
-            category: ffi::AVClassCategory::AV_CLASS_CATEGORY_NA,
+            category: ffi::AV_CLASS_CATEGORY_NA,
             get_category: None,
             query_ranges: None,
             child_next: None,

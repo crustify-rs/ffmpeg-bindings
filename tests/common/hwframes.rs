@@ -101,7 +101,7 @@ impl HwContextType {
 
 /// A backend that lists formats and transfers as described above.
 pub(crate) static TRUSTING: HwContextType = HwContextType::new(
-    ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI,
+    ffi::AV_HWDEVICE_TYPE_VAAPI,
     Some(get_formats),
     Some(transfer),
     Some(transfer),
@@ -109,12 +109,8 @@ pub(crate) static TRUSTING: HwContextType = HwContextType::new(
 
 /// A backend without transfers, as MediaCodec's and OpenHarmony's are: C
 /// refuses its listing with `AVERROR(ENOSYS)` and calls its NULL transfers.
-pub(crate) static INERT: HwContextType = HwContextType::new(
-    ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_MEDIACODEC,
-    None,
-    None,
-    None,
-);
+pub(crate) static INERT: HwContextType =
+    HwContextType::new(ffi::AV_HWDEVICE_TYPE_MEDIACODEC, None, None, None);
 
 /// `FFHWFramesContext`, the private context C casts a frames context's data
 /// to.
@@ -144,8 +140,8 @@ pub(crate) struct Behaviour {
 
 /// Downloads into YUV 4:2:0 or its luma alone, uploads from YUV 4:2:0.
 pub(crate) static YUV: Behaviour = Behaviour {
-    from: &[Fmt::AV_PIX_FMT_YUV420P, Fmt::AV_PIX_FMT_GRAY8],
-    to: &[Fmt::AV_PIX_FMT_YUV420P],
+    from: &[ffi::AV_PIX_FMT_YUV420P, ffi::AV_PIX_FMT_GRAY8],
+    to: &[ffi::AV_PIX_FMT_YUV420P],
     listing_error: 0,
     no_list: false,
     transfer_error: 0,
@@ -153,8 +149,8 @@ pub(crate) static YUV: Behaviour = Behaviour {
 
 /// As [`YUV`], but downloads prefer the luma alone.
 pub(crate) static GRAY_FIRST: Behaviour = Behaviour {
-    from: &[Fmt::AV_PIX_FMT_GRAY8, Fmt::AV_PIX_FMT_YUV420P],
-    to: &[Fmt::AV_PIX_FMT_YUV420P],
+    from: &[ffi::AV_PIX_FMT_GRAY8, ffi::AV_PIX_FMT_YUV420P],
+    to: &[ffi::AV_PIX_FMT_YUV420P],
     listing_error: 0,
     no_list: false,
     transfer_error: 0,
@@ -190,8 +186,8 @@ pub(crate) static LISTING_FAILS: Behaviour = Behaviour {
 /// Lists as [`YUV`], but every transfer fails with `AVERROR(EIO)`, or
 /// declines with `AVERROR(ENOSYS)` for [`DECLINES`].
 pub(crate) static TRANSFER_FAILS: Behaviour = Behaviour {
-    from: &[Fmt::AV_PIX_FMT_YUV420P],
-    to: &[Fmt::AV_PIX_FMT_YUV420P],
+    from: &[ffi::AV_PIX_FMT_YUV420P],
+    to: &[ffi::AV_PIX_FMT_YUV420P],
     listing_error: 0,
     no_list: false,
     transfer_error: -5,
@@ -199,8 +195,8 @@ pub(crate) static TRANSFER_FAILS: Behaviour = Behaviour {
 
 /// See [`TRANSFER_FAILS`].
 pub(crate) static DECLINES: Behaviour = Behaviour {
-    from: &[Fmt::AV_PIX_FMT_YUV420P],
-    to: &[Fmt::AV_PIX_FMT_YUV420P],
+    from: &[ffi::AV_PIX_FMT_YUV420P],
+    to: &[ffi::AV_PIX_FMT_YUV420P],
     listing_error: 0,
     no_list: false,
     transfer_error: -(ffi::ENOSYS as c_int),
@@ -224,7 +220,7 @@ unsafe extern "C" fn get_formats(
     if b.listing_error != 0 || b.no_list {
         return b.listing_error;
     }
-    let list = if dir == Dir::AV_HWFRAME_TRANSFER_DIRECTION_FROM {
+    let list = if dir == ffi::AV_HWFRAME_TRANSFER_DIRECTION_FROM {
         b.from
     } else {
         b.to
@@ -239,7 +235,7 @@ unsafe extern "C" fn get_formats(
     // SAFETY: as above: its last entry.
     let end = unsafe { out.add(list.len()) };
     // SAFETY: as above: the terminator.
-    unsafe { end.write(Fmt::AV_PIX_FMT_NONE) };
+    unsafe { end.write(ffi::AV_PIX_FMT_NONE) };
     // SAFETY: C passes a writable slot, which takes the list.
     unsafe { formats.write(out) };
     0
@@ -296,10 +292,10 @@ unsafe extern "C" fn transfer(
     );
     let format = if !dst_hw {
         // SAFETY: as above: a read of the software frame's format.
-        Fmt(unsafe { (*dst).format })
+        unsafe { (*dst).format }
     } else if !src_hw {
         // SAFETY: as above: a read of the software frame's format.
-        Fmt(unsafe { (*src).format })
+        unsafe { (*src).format }
     } else {
         // SAFETY: as above: a read of the context's software format.
         unsafe { (*ctx).sw_format }
@@ -395,8 +391,8 @@ pub(crate) fn yuv_context(
     new_context(
         &TRUSTING,
         behaviour,
-        Fmt::AV_PIX_FMT_VAAPI,
-        Fmt::AV_PIX_FMT_YUV420P,
+        ffi::AV_PIX_FMT_VAAPI,
+        ffi::AV_PIX_FMT_YUV420P,
         width,
         height,
     )
@@ -435,7 +431,7 @@ pub(crate) fn new_sw_frame(
         return f;
     }
     // SAFETY: a fresh frame: a write of its format.
-    unsafe { (*f).format = format.0 };
+    unsafe { (*f).format = format };
     // SAFETY: as above, its width.
     unsafe { (*f).width = width };
     // SAFETY: as above, its height.
@@ -550,7 +546,7 @@ pub(crate) unsafe fn new_hw_frame(
         unsafe { (*p).width },
         unsafe { (*p).height },
         unsafe { (*p).sw_format },
-        unsafe { (*p).format.0 },
+        unsafe { (*p).format },
     );
     let mut surface = new_sw_frame(sw_format, w, h, fill);
     // SAFETY: no precondition; NULL when C cannot allocate.

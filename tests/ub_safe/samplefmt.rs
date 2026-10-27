@@ -23,7 +23,7 @@ use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 /// Named constants, `AV_SAMPLE_FMT_NB` and the `int` extremes.
 fn sample() -> Vec<SampleFormat> {
     [i32::MIN, -2, -1, 0, 1, 5, 10, 11, 12, 13, i32::MAX]
-        .map(|raw| SampleFormat::from_raw(ffi::AVSampleFormat(raw)))
+        .map(SampleFormat::from_raw)
         .into()
 }
 
@@ -32,7 +32,7 @@ fn index_and_debug_accept_every_value() {
     // A table sized by `COUNT` takes every index, once per counted format.
     let mut hits = [0; SampleFormat::COUNT];
     for raw in -3..=SampleFormat::COUNT as i32 + 2 {
-        let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+        let f = SampleFormat::from_raw(raw);
         if let Some(i) = f.index() {
             hits[i] += 1;
         }
@@ -66,7 +66,7 @@ fn none_terminated_list_stops_at_its_terminator() {
     let list = [
         SampleFormat::FLTP,
         SampleFormat::S16,
-        SampleFormat::from_raw(ffi::AVSampleFormat(99)),
+        SampleFormat::from_raw(99),
         SampleFormat::NONE,
         SampleFormat::U8,
     ];
@@ -310,9 +310,7 @@ mod buffers {
             }
         }
         for raw in [-1, 12, 13, i32::MAX, i32::MIN] {
-            let f = SampleFormat::from_raw(
-                ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw),
-            );
+            let f = SampleFormat::from_raw(raw);
             assert!(SampleBuffer::new(1, 1, f, 1).is_err());
             assert!(SampleBufferWithPointers::new(1, 1, f, 1).is_err());
             assert!(SamplesRef::from_buffer(&[0; 64], 1, 1, f, 1).is_err());
@@ -326,7 +324,7 @@ mod buffers {
         // pointer array of 4096 entries; a few dozen under BSan, where the
         // thousands of per-plane slices over one block make each retag
         // cost the block's whole history (>15 min and 50 GB at 4096).
-        let channels = if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        let channels = if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             24
         } else {
             4096
@@ -401,7 +399,7 @@ mod buffers {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn default_alignment_of_int_max_minus_31_samples_does_not_overflow() {
-        if std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan") {
+        if std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan") {
             return;
         }
         let n = (i32::MAX - 31) as usize;
@@ -423,9 +421,7 @@ mod buffers {
     #[cfg_attr(miri, ignore = "calls C")]
     fn is_planar_accepts_every_value() {
         for raw in [i32::MIN, -2, -1, 0, 5, 11, 12, 13, i32::MAX] {
-            let f = SampleFormat::from_raw(
-                ffmpeg_bindings::libavutil::libavutil::ffi::AVSampleFormat(raw),
-            );
+            let f = SampleFormat::from_raw(raw);
             assert_eq!(f.is_planar(), (5..=9).contains(&raw) || raw == 11, "{raw}");
         }
     }
@@ -436,13 +432,12 @@ mod buffers {
 mod sample_format_forms {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     fn values() -> Vec<SampleFormat> {
         (-3..16)
             .chain([i32::MIN, i32::MIN + 1, i32::MAX])
-            .map(|r| SampleFormat::from_raw(ffi::AVSampleFormat(r)))
+            .map(SampleFormat::from_raw)
             .collect()
     }
 
@@ -493,13 +488,12 @@ mod sample_format_forms {
 mod lookups {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::samplefmt::SampleFormat;
 
     fn values() -> impl Iterator<Item = SampleFormat> {
         (-3..16)
             .chain([i32::MIN, i32::MAX])
-            .map(|raw| SampleFormat::from_raw(ffi::AVSampleFormat(raw)))
+            .map(SampleFormat::from_raw)
     }
 
     #[test]

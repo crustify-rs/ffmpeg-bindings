@@ -1,7 +1,7 @@
 error[E0423]: cannot initialize a tuple struct which contains private fields
  --> tests/ub_safe/compile_fail/mathematics_rounding_from_any_value.rs
   |
-  |     let _ = Rounding(ffi::AVRounding(4));
+  |     let _ = Rounding(ffi::AV_ROUND_ZERO | 4);
   |             ^^^^^^^^
   |
   = note: a struct named `Rounding` exists in another namespace

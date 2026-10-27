@@ -27,19 +27,19 @@ fn c_accepts(algorithm: ffi::AVHMACType) -> bool {
 #[cfg_attr(miri, ignore = "calls C")]
 fn algorithm_values_match_c_consumption() {
     for (safe, raw) in [
-        (HmacType::MD5, ffi::AVHMACType::AV_HMAC_MD5),
-        (HmacType::SHA1, ffi::AVHMACType::AV_HMAC_SHA1),
-        (HmacType::SHA224, ffi::AVHMACType::AV_HMAC_SHA224),
-        (HmacType::SHA256, ffi::AVHMACType::AV_HMAC_SHA256),
-        (HmacType::SHA384, ffi::AVHMACType::AV_HMAC_SHA384),
-        (HmacType::SHA512, ffi::AVHMACType::AV_HMAC_SHA512),
+        (HmacType::MD5, ffi::AV_HMAC_MD5),
+        (HmacType::SHA1, ffi::AV_HMAC_SHA1),
+        (HmacType::SHA224, ffi::AV_HMAC_SHA224),
+        (HmacType::SHA256, ffi::AV_HMAC_SHA256),
+        (HmacType::SHA384, ffi::AV_HMAC_SHA384),
+        (HmacType::SHA512, ffi::AV_HMAC_SHA512),
     ] {
         assert_eq!(safe.into_raw(), raw);
         assert_eq!(c_accepts(safe.into_raw()), c_accepts(raw));
         assert!(c_accepts(safe.into_raw()));
     }
     for value in [6, 100, u32::MAX, 1 << 31] {
-        let raw = ffi::AVHMACType(value);
+        let raw = value;
         let safe = HmacType::from_raw(raw);
         assert_eq!(c_accepts(safe.into_raw()), c_accepts(raw));
         assert!(!c_accepts(safe.into_raw()));
@@ -226,7 +226,7 @@ mod beyond_uint_max {
     /// `BSan` cost grows with a 4 GiB allocation's history (see the campaign's
     /// test recipes); the plain and other sanitized runs cover these.
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// A zeroed allocation, so only the pages written are ever mapped.
@@ -244,8 +244,8 @@ mod beyond_uint_max {
         }
         let key = b"key";
         for (safe_type, raw_type) in [
-            (HmacType::MD5, ffi::AVHMACType::AV_HMAC_MD5),
-            (HmacType::SHA512, ffi::AVHMACType::AV_HMAC_SHA512),
+            (HmacType::MD5, ffi::AV_HMAC_MD5),
+            (HmacType::SHA512, ffi::AV_HMAC_SHA512),
         ] {
             for calculate in [false, true] {
                 let raw = Reference::new(raw_type);

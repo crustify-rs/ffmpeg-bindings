@@ -19,7 +19,6 @@ mod side_data_lookups {
     use core::ffi::CStr;
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::{
         SideDataDescriptor, SideDataDescriptorRef, SideDataType,
     };
@@ -28,7 +27,7 @@ mod side_data_lookups {
         (0..=256u32)
             .chain((0..32).map(|s| 1u32 << s))
             .chain([u32::MAX, u32::MAX - 1, i32::MAX as u32])
-            .map(|raw| SideDataType::from_raw(ffi::AVFrameSideDataType(raw)))
+            .map(SideDataType::from_raw)
     }
 
     #[test]
@@ -298,9 +297,7 @@ mod side_data {
         let kinds = [
             SideDataType::AFD,
             SideDataType::SEI_UNREGISTERED,
-            SideDataType::from_raw(
-                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(77),
-            ),
+            SideDataType::from_raw(77),
         ];
         let mut a = sample();
         let mut kept = Vec::new();
@@ -384,9 +381,7 @@ mod side_data {
     fn kinds_take_any_value() {
         let mut a = sample();
         for raw in [0, 1, 37, 38, 1 << 31, u32::MAX] {
-            let kind = SideDataType::from_raw(
-                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(raw),
-            );
+            let kind = SideDataType::from_raw(raw);
             for mut e in a.as_mut().iter_mut() {
                 e.set_kind(kind);
                 assert_eq!(e.as_ref().kind(), kind);
@@ -473,9 +468,7 @@ mod side_data {
                     if let Some(bytes) = e.data_mut() {
                         bytes.fill(i as u8 + 1);
                     }
-                    e.set_kind(SideDataType::from_raw(
-                        ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(i as u32),
-                    ));
+                    e.set_kind(SideDataType::from_raw(i as u32));
                 });
             }
         });
@@ -726,11 +719,7 @@ mod side_data_array_routines {
         let again = r.find(SideDataType::AFD).unwrap();
         assert_eq!(afd.data(), again.data());
         let mut entries = a.as_mut();
-        let mut e = entries
-            .find_mut(SideDataType::from_raw(
-                ffmpeg_bindings::libavutil::libavutil::ffi::AVFrameSideDataType(u32::MAX),
-            ))
-            .unwrap();
+        let mut e = entries.find_mut(SideDataType::from_raw(u32::MAX)).unwrap();
         e.data_mut().unwrap().fill(0);
         assert!(entries.find_mut(SideDataType::DISPLAY_MATRIX).is_none());
         assert!(is_all(a.as_ref().get(5).unwrap().data(), 0));

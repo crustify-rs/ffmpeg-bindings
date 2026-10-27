@@ -1,0 +1,9 @@
+# Agent-owned bindgen allowlist for libavdevice.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^AVAppToDevMessageType$
+type ^AVDevToAppMessageType$
+type ^AVDeviceInfo$
+type ^AVDeviceInfoList$
+type ^AVDeviceRect$

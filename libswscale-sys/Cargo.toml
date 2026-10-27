@@ -18,6 +18,11 @@ doctest = false
 libavutil-sys.workspace = true
 
 [build-dependencies]
-bindgen.workspace = true
+bindgen = { workspace = true, optional = true }
 cc.workspace = true
+pkg-config.workspace = true
 serde_json.workspace = true
+
+[features]
+# Regenerates the bindings from the headers of the library found, in place of the shipped ones.
+bindgen = ["dep:bindgen"]

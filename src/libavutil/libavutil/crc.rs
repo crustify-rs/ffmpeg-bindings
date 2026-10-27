@@ -18,21 +18,21 @@ pub struct CrcId(ffi::AVCRCId);
 
 impl CrcId {
     /// CRC-16, polynomial 0x8005.
-    pub const ANSI_16: Self = Self(ffi::AVCRCId::AV_CRC_16_ANSI);
+    pub const ANSI_16: Self = Self(ffi::AV_CRC_16_ANSI);
     /// CRC-16 with reversed bit order, polynomial 0xa001.
-    pub const ANSI_16_LE: Self = Self(ffi::AVCRCId::AV_CRC_16_ANSI_LE);
+    pub const ANSI_16_LE: Self = Self(ffi::AV_CRC_16_ANSI_LE);
     /// CRC-8, polynomial 0x07.
-    pub const ATM_8: Self = Self(ffi::AVCRCId::AV_CRC_8_ATM);
+    pub const ATM_8: Self = Self(ffi::AV_CRC_8_ATM);
     /// CRC-16, polynomial 0x1021.
-    pub const CCITT_16: Self = Self(ffi::AVCRCId::AV_CRC_16_CCITT);
+    pub const CCITT_16: Self = Self(ffi::AV_CRC_16_CCITT);
     /// CRC-8, polynomial 0x1d.
-    pub const EBU_8: Self = Self(ffi::AVCRCId::AV_CRC_8_EBU);
+    pub const EBU_8: Self = Self(ffi::AV_CRC_8_EBU);
     /// CRC-24, polynomial 0x864cfb.
-    pub const IEEE_24: Self = Self(ffi::AVCRCId::AV_CRC_24_IEEE);
+    pub const IEEE_24: Self = Self(ffi::AV_CRC_24_IEEE);
     /// CRC-32, polynomial 0x04c11db7.
-    pub const IEEE_32: Self = Self(ffi::AVCRCId::AV_CRC_32_IEEE);
+    pub const IEEE_32: Self = Self(ffi::AV_CRC_32_IEEE);
     /// CRC-32 with reversed bit order, polynomial 0xedb88320.
-    pub const IEEE_32_LE: Self = Self(ffi::AVCRCId::AV_CRC_32_IEEE_LE);
+    pub const IEEE_32_LE: Self = Self(ffi::AV_CRC_32_IEEE_LE);
 
     /// Preserves any C encoding, including unsupported identifiers.
     #[must_use]
@@ -70,7 +70,7 @@ impl fmt::Debug for CrcId {
             Self::ANSI_16_LE => "ANSI_16_LE",
             Self::IEEE_24 => "IEEE_24",
             Self::EBU_8 => "EBU_8",
-            _ => return f.debug_tuple("CrcId").field(&self.0.0).finish(),
+            _ => return f.debug_tuple("CrcId").field(&self.0).finish(),
         };
         write!(f, "CrcId::{name}")
     }
@@ -248,14 +248,11 @@ mod unit_tests {
         assert_eq!(size_of::<CrcId>(), size_of::<ffi::AVCRCId>());
         assert_eq!(align_of::<CrcId>(), align_of::<ffi::AVCRCId>());
         for value in [0, 7, 8, 9, u32::MAX] {
-            let id = CrcId::from(ffi::AVCRCId(value));
+            let id = CrcId::from(value);
             let raw: ffi::AVCRCId = id.into();
-            assert_eq!(raw.0, value);
+            assert_eq!(raw, value);
         }
-        assert_eq!(
-            format!("{:?}", CrcId::from_raw(ffi::AVCRCId(99))),
-            "CrcId(99)"
-        );
+        assert_eq!(format!("{:?}", CrcId::from_raw(99)), "CrcId(99)");
     }
 
     #[test]

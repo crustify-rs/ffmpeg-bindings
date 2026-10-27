@@ -4,5 +4,5 @@ use ffmpeg_bindings::libavutil::libavutil::ffi;
 use ffmpeg_bindings::libavutil::libavutil::mathematics::Rounding;
 
 fn main() {
-    let _ = Rounding(ffi::AVRounding(4));
+    let _ = Rounding(ffi::AV_ROUND_ZERO | 4);
 }

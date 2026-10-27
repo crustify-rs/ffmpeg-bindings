@@ -1,0 +1,30 @@
+# Agent-owned bindgen allowlist for libavformat.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^AVChapter$
+type ^AVDurationEstimationMethod$
+type ^AVFormatCommandID$
+type ^AVFormatContext$
+type ^AVIOContext$
+type ^AVIODataMarkerType$
+type ^AVIODirContext$
+type ^AVIODirEntry$
+type ^AVIODirEntryType$
+type ^AVIOInterruptCB$
+type ^AVIndexEntry$
+type ^AVInputFormat$
+type ^AVOpenCallback$
+type ^AVOutputFormat$
+type ^AVProbeData$
+type ^AVProgram$
+type ^AVRTSPCommandRequest$
+type ^AVRTSPResponse$
+type ^AVStream$
+type ^AVStreamGroup$
+type ^AVStreamGroupLayeredVideo$
+type ^AVStreamGroupParamsType$
+type ^AVStreamGroupTREF$
+type ^AVStreamGroupTileGrid$
+type ^AVStreamParseType$
+type ^av_format_control_message$

@@ -60,10 +60,10 @@ impl EscapeMode {
     #[must_use]
     pub const fn into_raw(self) -> ffi::AVEscapeMode {
         match self {
-            Self::Auto => ffi::AVEscapeMode::AV_ESCAPE_MODE_AUTO,
-            Self::Backslash => ffi::AVEscapeMode::AV_ESCAPE_MODE_BACKSLASH,
-            Self::Quote => ffi::AVEscapeMode::AV_ESCAPE_MODE_QUOTE,
-            Self::Xml => ffi::AVEscapeMode::AV_ESCAPE_MODE_XML,
+            Self::Auto => ffi::AV_ESCAPE_MODE_AUTO,
+            Self::Backslash => ffi::AV_ESCAPE_MODE_BACKSLASH,
+            Self::Quote => ffi::AV_ESCAPE_MODE_QUOTE,
+            Self::Xml => ffi::AV_ESCAPE_MODE_XML,
         }
     }
 }
@@ -867,7 +867,7 @@ mod unit_tests {
         assert_eq!(EscapeMode::default(), EscapeMode::Auto);
         assert_eq!(
             ffi::AVEscapeMode::from(EscapeMode::default()),
-            ffi::AVEscapeMode::AV_ESCAPE_MODE_AUTO
+            ffi::AV_ESCAPE_MODE_AUTO
         );
     }
 

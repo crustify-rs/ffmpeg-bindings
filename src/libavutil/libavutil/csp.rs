@@ -1416,12 +1416,10 @@ mod unit_tests {
     /// Every transfer characteristic C may hand a function out for, past the
     /// end of both ranges included.
     fn transfers() -> impl Iterator<Item = ffi::AVColorTransferCharacteristic> {
-        let nb = ffi::AVColorTransferCharacteristic::AVCOL_TRC_NB.0;
-        let ext = ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_BASE.0;
-        let ext_nb = ffi::AVColorTransferCharacteristic::AVCOL_TRC_EXT_NB.0;
-        (0..=nb)
-            .chain(ext..=ext_nb)
-            .map(ffi::AVColorTransferCharacteristic)
+        let nb = ffi::AVCOL_TRC_NB;
+        let ext = ffi::AVCOL_TRC_EXT_BASE;
+        let ext_nb = ffi::AVCOL_TRC_EXT_NB;
+        (0..=nb).chain(ext..=ext_nb)
     }
 
     /// The transfer functions C hands out, with the raw pointers.
@@ -1918,7 +1916,7 @@ mod unit_tests {
         assert_eq!(ColorTransfer::V_LOG.approximate_eotf_gamma(), Some(2.2));
         assert_eq!(ColorTransfer::SMPTE2084.approximate_trc_gamma(), None);
         assert_eq!(ColorTransfer::UNSPECIFIED.approximate_eotf_gamma(), None);
-        let huge = ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(u32::MAX));
+        let huge = ColorTransfer::from_raw(u32::MAX);
         assert_eq!(
             (huge.approximate_trc_gamma(), huge.approximate_eotf_gamma()),
             (None, None)
@@ -2394,7 +2392,7 @@ mod unit_tests {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn identify_corrects_c_matching_unordered_differences_as_bt709() {
-        let bt709 = ffi::AVColorPrimaries::AVCOL_PRI_BT709;
+        let bt709 = ffi::AVCOL_PRI_BT709;
         // The all-zero description: C sums `0/0` differences, which
         // `av_cmp_q` reports unordered (`INT_MIN`), read as a match.
         let zero = ffi::AVColorPrimariesDesc::default();
@@ -2409,7 +2407,7 @@ mod unit_tests {
             .get()
             .into_raw();
         let fields = descriptor_fields(ColorPrimariesDescriptor::from_raw(bt2020).as_ref());
-        assert_eq!(c_identify(&bt2020), ffi::AVColorPrimaries::AVCOL_PRI_BT2020);
+        assert_eq!(c_identify(&bt2020), ffi::AVCOL_PRI_BT2020);
         for &i in &DENOMINATORS {
             // One `0/0` coordinate anywhere.
             let mut f = fields;

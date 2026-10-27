@@ -70,33 +70,33 @@ impl SampleFormat {
     /// A newer libavutil of the same major version may append formats, which
     /// [`index`](Self::index) reports as `None`; this is why C warns against
     /// `AV_SAMPLE_FMT_NB` when linking dynamically.
-    pub const COUNT: usize = ffi::AVSampleFormat::AV_SAMPLE_FMT_NB.0 as usize;
+    pub const COUNT: usize = ffi::AV_SAMPLE_FMT_NB as usize;
     /// `double`.
-    pub const DBL: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBL);
+    pub const DBL: Self = Self(ffi::AV_SAMPLE_FMT_DBL);
     /// `double`, planar.
-    pub const DBLP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_DBLP);
+    pub const DBLP: Self = Self(ffi::AV_SAMPLE_FMT_DBLP);
     /// `float`.
-    pub const FLT: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLT);
+    pub const FLT: Self = Self(ffi::AV_SAMPLE_FMT_FLT);
     /// `float`, planar.
-    pub const FLTP: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_FLTP);
+    pub const FLTP: Self = Self(ffi::AV_SAMPLE_FMT_FLTP);
     /// No sample format: unknown or unset.
-    pub const NONE: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_NONE);
+    pub const NONE: Self = Self(ffi::AV_SAMPLE_FMT_NONE);
     /// Signed 16 bits.
-    pub const S16: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16);
+    pub const S16: Self = Self(ffi::AV_SAMPLE_FMT_S16);
     /// Signed 16 bits, planar.
-    pub const S16P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P);
+    pub const S16P: Self = Self(ffi::AV_SAMPLE_FMT_S16P);
     /// Signed 32 bits.
-    pub const S32: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32);
+    pub const S32: Self = Self(ffi::AV_SAMPLE_FMT_S32);
     /// Signed 32 bits, planar.
-    pub const S32P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S32P);
+    pub const S32P: Self = Self(ffi::AV_SAMPLE_FMT_S32P);
     /// Signed 64 bits.
-    pub const S64: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64);
+    pub const S64: Self = Self(ffi::AV_SAMPLE_FMT_S64);
     /// Signed 64 bits, planar.
-    pub const S64P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_S64P);
+    pub const S64P: Self = Self(ffi::AV_SAMPLE_FMT_S64P);
     /// Unsigned 8 bits.
-    pub const U8: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8);
+    pub const U8: Self = Self(ffi::AV_SAMPLE_FMT_U8);
     /// Unsigned 8 bits, planar.
-    pub const U8P: Self = Self(ffi::AVSampleFormat::AV_SAMPLE_FMT_U8P);
+    pub const U8P: Self = Self(ffi::AV_SAMPLE_FMT_U8P);
 
     /// The sample format C encodes as `raw`, whatever its value.
     #[inline]
@@ -117,7 +117,7 @@ impl SampleFormat {
     #[inline]
     #[must_use]
     pub const fn index(self) -> Option<usize> {
-        let raw = self.0.0;
+        let raw = self.0;
         if raw >= 0 && (raw.unsigned_abs() as usize) < Self::COUNT {
             Some(raw.unsigned_abs() as usize)
         } else {
@@ -157,7 +157,7 @@ impl fmt::Debug for SampleFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("SampleFormat").field(&self.0.0).finish(),
+            None => f.debug_tuple("SampleFormat").field(&self.0).finish(),
         }
     }
 }
@@ -1133,7 +1133,7 @@ impl SampleFormat {
         reason = "the format count is a few dozen"
     )]
     pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
-        if buf.is_empty() || self.0.0 >= Self::COUNT as c_int {
+        if buf.is_empty() || self.0 >= Self::COUNT as c_int {
             // C's `snprintf` writes nothing into an empty buffer, and C
             // skips values past its table, leaving `buf` unterminated.
             return None;
@@ -1199,10 +1199,10 @@ mod unit_tests {
 
     #[test]
     fn debug_shows_unnamed_values_raw() {
-        let nb = SampleFormat::from_raw(ffi::AVSampleFormat::AV_SAMPLE_FMT_NB);
+        let nb = SampleFormat::from_raw(ffi::AV_SAMPLE_FMT_NB);
         assert_eq!(format!("{nb:?}"), "SampleFormat(12)");
         for raw in [c_int::MIN, -2, 13, c_int::MAX] {
-            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(raw);
             assert_eq!(format!("{f:?}"), format!("SampleFormat({raw})"));
         }
     }
@@ -1216,17 +1216,14 @@ mod unit_tests {
         }
         assert_eq!(SampleFormat::NONE.index(), None);
         for raw in [c_int::MIN, -2, 12, 13, c_int::MAX] {
-            assert_eq!(
-                SampleFormat::from_raw(ffi::AVSampleFormat(raw)).index(),
-                None
-            );
+            assert_eq!(SampleFormat::from_raw(raw).index(), None);
         }
     }
 
     #[test]
     fn raw_conversions_round_trip_every_value() {
         for raw in [c_int::MIN, -2, -1, 0, 11, 12, 13, c_int::MAX] {
-            let c = ffi::AVSampleFormat(raw);
+            let c = raw;
             assert_eq!(SampleFormat::from(c).into_raw(), c);
             assert_eq!(ffi::AVSampleFormat::from(SampleFormat::from_raw(c)), c);
         }
@@ -1244,7 +1241,7 @@ mod unit_tests {
     #[test]
     fn default_is_none() {
         assert_eq!(SampleFormat::default(), SampleFormat::NONE);
-        assert_eq!(SampleFormat::default().into_raw().0, -1);
+        assert_eq!(SampleFormat::default().into_raw(), -1);
         assert_eq!(SampleFormat::default().index(), None);
         assert_eq!(format!("{:?}", SampleFormat::default()), "NONE");
     }
@@ -1474,7 +1471,7 @@ mod unit_tests {
             assert_eq!(f.is_planar(), name.ends_with('P'), "{f:?}");
         }
         for raw in [c_int::MIN, -2, 12, 13, c_int::MAX] {
-            assert!(!SampleFormat::from_raw(ffi::AVSampleFormat(raw)).is_planar());
+            assert!(!SampleFormat::from_raw(raw).is_planar());
         }
     }
 
@@ -1722,7 +1719,7 @@ mod unit_tests {
         const RAW: ffi::AVSampleFormat = SampleFormat::S16P.into_raw();
         const BACK: SampleFormat = SampleFormat::from_raw(RAW);
         const INDEX: Option<usize> = BACK.index();
-        assert_eq!(RAW, ffi::AVSampleFormat::AV_SAMPLE_FMT_S16P);
+        assert_eq!(RAW, ffi::AV_SAMPLE_FMT_S16P);
         assert_eq!(INDEX, Some(6));
     }
 
@@ -1746,7 +1743,7 @@ mod unit_tests {
             }
         }
         for raw in [c_int::MIN, -2, -1, 12, 13, c_int::MAX] {
-            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(raw);
             assert_eq!((f.alt(false), f.alt(true), f.packed()), (None, None, None));
             assert_eq!(f.bytes_per_sample(), 0);
         }
@@ -1773,10 +1770,7 @@ mod unit_tests {
             assert_eq!(planar.planar(), Some(planar));
         }
         for raw in [c_int::MIN, -1, 12, c_int::MAX] {
-            assert_eq!(
-                SampleFormat::from_raw(ffi::AVSampleFormat(raw)).planar(),
-                None
-            );
+            assert_eq!(SampleFormat::from_raw(raw).planar(), None);
         }
     }
 
@@ -1785,7 +1779,7 @@ mod unit_tests {
         let mut buf = [b'x'; 16];
         assert_eq!(SampleFormat::S16.describe(&mut buf[..0]), None);
         for raw in [12, 13, c_int::MAX] {
-            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(raw);
             assert_eq!(f.describe(&mut buf), None);
         }
         assert_eq!(buf, [b'x'; 16]);
@@ -1798,7 +1792,7 @@ mod unit_tests {
         assert_eq!(SampleFormat::U8.describe(&mut buf[..1]), Some(c""));
         assert_eq!(&buf[..2], b"\0x");
         for raw in [c_int::MIN, -2, -1] {
-            let f = SampleFormat::from_raw(ffi::AVSampleFormat(raw));
+            let f = SampleFormat::from_raw(raw);
             assert_eq!(f.describe(&mut buf), Some(c"name   depth"));
         }
         assert_eq!(SampleFormat::S64P.describe(&mut buf), Some(c"s64p     64 "));

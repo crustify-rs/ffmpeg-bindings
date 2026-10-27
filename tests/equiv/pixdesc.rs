@@ -354,23 +354,23 @@ mod color_names {
     fn lookups(name: &CStr) -> [(Option<u32>, Option<u32>); 5] {
         [
             (
-                ColorRange::from_name(name).map(|v| v.into_raw().0),
+                ColorRange::from_name(name).map(|v| v.into_raw()),
                 c_lookup(ffi::av_color_range_from_name, name),
             ),
             (
-                ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
+                ColorPrimaries::from_name(name).map(|v| v.into_raw()),
                 c_lookup(ffi::av_color_primaries_from_name, name),
             ),
             (
-                ColorTransfer::from_name(name).map(|v| v.into_raw().0),
+                ColorTransfer::from_name(name).map(|v| v.into_raw()),
                 c_lookup(ffi::av_color_transfer_from_name, name),
             ),
             (
-                ColorSpace::from_name(name).map(|v| v.into_raw().0),
+                ColorSpace::from_name(name).map(|v| v.into_raw()),
                 c_lookup(ffi::av_color_space_from_name, name),
             ),
             (
-                ChromaLocation::from_name(name).map(|v| v.into_raw().0),
+                ChromaLocation::from_name(name).map(|v| v.into_raw()),
                 c_lookup(ffi::av_chroma_location_from_name, name),
             ),
         ]
@@ -430,14 +430,8 @@ mod color_names {
             Some(ColorTransfer::RESERVED0)
         );
         // The extended ranges start past the plain ones.
-        assert_eq!(
-            lookups(c"vgamut")[1].0,
-            Some(ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT.0)
-        );
-        assert_eq!(
-            lookups(c"vlog")[2].0,
-            Some(ffi::AVColorTransferCharacteristic::AVCOL_TRC_V_LOG.0)
-        );
+        assert_eq!(lookups(c"vgamut")[1].0, Some(ffi::AVCOL_PRI_V_GAMUT));
+        assert_eq!(lookups(c"vlog")[2].0, Some(ffi::AVCOL_TRC_V_LOG));
     }
 }
 
@@ -454,18 +448,18 @@ mod swap_endianness {
     /// `av_pix_fmt_swap_endianness(raw)`.
     fn c_swap(raw: c_int) -> c_int {
         // SAFETY: C takes the enum by value and bounds-checks it.
-        unsafe { ffi::av_pix_fmt_swap_endianness(ffi::AVPixelFormat(raw)) }.0
+        unsafe { ffi::av_pix_fmt_swap_endianness(raw) }
     }
 
     /// The Rust result as C encodes it: `AV_PIX_FMT_NONE` for `None`.
     fn rust_swap(raw: c_int) -> c_int {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
             .swap_endianness()
-            .map_or(ffi::AVPixelFormat::AV_PIX_FMT_NONE.0, |f| f.into_raw().0)
+            .map_or(ffi::AV_PIX_FMT_NONE, |f| f.into_raw())
     }
 
     fn candidates() -> impl Iterator<Item = c_int> {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         (-3..nb + 3).chain([c_int::MIN, c_int::MIN + 1, 1 << 20, c_int::MAX])
     }
 
@@ -476,7 +470,7 @@ mod swap_endianness {
         for raw in candidates() {
             let (c, rust) = (c_swap(raw), rust_swap(raw));
             assert_eq!(rust, c, "{raw}");
-            swapped += usize::from(c != ffi::AVPixelFormat::AV_PIX_FMT_NONE.0);
+            swapped += usize::from(c != ffi::AV_PIX_FMT_NONE);
         }
         // Every byte-ordered format has its twin: C's table lists pairs.
         assert!(swapped > 100 && swapped % 2 == 0, "{swapped}");
@@ -490,7 +484,7 @@ mod swap_endianness {
             assert_eq!(r1, c1, "{raw}");
             let (c2, r2) = (c_swap(c1), rust_swap(r1));
             assert_eq!(r2, c2, "{raw}");
-            if c1 != ffi::AVPixelFormat::AV_PIX_FMT_NONE.0 {
+            if c1 != ffi::AV_PIX_FMT_NONE {
                 assert_eq!((c2, r2), (raw, raw));
             }
         }
@@ -542,30 +536,28 @@ mod property_names {
         // return NULL or a static string.
         [
             (
-                ColorRange::from_raw(ffi::AVColorRange(raw)).name(),
-                c_name(unsafe { ffi::av_color_range_name(ffi::AVColorRange(raw)) }),
+                ColorRange::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_color_range_name(raw) }),
             ),
             (
-                ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw)).name(),
-                c_name(unsafe { ffi::av_color_primaries_name(ffi::AVColorPrimaries(raw)) }),
+                ColorPrimaries::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_color_primaries_name(raw) }),
             ),
             (
-                ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw)).name(),
-                c_name(unsafe {
-                    ffi::av_color_transfer_name(ffi::AVColorTransferCharacteristic(raw))
-                }),
+                ColorTransfer::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_color_transfer_name(raw) }),
             ),
             (
-                ColorSpace::from_raw(ffi::AVColorSpace(raw)).name(),
-                c_name(unsafe { ffi::av_color_space_name(ffi::AVColorSpace(raw)) }),
+                ColorSpace::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_color_space_name(raw) }),
             ),
             (
-                ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).name(),
-                c_name(unsafe { ffi::av_chroma_location_name(ffi::AVChromaLocation(raw)) }),
+                ChromaLocation::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_chroma_location_name(raw) }),
             ),
             (
-                AlphaMode::from_raw(ffi::AVAlphaMode(raw)).name(),
-                c_name(unsafe { ffi::av_alpha_mode_name(ffi::AVAlphaMode(raw)) }),
+                AlphaMode::from_raw(raw).name(),
+                c_name(unsafe { ffi::av_alpha_mode_name(raw) }),
             ),
         ]
     }
@@ -594,34 +586,34 @@ mod property_names {
         // only read.
         match i {
             0 => (
-                ColorRange::from_name(name).map(|v| v.into_raw().0),
+                ColorRange::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
                 c(unsafe { ffi::av_color_range_from_name(name.as_ptr()) }),
             ),
             1 => (
-                ColorPrimaries::from_name(name).map(|v| v.into_raw().0),
+                ColorPrimaries::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
                 c(unsafe { ffi::av_color_primaries_from_name(name.as_ptr()) }),
             ),
             2 => (
-                ColorTransfer::from_name(name).map(|v| v.into_raw().0),
+                ColorTransfer::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
                 c(unsafe { ffi::av_color_transfer_from_name(name.as_ptr()) }),
             ),
             3 => (
-                ColorSpace::from_name(name).map(|v| v.into_raw().0),
+                ColorSpace::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
                 c(unsafe { ffi::av_color_space_from_name(name.as_ptr()) }),
             ),
             4 => (
-                ChromaLocation::from_name(name).map(|v| v.into_raw().0),
+                ChromaLocation::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
                 c(unsafe { ffi::av_chroma_location_from_name(name.as_ptr()) }),
             ),
             _ => (
-                AlphaMode::from_name(name).map(|v| v.into_raw().0),
+                AlphaMode::from_name(name).map(|v| v.into_raw()),
                 // SAFETY: as the comment above this statement states.
-                c(unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) }.0 as core::ffi::c_int),
+                c(unsafe { ffi::av_alpha_mode_from_name(name.as_ptr()) } as core::ffi::c_int),
             ),
         }
     }
@@ -701,9 +693,7 @@ mod chroma_positions {
         let (mut x, mut y) = (i32::MIN, i32::MAX);
         // SAFETY: `x` and `y` are live, writable `int`s, written only on
         // success and not kept.
-        let ret = unsafe {
-            ffi::av_chroma_location_enum_to_pos(&raw mut x, &raw mut y, ffi::AVChromaLocation(raw))
-        };
+        let ret = unsafe { ffi::av_chroma_location_enum_to_pos(&raw mut x, &raw mut y, raw) };
         if ret == 0 {
             Some((x, y))
         } else {
@@ -715,7 +705,7 @@ mod chroma_positions {
 
     fn c_from_position(x: i32, y: i32) -> u32 {
         // SAFETY: two integers by value.
-        unsafe { ffi::av_chroma_location_pos_to_enum(x, y) }.0
+        unsafe { ffi::av_chroma_location_pos_to_enum(x, y) }
     }
 
     /// Coordinates on C's 0/128/256 grid, their neighbours and the extremes.
@@ -744,7 +734,7 @@ mod chroma_positions {
     fn position_matches_c_for_every_value() {
         let mut found = 0;
         for raw in raws() {
-            let rust = ChromaLocation::from_raw(ffi::AVChromaLocation(raw)).position();
+            let rust = ChromaLocation::from_raw(raw).position();
             assert_eq!(rust, c_position(raw), "value {raw}");
             found += usize::from(rust.is_some());
         }
@@ -757,7 +747,7 @@ mod chroma_positions {
         let mut found = 0;
         for x in COORDS {
             for y in COORDS {
-                let rust = ChromaLocation::from_position(x, y).map(|l| l.into_raw().0);
+                let rust = ChromaLocation::from_position(x, y).map(|l| l.into_raw());
                 let c = c_from_position(x, y);
                 // C reports "no location" as `AVCHROMA_LOC_UNSPECIFIED` (0).
                 assert_eq!(rust.unwrap_or(0), c, "({x}, {y})");
@@ -772,7 +762,7 @@ mod chroma_positions {
     #[cfg_attr(miri, ignore = "calls C")]
     fn positions_round_trip_on_both_sides() {
         for raw in raws() {
-            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            let loc = ChromaLocation::from_raw(raw);
             let Some((x, y)) = loc.position() else {
                 continue;
             };
@@ -796,7 +786,7 @@ mod pixel_format_names {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
     fn nb() -> c_int {
-        ffi::AVPixelFormat::AV_PIX_FMT_NB.0
+        ffi::AV_PIX_FMT_NB
     }
 
     fn raws() -> impl Iterator<Item = c_int> {
@@ -806,19 +796,19 @@ mod pixel_format_names {
     fn c_name(raw: c_int) -> Option<&'static CStr> {
         // SAFETY: `av_get_pix_fmt_name` accepts any value and returns NULL or
         // a descriptor's static name.
-        let p = unsafe { ffi::av_get_pix_fmt_name(ffi::AVPixelFormat(raw)) };
+        let p = unsafe { ffi::av_get_pix_fmt_name(raw) };
         // SAFETY: a non-NULL result is a string literal, never written.
         (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
     }
 
     fn c_lookup(name: &CStr) -> c_int {
         // SAFETY: `name` is a live NUL-terminated string, only read.
-        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }.0
+        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }
     }
 
     /// Both lookups of `name`, as raw values; C's `NONE` is Rust's `None`.
     fn lookups(name: &CStr) -> (c_int, c_int) {
-        let rust = PixelFormat::from_name(name).map_or(-1, |f| f.into_raw().0);
+        let rust = PixelFormat::from_name(name).map_or(-1, |f| f.into_raw());
         if let Some(f) = PixelFormat::from_name(name) {
             assert_ne!(f, PixelFormat::NONE);
         }
@@ -830,7 +820,7 @@ mod pixel_format_names {
     fn name_matches_c_for_every_value() {
         let mut named = 0;
         for raw in raws() {
-            let rust = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name();
+            let rust = PixelFormat::from_raw(raw).name();
             let c = c_name(raw);
             assert_eq!(rust, c, "value {raw}");
             assert_eq!(rust.map(CStr::as_ptr), c.map(CStr::as_ptr));
@@ -893,7 +883,7 @@ mod pixel_format_names {
     #[cfg_attr(miri, ignore = "calls C")]
     fn names_map_back_on_both_sides() {
         for raw in 0..nb() {
-            let f = PixelFormat::from_raw(ffi::AVPixelFormat(raw));
+            let f = PixelFormat::from_raw(raw);
             let name = f.name().unwrap();
             assert_eq!(lookups(name), (raw, raw), "{name:?}");
             assert_eq!(PixelFormat::from_name(name), Some(f));
@@ -903,9 +893,9 @@ mod pixel_format_names {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn native_endian_names_resolve_as_c_does() {
-        assert_eq!(lookups(c"gray16").0, PixelFormat::GRAY16.into_raw().0);
-        assert_eq!(lookups(c"rgb32").0, PixelFormat::RGB32.into_raw().0);
-        assert_eq!(lookups(c"bgr32").0, PixelFormat::BGR32.into_raw().0);
+        assert_eq!(lookups(c"gray16").0, PixelFormat::GRAY16.into_raw());
+        assert_eq!(lookups(c"rgb32").0, PixelFormat::RGB32.into_raw());
+        assert_eq!(lookups(c"bgr32").0, PixelFormat::BGR32.into_raw());
         for name in [c"gray16", c"rgb32", c"bgr32", c"yuv420p10"] {
             let (rust, c) = lookups(name);
             assert_eq!(rust, c, "{name:?}");
@@ -921,7 +911,7 @@ mod pixel_format_names {
             for (k, name) in names.iter().enumerate().rev().step_by(round + 2) {
                 let raw = values[k % values.len()];
                 assert_eq!(
-                    PixelFormat::from_raw(ffi::AVPixelFormat(raw)).name(),
+                    PixelFormat::from_raw(raw).name(),
                     c_name(raw),
                     "round {round}, value {raw}"
                 );
@@ -946,7 +936,7 @@ mod pixel_format_loss {
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::{Loss, PixelFormat};
 
     fn nb() -> c_int {
-        ffi::AVPixelFormat::AV_PIX_FMT_NB.0
+        ffi::AV_PIX_FMT_NB
     }
 
     /// Every value C knows, `NONE`, and unknown values on both sides.
@@ -955,18 +945,12 @@ mod pixel_format_loss {
     }
 
     fn fmt(raw: c_int) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     fn c_loss(dst: c_int, src: c_int, has_alpha: bool) -> c_int {
         // SAFETY: three integers by value; C bounds-checks both formats.
-        unsafe {
-            ffi::av_get_pix_fmt_loss(
-                ffi::AVPixelFormat(dst),
-                ffi::AVPixelFormat(src),
-                c_int::from(has_alpha),
-            )
-        }
+        unsafe { ffi::av_get_pix_fmt_loss(dst, src, c_int::from(has_alpha)) }
     }
 
     /// A Rust loss result as C's `int`.
@@ -998,16 +982,8 @@ mod pixel_format_loss {
         };
         // SAFETY: the formats and flag by value; `p` is NULL or a live,
         // writable `int`, read and written during the call only.
-        let r = unsafe {
-            ffi::av_find_best_pix_fmt_of_2(
-                ffi::AVPixelFormat(d1),
-                ffi::AVPixelFormat(d2),
-                ffi::AVPixelFormat(src),
-                c_int::from(has_alpha),
-                p,
-            )
-        };
-        (r.0, loss.map(|_| l))
+        let r = unsafe { ffi::av_find_best_pix_fmt_of_2(d1, d2, src, c_int::from(has_alpha), p) };
+        (r, loss.map(|_| l))
     }
 
     /// A deterministic pseudo-random sequence.
@@ -1059,11 +1035,7 @@ mod pixel_format_loss {
                 for has_alpha in [false, true] {
                     let rust = fmt(src).best_of_two(fmt(d1), fmt(d2), has_alpha);
                     let (c, _) = c_best(d1, d2, src, has_alpha, None);
-                    assert_eq!(
-                        rust.into_raw().0,
-                        c,
-                        "{src}: {d1} or {d2}, alpha {has_alpha}"
-                    );
+                    assert_eq!(rust.into_raw(), c, "{src}: {d1} or {d2}, alpha {has_alpha}");
                 }
             }
         }
@@ -1096,7 +1068,7 @@ mod pixel_format_loss {
                             fmt(src).best_of_two_with_loss(fmt(d1), fmt(d2), has_alpha, ignore);
                         let (c, c_out) = c_best(d1, d2, src, has_alpha, Some(ignore.bits()));
                         let at = format!("{src}: {d1} or {d2}, alpha {has_alpha}, {ignore:?}");
-                        assert_eq!(rust.into_raw().0, c, "{at}");
+                        assert_eq!(rust.into_raw(), c, "{at}");
                         assert_eq!(Some(as_c(loss)), c_out, "{at}");
                         // C reports the chosen format's loss.
                         assert_eq!(as_c(loss), c_loss(c, src, has_alpha), "{at}");
@@ -1119,7 +1091,7 @@ mod pixel_format_loss {
             PixelFormat::YUVA444P16LE,
             PixelFormat::NONE,
         ] {
-            let s = src.into_raw().0;
+            let s = src.into_raw();
             for has_alpha in [false, true] {
                 let (mut rust, mut c) = (PixelFormat::NONE, -1);
                 let (mut rust_ignore, mut c_ignore) = (Loss::empty(), 0);
@@ -1127,13 +1099,13 @@ mod pixel_format_loss {
                 for raw in -1..nb() {
                     rust2 = src.best_of_two(rust2, fmt(raw), has_alpha);
                     c2 = c_best(c2, raw, s, has_alpha, None).0;
-                    assert_eq!(rust2.into_raw().0, c2, "{src:?} step {raw}");
+                    assert_eq!(rust2.into_raw(), c2, "{src:?} step {raw}");
 
                     let (r, loss) =
                         src.best_of_two_with_loss(rust, fmt(raw), has_alpha, rust_ignore);
                     let (cr, cl) = c_best(c, raw, s, has_alpha, Some(c_ignore));
                     assert_eq!(
-                        (r.into_raw().0, Some(as_c(loss))),
+                        (r.into_raw(), Some(as_c(loss))),
                         (cr, cl),
                         "{src:?} step {raw}"
                     );
@@ -1171,7 +1143,7 @@ mod pixel_format_descriptor {
     };
 
     /// The number of entries in C's table.
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
     /// Values read or written per line.
     const W: usize = 8;
     /// Bytes per image row: 8 pixels of the table's widest step plus its
@@ -1188,9 +1160,9 @@ mod pixel_format_descriptor {
     fn c_entry(fmt: c_int) -> (*const ffi::AVPixFmtDescriptor, PixelFormatDescriptor) {
         // SAFETY: `av_pix_fmt_desc_get` takes any value and returns NULL or
         // a pointer into C's static table.
-        let p = unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(fmt)) };
+        let p = unsafe { ffi::av_pix_fmt_desc_get(fmt) };
         assert!(!p.is_null(), "{fmt}");
-        let d = PixelFormat::from_raw(ffi::AVPixelFormat(fmt)).descriptor();
+        let d = PixelFormat::from_raw(fmt).descriptor();
         (p, d.expect("C has an entry").get())
     }
 
@@ -1198,13 +1170,13 @@ mod pixel_format_descriptor {
     fn c_name(fmt: c_int) -> *const core::ffi::c_char {
         // SAFETY: `av_get_pix_fmt_name` takes any value and returns NULL or
         // a static string.
-        unsafe { ffi::av_get_pix_fmt_name(ffi::AVPixelFormat(fmt)) }
+        unsafe { ffi::av_get_pix_fmt_name(fmt) }
     }
 
     /// The format C finds for `name`.
     fn c_lookup(name: &CStr) -> c_int {
         // SAFETY: `name` is a live NUL-terminated string, only read.
-        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }.0
+        unsafe { ffi::av_get_pix_fmt(name.as_ptr()) }
     }
 
     /// Four planes of pseudo-random bytes, so a component read from the
@@ -1667,10 +1639,10 @@ mod pixel_format_queries {
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
 
     fn format(raw: c_int) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     #[test]
@@ -1686,11 +1658,7 @@ mod pixel_format_queries {
                 // SAFETY: `size` writable bytes, and a value C has a
                 // descriptor for or a negative one (the header).
                 let ret = unsafe {
-                    ffi::av_get_pix_fmt_string(
-                        c_buf.as_mut_ptr().cast(),
-                        size as c_int,
-                        ffi::AVPixelFormat(raw),
-                    )
+                    ffi::av_get_pix_fmt_string(c_buf.as_mut_ptr().cast(), size as c_int, raw)
                 };
                 assert_eq!(ret.cast::<u8>(), c_buf.as_mut_ptr());
                 assert_eq!(rust_buf, c_buf, "{raw} {size}");
@@ -1706,7 +1674,7 @@ mod pixel_format_queries {
     fn plane_count_matches_c() {
         for raw in (-3..NB + 3).chain([c_int::MIN, c_int::MAX]) {
             // SAFETY: by value; C looks the value up through a range check.
-            let c = unsafe { ffi::av_pix_fmt_count_planes(ffi::AVPixelFormat(raw)) };
+            let c = unsafe { ffi::av_pix_fmt_count_planes(raw) };
             let c = usize::try_from(c).ok();
             assert_eq!(format(raw).plane_count(), c, "{raw}");
         }
@@ -1719,13 +1687,7 @@ mod pixel_format_queries {
             let (mut h, mut v) = (-7, -7);
             // SAFETY: two live `int` out-parameters; the value is
             // range-checked by C.
-            let ret = unsafe {
-                ffi::av_pix_fmt_get_chroma_sub_sample(
-                    ffi::AVPixelFormat(raw),
-                    &raw mut h,
-                    &raw mut v,
-                )
-            };
+            let ret = unsafe { ffi::av_pix_fmt_get_chroma_sub_sample(raw, &raw mut h, &raw mut v) };
             let c = (ret >= 0).then_some((h as u8, v as u8));
             if ret < 0 {
                 assert_eq!((h, v), (-7, -7));
@@ -1745,16 +1707,16 @@ mod descriptor_table {
         PixelFormatFlags, descriptors,
     };
 
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
 
     fn format(raw: c_int) -> PixelFormat {
-        PixelFormat::from_raw(ffi::AVPixelFormat(raw))
+        PixelFormat::from_raw(raw)
     }
 
     /// C's descriptor for `raw`, as an address.
     fn c_get(raw: c_int) -> *const ffi::AVPixFmtDescriptor {
         // SAFETY: by value; C range-checks it.
-        unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(raw)) }
+        unsafe { ffi::av_pix_fmt_desc_get(raw) }
     }
 
     /// C's entry at `p`, or NULL, by its contents and its name's address:
@@ -1807,13 +1769,13 @@ mod descriptor_table {
             let d = format(raw).descriptor().unwrap();
             // SAFETY: C compares the address against its table only.
             let c = unsafe { ffi::av_pix_fmt_desc_get_id(c_get(raw)) };
-            assert_eq!(c.0, raw);
+            assert_eq!(c, raw);
             assert_eq!(d.pixel_format(), Some(format(raw)));
             // A copy lies outside C's table, on either side.
             let c_copy = d.get().into_raw();
             // SAFETY: as above; C never reads through the address.
             let c = unsafe { ffi::av_pix_fmt_desc_get_id(&raw const c_copy) };
-            assert_eq!(c, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+            assert_eq!(c, ffi::AV_PIX_FMT_NONE);
             assert_eq!(d.get().as_ref().pixel_format(), None);
         }
         let fresh = PixelFormatDescriptor::new();
@@ -1950,7 +1912,7 @@ mod image_lines {
         write_image_line, write_image_line_u16,
     };
 
-    const NB: c_int = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+    const NB: c_int = ffi::AV_PIX_FMT_NB;
     /// Bytes per row: room for 11 pixels of the widest step and offset, and
     /// for a 1024-byte palette in plane 1's first rows.
     const LINESIZE: usize = 512;
@@ -1960,14 +1922,14 @@ mod image_lines {
     const LINES: [(usize, usize, usize); 3] = [(0, 0, 8), (3, 1, 5), (1, 2, 1)];
 
     fn under_bsan() -> bool {
-        std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+        std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
     }
 
     /// The formats to sweep: every named one, or under `BSan`, whose cost
     /// grows with every retag, one of each kind of layout.
     fn formats() -> Vec<(c_int, PixelFormatDescriptorRef<'static>)> {
         let all = (0..NB).filter_map(|raw| {
-            let d = PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor()?;
+            let d = PixelFormat::from_raw(raw).descriptor()?;
             d.name().is_some().then_some((raw, d))
         });
         if under_bsan() {
@@ -1977,11 +1939,11 @@ mod image_lines {
                 PixelFormat::MONOWHITE,
                 PixelFormat::PAL8,
                 PixelFormat::GRAY16BE,
-                PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_X2RGB10LE),
-                PixelFormat::from_raw(ffi::AVPixelFormat::AV_PIX_FMT_RGBAF32BE),
+                PixelFormat::from_raw(ffi::AV_PIX_FMT_X2RGB10LE),
+                PixelFormat::from_raw(ffi::AV_PIX_FMT_RGBAF32BE),
                 PixelFormat::BGR4,
             ];
-            all.filter(|(raw, _)| kinds.iter().any(|k| k.into_raw().0 == *raw))
+            all.filter(|(raw, _)| kinds.iter().any(|k| k.into_raw() == *raw))
                 .collect()
         } else {
             all.collect()
@@ -2034,7 +1996,7 @@ mod image_lines {
     /// C's own descriptor for `raw`.
     fn c_desc(raw: c_int) -> *const ffi::AVPixFmtDescriptor {
         // SAFETY: by value; C range-checks it.
-        unsafe { ffi::av_pix_fmt_desc_get(ffi::AVPixelFormat(raw)) }
+        unsafe { ffi::av_pix_fmt_desc_get(raw) }
     }
 
     /// C's `av_read_image_line2` of the same line.
@@ -2249,7 +2211,7 @@ mod image_lines {
             for &(x, y, w) in &LINES {
                 let mut rust = vec![0u16; w];
                 read_image_line(&mut rust, planes(&img, false), d, x, y, c, true).unwrap();
-                let raw = PixelFormat::PAL8.into_raw().0;
+                let raw = PixelFormat::PAL8.into_raw();
                 assert_eq!(
                     rust,
                     c_read::<u16>(&img, false, raw, (x, y, c, w), true),
@@ -2555,12 +2517,11 @@ mod random_lines {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn lines_are_accepted_exactly_where_c_is_defined_and_in_bounds() {
-        let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
+        let bsan = std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan");
         let rounds = if bsan { 500 } else { 40_000 };
         let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
-        let table: Vec<PixelFormatDescriptorRef<'static>> = (0..ffi::AVPixelFormat::AV_PIX_FMT_NB
-            .0)
-            .filter_map(|raw| PixelFormat::from_raw(ffi::AVPixelFormat(raw)).descriptor())
+        let table: Vec<PixelFormatDescriptorRef<'static>> = (0..ffi::AV_PIX_FMT_NB)
+            .filter_map(|raw| PixelFormat::from_raw(raw).descriptor())
             .filter(|d| d.name().is_some())
             .collect();
         let (mut accepted, mut refused) = (0, 0);
@@ -2738,41 +2699,41 @@ mod color_space_and_transfer {
 
     /// Every colour space constant beside its C enumerator and C name.
     const SPACE_NAMED: [(ColorSpace, Spc, &str); 19] = [
-        (ColorSpace::RGB, Spc::AVCOL_SPC_RGB, "gbr"),
-        (ColorSpace::BT709, Spc::AVCOL_SPC_BT709, "bt709"),
+        (ColorSpace::RGB, ffi::AVCOL_SPC_RGB, "gbr"),
+        (ColorSpace::BT709, ffi::AVCOL_SPC_BT709, "bt709"),
         (
             ColorSpace::UNSPECIFIED,
-            Spc::AVCOL_SPC_UNSPECIFIED,
+            ffi::AVCOL_SPC_UNSPECIFIED,
             "unknown",
         ),
-        (ColorSpace::RESERVED, Spc::AVCOL_SPC_RESERVED, "reserved"),
-        (ColorSpace::FCC, Spc::AVCOL_SPC_FCC, "fcc"),
-        (ColorSpace::BT470BG, Spc::AVCOL_SPC_BT470BG, "bt470bg"),
-        (ColorSpace::SMPTE170M, Spc::AVCOL_SPC_SMPTE170M, "smpte170m"),
-        (ColorSpace::SMPTE240M, Spc::AVCOL_SPC_SMPTE240M, "smpte240m"),
-        (ColorSpace::YCGCO, Spc::AVCOL_SPC_YCGCO, "ycgco"),
-        (ColorSpace::YCOCG, Spc::AVCOL_SPC_YCOCG, "ycgco"),
+        (ColorSpace::RESERVED, ffi::AVCOL_SPC_RESERVED, "reserved"),
+        (ColorSpace::FCC, ffi::AVCOL_SPC_FCC, "fcc"),
+        (ColorSpace::BT470BG, ffi::AVCOL_SPC_BT470BG, "bt470bg"),
+        (ColorSpace::SMPTE170M, ffi::AVCOL_SPC_SMPTE170M, "smpte170m"),
+        (ColorSpace::SMPTE240M, ffi::AVCOL_SPC_SMPTE240M, "smpte240m"),
+        (ColorSpace::YCGCO, ffi::AVCOL_SPC_YCGCO, "ycgco"),
+        (ColorSpace::YCOCG, ffi::AVCOL_SPC_YCOCG, "ycgco"),
         (
             ColorSpace::BT2020_NCL,
-            Spc::AVCOL_SPC_BT2020_NCL,
+            ffi::AVCOL_SPC_BT2020_NCL,
             "bt2020nc",
         ),
-        (ColorSpace::BT2020_CL, Spc::AVCOL_SPC_BT2020_CL, "bt2020c"),
-        (ColorSpace::SMPTE2085, Spc::AVCOL_SPC_SMPTE2085, "smpte2085"),
+        (ColorSpace::BT2020_CL, ffi::AVCOL_SPC_BT2020_CL, "bt2020c"),
+        (ColorSpace::SMPTE2085, ffi::AVCOL_SPC_SMPTE2085, "smpte2085"),
         (
             ColorSpace::CHROMA_DERIVED_NCL,
-            Spc::AVCOL_SPC_CHROMA_DERIVED_NCL,
+            ffi::AVCOL_SPC_CHROMA_DERIVED_NCL,
             "chroma-derived-nc",
         ),
         (
             ColorSpace::CHROMA_DERIVED_CL,
-            Spc::AVCOL_SPC_CHROMA_DERIVED_CL,
+            ffi::AVCOL_SPC_CHROMA_DERIVED_CL,
             "chroma-derived-c",
         ),
-        (ColorSpace::ICTCP, Spc::AVCOL_SPC_ICTCP, "ictcp"),
-        (ColorSpace::IPT_C2, Spc::AVCOL_SPC_IPT_C2, "ipt-c2"),
-        (ColorSpace::YCGCO_RE, Spc::AVCOL_SPC_YCGCO_RE, "ycgco-re"),
-        (ColorSpace::YCGCO_RO, Spc::AVCOL_SPC_YCGCO_RO, "ycgco-ro"),
+        (ColorSpace::ICTCP, ffi::AVCOL_SPC_ICTCP, "ictcp"),
+        (ColorSpace::IPT_C2, ffi::AVCOL_SPC_IPT_C2, "ipt-c2"),
+        (ColorSpace::YCGCO_RE, ffi::AVCOL_SPC_YCGCO_RE, "ycgco-re"),
+        (ColorSpace::YCGCO_RO, ffi::AVCOL_SPC_YCGCO_RO, "ycgco-ro"),
     ];
 
     /// Every transfer characteristic constant beside its C enumerator and C
@@ -2780,79 +2741,79 @@ mod color_space_and_transfer {
     const TRANSFER_NAMED: [(ColorTransfer, Trc, &str); 23] = [
         (
             ColorTransfer::RESERVED0,
-            Trc::AVCOL_TRC_RESERVED0,
+            ffi::AVCOL_TRC_RESERVED0,
             "reserved",
         ),
-        (ColorTransfer::BT709, Trc::AVCOL_TRC_BT709, "bt709"),
+        (ColorTransfer::BT709, ffi::AVCOL_TRC_BT709, "bt709"),
         (
             ColorTransfer::UNSPECIFIED,
-            Trc::AVCOL_TRC_UNSPECIFIED,
+            ffi::AVCOL_TRC_UNSPECIFIED,
             "unknown",
         ),
-        (ColorTransfer::RESERVED, Trc::AVCOL_TRC_RESERVED, "reserved"),
-        (ColorTransfer::GAMMA22, Trc::AVCOL_TRC_GAMMA22, "bt470m"),
-        (ColorTransfer::GAMMA28, Trc::AVCOL_TRC_GAMMA28, "bt470bg"),
+        (ColorTransfer::RESERVED, ffi::AVCOL_TRC_RESERVED, "reserved"),
+        (ColorTransfer::GAMMA22, ffi::AVCOL_TRC_GAMMA22, "bt470m"),
+        (ColorTransfer::GAMMA28, ffi::AVCOL_TRC_GAMMA28, "bt470bg"),
         (
             ColorTransfer::SMPTE170M,
-            Trc::AVCOL_TRC_SMPTE170M,
+            ffi::AVCOL_TRC_SMPTE170M,
             "smpte170m",
         ),
         (
             ColorTransfer::SMPTE240M,
-            Trc::AVCOL_TRC_SMPTE240M,
+            ffi::AVCOL_TRC_SMPTE240M,
             "smpte240m",
         ),
-        (ColorTransfer::LINEAR, Trc::AVCOL_TRC_LINEAR, "linear"),
-        (ColorTransfer::LOG, Trc::AVCOL_TRC_LOG, "log100"),
-        (ColorTransfer::LOG_SQRT, Trc::AVCOL_TRC_LOG_SQRT, "log316"),
+        (ColorTransfer::LINEAR, ffi::AVCOL_TRC_LINEAR, "linear"),
+        (ColorTransfer::LOG, ffi::AVCOL_TRC_LOG, "log100"),
+        (ColorTransfer::LOG_SQRT, ffi::AVCOL_TRC_LOG_SQRT, "log316"),
         (
             ColorTransfer::IEC61966_2_4,
-            Trc::AVCOL_TRC_IEC61966_2_4,
+            ffi::AVCOL_TRC_IEC61966_2_4,
             "iec61966-2-4",
         ),
         (
             ColorTransfer::BT1361_ECG,
-            Trc::AVCOL_TRC_BT1361_ECG,
+            ffi::AVCOL_TRC_BT1361_ECG,
             "bt1361e",
         ),
         (
             ColorTransfer::IEC61966_2_1,
-            Trc::AVCOL_TRC_IEC61966_2_1,
+            ffi::AVCOL_TRC_IEC61966_2_1,
             "iec61966-2-1",
         ),
         (
             ColorTransfer::BT2020_10,
-            Trc::AVCOL_TRC_BT2020_10,
+            ffi::AVCOL_TRC_BT2020_10,
             "bt2020-10",
         ),
         (
             ColorTransfer::BT2020_12,
-            Trc::AVCOL_TRC_BT2020_12,
+            ffi::AVCOL_TRC_BT2020_12,
             "bt2020-12",
         ),
         (
             ColorTransfer::SMPTE2084,
-            Trc::AVCOL_TRC_SMPTE2084,
+            ffi::AVCOL_TRC_SMPTE2084,
             "smpte2084",
         ),
         (
             ColorTransfer::SMPTEST2084,
-            Trc::AVCOL_TRC_SMPTEST2084,
+            ffi::AVCOL_TRC_SMPTEST2084,
             "smpte2084",
         ),
-        (ColorTransfer::SMPTE428, Trc::AVCOL_TRC_SMPTE428, "smpte428"),
+        (ColorTransfer::SMPTE428, ffi::AVCOL_TRC_SMPTE428, "smpte428"),
         (
             ColorTransfer::SMPTEST428_1,
-            Trc::AVCOL_TRC_SMPTEST428_1,
+            ffi::AVCOL_TRC_SMPTEST428_1,
             "smpte428",
         ),
         (
             ColorTransfer::ARIB_STD_B67,
-            Trc::AVCOL_TRC_ARIB_STD_B67,
+            ffi::AVCOL_TRC_ARIB_STD_B67,
             "arib-std-b67",
         ),
-        (ColorTransfer::EXT_BASE, Trc::AVCOL_TRC_EXT_BASE, "vlog"),
-        (ColorTransfer::V_LOG, Trc::AVCOL_TRC_V_LOG, "vlog"),
+        (ColorTransfer::EXT_BASE, ffi::AVCOL_TRC_EXT_BASE, "vlog"),
+        (ColorTransfer::V_LOG, ffi::AVCOL_TRC_V_LOG, "vlog"),
     ];
 
     /// Values C may store though it names none of them: the `_NB` markers,
@@ -2904,7 +2865,7 @@ mod color_space_and_transfer {
         SPACE_NAMED
             .iter()
             .map(|&(_, c, _)| c)
-            .chain(SPACE_UNNAMED.map(ffi::AVColorSpace))
+            .chain(SPACE_UNNAMED)
             .collect()
     }
 
@@ -2913,7 +2874,7 @@ mod color_space_and_transfer {
         TRANSFER_NAMED
             .iter()
             .map(|&(_, c, _)| c)
-            .chain(TRANSFER_UNNAMED.map(ffi::AVColorTransferCharacteristic))
+            .chain(TRANSFER_UNNAMED)
             .collect()
     }
 
@@ -2981,13 +2942,13 @@ mod color_space_and_transfer {
             assert_eq!(ColorSpace::from_raw(raw), c);
             assert_eq!(c_space_name(c.into_raw()), Some(name));
             // C's parser maps the name back to the primary constant.
-            assert_eq!(c_space_from_name(name), c.into_raw().0 as c_int, "{name}");
+            assert_eq!(c_space_from_name(name), c.into_raw() as c_int, "{name}");
         }
         for raw in SPACE_UNNAMED {
-            let c = ColorSpace::from_raw(ffi::AVColorSpace(raw));
+            let c = ColorSpace::from_raw(raw);
             assert!(SPACE_NAMED.iter().all(|&(n, _, _)| n != c));
             assert_eq!(c_space_name(c.into_raw()), None, "raw {raw}");
-            assert_eq!(c.into_raw().0, raw);
+            assert_eq!(c.into_raw(), raw);
         }
         assert_eq!(c_space_name(ColorSpace::default().into()), Some("unknown"));
         // A name C does not know parses as no value at all.
@@ -3010,15 +2971,15 @@ mod color_space_and_transfer {
             };
             assert_eq!(
                 c_transfer_from_name(name),
-                back.into_raw().0 as c_int,
+                back.into_raw() as c_int,
                 "{name}"
             );
         }
         for raw in TRANSFER_UNNAMED {
-            let t = ColorTransfer::from_raw(ffi::AVColorTransferCharacteristic(raw));
+            let t = ColorTransfer::from_raw(raw);
             assert!(TRANSFER_NAMED.iter().all(|&(n, _, _)| n != t));
             assert_eq!(c_transfer_name(t.into_raw()), None, "raw {raw}");
-            assert_eq!(t.into_raw().0, raw);
+            assert_eq!(t.into_raw(), raw);
         }
         assert_eq!(
             c_transfer_name(ColorTransfer::default().into()),
@@ -3034,10 +2995,7 @@ mod color_space_and_transfer {
     #[cfg_attr(miri, ignore = "calls C")]
     fn debug_names_exactly_what_c_names() {
         // Rust names a value with a constant exactly when C has a name for it.
-        for raw in space_values()
-            .into_iter()
-            .chain((0..=300).map(ffi::AVColorSpace))
-        {
+        for raw in space_values().into_iter().chain(0..=300) {
             let debug = format!("{:?}", ColorSpace::from_raw(raw));
             assert_eq!(
                 !debug.starts_with("ColorSpace("),
@@ -3045,10 +3003,7 @@ mod color_space_and_transfer {
                 "{raw:?}"
             );
         }
-        for raw in transfer_values()
-            .into_iter()
-            .chain((0..=300).map(ffi::AVColorTransferCharacteristic))
-        {
+        for raw in transfer_values().into_iter().chain(0..=300) {
             let debug = format!("{:?}", ColorTransfer::from_raw(raw));
             assert_eq!(
                 !debug.starts_with("ColorTransfer("),
@@ -3189,19 +3144,15 @@ mod alpha_mode {
     const ALPHA_MODE_NAMED: [(AlphaMode, ffi::AVAlphaMode, &CStr); 3] = [
         (
             AlphaMode::UNSPECIFIED,
-            ffi::AVAlphaMode::AVALPHA_MODE_UNSPECIFIED,
+            ffi::AVALPHA_MODE_UNSPECIFIED,
             c"unspecified",
         ),
         (
             AlphaMode::PREMULTIPLIED,
-            ffi::AVAlphaMode::AVALPHA_MODE_PREMULTIPLIED,
+            ffi::AVALPHA_MODE_PREMULTIPLIED,
             c"premultiplied",
         ),
-        (
-            AlphaMode::STRAIGHT,
-            ffi::AVAlphaMode::AVALPHA_MODE_STRAIGHT,
-            c"straight",
-        ),
+        (AlphaMode::STRAIGHT, ffi::AVALPHA_MODE_STRAIGHT, c"straight"),
     ];
 
     /// Values C may store though it names none of them: `AVALPHA_MODE_NB`,
@@ -3230,7 +3181,7 @@ mod alpha_mode {
         ALPHA_MODE_NAMED
             .iter()
             .map(|&(_, c, _)| c)
-            .chain(ALPHA_MODE_UNNAMED.map(ffi::AVAlphaMode))
+            .chain(ALPHA_MODE_UNNAMED)
             .collect()
     }
 
@@ -3279,7 +3230,7 @@ mod alpha_mode {
             assert_eq!(AlphaMode::from_raw(c_from_name(name)), mode);
         }
         for raw in ALPHA_MODE_UNNAMED {
-            let mode = AlphaMode::from_raw(ffi::AVAlphaMode(raw));
+            let mode = AlphaMode::from_raw(raw);
             assert!(ALPHA_MODE_NAMED.iter().all(|&(n, _, _)| n != mode));
             assert_eq!(c_name(mode.into_raw()), None, "raw {raw}");
             assert_eq!(format!("{mode:?}"), format!("AlphaMode({raw})"));
@@ -3293,7 +3244,7 @@ mod alpha_mode {
             let c = c_from_name(name);
             let mode = AlphaMode::from(c);
             assert_eq!(mode.into_raw(), c);
-            assert_eq!(c.0, (-22i32) as c_uint, "{name:?}");
+            assert_eq!(c, (-22i32) as c_uint, "{name:?}");
             assert!(ALPHA_MODE_NAMED.iter().all(|&(n, _, _)| n != mode));
             assert_eq!(c_name(mode.into_raw()), None);
         }
@@ -3501,7 +3452,7 @@ mod pixel_format {
 
     /// Values C may store though it names none of them, `AV_PIX_FMT_NB` included.
     fn unnamed() -> [c_int; 8] {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         [
             c_int::MIN,
             -1000,
@@ -3542,7 +3493,7 @@ mod pixel_format {
             // `&mut name`, which is live and writable.
             let f = unsafe { ffi::crustify_AV_PIX_FMT_NE(i, &raw mut name) };
             if name.is_null() {
-                assert_eq!(f, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+                assert_eq!(f, ffi::AV_PIX_FMT_NONE);
                 break;
             }
             // SAFETY: a non-NULL name is a string literal in the shim's table.
@@ -3555,10 +3506,10 @@ mod pixel_format {
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
     fn named_values_are_exactly_the_ones_c_describes() {
-        let nb = ffi::AVPixelFormat::AV_PIX_FMT_NB.0;
+        let nb = ffi::AV_PIX_FMT_NB;
         let mut named = 0;
         for raw in (-3..nb + 4).chain(unnamed()) {
-            let c = ffi::AVPixelFormat(raw);
+            let c = raw;
             let f = PixelFormat::from_raw(c);
             assert_eq!(f.into_raw(), c);
             let rust = rust_name(f);
@@ -3585,9 +3536,9 @@ mod pixel_format {
     #[cfg_attr(miri, ignore = "calls C")]
     fn aliases_are_the_c_aliases() {
         for (alias, c) in [
-            (PixelFormat::Y400A, ffi::AVPixelFormat::AV_PIX_FMT_Y400A),
-            (PixelFormat::GRAY8A, ffi::AVPixelFormat::AV_PIX_FMT_GRAY8A),
-            (PixelFormat::GBR24P, ffi::AVPixelFormat::AV_PIX_FMT_GBR24P),
+            (PixelFormat::Y400A, ffi::AV_PIX_FMT_Y400A),
+            (PixelFormat::GRAY8A, ffi::AV_PIX_FMT_GRAY8A),
+            (PixelFormat::GBR24P, ffi::AV_PIX_FMT_GBR24P),
         ] {
             assert_eq!(alias.into_raw(), c);
             assert_eq!(c_name(alias.into_raw()), c_name(c));
@@ -3679,7 +3630,7 @@ mod pixel_format {
         ]
         .map(PixelFormat::into_raw)
         .into_iter()
-        .chain(unnamed().map(ffi::AVPixelFormat))
+        .chain(unnamed())
         .collect()
     }
 
@@ -3730,8 +3681,8 @@ mod pixel_format {
         // `AVHWFramesConstraints.valid_sw_formats`): values up to a terminating
         // `AV_PIX_FMT_NONE`.
         let mut values = values();
-        values.retain(|&v| v != ffi::AVPixelFormat::AV_PIX_FMT_NONE);
-        values.push(ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+        values.retain(|&v| v != ffi::AV_PIX_FMT_NONE);
+        values.push(ffi::AV_PIX_FMT_NONE);
         let mut c = CFormats::zeroed(values.len());
         for (i, &v) in values.iter().enumerate() {
             c.set(i, v);
@@ -3790,105 +3741,73 @@ mod color_primaries_and_range {
     const PRIMARIES_NAMED: [(ColorPrimaries, ffi::AVColorPrimaries, &str); 18] = [
         (
             ColorPrimaries::RESERVED0,
-            ffi::AVColorPrimaries::AVCOL_PRI_RESERVED0,
+            ffi::AVCOL_PRI_RESERVED0,
             "reserved",
         ),
-        (
-            ColorPrimaries::BT709,
-            ffi::AVColorPrimaries::AVCOL_PRI_BT709,
-            "bt709",
-        ),
+        (ColorPrimaries::BT709, ffi::AVCOL_PRI_BT709, "bt709"),
         (
             ColorPrimaries::UNSPECIFIED,
-            ffi::AVColorPrimaries::AVCOL_PRI_UNSPECIFIED,
+            ffi::AVCOL_PRI_UNSPECIFIED,
             "unknown",
         ),
         (
             ColorPrimaries::RESERVED,
-            ffi::AVColorPrimaries::AVCOL_PRI_RESERVED,
+            ffi::AVCOL_PRI_RESERVED,
             "reserved",
         ),
-        (
-            ColorPrimaries::BT470M,
-            ffi::AVColorPrimaries::AVCOL_PRI_BT470M,
-            "bt470m",
-        ),
-        (
-            ColorPrimaries::BT470BG,
-            ffi::AVColorPrimaries::AVCOL_PRI_BT470BG,
-            "bt470bg",
-        ),
+        (ColorPrimaries::BT470M, ffi::AVCOL_PRI_BT470M, "bt470m"),
+        (ColorPrimaries::BT470BG, ffi::AVCOL_PRI_BT470BG, "bt470bg"),
         (
             ColorPrimaries::SMPTE170M,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE170M,
+            ffi::AVCOL_PRI_SMPTE170M,
             "smpte170m",
         ),
         (
             ColorPrimaries::SMPTE240M,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE240M,
+            ffi::AVCOL_PRI_SMPTE240M,
             "smpte240m",
         ),
-        (
-            ColorPrimaries::FILM,
-            ffi::AVColorPrimaries::AVCOL_PRI_FILM,
-            "film",
-        ),
-        (
-            ColorPrimaries::BT2020,
-            ffi::AVColorPrimaries::AVCOL_PRI_BT2020,
-            "bt2020",
-        ),
+        (ColorPrimaries::FILM, ffi::AVCOL_PRI_FILM, "film"),
+        (ColorPrimaries::BT2020, ffi::AVCOL_PRI_BT2020, "bt2020"),
         (
             ColorPrimaries::SMPTE428,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE428,
+            ffi::AVCOL_PRI_SMPTE428,
             "smpte428",
         ),
         (
             ColorPrimaries::SMPTEST428_1,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTEST428_1,
+            ffi::AVCOL_PRI_SMPTEST428_1,
             "smpte428",
         ),
         (
             ColorPrimaries::SMPTE431,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE431,
+            ffi::AVCOL_PRI_SMPTE431,
             "smpte431",
         ),
         (
             ColorPrimaries::SMPTE432,
-            ffi::AVColorPrimaries::AVCOL_PRI_SMPTE432,
+            ffi::AVCOL_PRI_SMPTE432,
             "smpte432",
         ),
-        (
-            ColorPrimaries::EBU3213,
-            ffi::AVColorPrimaries::AVCOL_PRI_EBU3213,
-            "ebu3213",
-        ),
+        (ColorPrimaries::EBU3213, ffi::AVCOL_PRI_EBU3213, "ebu3213"),
         (
             ColorPrimaries::JEDEC_P22,
-            ffi::AVColorPrimaries::AVCOL_PRI_JEDEC_P22,
+            ffi::AVCOL_PRI_JEDEC_P22,
             "ebu3213",
         ),
-        (
-            ColorPrimaries::EXT_BASE,
-            ffi::AVColorPrimaries::AVCOL_PRI_EXT_BASE,
-            "vgamut",
-        ),
-        (
-            ColorPrimaries::V_GAMUT,
-            ffi::AVColorPrimaries::AVCOL_PRI_V_GAMUT,
-            "vgamut",
-        ),
+        (ColorPrimaries::EXT_BASE, ffi::AVCOL_PRI_EXT_BASE, "vgamut"),
+        (ColorPrimaries::V_GAMUT, ffi::AVCOL_PRI_V_GAMUT, "vgamut"),
     ];
 
     /// Every range constant beside its C enumerator and C name.
     const RANGE_NAMED: [(ColorRange, ffi::AVColorRange, &str); 3] = [
         (
             ColorRange::UNSPECIFIED,
-            ffi::AVColorRange::AVCOL_RANGE_UNSPECIFIED,
+            ffi::AVCOL_RANGE_UNSPECIFIED,
             "unknown",
         ),
-        (ColorRange::MPEG, ffi::AVColorRange::AVCOL_RANGE_MPEG, "tv"),
-        (ColorRange::JPEG, ffi::AVColorRange::AVCOL_RANGE_JPEG, "pc"),
+        (ColorRange::MPEG, ffi::AVCOL_RANGE_MPEG, "tv"),
+        (ColorRange::JPEG, ffi::AVCOL_RANGE_JPEG, "pc"),
     ];
 
     /// Primaries values C may store though it names none of them: the H.273
@@ -4085,7 +4004,7 @@ mod color_primaries_and_range {
             let name = std::ffi::CString::new(name).unwrap();
             let raw = c_primaries_from_name(&name);
             assert!(raw >= 0, "{name:?}");
-            let back = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw as c_uint));
+            let back = ColorPrimaries::from_raw(raw as c_uint);
             assert_eq!(
                 c_primaries_name(back.into_raw()),
                 c_primaries_name(p.into_raw())
@@ -4099,7 +4018,7 @@ mod color_primaries_and_range {
         for (r, _, name) in RANGE_NAMED {
             let name = std::ffi::CString::new(name).unwrap();
             let raw = c_range_from_name(&name);
-            assert_eq!(ColorRange::from_raw(ffi::AVColorRange(raw as c_uint)), r);
+            assert_eq!(ColorRange::from_raw(raw as c_uint), r);
         }
         assert!(c_primaries_from_name(c"no-such-primaries") < 0);
         assert!(c_range_from_name(c"no-such-range") < 0);
@@ -4110,22 +4029,22 @@ mod color_primaries_and_range {
     fn debug_names_exactly_the_values_c_names() {
         let sweep = (0..=300).chain(PRIMARIES_UNNAMED);
         for raw in sweep.clone() {
-            let p = ColorPrimaries::from_raw(ffi::AVColorPrimaries(raw));
+            let p = ColorPrimaries::from_raw(raw);
             assert_eq!(
                 debug_is_named(p, "ColorPrimaries"),
                 c_primaries_name(p.into_raw()).is_some(),
                 "primaries {raw}"
             );
-            assert_eq!(p.into_raw().0, raw);
+            assert_eq!(p.into_raw(), raw);
         }
         for raw in sweep.chain(RANGE_UNNAMED) {
-            let r = ColorRange::from_raw(ffi::AVColorRange(raw));
+            let r = ColorRange::from_raw(raw);
             assert_eq!(
                 debug_is_named(r, "ColorRange"),
                 c_range_name(r.into_raw()).is_some(),
                 "range {raw}"
             );
-            assert_eq!(r.into_raw().0, raw);
+            assert_eq!(r.into_raw(), raw);
         }
     }
 
@@ -4152,12 +4071,12 @@ mod color_primaries_and_range {
         let primaries: Vec<ColorPrimaries> = PRIMARIES_NAMED
             .map(|(p, _, _)| p)
             .into_iter()
-            .chain(PRIMARIES_UNNAMED.map(|r| ffi::AVColorPrimaries(r).into()))
+            .chain(PRIMARIES_UNNAMED.map(|r| r.into()))
             .collect();
         let ranges: Vec<ColorRange> = RANGE_NAMED
             .map(|(r, _, _)| r)
             .into_iter()
-            .chain(RANGE_UNNAMED.map(|r| ffi::AVColorRange(r).into()))
+            .chain(RANGE_UNNAMED.map(|r| r.into()))
             .collect();
         for (step, &p) in primaries.iter().enumerate() {
             let r = ranges[step % ranges.len()];
@@ -4194,12 +4113,12 @@ mod color_primaries_and_range {
         let values: Vec<ffi::AVColorPrimaries> = PRIMARIES_NAMED
             .iter()
             .map(|&(_, c, _)| c)
-            .chain(PRIMARIES_UNNAMED.map(ffi::AVColorPrimaries))
+            .chain(PRIMARIES_UNNAMED)
             .collect();
         let ranges: Vec<ffi::AVColorRange> = RANGE_NAMED
             .iter()
             .map(|&(_, c, _)| c)
-            .chain(RANGE_UNNAMED.map(ffi::AVColorRange))
+            .chain(RANGE_UNNAMED)
             .collect();
         let len = values.len();
         let mut rp = alloc_array_zeroed::<ColorPrimaries>(len).unwrap();
@@ -4239,7 +4158,7 @@ mod color_primaries_and_range {
         let values: Vec<_> = PRIMARIES_NAMED
             .map(|(_, c, _)| c)
             .into_iter()
-            .chain(PRIMARIES_UNNAMED.map(ffi::AVColorPrimaries))
+            .chain(PRIMARIES_UNNAMED)
             .collect();
         let mut c = CBlock::zeroed(values.len());
         for (i, &v) in values.iter().enumerate() {
@@ -4263,7 +4182,7 @@ mod color_primaries_and_range {
         let ranges: Vec<_> = RANGE_NAMED
             .map(|(_, c, _)| c)
             .into_iter()
-            .chain(RANGE_UNNAMED.map(ffi::AVColorRange))
+            .chain(RANGE_UNNAMED)
             .collect();
         let mut c = CBlock::zeroed(ranges.len());
         for (i, &v) in ranges.iter().enumerate() {
@@ -4286,7 +4205,7 @@ mod color_primaries_and_range {
         let src: Vec<ColorPrimaries> = PRIMARIES_NAMED
             .map(|(p, _, _)| p)
             .into_iter()
-            .chain(PRIMARIES_UNNAMED.map(|r| ffi::AVColorPrimaries(r).into()))
+            .chain(PRIMARIES_UNNAMED.map(|r| r.into()))
             .collect();
         let rust = HeapVec::from_slice(&src).unwrap();
         let copy = rust.clone();
@@ -4300,7 +4219,7 @@ mod color_primaries_and_range {
         let src: Vec<ColorRange> = RANGE_NAMED
             .map(|(r, _, _)| r)
             .into_iter()
-            .chain(RANGE_UNNAMED.map(|r| ffi::AVColorRange(r).into()))
+            .chain(RANGE_UNNAMED.map(|r| r.into()))
             .collect();
         let copy = HeapVec::from_slice(&src).unwrap().clone();
         let mut c = CBlock::zeroed(src.len());
@@ -4326,39 +4245,23 @@ mod chroma_location {
     const NAMED: [(ChromaLocation, ffi::AVChromaLocation, &str); 7] = [
         (
             ChromaLocation::UNSPECIFIED,
-            ffi::AVChromaLocation::AVCHROMA_LOC_UNSPECIFIED,
+            ffi::AVCHROMA_LOC_UNSPECIFIED,
             "unspecified",
         ),
-        (
-            ChromaLocation::LEFT,
-            ffi::AVChromaLocation::AVCHROMA_LOC_LEFT,
-            "left",
-        ),
-        (
-            ChromaLocation::CENTER,
-            ffi::AVChromaLocation::AVCHROMA_LOC_CENTER,
-            "center",
-        ),
+        (ChromaLocation::LEFT, ffi::AVCHROMA_LOC_LEFT, "left"),
+        (ChromaLocation::CENTER, ffi::AVCHROMA_LOC_CENTER, "center"),
         (
             ChromaLocation::TOPLEFT,
-            ffi::AVChromaLocation::AVCHROMA_LOC_TOPLEFT,
+            ffi::AVCHROMA_LOC_TOPLEFT,
             "topleft",
         ),
-        (
-            ChromaLocation::TOP,
-            ffi::AVChromaLocation::AVCHROMA_LOC_TOP,
-            "top",
-        ),
+        (ChromaLocation::TOP, ffi::AVCHROMA_LOC_TOP, "top"),
         (
             ChromaLocation::BOTTOMLEFT,
-            ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOMLEFT,
+            ffi::AVCHROMA_LOC_BOTTOMLEFT,
             "bottomleft",
         ),
-        (
-            ChromaLocation::BOTTOM,
-            ffi::AVChromaLocation::AVCHROMA_LOC_BOTTOM,
-            "bottom",
-        ),
+        (ChromaLocation::BOTTOM, ffi::AVCHROMA_LOC_BOTTOM, "bottom"),
     ];
 
     /// Values C may store though it names none of them, `AVCHROMA_LOC_NB`
@@ -4367,11 +4270,7 @@ mod chroma_location {
 
     /// Every location the tests compare, named first.
     fn values() -> Vec<ffi::AVChromaLocation> {
-        NAMED
-            .iter()
-            .map(|&(_, c, _)| c)
-            .chain(UNNAMED.map(ffi::AVChromaLocation))
-            .collect()
+        NAMED.iter().map(|&(_, c, _)| c).chain(UNNAMED).collect()
     }
 
     /// What C calls `loc`: `av_chroma_location_name`, NULL as `None`.
@@ -4407,14 +4306,11 @@ mod chroma_location {
             assert_eq!(loc.into_raw(), c);
             assert_eq!(ChromaLocation::from_raw(c), loc);
             assert_eq!(c_name(loc.into_raw()), Some(name));
-            assert_eq!(c_from_name(name), loc.into_raw().0 as i32);
-            assert_eq!(
-                ChromaLocation::from_raw(ffi::AVChromaLocation(c_from_name(name) as c_uint)),
-                loc
-            );
+            assert_eq!(c_from_name(name), loc.into_raw() as i32);
+            assert_eq!(ChromaLocation::from_raw(c_from_name(name) as c_uint), loc);
         }
         for raw in UNNAMED {
-            let loc = ChromaLocation::from_raw(ffi::AVChromaLocation(raw));
+            let loc = ChromaLocation::from_raw(raw);
             assert!(NAMED.iter().all(|&(n, _, _)| n != loc));
             assert_eq!(c_name(loc.into_raw()), None, "raw {raw}");
         }
@@ -4607,7 +4503,7 @@ mod frame_defaults {
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_default_is_what_c_writes_into_a_fresh_frame() {
         let rust = FrameDefaults {
-            format: PixelFormat::default().into_raw().0,
+            format: PixelFormat::default().into_raw(),
             color_primaries: ColorPrimaries::default().into_raw(),
             color_trc: ColorTransfer::default().into_raw(),
             colorspace: ColorSpace::default().into_raw(),

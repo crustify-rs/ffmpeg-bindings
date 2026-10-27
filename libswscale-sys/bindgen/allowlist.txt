@@ -1,0 +1,13 @@
+# Agent-owned bindgen allowlist for libswscale.
+# One `<function|type|var|item> <regex>` per line; add only the FFI items a batch needs.
+
+# Every public type of the link unit, so that dependents blocklist the types this crate owns.
+type ^SwsAlphaBlend$
+type ^SwsBackend$
+type ^SwsContext$
+type ^SwsDither$
+type ^SwsFilter$
+type ^SwsFlags$
+type ^SwsIntent$
+type ^SwsScaler$
+type ^SwsVector$

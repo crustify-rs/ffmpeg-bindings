@@ -43,7 +43,7 @@ mod side_data_lookups {
     fn descriptors_are_cs_table_entries() {
         let mut named = 0;
         for raw in values() {
-            let t = ffi::AVFrameSideDataType(raw);
+            let t = raw;
             // SAFETY: C takes any value and returns NULL or an entry of its
             // static table.
             let c = unsafe { ffi::av_frame_side_data_desc(t) };
@@ -68,7 +68,7 @@ mod side_data_lookups {
     #[cfg_attr(miri, ignore = "calls C")]
     fn names_are_cs_strings() {
         for raw in values() {
-            let t = ffi::AVFrameSideDataType(raw);
+            let t = raw;
             // SAFETY: C takes any value and returns NULL or a literal.
             let c = unsafe { ffi::av_frame_side_data_name(t) };
             let rust = SideDataType::from_raw(t).name();
@@ -159,7 +159,7 @@ mod side_data {
                     // SAFETY: as the comment above this block states.
                     Seen {
                         // SAFETY: as the comment above this statement states.
-                        kind: unsafe { (*e).type_ }.0,
+                        kind: unsafe { (*e).type_ },
                         bytes: if size == 0 {
                             Vec::new()
                         } else {
@@ -201,7 +201,7 @@ mod side_data {
                 .map(|p| (p.key().to_bytes().into(), p.value().to_bytes().into()))
                 .collect()
         });
-        (e.kind().into_raw().0, e.data().to_vec(), metadata)
+        (e.kind().into_raw(), e.data().to_vec(), metadata)
     }
 
     /// An `AVFrameSideData *` array C grows and writes, freed on drop.
@@ -245,7 +245,7 @@ mod side_data {
                 ffi::av_frame_side_data_add(
                     &raw mut self.sd,
                     &raw mut self.nb,
-                    ffi::AVFrameSideDataType(kind),
+                    kind,
                     &raw mut slot,
                     flags.bits(),
                 )
@@ -287,7 +287,7 @@ mod side_data {
 
         fn set_kind(&mut self, i: usize, kind: u32) {
             // SAFETY: a live entry.
-            unsafe { (*self.entry(i)).type_ = ffi::AVFrameSideDataType(kind) }
+            unsafe { (*self.entry(i)).type_ = kind }
         }
 
         /// Writes `byte` over entry `i`'s payload when its buffer is
@@ -383,12 +383,8 @@ mod side_data {
         for kind in KINDS {
             // SAFETY: the two live arrays, read for the call.
             let (rf, cf) = (
-                unsafe {
-                    ffi::av_frame_side_data_get_c(sd.cast(), nb, ffi::AVFrameSideDataType(kind))
-                },
-                unsafe {
-                    ffi::av_frame_side_data_get_c(c.sd.cast(), c.nb, ffi::AVFrameSideDataType(kind))
-                },
+                unsafe { ffi::av_frame_side_data_get_c(sd.cast(), nb, kind) },
+                unsafe { ffi::av_frame_side_data_get_c(c.sd.cast(), c.nb, kind) },
             );
             let index =
                 |p: *const ffi::AVFrameSideData, sd: *mut *mut ffi::AVFrameSideData, nb: c_int| {
@@ -430,9 +426,9 @@ mod side_data {
     /// The kinds the sequences use: `MULTI`, two unique named ones, and one
     /// C does not name.
     pub(super) const KINDS: [u32; 4] = [
-        SideDataType::SEI_UNREGISTERED.into_raw().0,
-        SideDataType::AFD.into_raw().0,
-        SideDataType::ICC_PROFILE.into_raw().0,
+        SideDataType::SEI_UNREGISTERED.into_raw(),
+        SideDataType::AFD.into_raw(),
+        SideDataType::ICC_PROFILE.into_raw(),
         1000,
     ];
 
@@ -481,7 +477,7 @@ mod side_data {
                     let rb = BufferReference::alloc(payload.len())
                         .unwrap()
                         .copy_from_slice(&payload);
-                    let kind_r = SideDataType::from_raw(ffi::AVFrameSideDataType(kind));
+                    let kind_r = SideDataType::from_raw(kind);
                     let ra = r.add(kind_r, rb, flags).map(drop);
                     let (ca, cb) = c.add(kind, c_buffer(&payload), flags);
                     assert_eq!(ra.is_ok(), ca, "{label}");
@@ -499,7 +495,7 @@ mod side_data {
                     r.as_mut()
                         .get_mut(i)
                         .unwrap()
-                        .set_kind(SideDataType::from_raw(ffi::AVFrameSideDataType(kind)));
+                        .set_kind(SideDataType::from_raw(kind));
                     c.set_kind(i, kind);
                 }
                 2 => {
@@ -617,7 +613,7 @@ mod side_data {
         let mut c = CArray::new();
         for spec in &SAMPLE {
             let (ok, slot) = c.add(
-                spec.kind.into_raw().0,
+                spec.kind.into_raw(),
                 c_buffer(spec.payload),
                 SideDataFlags::NONE,
             );
@@ -631,7 +627,7 @@ mod side_data {
         let mut c = CArray::new();
         for spec in &specs {
             let (ok, _) = c.add(
-                spec.kind.into_raw().0,
+                spec.kind.into_raw(),
                 c_buffer(spec.payload),
                 SideDataFlags::NONE,
             );
@@ -651,7 +647,7 @@ mod side_data {
         let mut c = CArray::new();
         for spec in &SAMPLE {
             c.add(
-                spec.kind.into_raw().0,
+                spec.kind.into_raw(),
                 c_buffer(spec.payload),
                 SideDataFlags::NONE,
             );
@@ -662,15 +658,7 @@ mod side_data {
             let (mut sd, mut nb) = core::mem::take(&mut r).into_raw_parts();
             // SAFETY: the Rust array, lent to C for the call, and a fresh
             // C buffer of 5 bytes C fills nothing in.
-            let e = unsafe {
-                ffi::av_frame_side_data_new(
-                    &raw mut sd,
-                    &raw mut nb,
-                    ffi::AVFrameSideDataType(k),
-                    5,
-                    flags,
-                )
-            };
+            let e = unsafe { ffi::av_frame_side_data_new(&raw mut sd, &raw mut nb, k, 5, flags) };
             if !e.is_null() {
                 // SAFETY: as the comment below states, for this part of the operation.
                 let data_3 = unsafe { (*e).data };
@@ -681,15 +669,8 @@ mod side_data {
             // SAFETY: the array C changed, every payload initialised.
             r = unsafe { SideDataArray::from_raw_parts(sd, nb) };
             // SAFETY: as above, on C's own array.
-            let ce = unsafe {
-                ffi::av_frame_side_data_new(
-                    &raw mut c.sd,
-                    &raw mut c.nb,
-                    ffi::AVFrameSideDataType(k),
-                    5,
-                    flags,
-                )
-            };
+            let ce =
+                unsafe { ffi::av_frame_side_data_new(&raw mut c.sd, &raw mut c.nb, k, 5, flags) };
             assert_eq!(e.is_null(), ce.is_null(), "new({k}, {flags})");
             if !ce.is_null() {
                 // SAFETY: as the comment below states, for this part of the operation.
@@ -779,7 +760,7 @@ mod side_data_array_routines {
     ];
 
     fn kind(raw: u32) -> SideDataType {
-        SideDataType::from_raw(ffi::AVFrameSideDataType(raw))
+        SideDataType::from_raw(raw)
     }
 
     /// The index of C's entry `e` in `c`.
@@ -793,7 +774,7 @@ mod side_data_array_routines {
         let mut c = CArray::new();
         for spec in &SAMPLE {
             let (ok, _) = c.add(
-                spec.kind.into_raw().0,
+                spec.kind.into_raw(),
                 c_buffer(spec.payload),
                 SideDataFlags::NONE,
             );
@@ -818,13 +799,7 @@ mod side_data_array_routines {
         let e = {
             // SAFETY: as the comment above this block states.
             let e = unsafe {
-                ffi::av_frame_side_data_new(
-                    &raw mut c.sd,
-                    &raw mut c.nb,
-                    ffi::AVFrameSideDataType(k),
-                    size,
-                    flags.bits(),
-                )
+                ffi::av_frame_side_data_new(&raw mut c.sd, &raw mut c.nb, k, size, flags.bits())
             };
             if !e.is_null() {
                 // SAFETY: as the comment above this block states: a read of the new entry's
@@ -903,11 +878,7 @@ mod side_data_array_routines {
                     r.as_mut().remove(kind(k));
                     // SAFETY: C's array.
                     unsafe {
-                        ffi::av_frame_side_data_remove(
-                            &raw mut c.sd,
-                            &raw mut c.nb,
-                            ffi::AVFrameSideDataType(k),
-                        );
+                        ffi::av_frame_side_data_remove(&raw mut c.sd, &raw mut c.nb, k);
                     };
                 }
                 4 => {
@@ -926,13 +897,7 @@ mod side_data_array_routines {
                 5 => {
                     let got = r.as_ref().find(kind(k)).map(getters);
                     // SAFETY: C's array, read for the call.
-                    let e = unsafe {
-                        ffi::av_frame_side_data_get_c(
-                            c.sd.cast(),
-                            c.nb,
-                            ffi::AVFrameSideDataType(k),
-                        )
-                    };
+                    let e = unsafe { ffi::av_frame_side_data_get_c(c.sd.cast(), c.nb, k) };
                     let want = (!e.is_null()).then(|| {
                         let s = c.seen().swap_remove(index(&c, e).unwrap());
                         (s.kind, s.bytes, s.metadata)
@@ -952,12 +917,10 @@ mod side_data_array_routines {
                     };
                     // SAFETY: C's array; the entry C returns is one of its
                     // own, written as the array's holder may.
-                    let e = unsafe {
-                        ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k))
-                    };
+                    let e = unsafe { ffi::av_frame_side_data_get(c.sd, c.nb, k) };
                     if !e.is_null() {
                         // SAFETY: as above.
-                        unsafe { (*e.cast_mut()).type_ = ffi::AVFrameSideDataType(mark) };
+                        unsafe { (*e.cast_mut()).type_ = mark };
                     }
                     assert_eq!(found.is_some(), !e.is_null(), "{label}");
                 }
@@ -972,9 +935,7 @@ mod side_data_array_routines {
                     // its buffer is sole and not read-only.
                     let c_wrote = {
                         // SAFETY: as the comment above this block states.
-                        let e = unsafe {
-                            ffi::av_frame_side_data_get(c.sd, c.nb, ffi::AVFrameSideDataType(k))
-                        };
+                        let e = unsafe { ffi::av_frame_side_data_get(c.sd, c.nb, k) };
                         let ok = !e.is_null() && {
                             // SAFETY: as the comment above this block states: `e` is a live entry
                             // of C's array; a read of its reference.
@@ -1068,7 +1029,7 @@ mod side_data_array_routines {
                     );
                     let i = c_new(
                         &mut c_src,
-                        k.into_raw().0,
+                        k.into_raw(),
                         3,
                         SideDataFlags::NONE,
                         Some(b"src"),
@@ -1079,14 +1040,7 @@ mod side_data_array_routines {
                     let (mut r, mut c) = (SideDataArray::new(), CArray::new());
                     for k2 in [SideDataType::AFD, SideDataType::SEI_UNREGISTERED] {
                         r.alloc_from_slice(k2, b"old", SideDataFlags::NONE).unwrap();
-                        c_new(
-                            &mut c,
-                            k2.into_raw().0,
-                            3,
-                            SideDataFlags::NONE,
-                            Some(b"old"),
-                        )
-                        .unwrap();
+                        c_new(&mut c, k2.into_raw(), 3, SideDataFlags::NONE, Some(b"old")).unwrap();
                     }
                     set_max(limit);
                     let got = r.as_mut().add_clone(r_src.as_ref().get(0).unwrap(), flags);
@@ -1115,7 +1069,7 @@ mod side_data_array_routines {
                         .is_some();
                     let want = c_new(
                         &mut c,
-                        SideDataType::ICC_PROFILE.into_raw().0,
+                        SideDataType::ICC_PROFILE.into_raw(),
                         size,
                         SideDataFlags::NONE,
                         None,
@@ -1156,7 +1110,7 @@ mod side_data_array_routines {
         } else {
             vec![i32::MAX as usize]
         };
-        for &k in &[SideDataType::AFD.into_raw().0, 1000] {
+        for &k in &[SideDataType::AFD.into_raw(), 1000] {
             for (j, pairs) in sources.iter().enumerate() {
                 // Distinct entries copy one by one, so a limit could fail C
                 // part way; those run unlimited only.

@@ -771,7 +771,7 @@ mod counted_references {
     fn reference_sequences_follow_c() {
         // BSan retags every handle and slot the state checks touch: a few
         // seeds there take minutes, all of them hours.
-        let bsan = std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan");
+        let bsan = std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan");
         let (seeds, steps) = if bsan { (2u64, 100) } else { (64, 400) };
         for seed in 1..=seeds {
             let mut rng = XorShift(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);

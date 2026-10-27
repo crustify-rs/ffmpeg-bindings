@@ -1,6 +1,0 @@
-# Orchestrator-owned: every type libswresample's in-scope public headers define, so each
-# C type has exactly one Rust type across the -sys crates. Do not edit by hand.
-^SwrContext$
-^SwrDitherType$
-^SwrEngine$
-^SwrFilterType$

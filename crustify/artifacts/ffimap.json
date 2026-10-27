@@ -14,61 +14,198 @@
     "windows_sys"
   ],
   "counts": {
-    "code_lines": 18379,
+    "safe_fns": {
+      "pub": 1568,
+      "priv": 323,
+      "total": 1891
+    },
+    "unsafe_fns": {
+      "pub": 21,
+      "priv": 43,
+      "total": 64
+    },
+    "c_type_borrow": {
+      "fn_sig": {
+        "sanctioned": {
+          "pub": 177,
+          "priv": 0,
+          "total": 177
+        },
+        "non_sanctioned": {
+          "pub": 2,
+          "priv": 0,
+          "total": 2
+        },
+        "opaque": {
+          "pub": 36,
+          "priv": 0,
+          "total": 36
+        },
+        "total": 215
+      },
+      "fn_body": {
+        "non_sanctioned": 0,
+        "opaque": 0,
+        "generic": 8,
+        "total": 8
+      },
+      "ty": {
+        "non_sanctioned": {
+          "pub": {
+            "fields": {
+              "pub": 0,
+              "priv": 0,
+              "total": 0
+            },
+            "total": 0
+          },
+          "priv": 0,
+          "total": 0
+        },
+        "opaque": {
+          "pub": {
+            "fields": {
+              "pub": 0,
+              "priv": 0,
+              "total": 0
+            },
+            "total": 0
+          },
+          "priv": 0,
+          "total": 0
+        },
+        "total": 0
+      },
+      "total": 223
+    },
+    "c_type_by_val_fn_sig": {
+      "pub": 164,
+      "priv": 18,
+      "total": 182
+    },
+    "c_type_by_val_ty": {
+      "pub": {
+        "fields": {
+          "pub": 1,
+          "priv": 0,
+          "total": 1
+        },
+        "total": 1
+      },
+      "priv": 0,
+      "total": 1
+    },
+    "c_type_std_owner_fn_sig": {
+      "pub": 0,
+      "priv": 0,
+      "total": 0
+    },
+    "c_type_std_owner_ty": {
+      "pub": {
+        "fields": {
+          "pub": 0,
+          "priv": 0,
+          "total": 0
+        },
+        "total": 0
+      },
+      "priv": 0,
+      "total": 0
+    },
+    "non_c_type_borrow": {
+      "pub": {
+        "safe": 1405,
+        "unsafe": 10,
+        "total": 1415
+      },
+      "priv": {
+        "safe": 256,
+        "unsafe": 3,
+        "total": 259
+      },
+      "total": 1674
+    },
+    "raw_ptr_ty": {
+      "pub": {
+        "fields": {
+          "pub": 0,
+          "priv": 18,
+          "total": 18
+        },
+        "total": 18
+      },
+      "priv": 0,
+      "total": 18
+    },
+    "raw_ptr_fn": {
+      "pub": {
+        "safe": 20,
+        "unsafe": 6,
+        "total": 26
+      },
+      "priv": {
+        "safe": 70,
+        "unsafe": 36,
+        "total": 106
+      },
+      "total": 132
+    },
+    "raw_ptr_derefs": {
+      "rd": 257,
+      "wr": 220,
+      "of_which": {
+        "outside_impl": 12
+      },
+      "total": 477
+    },
+    "void_ptr_ty": {
+      "pub": {
+        "fields": {
+          "pub": 0,
+          "priv": 8,
+          "total": 8
+        },
+        "total": 8
+      },
+      "priv": 0,
+      "total": 8
+    },
+    "void_ptr_fn": {
+      "pub": {
+        "safe": 17,
+        "unsafe": 2,
+        "total": 19
+      },
+      "priv": {
+        "safe": 28,
+        "unsafe": 15,
+        "total": 43
+      },
+      "total": 62
+    },
+    "unsafe_impls": {
+      "total": 398,
+      "of_which": {
+        "send": 112,
+        "sync": 112
+      }
+    },
+    "unsafe_blocks": {
+      "total": 2156,
+      "of_which": {
+        "wrapper_impl": 1426,
+        "ffi_export": 38
+      }
+    },
+    "code_lines": 18359,
     "total_stmts": 4435,
-    "safe_fns_pub": 1568,
-    "safe_fns_priv": 323,
-    "unsafe_blocks": 2156,
     "unsafe_block_stmts": 55,
     "unsafe_block_lines": 3139,
     "unsafe_block_code_lines": 3094,
-    "unsafe_blocks_wrapper_impl": 1426,
-    "unsafe_blocks_ffi_export": 38,
-    "unsafe_fns": 64,
-    "unsafe_fns_pub": 21,
-    "unsafe_fns_priv": 43,
-    "unsafe_impls": 398,
     "unsafe_traits": 2,
-    "unsafe_send_impl": 112,
-    "unsafe_sync_impl": 112,
-    "c_type_wrapper": 58,
-    "c_type_borrow_sanctioned": 177,
-    "c_type_borrow_non_sanctioned": 2,
-    "c_type_borrow_opaque": 36,
-    "c_type_borrow_generic": 8,
+    "c_type_layout_wrapper": 58,
     "raw_ptr_as_slice_borrow": 42,
-    "c_type_by_val_fn_sig_pub": 164,
-    "c_type_by_val_fn_sig_priv": 18,
-    "c_type_by_val_ty_pub_fields_pub": 1,
-    "c_type_by_val_ty_pub_fields_priv": 0,
-    "c_type_by_val_ty_priv": 0,
-    "c_type_std_owner_fn_sig_pub": 0,
-    "c_type_std_owner_fn_sig_priv": 0,
-    "c_type_std_owner_ty_pub_fields_pub": 0,
-    "c_type_std_owner_ty_pub_fields_priv": 0,
-    "c_type_std_owner_ty_priv": 0,
-    "non_c_type_borrow_pub_safe": 1405,
-    "non_c_type_borrow_pub_unsafe": 10,
-    "non_c_type_borrow_priv_safe": 256,
-    "non_c_type_borrow_priv_unsafe": 3,
-    "raw_ptr_ty_pub_fields_pub": 0,
-    "raw_ptr_ty_pub_fields_priv": 18,
-    "raw_ptr_ty_priv": 0,
-    "raw_ptr_fn_pub_safe": 20,
-    "raw_ptr_fn_pub_unsafe": 6,
-    "raw_ptr_fn_priv_safe": 70,
-    "raw_ptr_fn_priv_unsafe": 36,
     "raw_ptr_has_c_type_wrapper": 23,
-    "raw_ptr_derefs_rd": 257,
-    "raw_ptr_derefs_wr": 220,
-    "raw_ptr_derefs_outside_impl": 12,
-    "void_ptr_ty_pub_fields_pub": 0,
-    "void_ptr_ty_pub_fields_priv": 8,
-    "void_ptr_ty_priv": 0,
-    "void_ptr_fn_pub_safe": 17,
-    "void_ptr_fn_pub_unsafe": 2,
-    "void_ptr_fn_priv_safe": 28,
-    "void_ptr_fn_priv_unsafe": 15,
     "drop_impl": 4,
     "clone_impl": 1,
     "ffi_calls": 594
@@ -76,26 +213,92 @@
   "counts_unavailable": null,
   "ffibox": {
     "counts": {
-      "fn_sig_ffibox_owner_pub": 164,
-      "fn_sig_ffibox_owner_priv": 20,
-      "fn_sig_ffibox_handle_pub": 1078,
-      "fn_sig_ffibox_handle_priv": 129,
-      "fn_sig_non_ffibox_owner_pub": 5,
-      "fn_sig_non_ffibox_owner_priv": 0,
-      "fn_sig_non_ffibox_handle_pub": 95,
-      "fn_sig_non_ffibox_handle_priv": 26,
-      "ty_pub_fields_pub_ffibox_owner": 2,
-      "ty_pub_fields_priv_ffibox_owner": 14,
-      "ty_priv_ffibox_owner": 1,
-      "ty_pub_fields_pub_ffibox_handle": 3,
-      "ty_pub_fields_priv_ffibox_handle": 126,
-      "ty_priv_ffibox_handle": 4,
-      "ty_pub_fields_pub_non_ffibox_owner": 0,
-      "ty_pub_fields_priv_non_ffibox_owner": 0,
-      "ty_priv_non_ffibox_owner": 0,
-      "ty_pub_fields_pub_non_ffibox_handle": 1,
-      "ty_pub_fields_priv_non_ffibox_handle": 5,
-      "ty_priv_non_ffibox_handle": 1,
+      "fn_sig": {
+        "ffibox": {
+          "owner": {
+            "pub": 164,
+            "priv": 20,
+            "total": 184
+          },
+          "handle": {
+            "pub": 1078,
+            "priv": 129,
+            "total": 1207
+          },
+          "total": 1391
+        },
+        "non_ffibox": {
+          "owner": {
+            "pub": 5,
+            "priv": 0,
+            "total": 5
+          },
+          "handle": {
+            "pub": 95,
+            "priv": 26,
+            "total": 121
+          },
+          "total": 126
+        },
+        "total": 1517
+      },
+      "ty": {
+        "ffibox": {
+          "owner": {
+            "pub": {
+              "fields": {
+                "pub": 2,
+                "priv": 14,
+                "total": 16
+              },
+              "total": 16
+            },
+            "priv": 1,
+            "total": 17
+          },
+          "handle": {
+            "pub": {
+              "fields": {
+                "pub": 3,
+                "priv": 126,
+                "total": 129
+              },
+              "total": 129
+            },
+            "priv": 4,
+            "total": 133
+          },
+          "total": 150
+        },
+        "non_ffibox": {
+          "owner": {
+            "pub": {
+              "fields": {
+                "pub": 0,
+                "priv": 0,
+                "total": 0
+              },
+              "total": 0
+            },
+            "priv": 0,
+            "total": 0
+          },
+          "handle": {
+            "pub": {
+              "fields": {
+                "pub": 1,
+                "priv": 5,
+                "total": 6
+              },
+              "total": 6
+            },
+            "priv": 1,
+            "total": 7
+          },
+          "total": 7
+        },
+        "total": 157
+      },
       "ffibox_impl_macro": 185,
       "ffibox_impl_manual": 85,
       "ffibox_define_ctype_macro": 58,
@@ -276,11 +479,7 @@
   "derived": {
     "fns_pub": 1589,
     "fns_priv": 366,
-    "unsafe_fn_pub_ratio": 0.3281,
-    "unsafe_fn_share_of_pub_fns": 0.0132,
     "raw_ptr_pub": 44,
-    "raw_ptr_pub_safe_interface": 20,
-    "unsafe_loc_ratio": 0.1683,
-    "loc_per_unsafe_block": 8.5
+    "raw_ptr_pub_safe_interface": 20
   }
 }

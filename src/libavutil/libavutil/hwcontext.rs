@@ -109,35 +109,35 @@ pub struct DeviceType(ffi::AVHWDeviceType);
 
 impl DeviceType {
     /// AMD Advanced Media Framework (`amf`).
-    pub const AMF: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_AMF);
+    pub const AMF: Self = Self(ffi::AV_HWDEVICE_TYPE_AMF);
     /// NVIDIA CUDA (`cuda`).
-    pub const CUDA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_CUDA);
+    pub const CUDA: Self = Self(ffi::AV_HWDEVICE_TYPE_CUDA);
     /// Direct3D 11 video acceleration (`d3d11va`).
-    pub const D3D11VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D11VA);
+    pub const D3D11VA: Self = Self(ffi::AV_HWDEVICE_TYPE_D3D11VA);
     /// Direct3D 12 video acceleration (`d3d12va`).
-    pub const D3D12VA: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_D3D12VA);
+    pub const D3D12VA: Self = Self(ffi::AV_HWDEVICE_TYPE_D3D12VA);
     /// Linux DRM PRIME buffers (`drm`).
-    pub const DRM: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+    pub const DRM: Self = Self(ffi::AV_HWDEVICE_TYPE_DRM);
     /// DirectX Video Acceleration 2 (`dxva2`).
-    pub const DXVA2: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DXVA2);
+    pub const DXVA2: Self = Self(ffi::AV_HWDEVICE_TYPE_DXVA2);
     /// Android MediaCodec (`mediacodec`).
-    pub const MEDIACODEC: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_MEDIACODEC);
+    pub const MEDIACODEC: Self = Self(ffi::AV_HWDEVICE_TYPE_MEDIACODEC);
     /// No hardware device; what C's lookups return when they find none.
-    pub const NONE: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_NONE);
+    pub const NONE: Self = Self(ffi::AV_HWDEVICE_TYPE_NONE);
     /// OpenHarmony codec device (`ohcodec`).
-    pub const OHCODEC: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_OHCODEC);
+    pub const OHCODEC: Self = Self(ffi::AV_HWDEVICE_TYPE_OHCODEC);
     /// OpenCL (`opencl`).
-    pub const OPENCL: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_OPENCL);
+    pub const OPENCL: Self = Self(ffi::AV_HWDEVICE_TYPE_OPENCL);
     /// Intel Quick Sync Video (`qsv`).
-    pub const QSV: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_QSV);
+    pub const QSV: Self = Self(ffi::AV_HWDEVICE_TYPE_QSV);
     /// VA-API (`vaapi`).
-    pub const VAAPI: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI);
+    pub const VAAPI: Self = Self(ffi::AV_HWDEVICE_TYPE_VAAPI);
     /// NVIDIA VDPAU (`vdpau`).
-    pub const VDPAU: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VDPAU);
+    pub const VDPAU: Self = Self(ffi::AV_HWDEVICE_TYPE_VDPAU);
     /// Apple `VideoToolbox` (`videotoolbox`).
-    pub const VIDEOTOOLBOX: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
+    pub const VIDEOTOOLBOX: Self = Self(ffi::AV_HWDEVICE_TYPE_VIDEOTOOLBOX);
     /// Vulkan (`vulkan`).
-    pub const VULKAN: Self = Self(ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VULKAN);
+    pub const VULKAN: Self = Self(ffi::AV_HWDEVICE_TYPE_VULKAN);
 
     /// The device type C encodes as `raw`, whatever its value.
     #[inline]
@@ -187,7 +187,7 @@ impl fmt::Debug for DeviceType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.constant_name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("DeviceType").field(&self.0.0).finish(),
+            None => f.debug_tuple("DeviceType").field(&self.0).finish(),
         }
     }
 }
@@ -247,8 +247,8 @@ impl TransferDirection {
     #[must_use]
     pub const fn into_raw(self) -> ffi::AVHWFrameTransferDirection {
         match self {
-            Self::From => ffi::AVHWFrameTransferDirection::AV_HWFRAME_TRANSFER_DIRECTION_FROM,
-            Self::To => ffi::AVHWFrameTransferDirection::AV_HWFRAME_TRANSFER_DIRECTION_TO,
+            Self::From => ffi::AV_HWFRAME_TRANSFER_DIRECTION_FROM,
+            Self::To => ffi::AV_HWFRAME_TRANSFER_DIRECTION_TO,
         }
     }
 }
@@ -341,7 +341,7 @@ impl<'a> HwFrames<'a> {
                 // not passed its terminator.
                 let at = unsafe { list.add(len) };
                 // SAFETY: as above; every element up to the terminator is initialised.
-                if unsafe { at.read() } == ffi::AVPixelFormat::AV_PIX_FMT_NONE {
+                if unsafe { at.read() } == ffi::AV_PIX_FMT_NONE {
                     break;
                 }
                 len += 1;
@@ -700,14 +700,14 @@ int_flags! {
     /// cannot make as asked, with `AVERROR(ENOSYS)`.
     MapFlags {
         /// The mapping must be readable.
-        READ = ffi::AV_HWFRAME_MAP_READ.0,
+        READ = ffi::AV_HWFRAME_MAP_READ,
         /// The mapping must be writable.
-        WRITE = ffi::AV_HWFRAME_MAP_WRITE.0,
+        WRITE = ffi::AV_HWFRAME_MAP_WRITE,
         /// The mapped frame will be overwritten whole, so its current data
         /// need not be loaded; what is not overwritten is unspecified.
-        OVERWRITE = ffi::AV_HWFRAME_MAP_OVERWRITE.0,
+        OVERWRITE = ffi::AV_HWFRAME_MAP_OVERWRITE,
         /// The mapping must be direct: no copy in the map or unmap steps.
-        DIRECT = ffi::AV_HWFRAME_MAP_DIRECT.0,
+        DIRECT = ffi::AV_HWFRAME_MAP_DIRECT,
     }
 }
 
@@ -1800,7 +1800,7 @@ impl HardwareFrame {
             return Err(ENOMEM);
         }
         let mut dst = Frame::new().ok_or(ENOMEM)?;
-        dst.as_mut().set_format(format.into_raw().0);
+        dst.as_mut().set_format(format.into_raw());
         let (dst_ptr, src) = (dst.as_c_ptr(), self.frame.as_c_ptr());
         // SAFETY: `dst` is a fresh frame with only a format, which C fills
         // as a mapping (on failure it releases what it set and keeps the
@@ -1858,7 +1858,7 @@ impl HardwareFrame {
         // reference, which the frame then owns and releases.
         {
             // SAFETY: as the comment above this block states.
-            unsafe { format_ptr.write(format.into_raw().0) };
+            unsafe { format_ptr.write(format.into_raw()) };
             // SAFETY: as the comment above this block states.
             unsafe { hw_frames_ctx_ptr.write(target.into_c()) };
         }
@@ -3949,7 +3949,7 @@ mod unit_tests {
     #[test]
     fn device_type_constants_are_the_enumerators_in_declaration_order() {
         for (i, (t, _)) in NAMED.iter().enumerate() {
-            assert_eq!(t.into_raw().0, i as c_uint, "{t:?}");
+            assert_eq!(t.into_raw(), i as c_uint, "{t:?}");
         }
         let distinct: HashSet<DeviceType> = NAMED.iter().map(|&(t, _)| t).collect();
         assert_eq!(distinct.len(), NAMED.len());
@@ -3966,7 +3966,7 @@ mod unit_tests {
     #[test]
     fn device_type_debug_shows_unnamed_values_raw() {
         for raw in UNNAMED {
-            let t = DeviceType::from_raw(ffi::AVHWDeviceType(raw));
+            let t = DeviceType::from_raw(raw);
             assert_eq!(t.constant_name(), None);
             assert_eq!(format!("{t:?}"), format!("DeviceType({raw})"));
         }
@@ -3975,14 +3975,14 @@ mod unit_tests {
     #[test]
     fn device_type_default_is_none_and_zero() {
         assert_eq!(DeviceType::default(), DeviceType::NONE);
-        assert_eq!(DeviceType::default().into_raw().0, 0);
+        assert_eq!(DeviceType::default().into_raw(), 0);
     }
 
     #[test]
     fn device_type_raw_conversions_round_trip_every_value() {
-        let all = NAMED.iter().map(|&(t, _)| t.into_raw().0).chain(UNNAMED);
+        let all = NAMED.iter().map(|&(t, _)| t.into_raw()).chain(UNNAMED);
         for raw in all {
-            let c = ffi::AVHWDeviceType(raw);
+            let c = raw;
             assert_eq!(DeviceType::from_raw(c).into_raw(), c);
             assert_eq!(ffi::AVHWDeviceType::from(DeviceType::from(c)), c);
         }
@@ -3995,7 +3995,7 @@ mod unit_tests {
         assert!(zeroed.as_slice().iter().all(|&t| t == DeviceType::NONE));
         let values: Vec<DeviceType> = UNNAMED
             .iter()
-            .map(|&raw| DeviceType::from_raw(ffi::AVHWDeviceType(raw)))
+            .map(|&raw| DeviceType::from_raw(raw))
             .chain(NAMED.iter().map(|&(t, _)| t))
             .collect();
         let a = HeapVec::from_slice(&values).unwrap();
@@ -4006,14 +4006,14 @@ mod unit_tests {
     fn transfer_direction_encodes_as_the_c_enumerators() {
         assert_eq!(
             TransferDirection::From.into_raw(),
-            ffi::AVHWFrameTransferDirection::AV_HWFRAME_TRANSFER_DIRECTION_FROM
+            ffi::AV_HWFRAME_TRANSFER_DIRECTION_FROM
         );
         assert_eq!(
             TransferDirection::To.into_raw(),
-            ffi::AVHWFrameTransferDirection::AV_HWFRAME_TRANSFER_DIRECTION_TO
+            ffi::AV_HWFRAME_TRANSFER_DIRECTION_TO
         );
-        assert_eq!(TransferDirection::From.into_raw().0, 0);
-        assert_eq!(TransferDirection::To.into_raw().0, 1);
+        assert_eq!(TransferDirection::From.into_raw(), 0);
+        assert_eq!(TransferDirection::To.into_raw(), 1);
         for dir in [TransferDirection::From, TransferDirection::To] {
             assert_eq!(ffi::AVHWFrameTransferDirection::from(dir), dir.into_raw());
         }
@@ -4067,8 +4067,8 @@ mod unit_tests {
             adopt_context(fixture::new_context(
                 &INERT,
                 &YUV,
-                ffi::AVPixelFormat::AV_PIX_FMT_MEDIACODEC,
-                ffi::AVPixelFormat::AV_PIX_FMT_YUV420P,
+                ffi::AV_PIX_FMT_MEDIACODEC,
+                ffi::AV_PIX_FMT_YUV420P,
                 16,
                 8,
             ))
@@ -4194,7 +4194,7 @@ mod unit_tests {
         for format in [
             PixelFormat::NONE,
             PixelFormat::VAAPI,
-            PixelFormat::from_raw(ffi::AVPixelFormat(100_000)),
+            PixelFormat::from_raw(100_000),
         ] {
             assert!(!holds_image(f.as_ref(), format, 16, 8, false), "{format:?}");
         }
@@ -4529,7 +4529,7 @@ mod unit_tests {
         dst.as_mut().set_pts(3);
         let c_dst = Frame::new().unwrap();
         // SAFETY: a fresh frame C owns through `c_dst`, given a format.
-        unsafe { (*c_dst.as_c_ptr()).format = YUV420P.into_raw().0 };
+        unsafe { (*c_dst.as_c_ptr()).format = YUV420P.into_raw() };
         // An `AVFrame` takes more than this; every other allocation is done.
         assert!(size_of::<ffi::AVFrame>() > 256);
         crate::libavutil::libavutil::mem::set_max_alloc(256);
@@ -4678,7 +4678,7 @@ mod unit_tests {
                 }
             }
             for raw in UNNAMED {
-                assert_eq!(DeviceType::from_raw(ffi::AVHWDeviceType(raw)).name(), None);
+                assert_eq!(DeviceType::from_raw(raw).name(), None);
             }
             assert_eq!(DeviceType::CUDA.name(), Some(c"cuda"));
             for unknown in [c"", c"none", c"Vaapi", c"vaapi ", c"cuda\t"] {
@@ -4735,7 +4735,7 @@ mod unit_tests {
             // For the unsafe operations below: the public struct of the context `uninit` owns.
             {
                 // SAFETY: as the comment above this block states.
-                unsafe { assert_eq!((*ctx).type_, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_VAAPI) };
+                unsafe { assert_eq!((*ctx).type_, ffi::AV_HWDEVICE_TYPE_VAAPI) };
                 // SAFETY: as the comment above this block states.
                 unsafe { assert!(!(*ctx).hwctx.is_null()) };
             }
@@ -5745,8 +5745,7 @@ mod unit_tests {
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_backend_has_no_hardware_context() {
-            let raw =
-                hwdevice::fake_device_of(&BARE_TYPE, ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM);
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
             // SAFETY: the only reference to an uninitialised fake context.
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert_eq!(b.context().device_type(), DeviceType::DRM);
@@ -6121,7 +6120,7 @@ mod unit_tests {
                 // config owns.
                 unsafe {
                     let p = config.as_mut_ptr().cast::<FakeConfig>();
-                    (*p).hw_format = ffi::AVPixelFormat::AV_PIX_FMT_CUDA;
+                    (*p).hw_format = ffi::AV_PIX_FMT_CUDA;
                 }
                 let c = arc.as_ref().frames_constraints_for_config(&config);
                 let hw: Vec<_> = c
@@ -6143,10 +6142,7 @@ mod unit_tests {
             // SAFETY: the fake backend's `device_init` accepts any payload.
             let vaapi = unsafe { builder(&events).init() }.unwrap();
             let config = vaapi.as_ref().alloc_hw_config().unwrap();
-            let raw = hwdevice::fake_device_of(
-                &hwdevice::FAKE_TYPE,
-                ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM,
-            );
+            let raw = hwdevice::fake_device_of(&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
             // SAFETY: the only reference to a fresh, uninitialised fake
             // context.
             let mut drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
@@ -6238,7 +6234,7 @@ mod unit_tests {
             let raw_at = unsafe { raw.add(2) };
             // SAFETY: three elements, the terminator included.
             let terminator = unsafe { raw_at.read() };
-            assert_eq!(terminator, ffi::AVPixelFormat::AV_PIX_FMT_NONE);
+            assert_eq!(terminator, ffi::AV_PIX_FMT_NONE);
             // An empty list is not an unknown one.
             m.set_valid_sw_formats(Some(&[])).unwrap();
             assert_eq!(m.as_ref().valid_sw_formats().map(|l| l.len()), Some(0));
@@ -6432,15 +6428,7 @@ mod unit_tests {
                 unsafe { (*p).width },
                 unsafe { (*p).height },
             );
-            assert_eq!(
-                raw,
-                (
-                    ffi::AVPixelFormat::AV_PIX_FMT_VAAPI,
-                    ffi::AVPixelFormat::AV_PIX_FMT_NV12,
-                    64,
-                    32
-                )
-            );
+            assert_eq!(raw, (ffi::AV_PIX_FMT_VAAPI, ffi::AV_PIX_FMT_NV12, 64, 32));
             // SAFETY: as above.
             assert_eq!(unsafe { (*p).initial_pool_size }, 2);
             let frames = u.init().unwrap();
@@ -6870,10 +6858,7 @@ mod unit_tests {
                 .unwrap();
                 assert!(m.as_ref().has_free_callback());
                 assert!(!m.as_ref().has_pool());
-                assert_eq!(
-                    m.as_ref().format(),
-                    PixelFormat::from_raw(ffi::AVPixelFormat(0))
-                );
+                assert_eq!(m.as_ref().format(), PixelFormat::from_raw(0));
                 m.set_width(round);
                 assert_eq!(m.as_ref().width(), round);
                 if round == 3 {
@@ -6997,7 +6982,7 @@ mod unit_tests {
                 };
                 assert!(!buf.is_null());
                 // SAFETY: as the comment above this block states.
-                unsafe { (*ctxi).p.type_ = ffi::AVHWDeviceType::AV_HWDEVICE_TYPE_DRM };
+                unsafe { (*ctxi).p.type_ = ffi::AV_HWDEVICE_TYPE_DRM };
                 // SAFETY: as the comment above this block states.
                 unsafe { (*ctxi).p.av_class = &raw const fx::DEVICE_CLASS.0 };
                 // SAFETY: as the comment above this block states.

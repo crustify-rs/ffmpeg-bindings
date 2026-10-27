@@ -27,13 +27,10 @@ use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 /// Every mode beside its C enumerator.
 const MODES: [(EscapeMode, ffi::AVEscapeMode); 4] = [
-    (EscapeMode::Auto, ffi::AVEscapeMode::AV_ESCAPE_MODE_AUTO),
-    (
-        EscapeMode::Backslash,
-        ffi::AVEscapeMode::AV_ESCAPE_MODE_BACKSLASH,
-    ),
-    (EscapeMode::Quote, ffi::AVEscapeMode::AV_ESCAPE_MODE_QUOTE),
-    (EscapeMode::Xml, ffi::AVEscapeMode::AV_ESCAPE_MODE_XML),
+    (EscapeMode::Auto, ffi::AV_ESCAPE_MODE_AUTO),
+    (EscapeMode::Backslash, ffi::AV_ESCAPE_MODE_BACKSLASH),
+    (EscapeMode::Quote, ffi::AV_ESCAPE_MODE_QUOTE),
+    (EscapeMode::Xml, ffi::AV_ESCAPE_MODE_XML),
 ];
 
 /// `AV_ESCAPE_FLAG_WHITESPACE`, `_STRICT`, `_XML_SINGLE_QUOTES` and
@@ -82,10 +79,7 @@ fn modes_encode_as_the_c_enumerators() {
         assert_eq!(mode.into_raw(), c);
         assert_eq!(ffi::AVEscapeMode::from(mode), c);
     }
-    assert_eq!(
-        EscapeMode::default().into_raw(),
-        ffi::AVEscapeMode::AV_ESCAPE_MODE_AUTO
-    );
+    assert_eq!(EscapeMode::default().into_raw(), ffi::AV_ESCAPE_MODE_AUTO);
 }
 
 #[test]
@@ -130,7 +124,7 @@ fn default_mode_escapes_as_backslash_today() {
     for src in INPUTS {
         assert_eq!(
             escape(src, None, EscapeMode::default().into(), 0),
-            escape(src, None, ffi::AVEscapeMode::AV_ESCAPE_MODE_BACKSLASH, 0)
+            escape(src, None, ffi::AV_ESCAPE_MODE_BACKSLASH, 0)
         );
     }
 }

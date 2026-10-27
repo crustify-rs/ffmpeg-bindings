@@ -91,7 +91,7 @@ fn values_cross_threads() {
 /// Whether this run is under `BSan`, whose runtime makes exhaustive loops over
 /// FFI calls take minutes.
 fn under_bsan() -> bool {
-    std::env::var("CRUSTIFY_FFMPEG_VARIANT").as_deref() == Ok("bsan")
+    std::env::var("CRUSTIFY_BUILD_VARIANT").as_deref() == Ok("bsan")
 }
 
 /// Serializes the tests here that touch the process-wide log callback, level

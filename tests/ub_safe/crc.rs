@@ -12,15 +12,14 @@
     reason = "constants as the C sources and specifications spell them"
 )]
 use ffmpeg_bindings::libavutil::libavutil::crc::CrcId;
-use ffmpeg_bindings::libavutil::libavutil::ffi;
 
 #[test]
 fn arbitrary_identifiers_remain_valid_values() {
     for raw in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, u32::MAX] {
-        let id = CrcId::from_raw(ffi::AVCRCId(raw));
+        let id = CrcId::from_raw(raw);
         let copy = id;
         assert_eq!(id, copy);
-        assert_eq!(copy.into_raw().0, raw);
+        assert_eq!(copy.into_raw(), raw);
         assert!(!format!("{id:?}").is_empty());
     }
 }

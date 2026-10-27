@@ -22,7 +22,7 @@ use ffmpeg_bindings::libavutil::libavutil::utils::{MediaType, PictureType};
 /// Named constants, `AVMEDIA_TYPE_NB` and the `int` extremes.
 fn sample() -> Vec<MediaType> {
     [i32::MIN, -2, -1, 0, 1, 2, 3, 4, 5, 6, i32::MAX]
-        .map(|raw| MediaType::from_raw(ffi::AVMediaType(raw)))
+        .map(MediaType::from_raw)
         .into()
 }
 
@@ -106,7 +106,7 @@ fn arrays_cross_and_are_shared_between_threads() {
 /// Named picture types and values C may store unnamed, `u32::MAX` included.
 fn picture_sample() -> Vec<PictureType> {
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 1 << 31, u32::MAX]
-        .map(|raw| PictureType::from_raw(ffi::AVPictureType(raw)))
+        .map(PictureType::from_raw)
         .into()
 }
 
@@ -208,7 +208,6 @@ mod fourcc {
 mod names {
     use std::thread;
 
-    use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::utils::{MediaType, PictureType, time_base};
 
     /// `int` and `unsigned` edges, as the enums' encodings.
@@ -231,9 +230,9 @@ mod names {
     #[cfg_attr(miri, ignore = "calls C")]
     fn every_value_names_and_letters() {
         for v in VALUES {
-            let name = MediaType::from_raw(ffi::AVMediaType(v as i32)).as_str();
+            let name = MediaType::from_raw(v as i32).as_str();
             assert!(name.is_none_or(|n| !n.is_empty() && n.is_ascii()));
-            let letter = PictureType::from_raw(ffi::AVPictureType(v as u32)).to_char();
+            let letter = PictureType::from_raw(v as u32).to_char();
             assert!(letter.is_ascii_graphic());
         }
         assert_eq!(time_base().to_f64(), 1e-6);
@@ -247,7 +246,7 @@ mod names {
                 .map(|_| {
                     s.spawn(|| {
                         (-1..7)
-                            .filter_map(|v| MediaType::from_raw(ffi::AVMediaType(v)).as_str())
+                            .filter_map(|v| MediaType::from_raw(v).as_str())
                             .collect::<Vec<_>>()
                     })
                 })
@@ -260,7 +259,7 @@ mod names {
         assert_eq!(names.len(), 4 * 5);
         let letters = thread::spawn(|| {
             (0..9)
-                .map(|v| PictureType::from_raw(ffi::AVPictureType(v)).to_char())
+                .map(|v| PictureType::from_raw(v).to_char())
                 .collect::<String>()
         });
         assert_eq!(letters.join().unwrap(), "?IPBSipb?");

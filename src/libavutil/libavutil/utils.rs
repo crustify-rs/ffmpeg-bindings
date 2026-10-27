@@ -39,21 +39,21 @@ pub struct MediaType(ffi::AVMediaType);
 
 impl MediaType {
     /// Opaque data, usually sparse.
-    pub const ATTACHMENT: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_ATTACHMENT);
+    pub const ATTACHMENT: Self = Self(ffi::AVMEDIA_TYPE_ATTACHMENT);
     /// Audio.
-    pub const AUDIO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_AUDIO);
+    pub const AUDIO: Self = Self(ffi::AVMEDIA_TYPE_AUDIO);
     /// The number of media types from [`VIDEO`](Self::VIDEO) to
     /// [`ATTACHMENT`](Self::ATTACHMENT) (`AVMEDIA_TYPE_NB`): the length of an
     /// array indexed by [`index`](Self::index).
-    pub const COUNT: usize = ffi::AVMediaType::AVMEDIA_TYPE_NB.0 as usize;
+    pub const COUNT: usize = ffi::AVMEDIA_TYPE_NB as usize;
     /// Opaque data, usually continuous.
-    pub const DATA: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_DATA);
+    pub const DATA: Self = Self(ffi::AVMEDIA_TYPE_DATA);
     /// Subtitles.
-    pub const SUBTITLE: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_SUBTITLE);
+    pub const SUBTITLE: Self = Self(ffi::AVMEDIA_TYPE_SUBTITLE);
     /// Unknown media, usually treated as [`DATA`](Self::DATA).
-    pub const UNKNOWN: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_UNKNOWN);
+    pub const UNKNOWN: Self = Self(ffi::AVMEDIA_TYPE_UNKNOWN);
     /// Video.
-    pub const VIDEO: Self = Self(ffi::AVMediaType::AVMEDIA_TYPE_VIDEO);
+    pub const VIDEO: Self = Self(ffi::AVMEDIA_TYPE_VIDEO);
 
     /// The media type C encodes as `raw`, whatever its value.
     #[inline]
@@ -74,7 +74,7 @@ impl MediaType {
     #[inline]
     #[must_use]
     pub const fn index(self) -> Option<usize> {
-        let raw = self.0.0;
+        let raw = self.0;
         if raw >= 0 && (raw.unsigned_abs() as usize) < Self::COUNT {
             Some(raw.unsigned_abs() as usize)
         } else {
@@ -100,7 +100,7 @@ impl fmt::Debug for MediaType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("MediaType").field(&self.0.0).finish(),
+            None => f.debug_tuple("MediaType").field(&self.0).finish(),
         }
     }
 }
@@ -154,21 +154,21 @@ pub struct PictureType(ffi::AVPictureType);
 
 impl PictureType {
     /// Bidirectionally predicted.
-    pub const B: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_B);
+    pub const B: Self = Self(ffi::AV_PICTURE_TYPE_B);
     /// BI type.
-    pub const BI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_BI);
+    pub const BI: Self = Self(ffi::AV_PICTURE_TYPE_BI);
     /// Intra.
-    pub const I: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_I);
+    pub const I: Self = Self(ffi::AV_PICTURE_TYPE_I);
     /// Undefined; the value of a zero-filled field.
-    pub const NONE: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_NONE);
+    pub const NONE: Self = Self(ffi::AV_PICTURE_TYPE_NONE);
     /// Predicted.
-    pub const P: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_P);
+    pub const P: Self = Self(ffi::AV_PICTURE_TYPE_P);
     /// S(GMC)-VOP, MPEG-4.
-    pub const S: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_S);
+    pub const S: Self = Self(ffi::AV_PICTURE_TYPE_S);
     /// Switching intra.
-    pub const SI: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SI);
+    pub const SI: Self = Self(ffi::AV_PICTURE_TYPE_SI);
     /// Switching predicted.
-    pub const SP: Self = Self(ffi::AVPictureType::AV_PICTURE_TYPE_SP);
+    pub const SP: Self = Self(ffi::AV_PICTURE_TYPE_SP);
 
     /// The picture type C encodes as `raw`, whatever its value.
     #[inline]
@@ -204,7 +204,7 @@ impl fmt::Debug for PictureType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.name() {
             Some(name) => f.write_str(name),
-            None => f.debug_tuple("PictureType").field(&self.0.0).finish(),
+            None => f.debug_tuple("PictureType").field(&self.0).finish(),
         }
     }
 }
@@ -340,10 +340,10 @@ mod unit_tests {
 
     #[test]
     fn debug_shows_unnamed_values_raw() {
-        let nb = MediaType::from_raw(ffi::AVMediaType::AVMEDIA_TYPE_NB);
+        let nb = MediaType::from_raw(ffi::AVMEDIA_TYPE_NB);
         assert_eq!(format!("{nb:?}"), "MediaType(5)");
         for raw in [c_int::MIN, -2, 6, c_int::MAX] {
-            let t = MediaType::from_raw(ffi::AVMediaType(raw));
+            let t = MediaType::from_raw(raw);
             assert_eq!(format!("{t:?}"), format!("MediaType({raw})"));
         }
     }
@@ -363,14 +363,14 @@ mod unit_tests {
         }
         assert_eq!(MediaType::UNKNOWN.index(), None);
         for raw in [c_int::MIN, -2, 5, 6, c_int::MAX] {
-            assert_eq!(MediaType::from_raw(ffi::AVMediaType(raw)).index(), None);
+            assert_eq!(MediaType::from_raw(raw).index(), None);
         }
     }
 
     #[test]
     fn raw_conversions_round_trip_every_value() {
         for raw in [c_int::MIN, -2, -1, 0, 4, 5, 6, c_int::MAX] {
-            let c = ffi::AVMediaType(raw);
+            let c = raw;
             assert_eq!(MediaType::from(c).into_raw(), c);
             assert_eq!(ffi::AVMediaType::from(MediaType::from_raw(c)), c);
         }
@@ -413,7 +413,7 @@ mod unit_tests {
     #[test]
     fn picture_type_debug_shows_unnamed_values_raw() {
         for raw in [8, 9, 1 << 20, u32::MAX - 1, u32::MAX] {
-            let t = PictureType::from_raw(ffi::AVPictureType(raw));
+            let t = PictureType::from_raw(raw);
             assert_eq!(format!("{t:?}"), format!("PictureType({raw})"));
         }
     }
@@ -421,7 +421,7 @@ mod unit_tests {
     #[test]
     fn picture_type_constants_are_distinct_and_ordered() {
         for (i, (t, _)) in PICTURE_NAMED.iter().enumerate() {
-            assert_eq!(t.into_raw().0 as usize, i);
+            assert_eq!(t.into_raw() as usize, i);
             for (u, _) in &PICTURE_NAMED[i + 1..] {
                 assert_ne!(t, u);
             }
@@ -431,7 +431,7 @@ mod unit_tests {
     #[test]
     fn picture_type_raw_conversions_round_trip_every_value() {
         for raw in [0, 1, 7, 8, 1 << 31, u32::MAX] {
-            let c = ffi::AVPictureType(raw);
+            let c = raw;
             assert_eq!(PictureType::from(c).into_raw(), c);
             assert_eq!(ffi::AVPictureType::from(PictureType::from_raw(c)), c);
         }
@@ -443,7 +443,7 @@ mod unit_tests {
         assert_eq!(MediaType::VIDEO.as_str(), Some("video"));
         assert_eq!(MediaType::ATTACHMENT.as_str(), Some("attachment"));
         assert_eq!(MediaType::UNKNOWN.as_str(), None);
-        assert_eq!(MediaType::from_raw(ffi::AVMediaType(99)).as_str(), None);
+        assert_eq!(MediaType::from_raw(99).as_str(), None);
     }
 
     #[test]
@@ -453,7 +453,7 @@ mod unit_tests {
         assert_eq!(PictureType::SI.to_char(), 'i');
         assert_eq!(PictureType::BI.to_char(), 'b');
         assert_eq!(PictureType::NONE.to_char(), '?');
-        assert_eq!(PictureType::from_raw(ffi::AVPictureType(99)).to_char(), '?');
+        assert_eq!(PictureType::from_raw(99).to_char(), '?');
     }
 
     #[test]
