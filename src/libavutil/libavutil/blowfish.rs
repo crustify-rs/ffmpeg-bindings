@@ -13,10 +13,11 @@ use super::ffi;
 use super::mem::HeapBox;
 
 define_ctype!(
-    /// Wraps: AVBlowfish
+    /// Wraps `ty::AVBlowfish`
     ///
     /// A resource-free Blowfish key schedule. Field replacement accepts any
     /// words (all bit patterns are valid), but changes the resulting cipher.
+    #[doc(alias = "AVBlowfish")]
     #[derive(Clone, Copy)]
     Blowfish,
     BlowfishRef,
@@ -49,6 +50,8 @@ fn key_len(key: &[u8]) -> Result<i32, InitError> {
 }
 
 impl Blowfish {
+    /// Wraps `fn::av_blowfish_init`
+    ///
     /// Initialize a schedule in Rust-owned inline storage.
     ///
     /// Matches C for any nonempty key whose length fits `i32`; C does not
@@ -58,6 +61,7 @@ impl Blowfish {
     ///
     /// Returns [`InitError::InvalidKeyLength`] for an empty key or one longer than `i32::MAX`
     /// bytes.
+    #[doc(alias = "av_blowfish_init")]
     pub fn new(key: &[u8]) -> Result<Self, InitError> {
         key_len(key)?;
         let mut context = Self::zeroed();
@@ -65,7 +69,7 @@ impl Blowfish {
         Ok(context)
     }
 
-    /// Wraps: `av_blowfish_alloc`
+    /// Wraps `fn::av_blowfish_alloc`
     ///
     /// Allocate and initialize a sole owner; the key is not retained.
     ///
@@ -73,6 +77,7 @@ impl Blowfish {
     ///
     /// Returns [`InitError::InvalidKeyLength`] as [`Blowfish::new`], and
     /// [`InitError::AllocationFailed`] when C cannot allocate the context.
+    #[doc(alias = "av_blowfish_alloc")]
     pub fn new_boxed(key: &[u8]) -> Result<BlowfishBox, InitError> {
         key_len(key)?;
         // SAFETY: as the comment below states, for this part of the operation.
@@ -87,10 +92,11 @@ impl Blowfish {
 }
 
 impl BlowfishRef<'_> {
-    /// Field: AVBlowfish.p
+    /// Wraps `fld::AVBlowfish.p`
     ///
     /// Copy the 18 round-key words.
     #[must_use]
+    #[doc(alias = "AVBlowfish.p")]
     pub fn p(&self) -> [u32; 18] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `p` field is in bounds; nothing is accessed here.
@@ -100,10 +106,11 @@ impl BlowfishRef<'_> {
         unsafe { p_ptr.read() }
     }
 
-    /// Field: AVBlowfish.s
+    /// Wraps `fld::AVBlowfish.s`
     ///
     /// Copy all four 256-word substitution tables.
     #[must_use]
+    #[doc(alias = "AVBlowfish.s")]
     pub fn s(&self) -> [[u32; 256]; 4] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `s` field is in bounds; nothing is accessed here.
@@ -114,7 +121,7 @@ impl BlowfishRef<'_> {
 }
 
 impl BlowfishMut<'_> {
-    /// Wraps: `av_blowfish_init`
+    /// Wraps `fn::av_blowfish_init`
     ///
     /// Replace the whole schedule. An invalid key leaves the context unchanged.
     ///
@@ -122,6 +129,7 @@ impl BlowfishMut<'_> {
     ///
     /// Returns [`InitError::InvalidKeyLength`] for an empty key or one longer than `i32::MAX`
     /// bytes.
+    #[doc(alias = "av_blowfish_init")]
     pub fn init(&mut self, key: &[u8]) -> Result<(), InitError> {
         let len = key_len(key)?;
         // SAFETY: the exclusive handle addresses a full writable context. C
@@ -131,9 +139,10 @@ impl BlowfishMut<'_> {
         Ok(())
     }
 
-    /// Field: AVBlowfish.p
+    /// Wraps `fld::AVBlowfish.p`
     ///
     /// Replace the round-key words without changing the substitution tables.
+    #[doc(alias = "AVBlowfish.p")]
     pub fn set_p(&mut self, words: [u32; 18]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `p` field is in bounds; nothing is accessed here.
@@ -142,9 +151,10 @@ impl BlowfishMut<'_> {
         unsafe { p_ptr.write(words) }
     }
 
-    /// Field: AVBlowfish.s
+    /// Wraps `fld::AVBlowfish.s`
     ///
     /// Replace the substitution tables without changing the round-key words.
+    #[doc(alias = "AVBlowfish.s")]
     pub fn set_s(&mut self, tables: [[u32; 256]; 4]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `s` field is in bounds; nothing is accessed here.
@@ -155,7 +165,7 @@ impl BlowfishMut<'_> {
 }
 
 impl BlowfishRef<'_> {
-    /// Wraps: `av_blowfish_crypt`
+    /// Wraps `fn::av_blowfish_crypt`
     ///
     /// Encrypt or decrypt whole blocks.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
@@ -165,6 +175,7 @@ impl BlowfishRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_blowfish_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -193,12 +204,15 @@ impl BlowfishRef<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_blowfish_crypt`
+    ///
     /// In-place form of [`Self::crypt`], with the same modes and validation.
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_blowfish_crypt")]
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -230,9 +244,10 @@ impl BlowfishRef<'_> {
 }
 
 impl BlowfishRef<'_> {
-    /// Wraps: `av_blowfish_crypt_ecb`
+    /// Wraps `fn::av_blowfish_crypt_ecb`
     ///
     /// Process a pair of numeric 32-bit halves (not host-endian byte strings).
+    #[doc(alias = "av_blowfish_crypt_ecb")]
     pub fn crypt_ecb(&self, halves: &mut [u32; 2], direction: Direction) {
         let ptr = halves.as_mut_ptr();
         // For the unsafe operations below: the context is initialized and shared without writers.
