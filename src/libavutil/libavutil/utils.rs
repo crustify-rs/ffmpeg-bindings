@@ -9,7 +9,7 @@ use ffibox::CPlainElem;
 use super::ffi;
 use super::rational::Rational;
 
-/// Wraps: `AVMediaType`
+/// Wraps `ty::AVMediaType`
 /// Handwritten
 ///
 /// The kind of data a stream, codec or filter pad carries.
@@ -33,6 +33,7 @@ use super::rational::Rational;
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVMediaType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MediaType(ffi::AVMediaType);
@@ -125,7 +126,7 @@ impl From<MediaType> for ffi::AVMediaType {
 // whole of it.
 unsafe impl CPlainElem for MediaType {}
 
-/// Wraps: `AVPictureType`
+/// Wraps `ty::AVPictureType`
 /// Handwritten
 ///
 /// The coding type of a video picture: intra, predicted, bidirectionally
@@ -148,6 +149,7 @@ unsafe impl CPlainElem for MediaType {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVPictureType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PictureType(ffi::AVPictureType);
@@ -232,7 +234,7 @@ unsafe impl CPlainElem for PictureType {}
 /// `AV_FOURCC_MAX_STRING_SIZE`: the buffer [`fourcc_string`] fills.
 const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 
-/// Wraps: `av_fourcc_make_string`
+/// Wraps `fn::av_fourcc_make_string`
 ///
 /// `fourcc` spelled out in `buf`, least significant byte first: a digit,
 /// ASCII letter or one of `. -_` as itself, any other byte as its decimal
@@ -251,6 +253,7 @@ const FOURCC_MAX_STRING_SIZE: usize = ffi::AV_FOURCC_MAX_STRING_SIZE as usize;
 /// # Panics
 ///
 /// Only if C breaks the guarantee that snprintf NUL-terminates the buffer.
+#[doc(alias = "av_fourcc_make_string")]
 pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CStr {
     // SAFETY: `buf` is `AV_FOURCC_MAX_STRING_SIZE` writable bytes, the size
     // `av_fourcc_make_string` bounds its `snprintf` calls by (at most 20
@@ -260,11 +263,12 @@ pub fn fourcc_string(buf: &mut [u8; FOURCC_MAX_STRING_SIZE], fourcc: u32) -> &CS
 }
 
 impl MediaType {
-    /// Wraps: `av_get_media_type_string`
+    /// Wraps `fn::av_get_media_type_string`
     ///
     /// The lowercase name C gives this media type (`"video"`, `"audio"`,
     /// `"data"`, `"subtitle"`, `"attachment"`), or `None` for
     /// [`UNKNOWN`](Self::UNKNOWN) and any value C does not name.
+    #[doc(alias = "av_get_media_type_string")]
     #[must_use]
     pub fn as_str(self) -> Option<&'static str> {
         // SAFETY: `av_get_media_type_string` takes the enum by value, accepts
@@ -279,12 +283,13 @@ impl MediaType {
 }
 
 impl PictureType {
-    /// Wraps: `av_get_picture_type_char`
+    /// Wraps `fn::av_get_picture_type_char`
     ///
     /// The letter C prints for this picture type: `I`, `P`, `B` and `S` for
     /// those types, `i`, `p` and `b` for [`SI`](Self::SI),
     /// [`SP`](Self::SP) and [`BI`](Self::BI), and `?` for
     /// [`NONE`](Self::NONE) and any value C does not name.
+    #[doc(alias = "av_get_picture_type_char")]
     #[must_use]
     pub fn to_char(self) -> char {
         // SAFETY: `av_get_picture_type_char` takes the enum by value and maps
@@ -294,9 +299,10 @@ impl PictureType {
     }
 }
 
-/// Wraps: `av_get_time_base_q`
+/// Wraps `fn::av_get_time_base_q`
 ///
 /// FFmpeg's internal time base, `1/AV_TIME_BASE`: microseconds.
+#[doc(alias = "av_get_time_base_q")]
 #[must_use]
 pub fn time_base() -> Rational {
     // SAFETY: `av_get_time_base_q` takes no arguments and returns a constant
