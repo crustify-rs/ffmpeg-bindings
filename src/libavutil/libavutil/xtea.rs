@@ -23,7 +23,7 @@ use super::mem::{Heap, HeapBox};
 type CryptFn = unsafe extern "C" fn(*mut ffi::AVXTEA, *mut u8, *const u8, i32, *mut u8, i32);
 
 define_ctype!(
-    /// Wraps: AVXTEA
+    /// Wraps `ty::AVXTEA`
     ///
     /// Layout-compatible XTEA key storage, held inline or through [`XteaBox`].
     /// Getters copy the words rather than referencing foreign memory.
@@ -46,6 +46,7 @@ define_ctype!(
     /// exclusive.set_key([1; 16]);
     /// let _ = shared.key();
     /// ```
+    #[doc(alias = "AVXTEA")]
     #[derive(Clone, Copy)]
     Xtea,
     XteaRef,
@@ -62,10 +63,11 @@ pub type XteaBox = HeapBox<Xtea>;
 // state. Every accessor and initializer accepts it; av_free reads no fields.
 unsafe impl CZeroable for Xtea {}
 
-/// Wraps: `av_xtea_alloc`
 // SAFETY: av_xtea_alloc returns a fresh aligned, zero-filled AVXTEA, or NULL.
 // Xtea is layout-compatible and all-zero valid; Heap frees it with av_free.
 unsafe impl CNew<Xtea> for Heap {
+    /// Wraps `fn::av_xtea_alloc`
+    #[doc(alias = "av_xtea_alloc")]
     fn c_new(&self) -> Option<NonNull<Xtea>> {
         // SAFETY: av_xtea_alloc has no arguments or preconditions and retains
         // no pointer to the returned storage.
@@ -105,7 +107,7 @@ impl Xtea {
     reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
 )]
 impl XteaRef<'_> {
-    /// Wraps: `av_xtea_crypt`
+    /// Wraps `fn::av_xtea_crypt`
     ///
     /// Process equal-length buffers using big-endian block words.
     /// `None` selects ECB; `Some(iv)` selects CBC and replaces the IV with
@@ -117,6 +119,7 @@ impl XteaRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_xtea_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -127,6 +130,8 @@ impl XteaRef<'_> {
         self.process(dst, Some(src), iv, direction, false)
     }
 
+    /// Wraps `fn::av_xtea_crypt`
+    ///
     /// Process big-endian blocks in place, with the same CBC and length
     /// contracts as [`Self::crypt`]. CBC decryption saves each ciphertext
     /// block before overwriting it, so the IV advances correctly.
@@ -135,6 +140,7 @@ impl XteaRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_xtea_crypt")]
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -144,7 +150,7 @@ impl XteaRef<'_> {
         self.process(data, None, iv, direction, false)
     }
 
-    /// Wraps: `av_xtea_le_crypt`
+    /// Wraps `fn::av_xtea_le_crypt`
     ///
     /// Process equal-length buffers using little-endian block words.
     /// The ECB/CBC, IV, padding and length contracts are those of [`Self::crypt`].
@@ -154,6 +160,7 @@ impl XteaRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_xtea_le_crypt")]
     pub fn crypt_le(
         &self,
         dst: &mut [u8],
@@ -164,12 +171,15 @@ impl XteaRef<'_> {
         self.process(dst, Some(src), iv, direction, true)
     }
 
+    /// Wraps `fn::av_xtea_le_crypt`
+    ///
     /// Process little-endian blocks in place; see [`Self::crypt_le`].
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_xtea_le_crypt")]
     pub fn crypt_le_in_place(
         &self,
         data: &mut [u8],
@@ -231,9 +241,10 @@ impl XteaRef<'_> {
         Ok(())
     }
 
-    /// Field: AVXTEA.key
+    /// Wraps `fld::AVXTEA.key`
     ///
     /// Copy all sixteen words, including the twelve unused by the cipher.
+    #[doc(alias = "AVXTEA.key")]
     #[must_use]
     pub fn key(&self) -> [u32; 16] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -246,9 +257,10 @@ impl XteaRef<'_> {
 }
 
 impl XteaMut<'_> {
-    /// Field: AVXTEA.key
+    /// Wraps `fld::AVXTEA.key`
     ///
     /// Replace all sixteen key words. No byte-order conversion is performed.
+    #[doc(alias = "AVXTEA.key")]
     pub fn set_key(&mut self, key: [u32; 16]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `key` field is in bounds; nothing is accessed here.
@@ -258,20 +270,22 @@ impl XteaMut<'_> {
         unsafe { key_ptr.write(key) }
     }
 
-    /// Wraps: `av_xtea_init`
+    /// Wraps `fn::av_xtea_init`
     ///
     /// Replace the first four words with the big-endian 16-byte key.
     /// The other twelve words are preserved. The key is not retained.
+    #[doc(alias = "av_xtea_init")]
     pub fn init(&mut self, key: &[u8; 16]) {
         // SAFETY: the handle grants exclusive access to initialized storage;
         // key supplies the 16 readable bytes C consumes without retaining it.
         unsafe { ffi::av_xtea_init(self.as_mut_ptr(), key.as_ptr()) }
     }
 
-    /// Wraps: `av_xtea_le_init`
+    /// Wraps `fn::av_xtea_le_init`
     ///
     /// Replace the first four words with the little-endian 16-byte key.
     /// The other twelve words are preserved. The key is not retained.
+    #[doc(alias = "av_xtea_le_init")]
     pub fn init_le(&mut self, key: &[u8; 16]) {
         // SAFETY: as for init: exclusive context, exactly 16 readable key
         // bytes, and neither pointer is retained by C.
