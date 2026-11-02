@@ -36,11 +36,12 @@ use ffibox::{CMutSeam, CRefSeam, CZeroable, define_ctype};
 use super::ffi;
 
 define_ctype!(
-    /// Wraps: av_intfloat64
+    /// Wraps `ty::av_intfloat64`
     ///
     /// A 64-bit word with an integer and a `double` view. Its getters are on
     /// [`IntFloat64Ref`] (`as_ref()`), its setters on [`IntFloat64Mut`]
     /// (`as_mut()`).
+    #[doc(alias = "av_intfloat64")]
     #[derive(Clone, Copy)]
     IntFloat64,
     IntFloat64Ref,
@@ -112,10 +113,11 @@ impl fmt::Debug for IntFloat64Ref<'_> {
 }
 
 impl IntFloat64Ref<'_> {
-    /// Field: `av_intfloat64.i`
+    /// Wraps `fld::av_intfloat64.i`
     ///
     /// The word as an unsigned integer: the bit pattern of
     /// [`float`](Self::float), as `f64::to_bits` gives it.
+    #[doc(alias = "av_intfloat64.i")]
     #[must_use]
     pub fn bits(&self) -> u64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -128,10 +130,11 @@ impl IntFloat64Ref<'_> {
         unsafe { i_ptr.read() }
     }
 
-    /// Field: `av_intfloat64.f`
+    /// Wraps `fld::av_intfloat64.f`
     ///
     /// The word as a `double`: [`bits`](Self::bits) reinterpreted, as
     /// `f64::from_bits` does, NaN payloads included.
+    #[doc(alias = "av_intfloat64.f")]
     #[must_use]
     pub fn float(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -145,10 +148,11 @@ impl IntFloat64Ref<'_> {
 }
 
 impl IntFloat64Mut<'_> {
-    /// Field: `av_intfloat64.i`
+    /// Wraps `fld::av_intfloat64.i`
     ///
     /// Overwrites the whole word with `bits`, which [`float`](IntFloat64Ref::float)
     /// then reads reinterpreted.
+    #[doc(alias = "av_intfloat64.i")]
     pub fn set_bits(&mut self, bits: u64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `i` field is in bounds; nothing is accessed here.
@@ -159,10 +163,11 @@ impl IntFloat64Mut<'_> {
         unsafe { i_ptr.write(bits) }
     }
 
-    /// Field: `av_intfloat64.f`
+    /// Wraps `fld::av_intfloat64.f`
     ///
     /// Overwrites the whole word with `value`'s bit pattern, which
     /// [`bits`](IntFloat64Ref::bits) then reads.
+    #[doc(alias = "av_intfloat64.f")]
     pub fn set_float(&mut self, value: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `f` field is in bounds; nothing is accessed here.
@@ -175,13 +180,14 @@ impl IntFloat64Mut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: av_intfloat32
+    /// Wraps `ty::av_intfloat32`
     ///
     /// A 32-bit value viewed as a `u32` or an `f32`. Build one with
     /// [`IntFloat32::default`] (all zero), [`IntFloat32::from_bits`] or
     /// [`IntFloat32::from_float`], read it through
     /// [`as_ref`](IntFloat32::as_ref) and write it through
     /// [`as_mut`](IntFloat32::as_mut). Equality and hashing are bitwise.
+    #[doc(alias = "av_intfloat32")]
     #[derive(Clone, Copy)]
     IntFloat32,
     IntFloat32Ref,
@@ -265,7 +271,8 @@ impl fmt::Debug for IntFloat32Ref<'_> {
 }
 
 impl IntFloat32Ref<'_> {
-    /// Field: `av_intfloat32.i`
+    /// Wraps `fld::av_intfloat32.i`
+    #[doc(alias = "av_intfloat32.i")]
     #[must_use]
     pub fn bits(&self) -> u32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -276,9 +283,10 @@ impl IntFloat32Ref<'_> {
         unsafe { i_ptr.read() }
     }
 
-    /// Field: `av_intfloat32.f`
+    /// Wraps `fld::av_intfloat32.f`
     ///
     /// The bits read as an `f32`, NaN payloads included.
+    #[doc(alias = "av_intfloat32.f")]
     #[must_use]
     pub fn float(&self) -> f32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -290,7 +298,8 @@ impl IntFloat32Ref<'_> {
 }
 
 impl IntFloat32Mut<'_> {
-    /// Field: `av_intfloat32.i`
+    /// Wraps `fld::av_intfloat32.i`
+    #[doc(alias = "av_intfloat32.i")]
     pub fn set_bits(&mut self, bits: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `i` field is in bounds; nothing is accessed here.
@@ -300,7 +309,8 @@ impl IntFloat32Mut<'_> {
         unsafe { i_ptr.write(bits) }
     }
 
-    /// Field: `av_intfloat32.f`
+    /// Wraps `fld::av_intfloat32.f`
+    #[doc(alias = "av_intfloat32.f")]
     pub fn set_float(&mut self, v: f32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `f` field is in bounds; nothing is accessed here.
@@ -310,10 +320,11 @@ impl IntFloat32Mut<'_> {
     }
 }
 
-/// Wraps: `av_int2float`
+/// Wraps `fn::av_int2float`
 ///
 /// The `f32` whose bit pattern is `bits`, as [`f32::from_bits`] gives it, NaN
 /// payloads included.
+#[doc(alias = "av_int2float")]
 #[must_use]
 pub fn float_from_bits(bits: u32) -> f32 {
     // SAFETY: `av_int2float` takes its argument by value and has no
@@ -321,9 +332,10 @@ pub fn float_from_bits(bits: u32) -> f32 {
     unsafe { ffi::av_int2float(bits) }
 }
 
-/// Wraps: `av_float2int`
+/// Wraps `fn::av_float2int`
 ///
 /// The bit pattern of `value`, as [`f32::to_bits`] gives it.
+#[doc(alias = "av_float2int")]
 #[must_use]
 pub fn float_to_bits(value: f32) -> u32 {
     // SAFETY: `av_float2int` takes its argument by value and has no
@@ -331,10 +343,11 @@ pub fn float_to_bits(value: f32) -> u32 {
     unsafe { ffi::av_float2int(value) }
 }
 
-/// Wraps: `av_int2double`
+/// Wraps `fn::av_int2double`
 ///
 /// The `f64` whose bit pattern is `bits`, as [`f64::from_bits`] gives it, NaN
 /// payloads included.
+#[doc(alias = "av_int2double")]
 #[must_use]
 pub fn double_from_bits(bits: u64) -> f64 {
     // SAFETY: `av_int2double` takes its argument by value and has no
@@ -342,9 +355,10 @@ pub fn double_from_bits(bits: u64) -> f64 {
     unsafe { ffi::av_int2double(bits) }
 }
 
-/// Wraps: `av_double2int`
+/// Wraps `fn::av_double2int`
 ///
 /// The bit pattern of `value`, as [`f64::to_bits`] gives it.
+#[doc(alias = "av_double2int")]
 #[must_use]
 pub fn double_to_bits(value: f64) -> u64 {
     // SAFETY: `av_double2int` takes its argument by value and has no
