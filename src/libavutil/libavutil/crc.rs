@@ -4,7 +4,7 @@ use core::fmt;
 
 use super::ffi;
 
-/// Wraps: `AVCRCId`
+/// Wraps `ty::AVCRCId`
 /// Handwritten
 ///
 /// A standard CRC polynomial identifier, layout-compatible with C's enum.
@@ -12,6 +12,7 @@ use super::ffi;
 /// has no enum primitive. Unknown C values are preserved, not transmuted to
 /// a restricted Rust enum. `AV_CRC_MAX` is an internal sentinel, not a public
 /// polynomial, and intentionally has no associated constant.
+#[doc(alias = "AVCRCId")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CrcId(ffi::AVCRCId);
@@ -94,7 +95,7 @@ pub struct Table {
 }
 
 impl Table {
-    /// Wraps: `av_crc_init`
+    /// Wraps `fn::av_crc_init`
     ///
     /// Initialize a CRC table for a polynomial of 8 through 32 bits. For
     /// little-endian bit order, the polynomial is in reversed representation.
@@ -103,6 +104,7 @@ impl Table {
     /// # Errors
     ///
     /// Return C's negative error for invalid bits or polynomial.
+    #[doc(alias = "av_crc_init")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
@@ -146,10 +148,11 @@ impl Table {
         &self.entries
     }
 
-    /// Wraps: `av_crc`
+    /// Wraps `fn::av_crc`
     ///
     /// Update a CRC from its previous value (or the polynomial's initial value).
     /// For non-little-endian tables C uses its documented byte-swapped form.
+    #[doc(alias = "av_crc")]
     #[must_use]
     pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
         update(TableView::Owned(self), initial, input)
@@ -168,10 +171,11 @@ pub struct StandardTable {
     id: CrcId,
 }
 
-/// Wraps: `av_crc_get_table`
+/// Wraps `fn::av_crc_get_table`
 ///
 /// Borrow a standard table. Unknown identifiers return `None`. C initializes
 /// generic tables under its once-control before returning; later uses are read-only.
+#[doc(alias = "av_crc_get_table")]
 #[must_use]
 pub fn get_table(id: CrcId) -> Option<StandardTable> {
     // SAFETY: C validates every enum encoding and returns NULL for unsupported
@@ -181,7 +185,10 @@ pub fn get_table(id: CrcId) -> Option<StandardTable> {
 }
 
 impl StandardTable {
+    /// Wraps `fn::av_crc`
+    ///
     /// Update through the borrowed standard table, without changing it.
+    #[doc(alias = "av_crc")]
     #[must_use]
     pub fn update(&self, initial: u32, input: &[u8]) -> u32 {
         update(TableView::Standard(self), initial, input)
