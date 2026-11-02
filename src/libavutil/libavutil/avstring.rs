@@ -23,7 +23,7 @@ use std::ffi::CString;
 use super::ffi;
 use super::mem::{HeapString, string_from_c_str};
 
-/// Wraps: `AVEscapeMode`
+/// Wraps `ty::AVEscapeMode`
 /// Handwritten
 ///
 /// How `av_escape` escapes special characters.
@@ -40,6 +40,7 @@ use super::mem::{HeapString, string_from_c_str};
 /// use ffmpeg_bindings::libavutil::libavutil::{avstring::EscapeMode, mem::alloc_array_zeroed};
 /// let _ = alloc_array_zeroed::<EscapeMode>(1);
 /// ```
+#[doc(alias = "AVEscapeMode")]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum EscapeMode {
     /// Let the library choose; currently [`Backslash`](Self::Backslash), which
@@ -189,7 +190,7 @@ impl BitAnd for EscapeFlags {
     }
 }
 
-/// Wraps: `av_escape`
+/// Wraps `fn::av_escape`
 ///
 /// `src` escaped by `mode`, as a new C string:
 ///
@@ -224,6 +225,7 @@ impl BitAnd for EscapeFlags {
 /// .unwrap();
 /// assert_eq!(s.to_str(), Ok("&lt;it&apos;s&gt;"));
 /// ```
+#[doc(alias = "av_escape")]
 pub fn escape(
     src: &CStr,
     special: Option<&CStr>,
@@ -254,10 +256,11 @@ pub fn escape(
     unsafe { HeapString::from_raw(dst) }
 }
 
-/// Wraps: `av_strstart`
+/// Wraps `fn::av_strstart`
 ///
 /// The rest of `s` after `prefix`, or `None` when `s` does not start with
 /// `prefix`. An empty prefix matches every string.
+#[doc(alias = "av_strstart")]
 #[must_use]
 pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     let mut rest: *const c_char = ptr::null();
@@ -274,11 +277,12 @@ pub fn strip_prefix<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     Some(&s[offset..])
 }
 
-/// Wraps: `av_strnstr`
+/// Wraps `fn::av_strnstr`
 ///
 /// The offset of the first occurrence of `needle` in `haystack`, or `None`
 /// when it has none; an empty `needle` matches at 0. The whole slice is
 /// searched, NUL bytes included: pass a sub-slice to search a prefix.
+#[doc(alias = "av_strnstr")]
 #[must_use]
 pub fn find(haystack: &[u8], needle: &CStr) -> Option<usize> {
     let base: *const c_char = haystack.as_ptr().cast();
@@ -289,12 +293,13 @@ pub fn find(haystack: &[u8], needle: &CStr) -> Option<usize> {
     (!found.is_null()).then(|| found as usize - base as usize)
 }
 
-/// Wraps: `av_strlcpy`
+/// Wraps `fn::av_strlcpy`
 ///
 /// Copies `src` into `dst`, truncated to `dst.len() - 1` bytes, and
 /// NUL-terminates it unless `dst` is empty; the bytes after the NUL are left
 /// alone. Returns `src`'s length, so a result of at least `dst.len()` means
 /// the copy was truncated.
+#[doc(alias = "av_strlcpy")]
 pub fn strlcpy(dst: &mut [u8], src: &CStr) -> usize {
     // SAFETY: `av_strlcpy` writes at most `dst.len()` bytes from the start of
     // `dst` (none when it is empty) and reads `src`, a live NUL-terminated
@@ -302,13 +307,14 @@ pub fn strlcpy(dst: &mut [u8], src: &CStr) -> usize {
     unsafe { ffi::av_strlcpy(dst.as_mut_ptr().cast(), src.as_ptr(), dst.len()) }
 }
 
-/// Wraps: `av_strlcat`
+/// Wraps `fn::av_strlcat`
 ///
 /// Appends `src` to the string `dst` holds before its first NUL, to a total
 /// of at most `dst.len() - 1` bytes, NUL-terminated. Returns the length of
 /// the string untruncated appending would give, the string in `dst` plus
 /// `src`; when `dst` has no room after its string, it is left alone.
 /// `None` when `dst` holds no NUL, and so no string to append to.
+#[doc(alias = "av_strlcat")]
 pub fn strlcat(dst: &mut [u8], src: &CStr) -> Option<usize> {
     if !dst.contains(&0) {
         return None;
@@ -320,7 +326,7 @@ pub fn strlcat(dst: &mut [u8], src: &CStr) -> Option<usize> {
     Some(unsafe { ffi::av_strlcat(dst.as_mut_ptr().cast(), src.as_ptr(), dst.len()) })
 }
 
-/// Wraps: `av_strlcatf`
+/// Wraps `fn::av_strlcatf`
 ///
 /// Appends the text `args` formats to the string `dst` holds before its
 /// first NUL, as [`strlcat`] appends a string, and never writes outside
@@ -334,6 +340,7 @@ pub fn strlcat(dst: &mut [u8], src: &CStr) -> Option<usize> {
 /// assert_eq!(strlcatf(&mut buf, format_args!("{}-{}", 12, "ab")), Some(5));
 /// assert_eq!(&buf[..6], b"12-ab\0");
 /// ```
+#[doc(alias = "av_strlcatf")]
 pub fn strlcatf(dst: &mut [u8], args: fmt::Arguments<'_>) -> Option<usize> {
     if !dst.contains(&0) {
         return None;
@@ -363,10 +370,11 @@ pub(crate) fn text_until_nul(args: fmt::Arguments<'_>) -> CString {
     CString::from_vec_with_nul(bytes).unwrap_or_default()
 }
 
-/// Wraps: `av_strnlen`
+/// Wraps `fn::av_strnlen`
 ///
 /// The number of bytes of `s` before its first NUL, or `s.len()` when it has
 /// none.
+#[doc(alias = "av_strnlen")]
 #[must_use]
 pub fn strnlen(s: &[u8]) -> usize {
     // SAFETY: `av_strnlen` reads at most `s.len()` bytes of `s`, stopping at
@@ -374,13 +382,14 @@ pub fn strnlen(s: &[u8]) -> usize {
     unsafe { ffi::av_strnlen(s.as_ptr().cast(), s.len()) }
 }
 
-/// Wraps: `av_strncasecmp`
+/// Wraps `fn::av_strncasecmp`
 ///
 /// Compares at most the first `n` bytes of `a` and `b`, as
 /// [`cmp_ignore_ascii_case`] compares whole strings: ASCII letters
 /// regardless of case, locale-independently; bytes are ordered as unsigned
 /// after lowercasing, and a string orders before its extensions. With `n`
 /// of 0 everything is equal.
+#[doc(alias = "av_strncasecmp")]
 #[must_use]
 pub fn cmp_n_ignore_ascii_case(a: &CStr, b: &CStr, n: usize) -> Ordering {
     // SAFETY: `a` and `b` are live NUL-terminated strings; `av_strncasecmp`
@@ -390,8 +399,6 @@ pub fn cmp_n_ignore_ascii_case(a: &CStr, b: &CStr, n: usize) -> Ordering {
     diff.cmp(&0)
 }
 
-/// Wraps: `av_strtok`
-///
 /// An iterator over the tokens of a string, built by [`tokens`]: the
 /// non-empty runs of bytes not in its delimiter set.
 ///
@@ -419,9 +426,12 @@ pub struct Tokens<'a> {
     _buf: PhantomData<&'a mut [u8]>,
 }
 
+/// Wraps `fn::av_strtok`
+///
 /// The tokens of the string `buf` holds before its first NUL, separated by
 /// any of the bytes of `delim`; `None` when `buf` holds no NUL. See
 /// [`Tokens`].
+#[doc(alias = "av_strtok")]
 pub fn tokens<'a>(buf: &'a mut [u8], delim: &'a CStr) -> Option<Tokens<'a>> {
     if !buf.contains(&0) {
         return None;
@@ -462,20 +472,22 @@ impl<'a> Iterator for Tokens<'a> {
 // later call returns NULL again.
 impl FusedIterator for Tokens<'_> {}
 
-/// Wraps: `av_toupper`
+/// Wraps `fn::av_toupper`
 ///
 /// `c` with an ASCII lowercase letter mapped to uppercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
+#[doc(alias = "av_toupper")]
 #[must_use]
 pub fn to_ascii_uppercase(c: c_int) -> c_int {
     // SAFETY: `av_toupper` takes and returns a value, touching no memory.
     unsafe { ffi::av_toupper(c) }
 }
 
-/// Wraps: `av_tolower`
+/// Wraps `fn::av_tolower`
 ///
 /// `c` with an ASCII uppercase letter mapped to lowercase, locale-independently;
 /// any other value, `EOF` and bytes above 127 included, is returned as is.
+#[doc(alias = "av_tolower")]
 #[must_use]
 pub fn to_ascii_lowercase(c: c_int) -> c_int {
     // SAFETY: `av_tolower` takes and returns a value, touching no memory.
@@ -516,7 +528,7 @@ impl fmt::Display for Utf8Error {
 
 impl std::error::Error for Utf8Error {}
 
-/// Wraps: `av_utf8_decode`
+/// Wraps `fn::av_utf8_decode`
 ///
 /// Decodes the UTF-8 sequence at the start of `buf` under `flags`, a
 /// combination of the `ffi::AV_UTF8_FLAG_*` constants: the code point or why
@@ -534,6 +546,7 @@ impl std::error::Error for Utf8Error {}
 /// (`E2 82` at its end consumes only `E2`); the whole sequence otherwise,
 /// for an overlong encoding (no code point) as for a well-formed one that
 /// `flags` rejects (its code point).
+#[doc(alias = "av_utf8_decode")]
 #[must_use]
 pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>, usize)> {
     let range = buf.as_ptr_range();
@@ -560,7 +573,7 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
     Some((result, consumed))
 }
 
-/// Wraps: `av_asprintf`
+/// Wraps `fn::av_asprintf`
 ///
 /// The text `args` formats, as a new C string; build `args` with
 /// [`format_args!`]. `None` when it cannot be allocated, which includes text
@@ -577,6 +590,7 @@ pub fn utf8_decode(buf: &[u8], flags: c_uint) -> Option<(Result<u32, Utf8Error>,
 /// let s = format(format_args!("{}x{}", 1920, 1080)).unwrap();
 /// assert_eq!(s.to_str(), Ok("1920x1080"));
 /// ```
+#[doc(alias = "av_asprintf")]
 pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
     let text = args
         .as_str()
@@ -607,7 +621,7 @@ pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
     unsafe { HeapString::from_raw(ptr) }
 }
 
-/// Wraps: `av_basename`
+/// Wraps `fn::av_basename`
 ///
 /// The last component of `path`: the part after its last `'/'`, which is
 /// empty when `path` ends in one, or `path` itself when it has none; `"."`
@@ -618,6 +632,7 @@ pub fn format(args: fmt::Arguments<'_>) -> Option<HeapString> {
 /// assert_eq!(basename(c"/usr/lib/libavutil.so"), c"libavutil.so");
 /// assert_eq!(basename(c""), c".");
 /// ```
+#[doc(alias = "av_basename")]
 #[must_use]
 pub fn basename(path: &CStr) -> &CStr {
     // SAFETY: `path` is a live NUL-terminated string, which `av_basename`
@@ -629,7 +644,7 @@ pub fn basename(path: &CStr) -> &CStr {
     unsafe { CStr::from_ptr(base) }
 }
 
-/// Wraps: `av_append_path_component`
+/// Wraps `fn::av_append_path_component`
 ///
 /// `path` and `component` joined by a `'/'`: one is added when neither side
 /// has one at the join, and when both do, one of the two is dropped (so
@@ -648,6 +663,7 @@ pub fn basename(path: &CStr) -> &CStr {
 /// let p = append_path_component(c"/tmp/", c"/out.mkv").unwrap();
 /// assert_eq!(p.to_str(), Ok("/tmp/out.mkv"));
 /// ```
+#[doc(alias = "av_append_path_component")]
 #[must_use]
 pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString> {
     // SAFETY: both are live NUL-terminated strings, which
@@ -658,7 +674,7 @@ pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString
     unsafe { HeapString::from_raw(ptr) }
 }
 
-/// Wraps: `av_dirname`
+/// Wraps `fn::av_dirname`
 ///
 /// The parent directory of the path held by `path` up to its first NUL, found
 /// as C does: `path` is truncated in place at its last `/` and returned up to
@@ -668,6 +684,7 @@ pub fn append_path_component(path: &CStr, component: &CStr) -> Option<HeapString
 /// This is C's textual cut, not POSIX `dirname`: a path whose only `/` leads
 /// it (`"/usr"`) gives the empty string, and a trailing `/` is cut rather than
 /// skipped (`"a/b/"` gives `"a/b"`). Pass a copy to keep the path intact.
+#[doc(alias = "av_dirname")]
 pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
     if !path.contains(&0) {
         return None;
@@ -686,7 +703,7 @@ pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
     }
 }
 
-/// Wraps: `av_get_token`
+/// Wraps `fn::av_get_token`
 ///
 /// The next token of `*buf`, unescaped, and `*buf` advanced past it to the
 /// first unescaped character of `term` or to its end.
@@ -700,6 +717,7 @@ pub fn dirname(path: &mut [u8]) -> Option<&CStr> {
 /// # Panics
 ///
 /// Only if C breaks the guarantee that the suffix keeps the NUL.
+#[doc(alias = "av_get_token")]
 pub fn get_token(buf: &mut &CStr, term: &CStr) -> Option<HeapString> {
     let start = buf.as_ptr();
     let mut cursor = start;
@@ -716,10 +734,11 @@ pub fn get_token(buf: &mut &CStr, term: &CStr) -> Option<HeapString> {
     unsafe { HeapString::from_raw(token) }
 }
 
-/// Wraps: `av_isdigit`
+/// Wraps `fn::av_isdigit`
 ///
 /// Whether `c` is an ASCII digit, `'0'..='9'`, whatever the locale; every
 /// other `int`, `EOF` and non-ASCII bytes included, is not.
+#[doc(alias = "av_isdigit")]
 #[must_use]
 pub fn is_ascii_digit(c: c_int) -> bool {
     // SAFETY: `av_isdigit` takes its argument by value and has no
@@ -727,10 +746,11 @@ pub fn is_ascii_digit(c: c_int) -> bool {
     unsafe { ffi::av_isdigit(c) != 0 }
 }
 
-/// Wraps: `av_strcasecmp`
+/// Wraps `fn::av_strcasecmp`
 ///
 /// Compares `a` and `b` byte by byte with ASCII letters folded to lower case,
 /// as [`u8::eq_ignore_ascii_case`] does; other bytes compare by value.
+#[doc(alias = "av_strcasecmp")]
 #[must_use]
 pub fn cmp_ignore_ascii_case(a: &CStr, b: &CStr) -> Ordering {
     // SAFETY: both are live NUL-terminated strings, which C only reads, up to
@@ -738,11 +758,12 @@ pub fn cmp_ignore_ascii_case(a: &CStr, b: &CStr) -> Ordering {
     unsafe { ffi::av_strcasecmp(a.as_ptr(), b.as_ptr()) }.cmp(&0)
 }
 
-/// Wraps: `av_stristart`
+/// Wraps `fn::av_stristart`
 ///
 /// The rest of `s` after `prefix`, when `s` starts with `prefix` ignoring
 /// ASCII case; `None` otherwise. An empty `prefix` matches, leaving all of
 /// `s`.
+#[doc(alias = "av_stristart")]
 #[must_use]
 pub fn strip_prefix_ignore_ascii_case<'a>(s: &'a CStr, prefix: &CStr) -> Option<&'a CStr> {
     let mut rest: *const c_char = ptr::null();
@@ -754,11 +775,12 @@ pub fn strip_prefix_ignore_ascii_case<'a>(s: &'a CStr, prefix: &CStr) -> Option<
     (matched != 0).then(|| &s[rest as usize - s.as_ptr() as usize..])
 }
 
-/// Wraps: `av_stristr`
+/// Wraps `fn::av_stristr`
 ///
 /// The offset of the first occurrence of `needle` in `haystack`, ignoring
 /// ASCII case, or `None` when it has none; an empty `needle` matches at 0.
 /// `&haystack[offset..]` is the rest from the match on.
+#[doc(alias = "av_stristr")]
 #[must_use]
 pub fn find_ignore_ascii_case(haystack: &CStr, needle: &CStr) -> Option<usize> {
     // SAFETY: both are live NUL-terminated strings, which C only reads; it
@@ -768,7 +790,7 @@ pub fn find_ignore_ascii_case(haystack: &CStr, needle: &CStr) -> Option<usize> {
     (!found.is_null()).then(|| found as usize - haystack.as_ptr() as usize)
 }
 
-/// Wraps: `av_strireplace`
+/// Wraps `fn::av_strireplace`
 ///
 /// A copy of `s` with every occurrence of `from`, matched ignoring ASCII case
 /// left to right without overlap, replaced by `to`; `None` when it cannot be
@@ -777,6 +799,7 @@ pub fn find_ignore_ascii_case(haystack: &CStr, needle: &CStr) -> Option<usize> {
 /// An empty `from` occurs nowhere, so the result is a copy of `s`. (C loops
 /// forever on it: its search matches the empty string at the same position
 /// again and again without advancing.)
+#[doc(alias = "av_strireplace")]
 #[must_use]
 pub fn replace_ignore_ascii_case(s: &CStr, from: &CStr, to: &CStr) -> Option<HeapString> {
     if from.is_empty() {
@@ -791,42 +814,46 @@ pub fn replace_ignore_ascii_case(s: &CStr, from: &CStr, to: &CStr) -> Option<Hea
     unsafe { HeapString::from_raw(ptr) }
 }
 
-/// Wraps: `av_isgraph`
+/// Wraps `fn::av_isgraph`
 ///
 /// Whether `c` is a printable ASCII character other than space (33 to 126),
 /// whatever the locale. Any `int` is accepted, `EOF` included.
+#[doc(alias = "av_isgraph")]
 #[must_use]
 pub fn is_graph(c: c_int) -> bool {
     // SAFETY: `av_isgraph` takes its argument by value and reads no memory.
     unsafe { ffi::av_isgraph(c) != 0 }
 }
 
-/// Wraps: `av_isspace`
+/// Wraps `fn::av_isspace`
 ///
 /// Whether `c` is ASCII white space (space, `\t`, `\n`, `\v`, `\f` or `\r`),
 /// whatever the locale. Unlike [`u8::is_ascii_whitespace`], the vertical tab
 /// counts. Any `int` is accepted.
+#[doc(alias = "av_isspace")]
 #[must_use]
 pub fn is_space(c: c_int) -> bool {
     // SAFETY: `av_isspace` takes its argument by value and reads no memory.
     unsafe { ffi::av_isspace(c) != 0 }
 }
 
-/// Wraps: `av_isxdigit`
+/// Wraps `fn::av_isxdigit`
 ///
 /// Whether `c` is an ASCII hexadecimal digit, either case, whatever the
 /// locale. Any `int` is accepted.
+#[doc(alias = "av_isxdigit")]
 #[must_use]
 pub fn is_xdigit(c: c_int) -> bool {
     // SAFETY: `av_isxdigit` takes its argument by value and reads no memory.
     unsafe { ffi::av_isxdigit(c) != 0 }
 }
 
-/// Wraps: `av_match_name`
+/// Wraps `fn::av_match_name`
 ///
 /// Whether `name` matches the comma-separated `names`: an entry equal to it
 /// ignoring ASCII case, or `ALL`, matches; an entry prefixed with `-` that
 /// matches makes the result `false`. The first matching entry decides.
+#[doc(alias = "av_match_name")]
 #[must_use]
 pub fn match_name(name: &CStr, names: &CStr) -> bool {
     // SAFETY: both are live NUL-terminated strings, which `av_match_name`
@@ -834,13 +861,14 @@ pub fn match_name(name: &CStr, names: &CStr) -> bool {
     unsafe { ffi::av_match_name(name.as_ptr(), names.as_ptr()) != 0 }
 }
 
-/// Wraps: `av_match_list`
+/// Wraps `fn::av_match_list`
 ///
 /// Whether `name` and `list`, both `separator`-separated lists, share an
 /// entry, compared as C compares them.
 ///
 /// The separator is non-zero: with a NUL separator, C steps past the
 /// terminator of `list` and reads out of bounds.
+#[doc(alias = "av_match_list")]
 #[must_use]
 pub fn match_list(name: &CStr, list: &CStr, separator: NonZeroU8) -> bool {
     // C compares `char`s, so a byte above 0x7f is its signed `char` value on
