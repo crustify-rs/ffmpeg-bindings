@@ -62,7 +62,7 @@ use super::mem::{HeapVec, alloc_array_from_fn};
 use super::opt::impl_class_object;
 use super::pixdesc::{PixelFormat, PixelFormatFlags};
 
-/// Wraps: `AVHWDeviceType`
+/// Wraps `ty::AVHWDeviceType`
 /// Handwritten
 ///
 /// The hardware API behind a device context: VAAPI, CUDA, Vulkan and so on,
@@ -103,6 +103,7 @@ use super::pixdesc::{PixelFormat, PixelFormatFlags};
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVHWDeviceType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DeviceType(ffi::AVHWDeviceType);
@@ -212,7 +213,7 @@ impl From<DeviceType> for ffi::AVHWDeviceType {
 // memory is the whole of it.
 unsafe impl CPlainElem for DeviceType {}
 
-/// Wraps: `AVHWFrameTransferDirection`
+/// Wraps `ty::AVHWFrameTransferDirection`
 /// Handwritten
 ///
 /// Which side of a transfer between a hardware frame and a software frame a
@@ -233,6 +234,7 @@ unsafe impl CPlainElem for DeviceType {}
 /// use ffmpeg_bindings::libavutil::libavutil::{hwcontext::TransferDirection, mem::alloc_array_zeroed};
 /// let _ = alloc_array_zeroed::<TransferDirection>(1);
 /// ```
+#[doc(alias = "AVHWFrameTransferDirection")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TransferDirection {
     /// Transfer the data from the queried hardware frame.
@@ -357,7 +359,7 @@ impl<'a> HwFrames<'a> {
 }
 
 impl FrameRef<'_> {
-    /// Wraps: `av_hwframe_transfer_get_formats`
+    /// Wraps `fn::av_hwframe_transfer_get_formats`
     ///
     /// The software pixel formats a transfer with this hardware frame can
     /// use, from its hardware frames context
@@ -383,6 +385,7 @@ impl FrameRef<'_> {
     /// `AVERROR(EINVAL)` for a software frame, which has no context to ask;
     /// otherwise the backend's error, `AVERROR(ENOSYS)` for a backend that
     /// transfers no data (MediaCodec, OpenHarmony).
+    #[doc(alias = "av_hwframe_transfer_get_formats")]
     pub fn transfer_formats(&self, dir: TransferDirection) -> Result<HeapVec<PixelFormat>, c_int> {
         HwFrames::of(*self).ok_or(EINVAL)?.transfer_formats(dir)
     }
@@ -487,7 +490,7 @@ fn download_target(dst: FrameRef<'_>, ctx: HwFrames<'_>) -> Result<FrameBox, c_i
 }
 
 impl FrameMut<'_> {
-    /// Wraps: `av_hwframe_transfer_data`
+    /// Wraps `fn::av_hwframe_transfer_data`
     ///
     /// Copies `src`'s data into this frame where at least one of them is a
     /// hardware frame ([`FrameRef::hw_frames_context`]): downloads a
@@ -542,6 +545,7 @@ impl FrameMut<'_> {
     /// [`upload_from`](HardwareFrame::upload_from),
     /// [`copy_from`](HardwareFrame::copy_from)) are the safe forms for the
     /// hardware frames this crate allocates.
+    #[doc(alias = "av_hwframe_transfer_data")]
     // Remains for hardware frames C hands over as plain frames (hardware
     // decoders, filters), until their wrappers hand out `HardwareFrame`s.
     pub unsafe fn transfer_data_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
@@ -609,7 +613,7 @@ impl FrameMut<'_> {
 // device and frames contexts, and hardware frames.
 
 impl DeviceType {
-    /// Wraps: `av_hwdevice_get_type_name`
+    /// Wraps `fn::av_hwdevice_get_type_name`
     ///
     /// The name C gives this device type, as FFmpeg's options spell it
     /// (`cuda`, `vaapi`, ...); `None` for [`NONE`](Self::NONE) and any value
@@ -620,6 +624,7 @@ impl DeviceType {
     /// assert_eq!(DeviceType::VULKAN.name(), Some(c"vulkan"));
     /// assert_eq!(DeviceType::NONE.name(), None);
     /// ```
+    #[doc(alias = "av_hwdevice_get_type_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: `av_hwdevice_get_type_name` takes the enum by value,
@@ -631,7 +636,7 @@ impl DeviceType {
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Wraps: `av_hwdevice_find_type_by_name`
+    /// Wraps `fn::av_hwdevice_find_type_by_name`
     ///
     /// The device type C names `name` (see [`name`](Self::name)), or `None`
     /// for any other string. Names are matched exactly, case included:
@@ -643,6 +648,7 @@ impl DeviceType {
     /// assert_eq!(DeviceType::from_name(c"cuda"), Some(DeviceType::CUDA));
     /// assert_eq!(DeviceType::from_name(c"CUDA"), None);
     /// ```
+    #[doc(alias = "av_hwdevice_find_type_by_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
@@ -652,12 +658,13 @@ impl DeviceType {
         (found != Self::NONE).then_some(found)
     }
 
-    /// Wraps: `av_hwdevice_iterate_types`
+    /// Wraps `fn::av_hwdevice_iterate_types`
     ///
     /// The device types this build of the library has a backend for, so
     /// that [`DeviceReference::alloc`] can succeed, in increasing order of
     /// their values. Empty for a build without hardware libraries (FFmpeg
     /// configured with `--disable-autodetect` and no `--enable-<api>`).
+    #[doc(alias = "av_hwdevice_iterate_types")]
     #[must_use]
     pub fn supported() -> SupportedDeviceTypes {
         SupportedDeviceTypes {
@@ -732,7 +739,6 @@ fn count_within_limit(count: c_int) -> bool {
     count.cast_unsigned() <= MAX_REFERENCES
 }
 
-/// Wraps: `av_buffer_unref`
 /// Handwritten
 ///
 /// Releases a hardware device or frames context reference
@@ -753,6 +759,8 @@ pub struct ContextUnref;
 // and reads nothing of the box afterwards; the context's release runs with
 // its last reference, which keeps everything it releases alive until then.
 unsafe impl CDrop<DeviceReference> for ContextUnref {
+    /// Wraps `fn::av_buffer_unref`
+    #[doc(alias = "av_buffer_unref")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<DeviceReference>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
@@ -764,12 +772,13 @@ unsafe impl CDrop<DeviceReference> for ContextUnref {
     }
 }
 
-/// Wraps: `av_buffer_ref`
 // SAFETY: a non-null result is a fresh struct, independent of `ptr` and
 // released by `c_drop`, referring to the same initialised device context,
 // which no handle writes. NULL means C failed, or the count would near
 // wrapping.
 unsafe impl CDupClone<DeviceReference> for ContextUnref {
+    /// Wraps `fn::av_buffer_ref`
+    #[doc(alias = "av_buffer_ref")]
     #[inline]
     unsafe fn c_dup(&self, ptr: NonNull<DeviceReference>) -> Option<NonNull<DeviceReference>> {
         // SAFETY: the caller passes a live reference, borrowed for the call.
@@ -780,6 +789,8 @@ unsafe impl CDupClone<DeviceReference> for ContextUnref {
 
 // SAFETY: as for `CDrop<DeviceReference>`.
 unsafe impl CDrop<FramesReference> for ContextUnref {
+    /// Wraps `fn::av_buffer_unref`
+    #[doc(alias = "av_buffer_unref")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<FramesReference>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
@@ -788,9 +799,10 @@ unsafe impl CDrop<FramesReference> for ContextUnref {
     }
 }
 
-/// Wraps: `av_buffer_ref`
 // SAFETY: as for `CDupClone<DeviceReference>`, of a frames context.
 unsafe impl CDupClone<FramesReference> for ContextUnref {
+    /// Wraps `fn::av_buffer_ref`
+    #[doc(alias = "av_buffer_ref")]
     #[inline]
     unsafe fn c_dup(&self, ptr: NonNull<FramesReference>) -> Option<NonNull<FramesReference>> {
         // SAFETY: the caller passes a live reference, borrowed for the call.
@@ -868,12 +880,13 @@ define_ctype!(
 pub type DeviceReferenceBox = CBox<DeviceReference, ContextUnref>;
 
 impl DeviceReference {
-    /// Wraps: `av_hwdevice_ctx_alloc`
+    /// Wraps `fn::av_hwdevice_ctx_alloc`
     ///
     /// A new, uninitialised device context of `device_type`, for the caller
     /// to fill in and [`init`](UninitDevice::init); `None` when the library
     /// has no backend for the type (see [`DeviceType::supported`]) or
     /// cannot allocate the context.
+    #[doc(alias = "av_hwdevice_ctx_alloc")]
     #[must_use]
     pub fn alloc(device_type: DeviceType) -> Option<UninitDevice> {
         // SAFETY: `av_hwdevice_ctx_alloc` takes the enum by value and
@@ -885,7 +898,7 @@ impl DeviceReference {
         unsafe { UninitDevice::from_c(buf) }
     }
 
-    /// Wraps: `av_hwdevice_ctx_create`
+    /// Wraps `fn::av_hwdevice_ctx_create`
     ///
     /// Opens the device `device` names, in the backend's own syntax (a DRM
     /// render node for VA-API, a GPU index for CUDA; `None` for the
@@ -899,6 +912,7 @@ impl DeviceReference {
     /// C's error: `AVERROR(ENOMEM)` when the library has no backend for the
     /// type, as when memory runs out; `AVERROR(ENOSYS)` for a backend that
     /// cannot open devices itself; the backend's own errors.
+    #[doc(alias = "av_hwdevice_ctx_create")]
     pub fn create(
         device_type: DeviceType,
         device: Option<&CStr>,
@@ -1004,7 +1018,7 @@ impl DeviceReferenceRef<'_> {
         unsafe { DeviceReferenceBox::from_c(copy) }
     }
 
-    /// Wraps: `av_hwdevice_ctx_create_derived`
+    /// Wraps `fn::av_hwdevice_ctx_create_derived`
     ///
     /// A device context of `device_type` on the hardware this one opened. If
     /// this device is of that type, or was derived from one (through any
@@ -1020,6 +1034,7 @@ impl DeviceReferenceRef<'_> {
     /// the chain derives to the type; the backend's own errors.
     /// `AVERROR(ENOMEM)`, before C, when the device's count of references
     /// would near wrapping, and for a result whose count would.
+    #[doc(alias = "av_hwdevice_ctx_create_derived")]
     pub fn derive(&self, device_type: DeviceType) -> Result<DeviceReferenceBox, c_int> {
         if !self.may_reference() {
             return Err(ENOMEM);
@@ -1045,7 +1060,7 @@ impl DeviceReferenceRef<'_> {
         within_limit_device(device)
     }
 
-    /// Wraps: `av_hwdevice_ctx_create_derived_opts`
+    /// Wraps `fn::av_hwdevice_ctx_create_derived_opts`
     ///
     /// As [`derive`](Self::derive), handing the backend-specific `options`
     /// (those of [`DeviceReference::create`]) to the target backend when it
@@ -1054,6 +1069,7 @@ impl DeviceReferenceRef<'_> {
     /// # Errors
     ///
     /// As [`derive`](Self::derive).
+    #[doc(alias = "av_hwdevice_ctx_create_derived_opts")]
     pub fn derive_with_options(
         &self,
         device_type: DeviceType,
@@ -1082,13 +1098,14 @@ impl DeviceReferenceRef<'_> {
         within_limit_device(device)
     }
 
-    /// Wraps: `av_hwframe_ctx_alloc`
+    /// Wraps `fn::av_hwframe_ctx_alloc`
     ///
     /// A new, uninitialised frames context on this device, for the caller
     /// to fill in and [`init`](UninitFrames::init): no hardware or software
     /// format (`AV_PIX_FMT_NONE`), size or pool. It holds a reference to
     /// this device. `None` when C cannot allocate it, or the device's count
     /// of references would near wrapping.
+    #[doc(alias = "av_hwframe_ctx_alloc")]
     #[must_use]
     pub fn alloc_frames(&self) -> Option<UninitFrames> {
         if !self.may_reference() {
@@ -1102,12 +1119,13 @@ impl DeviceReferenceRef<'_> {
         unsafe { UninitFrames::from_c(buf) }
     }
 
-    /// Wraps: `av_hwdevice_hwconfig_alloc`
+    /// Wraps `fn::av_hwdevice_hwconfig_alloc`
     ///
     /// A zeroed hardware configuration for this device's backend, which
     /// describes a configuration of the hardware to query the frames
     /// constraints of; `None` when the backend has none (most do not), or C
     /// cannot allocate it.
+    #[doc(alias = "av_hwdevice_hwconfig_alloc")]
     #[must_use]
     pub fn alloc_hw_config(&self) -> Option<HwConfig> {
         // SAFETY: a live reference to a device context, whose backend's
@@ -1209,7 +1227,7 @@ impl UninitDevice {
             .expect("a device context reference has data")
     }
 
-    /// Wraps: `av_hwdevice_ctx_init`
+    /// Wraps `fn::av_hwdevice_ctx_init`
     ///
     /// Finalizes the context once it is filled in: the backend checks and
     /// completes it (its `device_init`, when it has one). The initialised
@@ -1226,6 +1244,7 @@ impl UninitDevice {
     /// dereference the caller's device handles there unchecked (D3D11VA
     /// calls through its `device`, Vulkan through its function loader), so
     /// a context left as allocated is not enough.
+    #[doc(alias = "av_hwdevice_ctx_init")]
     pub unsafe fn init(self) -> Result<DeviceReferenceBox, c_int> {
         // SAFETY: the only reference to an allocated device context, never
         // initialised before (`init` consumes it); C runs the backend's
@@ -1431,7 +1450,7 @@ impl<'a> FramesReferenceRef<'a> {
         HwFrames(buf.expect("a handle's reference is not NULL"))
     }
 
-    /// Wraps: `av_hwframe_transfer_get_formats`
+    /// Wraps `fn::av_hwframe_transfer_get_formats`
     ///
     /// The software pixel formats a transfer with the context's hardware
     /// frames can use: those their data can be downloaded into
@@ -1443,11 +1462,12 @@ impl<'a> FramesReferenceRef<'a> {
     ///
     /// The backend's error; `AVERROR(ENOSYS)` for a backend that transfers no
     /// data (MediaCodec, OpenHarmony).
+    #[doc(alias = "av_hwframe_transfer_get_formats")]
     pub fn transfer_formats(&self, dir: TransferDirection) -> Result<HeapVec<PixelFormat>, c_int> {
         self.hw_frames().transfer_formats(dir)
     }
 
-    /// Wraps: `av_hwframe_get_buffer`
+    /// Wraps `fn::av_hwframe_get_buffer`
     ///
     /// A new hardware frame from the context's pool, of its format and
     /// size, holding a reference to the context. A derived context
@@ -1461,6 +1481,7 @@ impl<'a> FramesReferenceRef<'a> {
     /// the backend's own errors and, for a derived context, those of the
     /// allocation and mapping. `AVERROR(ENOMEM)`, before C, when the
     /// context's count of references would near wrapping.
+    #[doc(alias = "av_hwframe_get_buffer")]
     pub fn get_buffer(&self) -> Result<HardwareFrame, c_int> {
         if !self.may_reference() {
             return Err(ENOMEM);
@@ -1481,7 +1502,7 @@ impl<'a> FramesReferenceRef<'a> {
         })
     }
 
-    /// Wraps: `av_hwframe_ctx_create_derived`
+    /// Wraps `fn::av_hwframe_ctx_create_derived`
     ///
     /// A new, initialised frames context of hardware format `format` on
     /// `device`, which maps the frames of this one: its frames are
@@ -1497,6 +1518,7 @@ impl<'a> FramesReferenceRef<'a> {
     /// allocation). `AVERROR(ENOMEM)`, before C, when this context's or the
     /// device's count of references would near wrapping, and for a result
     /// whose count would.
+    #[doc(alias = "av_hwframe_ctx_create_derived")]
     pub fn derive(
         &self,
         format: PixelFormat,
@@ -1607,7 +1629,7 @@ impl UninitFrames {
             .expect("a frames context reference has data")
     }
 
-    /// Wraps: `av_hwframe_ctx_init`
+    /// Wraps `fn::av_hwframe_ctx_init`
     ///
     /// Finalizes the context once it is filled in: C checks that the
     /// backend supports its hardware format (logging an error and failing
@@ -1623,6 +1645,7 @@ impl UninitFrames {
     /// is released then. C does not count running out of memory for a
     /// preallocated frame's own `AVFrame` as one: it stops preallocating
     /// and succeeds.
+    #[doc(alias = "av_hwframe_ctx_init")]
     pub fn init(self) -> Result<FramesReferenceBox, c_int> {
         // C validates the format and size, runs the backend's `frames_init`
         // and preallocates frames through `av_hwframe_get_buffer`.
@@ -1780,7 +1803,7 @@ impl HardwareFrame {
             .expect("a hardware frame holds its frames context")
     }
 
-    /// Wraps: `av_hwframe_map`
+    /// Wraps `fn::av_hwframe_map`
     ///
     /// Maps the frame to normal memory, as a software frame of `format`
     /// (with [`PixelFormat::NONE`], the format the backend finds most
@@ -1795,6 +1818,7 @@ impl HardwareFrame {
     /// other C errors when the mapping failed. `AVERROR(ENOMEM)`, before C,
     /// when the count of references to the frames context or one of the
     /// frame's buffers would near wrapping.
+    #[doc(alias = "av_hwframe_map")]
     pub fn map(&self, format: PixelFormat, flags: MapFlags) -> Result<MappedFrame, c_int> {
         if !self.may_reference_all() {
             return Err(ENOMEM);
@@ -1815,7 +1839,7 @@ impl HardwareFrame {
         })
     }
 
-    /// Wraps: `av_hwframe_map`
+    /// Wraps `fn::av_hwframe_map`
     ///
     /// Maps the frame into another frames context, `frames`, as a hardware
     /// frame of that context's format, with `flags`: the contexts' devices
@@ -1833,6 +1857,7 @@ impl HardwareFrame {
     /// As [`map`](Self::map), and `AVERROR(EINVAL)`, before C, when
     /// `frames` is the frame's own context: C reads the frame as one it
     /// mapped itself there, which a frame of the context's pool is not.
+    #[doc(alias = "av_hwframe_map")]
     pub fn map_to(
         &self,
         frames: FramesReferenceRef<'_>,
@@ -1881,7 +1906,7 @@ impl HardwareFrame {
         })
     }
 
-    /// Wraps: `av_hwframe_transfer_data`
+    /// Wraps `fn::av_hwframe_transfer_data`
     ///
     /// Downloads the frame's data into the software frame `dst`, as
     /// [`FrameMut::transfer_data_from`] does from a hardware source: `dst`
@@ -1902,6 +1927,7 @@ impl HardwareFrame {
     /// read-only buffers, display size past the surfaces), the listing's and
     /// the backend's errors. A `dst` receiving new buffers is unchanged on
     /// error.
+    #[doc(alias = "av_hwframe_transfer_data")]
     pub fn download_to(&self, mut dst: FrameMut<'_>) -> Result<(), c_int> {
         if dst.as_ref().hw_frames_context().is_some() {
             return Err(EINVAL);
@@ -1911,7 +1937,7 @@ impl HardwareFrame {
         unsafe { dst.transfer_data_from(self.frame.as_ref()) }
     }
 
-    /// Wraps: `av_hwframe_transfer_data`
+    /// Wraps `fn::av_hwframe_transfer_data`
     ///
     /// Uploads the data of the software frame `src` into the frame's
     /// surface, as [`FrameMut::transfer_data_from`] does into a hardware
@@ -1929,6 +1955,7 @@ impl HardwareFrame {
     /// hardware frames); otherwise as
     /// [`transfer_data_from`](FrameMut::transfer_data_from): its refusals of
     /// `src`, the listing's and the backend's errors.
+    #[doc(alias = "av_hwframe_transfer_data")]
     pub fn upload_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         if src.hw_frames_context().is_some() {
             return Err(EINVAL);
@@ -1939,7 +1966,7 @@ impl HardwareFrame {
         unsafe { self.frame.as_mut().transfer_data_from(src) }
     }
 
-    /// Wraps: `av_hwframe_transfer_data`
+    /// Wraps `fn::av_hwframe_transfer_data`
     ///
     /// Copies the data of the hardware frame `src` into the frame's surface,
     /// where the backend of either frame can: `src`'s first, then this
@@ -1959,6 +1986,7 @@ impl HardwareFrame {
     /// context's surfaces; `AVERROR(ENOSYS)` when either backend transfers
     /// no data, either context is derived, or neither backend copies
     /// between them; the backends' errors.
+    #[doc(alias = "av_hwframe_transfer_data")]
     pub fn copy_from(&mut self, src: &HardwareFrame) -> Result<(), c_int> {
         // SAFETY: both frames are hardware frames of their frames contexts
         // (the type's invariant), the destination reached through
@@ -2037,7 +2065,7 @@ impl fmt::Debug for MappedFrame {
 }
 
 define_ctype!(
-    /// Wraps: AVHWDeviceContext
+    /// Wraps `ty::AVHWDeviceContext`
     ///
     /// The state a hardware API keeps for one device, shared by everything
     /// derived from it (frames contexts, codecs, filters). Its getters are on
@@ -2076,6 +2104,7 @@ define_ctype!(
     /// free callback are `Send` (and the data `Sync`) all the same, since C
     /// may release the last reference on any thread (a codec's frame
     /// threads hold some).
+    #[doc(alias = "AVHWDeviceContext")]
     DeviceContext,
     DeviceContextRef,
     DeviceContextMut,
@@ -2161,9 +2190,10 @@ unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
 }
 
 impl<'a> DeviceContextRef<'a> {
-    /// Field: AVHWDeviceContext.type
+    /// Wraps `fld::AVHWDeviceContext.type`
     ///
     /// The hardware API the context drives, fixed when it was allocated.
+    #[doc(alias = "AVHWDeviceContext.type")]
     #[must_use]
     pub fn device_type(&self) -> DeviceType {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2175,11 +2205,12 @@ impl<'a> DeviceContextRef<'a> {
         DeviceType::from_raw(unsafe { type_ptr.read() })
     }
 
-    /// Field: `AVHWDeviceContext.av_class`
+    /// Wraps `fld::AVHWDeviceContext.av_class`
     ///
     /// The context's logging class, which C's allocator sets
     /// (`AVHWDeviceContext`, in the hardware device log category); `None`
     /// only for a context C did not allocate and left without one.
+    #[doc(alias = "AVHWDeviceContext.av_class")]
     #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2192,7 +2223,7 @@ impl<'a> DeviceContextRef<'a> {
         unsafe { ClassRef::from_ptr(class.cast_mut()) }
     }
 
-    /// Field: AVHWDeviceContext.hwctx
+    /// Wraps `fld::AVHWDeviceContext.hwctx`
     ///
     /// The device type's hardware context, as a `T`; `None` when the device
     /// type has none.
@@ -2205,6 +2236,7 @@ impl<'a> DeviceContextRef<'a> {
     /// C allocates the backend's size, and nothing records the type. Nothing
     /// may write the fields read through the result while it lives, which
     /// the backends do not after initialisation.
+    #[doc(alias = "AVHWDeviceContext.hwctx")]
     #[must_use]
     pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2218,12 +2250,13 @@ impl<'a> DeviceContextRef<'a> {
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
-    /// Field: AVHWDeviceContext.free
+    /// Wraps `fld::AVHWDeviceContext.free`
     ///
     /// Whether a free callback runs when the context's last reference is
     /// released: one [`set_free_callback`](DeviceContextMut::set_free_callback)
     /// installed, or the backend's own, which its device creation set. User
     /// data alone is not one, though it is dropped then.
+    #[doc(alias = "AVHWDeviceContext.free")]
     #[must_use]
     pub fn has_free_callback(&self) -> bool {
         if let Some(hooks) = self.hooks() {
@@ -2237,12 +2270,13 @@ impl<'a> DeviceContextRef<'a> {
         }
     }
 
-    /// Field: `AVHWDeviceContext.user_opaque`
+    /// Wraps `fld::AVHWDeviceContext.user_opaque`
     ///
     /// The value [`set_user_data`](DeviceContextMut::set_user_data) stored,
     /// borrowed from the context; `None` when it stored none, or one of
     /// another type. The private data a backend keeps there for its own free
     /// callback is not readable.
+    #[doc(alias = "AVHWDeviceContext.user_opaque")]
     #[must_use]
     pub fn user_data<T: Any>(&self) -> Option<&'a T> {
         self.hooks()?.data.as_deref()?.downcast_ref()
@@ -2282,7 +2316,7 @@ impl fmt::Debug for DeviceContextRef<'_> {
 }
 
 impl<'a> DeviceContextMut<'a> {
-    /// Field: AVHWDeviceContext.hwctx
+    /// Wraps `fld::AVHWDeviceContext.hwctx`
     ///
     /// The device type's hardware context, as a `T`, to fill before
     /// [`UninitDevice::init`], borrowed for as long as this handle
@@ -2296,6 +2330,7 @@ impl<'a> DeviceContextMut<'a> {
     /// device type's header allows: the backend's `device_init` reads it,
     /// and its `device_uninit` releases what it finds there whether the
     /// context was initialised or not.
+    #[doc(alias = "AVHWDeviceContext.hwctx")]
     #[must_use]
     pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2310,7 +2345,7 @@ impl<'a> DeviceContextMut<'a> {
         unsafe { T::mut_from_void_ptr(hwctx) }
     }
 
-    /// Field: AVHWDeviceContext.free
+    /// Wraps `fld::AVHWDeviceContext.free`
     ///
     /// Makes `f` the context's free callback, dropping the one this set
     /// before: C calls it once, on the thread releasing the context's last
@@ -2336,6 +2371,7 @@ impl<'a> DeviceContextMut<'a> {
     /// let local = Rc::new(1);
     /// let _ = device.context_mut().set_free_callback(move |_| drop(local));
     /// ```
+    #[doc(alias = "AVHWDeviceContext.free")]
     pub fn set_free_callback<F>(&mut self, f: F) -> Result<(), F>
     where
         F: FnOnce(DeviceContextMut<'_>) + Send + 'static,
@@ -2349,10 +2385,11 @@ impl<'a> DeviceContextMut<'a> {
         }
     }
 
-    /// Field: AVHWDeviceContext.free
+    /// Wraps `fld::AVHWDeviceContext.free`
     ///
     /// Takes the free callback [`set_free_callback`](Self::set_free_callback)
     /// installed out, uncalled; `None` when it installed none.
+    #[doc(alias = "AVHWDeviceContext.free")]
     #[must_use]
     pub fn take_free_callback(&mut self) -> Option<FreeCallback> {
         let on_free = self.hooks_mut_if_installed()?.on_free.take();
@@ -2360,7 +2397,7 @@ impl<'a> DeviceContextMut<'a> {
         on_free
     }
 
-    /// Field: `AVHWDeviceContext.user_opaque`
+    /// Wraps `fld::AVHWDeviceContext.user_opaque`
     ///
     /// Makes `data` the context's user data, dropping the value this set
     /// before. It lives as long as the context, readable through
@@ -2382,6 +2419,7 @@ impl<'a> DeviceContextMut<'a> {
     /// let mut device = DeviceReference::alloc(DeviceType::VAAPI).unwrap();
     /// let _ = device.context_mut().set_user_data(Cell::new(1));
     /// ```
+    #[doc(alias = "AVHWDeviceContext.user_opaque")]
     pub fn set_user_data<T>(&mut self, data: T) -> Result<(), T>
     where
         T: Any + Send + Sync,
@@ -2395,10 +2433,11 @@ impl<'a> DeviceContextMut<'a> {
         }
     }
 
-    /// Field: `AVHWDeviceContext.user_opaque`
+    /// Wraps `fld::AVHWDeviceContext.user_opaque`
     ///
     /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
     /// `None` when it stored none.
+    #[doc(alias = "AVHWDeviceContext.user_opaque")]
     #[must_use]
     pub fn take_user_data(&mut self) -> Option<Box<dyn Any + Send + Sync>> {
         let data = self.hooks_mut_if_installed()?.data.take();
@@ -2527,11 +2566,12 @@ impl<'a> DeviceReferenceRef<'a> {
             .expect("a device context reference has data")
     }
 
-    /// Wraps: `av_hwdevice_get_hwframe_constraints`
+    /// Wraps `fn::av_hwdevice_get_hwframe_constraints`
     ///
     /// The limits on frames of this device at its maximum capabilities: the
     /// pixel formats and sizes a hardware frames context may use; `None`
     /// when the backend reports none, fails, or C cannot allocate them.
+    #[doc(alias = "av_hwdevice_get_hwframe_constraints")]
     #[must_use]
     pub fn frames_constraints(&self) -> Option<FramesConstraintsBox> {
         let (device, config) = (self.as_ptr().cast_mut(), ptr::null());
@@ -2545,13 +2585,14 @@ impl<'a> DeviceReferenceRef<'a> {
         unsafe { FramesConstraintsBox::from_c(constraints) }
     }
 
-    /// Wraps: `av_hwdevice_get_hwframe_constraints`
+    /// Wraps `fn::av_hwdevice_get_hwframe_constraints`
     ///
     /// The limits on frames of this device under the hardware configuration
     /// `config` ([`alloc_hw_config`](Self::alloc_hw_config)), as
     /// [`frames_constraints`](Self::frames_constraints); also `None` for a
     /// configuration of another device type, whose struct the backend would
     /// misread.
+    #[doc(alias = "av_hwdevice_get_hwframe_constraints")]
     #[must_use]
     pub fn frames_constraints_for_config(&self, config: &HwConfig) -> Option<FramesConstraintsBox> {
         if config.device_type() != self.kind() {
@@ -2569,7 +2610,7 @@ impl<'a> DeviceReferenceRef<'a> {
 }
 
 define_ctype!(
-    /// Wraps: AVHWFramesConstraints
+    /// Wraps `ty::AVHWFramesConstraints`
     ///
     /// The limits a device puts on hardware frames: the pixel formats a
     /// frames context may use as its hardware and software formats, and the
@@ -2585,6 +2626,7 @@ define_ctype!(
     ///
     /// `Send` and `Sync`: plain values and two arrays freed with `av_free`
     /// on any thread, and only the exclusive handle writes.
+    #[doc(alias = "AVHWFramesConstraints")]
     FramesConstraints,
     FramesConstraintsRef,
     FramesConstraintsMut,
@@ -2604,7 +2646,6 @@ unsafe impl Send for FramesConstraintsRef<'_> {}
 // SAFETY: as above.
 unsafe impl Sync for FramesConstraintsRef<'_> {}
 
-/// Wraps: `av_hwframe_constraints_free`
 /// Handwritten
 ///
 /// Releases a [`FramesConstraintsBox`]: C frees both format lists, then the
@@ -2620,6 +2661,8 @@ pub struct FramesConstraintsFree;
 // av_malloc blocks the structure owns, by its invariant) and then the
 // structure, NULLing only this local slot; it reads nothing else.
 unsafe impl CDrop<FramesConstraints> for FramesConstraintsFree {
+    /// Wraps `fn::av_hwframe_constraints_free`
+    #[doc(alias = "av_hwframe_constraints_free")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<FramesConstraints>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVHWFramesConstraints>();
@@ -2729,29 +2772,32 @@ impl<'a> FramesConstraintsRef<'a> {
         Some(unsafe { CSlice::from_raw_parts(list, len) })
     }
 
-    /// Field: `AVHWFramesConstraints.valid_hw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_hw_formats`
     ///
     /// The formats a frames context of the device may use as its `format`,
     /// borrowed from the constraints; `None` when they list none (a
     /// backend's constraints always do).
+    #[doc(alias = "AVHWFramesConstraints.valid_hw_formats")]
     #[must_use]
     pub fn valid_hw_formats(&self) -> Option<CSlice<'a, PixelFormat>> {
         self.list(FormatList::Hardware)
     }
 
-    /// Field: `AVHWFramesConstraints.valid_sw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_sw_formats`
     ///
     /// The formats a frames context of the device may use as its
     /// `sw_format`, borrowed from the constraints; `None` when the device
     /// does not know them.
+    #[doc(alias = "AVHWFramesConstraints.valid_sw_formats")]
     #[must_use]
     pub fn valid_sw_formats(&self) -> Option<CSlice<'a, PixelFormat>> {
         self.list(FormatList::Software)
     }
 
-    /// Field: `AVHWFramesConstraints.min_width`
+    /// Wraps `fld::AVHWFramesConstraints.min_width`
     ///
     /// The smallest frame width; 0 when not known.
+    #[doc(alias = "AVHWFramesConstraints.min_width")]
     #[must_use]
     pub fn min_width(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2762,9 +2808,10 @@ impl<'a> FramesConstraintsRef<'a> {
         unsafe { min_width_ptr.read() }
     }
 
-    /// Field: `AVHWFramesConstraints.min_height`
+    /// Wraps `fld::AVHWFramesConstraints.min_height`
     ///
     /// The smallest frame height; 0 when not known.
+    #[doc(alias = "AVHWFramesConstraints.min_height")]
     #[must_use]
     pub fn min_height(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2774,9 +2821,10 @@ impl<'a> FramesConstraintsRef<'a> {
         unsafe { min_height_ptr.read() }
     }
 
-    /// Field: `AVHWFramesConstraints.max_width`
+    /// Wraps `fld::AVHWFramesConstraints.max_width`
     ///
     /// The largest frame width; `i32::MAX` when not known or unlimited.
+    #[doc(alias = "AVHWFramesConstraints.max_width")]
     #[must_use]
     pub fn max_width(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2786,9 +2834,10 @@ impl<'a> FramesConstraintsRef<'a> {
         unsafe { max_width_ptr.read() }
     }
 
-    /// Field: `AVHWFramesConstraints.max_height`
+    /// Wraps `fld::AVHWFramesConstraints.max_height`
     ///
     /// The largest frame height; `i32::MAX` when not known or unlimited.
+    #[doc(alias = "AVHWFramesConstraints.max_height")]
     #[must_use]
     pub fn max_height(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2879,7 +2928,7 @@ impl FramesConstraintsMut<'_> {
         Ok(())
     }
 
-    /// Field: `AVHWFramesConstraints.valid_hw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_hw_formats`
     ///
     /// Makes a copy of `formats` the hardware formats, up to the first
     /// [`PixelFormat::NONE`] it holds, and frees the old list; `None` lists
@@ -2889,20 +2938,22 @@ impl FramesConstraintsMut<'_> {
     /// # Errors
     ///
     /// `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot allocate the copy.
+    #[doc(alias = "AVHWFramesConstraints.valid_hw_formats")]
     pub fn set_valid_hw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Hardware, formats)
     }
 
-    /// Field: `AVHWFramesConstraints.valid_hw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_hw_formats`
     ///
     /// Takes the hardware formats out (without their terminator), leaving
     /// none; `None` when there were none.
+    #[doc(alias = "AVHWFramesConstraints.valid_hw_formats")]
     #[must_use]
     pub fn take_valid_hw_formats(&mut self) -> Option<HeapVec<PixelFormat>> {
         self.replace_list(FormatList::Hardware, None)
     }
 
-    /// Field: `AVHWFramesConstraints.valid_sw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_sw_formats`
     ///
     /// Makes a copy of `formats` the software formats, as
     /// [`set_valid_hw_formats`](Self::set_valid_hw_formats); `None` marks
@@ -2911,22 +2962,25 @@ impl FramesConstraintsMut<'_> {
     /// # Errors
     ///
     /// Returns C's negative `AVERROR` code when it fails.
+    #[doc(alias = "AVHWFramesConstraints.valid_sw_formats")]
     pub fn set_valid_sw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Software, formats)
     }
 
-    /// Field: `AVHWFramesConstraints.valid_sw_formats`
+    /// Wraps `fld::AVHWFramesConstraints.valid_sw_formats`
     ///
     /// Takes the software formats out (without their terminator), leaving
     /// them unknown; `None` when they were.
+    #[doc(alias = "AVHWFramesConstraints.valid_sw_formats")]
     #[must_use]
     pub fn take_valid_sw_formats(&mut self) -> Option<HeapVec<PixelFormat>> {
         self.replace_list(FormatList::Software, None)
     }
 
-    /// Field: `AVHWFramesConstraints.min_width`
+    /// Wraps `fld::AVHWFramesConstraints.min_width`
     ///
     /// Sets the smallest frame width.
+    #[doc(alias = "AVHWFramesConstraints.min_width")]
     pub fn set_min_width(&mut self, width: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `min_width` field is in bounds; nothing is accessed here.
@@ -2936,9 +2990,10 @@ impl FramesConstraintsMut<'_> {
         unsafe { min_width_ptr.write(width) }
     }
 
-    /// Field: `AVHWFramesConstraints.min_height`
+    /// Wraps `fld::AVHWFramesConstraints.min_height`
     ///
     /// Sets the smallest frame height.
+    #[doc(alias = "AVHWFramesConstraints.min_height")]
     pub fn set_min_height(&mut self, height: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `min_height` field is in bounds; nothing is accessed here.
@@ -2947,9 +3002,10 @@ impl FramesConstraintsMut<'_> {
         unsafe { min_height_ptr.write(height) }
     }
 
-    /// Field: `AVHWFramesConstraints.max_width`
+    /// Wraps `fld::AVHWFramesConstraints.max_width`
     ///
     /// Sets the largest frame width.
+    #[doc(alias = "AVHWFramesConstraints.max_width")]
     pub fn set_max_width(&mut self, width: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `max_width` field is in bounds; nothing is accessed here.
@@ -2958,9 +3014,10 @@ impl FramesConstraintsMut<'_> {
         unsafe { max_width_ptr.write(width) }
     }
 
-    /// Field: `AVHWFramesConstraints.max_height`
+    /// Wraps `fld::AVHWFramesConstraints.max_height`
     ///
     /// Sets the largest frame height.
+    #[doc(alias = "AVHWFramesConstraints.max_height")]
     pub fn set_max_height(&mut self, height: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `max_height` field is in bounds; nothing is accessed here.
@@ -2977,7 +3034,7 @@ impl fmt::Debug for FramesConstraintsMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVHWFramesContext
+    /// Wraps `ty::AVHWFramesContext`
     ///
     /// The state a hardware API keeps for a pool of interchangeable frames on
     /// one device: their hardware and software pixel formats, their size, and
@@ -3030,6 +3087,7 @@ define_ctype!(
     /// callback and pool are `Send` (and the data `Sync`) all the same, since
     /// C may release the last reference on any thread (a codec's frame
     /// threads hold some).
+    #[doc(alias = "AVHWFramesContext")]
     FramesContext,
     FramesContextRef,
     FramesContextMut,
@@ -3145,11 +3203,12 @@ unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
 }
 
 impl<'a> FramesContextRef<'a> {
-    /// Field: `AVHWFramesContext.av_class`
+    /// Wraps `fld::AVHWFramesContext.av_class`
     ///
     /// The context's logging class, which C's allocator sets
     /// (`AVHWFramesContext`); `None` only for a context C did not allocate
     /// and left without one.
+    #[doc(alias = "AVHWFramesContext.av_class")]
     #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3164,7 +3223,7 @@ impl<'a> FramesContextRef<'a> {
         unsafe { ClassRef::from_ptr(class.cast_mut()) }
     }
 
-    /// Field: `AVHWFramesContext.device_ref`
+    /// Wraps `fld::AVHWFramesContext.device_ref`
     ///
     /// The device the context was allocated on, through the reference the
     /// context owns and releases with its last one; the device lives at
@@ -3174,6 +3233,7 @@ impl<'a> FramesContextRef<'a> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that a frames context holds its device.
+    #[doc(alias = "AVHWFramesContext.device_ref")]
     #[must_use]
     pub fn device(&self) -> DeviceReferenceRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3189,7 +3249,7 @@ impl<'a> FramesContextRef<'a> {
         unsafe { DeviceReferenceRef::from_ptr(device) }.expect("a frames context holds its device")
     }
 
-    /// Field: `AVHWFramesContext.device_ctx`
+    /// Wraps `fld::AVHWFramesContext.device_ctx`
     ///
     /// The context of the device the context was allocated on, shared: the
     /// data of [`device`](Self::device).
@@ -3197,6 +3257,7 @@ impl<'a> FramesContextRef<'a> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that a frames context has a device context.
+    #[doc(alias = "AVHWFramesContext.device_ctx")]
     #[must_use]
     pub fn device_context(&self) -> DeviceContextRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3211,7 +3272,7 @@ impl<'a> FramesContextRef<'a> {
         unsafe { DeviceContextRef::from_ptr(ctx) }.expect("a frames context has a device context")
     }
 
-    /// Field: AVHWFramesContext.hwctx
+    /// Wraps `fld::AVHWFramesContext.hwctx`
     ///
     /// The device type's frames context, as a `T`; `None` when the device
     /// type has none.
@@ -3226,6 +3287,7 @@ impl<'a> FramesContextRef<'a> {
     /// the result while it lives: some backends do so as they allocate
     /// frames (D3D11VA records its textures), which an initialised context
     /// does through any reference.
+    #[doc(alias = "AVHWFramesContext.hwctx")]
     #[must_use]
     pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3239,12 +3301,13 @@ impl<'a> FramesContextRef<'a> {
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
-    /// Field: AVHWFramesContext.free
+    /// Wraps `fld::AVHWFramesContext.free`
     ///
     /// Whether a free callback runs when the context's last reference is
     /// released: one [`set_free_callback`](FramesContextMut::set_free_callback)
     /// installed, or one C code set (a hardware decoder's). User data and a
     /// pool alone are not one, though they are dropped then.
+    #[doc(alias = "AVHWFramesContext.free")]
     #[must_use]
     pub fn has_free_callback(&self) -> bool {
         if let Some(hooks) = self.hooks() {
@@ -3258,21 +3321,23 @@ impl<'a> FramesContextRef<'a> {
         }
     }
 
-    /// Field: `AVHWFramesContext.user_opaque`
+    /// Wraps `fld::AVHWFramesContext.user_opaque`
     ///
     /// The value [`set_user_data`](FramesContextMut::set_user_data) stored,
     /// borrowed from the context; `None` when it stored none, or one of
     /// another type. The data C code keeps there for its own free callback
     /// is not readable.
+    #[doc(alias = "AVHWFramesContext.user_opaque")]
     #[must_use]
     pub fn user_data<T: Any>(&self) -> Option<&'a T> {
         self.hooks()?.data.as_deref()?.downcast_ref()
     }
 
-    /// Field: AVHWFramesContext.pool
+    /// Wraps `fld::AVHWFramesContext.pool`
     ///
     /// Whether the context has a pool: one [`set_pool`](FramesContextMut::set_pool)
     /// or C code set, or, once initialised, the one its backend made.
+    #[doc(alias = "AVHWFramesContext.pool")]
     #[must_use]
     pub fn has_pool(&self) -> bool {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3282,7 +3347,7 @@ impl<'a> FramesContextRef<'a> {
         !unsafe { pool_ptr.read() }.is_null()
     }
 
-    /// Field: AVHWFramesContext.pool
+    /// Wraps `fld::AVHWFramesContext.pool`
     ///
     /// The pool the context's frames come from, shared; `None` when it has
     /// none ([`has_pool`](Self::has_pool)). It lives as long as the context:
@@ -3300,6 +3365,7 @@ impl<'a> FramesContextRef<'a> {
     /// are bytes, is not. The pool's allocator, which C may then call on any
     /// thread the handle reaches, must allow that, and a pool C code set must
     /// stay live as long as the context.
+    #[doc(alias = "AVHWFramesContext.pool")]
     #[must_use]
     pub unsafe fn pool(&self) -> Option<BufferPoolRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3315,11 +3381,12 @@ impl<'a> FramesContextRef<'a> {
         unsafe { BufferPoolRef::from_ptr(pool) }
     }
 
-    /// Field: `AVHWFramesContext.initial_pool_size`
+    /// Wraps `fld::AVHWFramesContext.initial_pool_size`
     ///
     /// How many frames initialisation allocates (and releases) to fill the
     /// pool; for backends whose pools cannot grow, also how many frames the
     /// pool holds at most. Zero or less preallocates nothing.
+    #[doc(alias = "AVHWFramesContext.initial_pool_size")]
     #[must_use]
     pub fn initial_pool_size(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3329,10 +3396,11 @@ impl<'a> FramesContextRef<'a> {
         unsafe { initial_pool_size_ptr.read() }
     }
 
-    /// Field: AVHWFramesContext.format
+    /// Wraps `fld::AVHWFramesContext.format`
     ///
     /// The hardware pixel format of the context's surfaces, the format of its
     /// frames; [`PixelFormat::NONE`] until set.
+    #[doc(alias = "AVHWFramesContext.format")]
     #[must_use]
     pub fn format(&self) -> PixelFormat {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3342,11 +3410,12 @@ impl<'a> FramesContextRef<'a> {
         PixelFormat::from_raw(unsafe { format_ptr.read() })
     }
 
-    /// Field: `AVHWFramesContext.sw_format`
+    /// Wraps `fld::AVHWFramesContext.sw_format`
     ///
     /// The pixel format of the data the surfaces hold, as the backend lays
     /// it out (or the fully planar format of its depth and subsampling, where
     /// the hardware API does not say); [`PixelFormat::NONE`] until set.
+    #[doc(alias = "AVHWFramesContext.sw_format")]
     #[must_use]
     pub fn sw_format(&self) -> PixelFormat {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3356,9 +3425,10 @@ impl<'a> FramesContextRef<'a> {
         PixelFormat::from_raw(unsafe { sw_format_ptr.read() })
     }
 
-    /// Field: AVHWFramesContext.width
+    /// Wraps `fld::AVHWFramesContext.width`
     ///
     /// The allocated width of the surfaces, in pixels.
+    #[doc(alias = "AVHWFramesContext.width")]
     #[must_use]
     pub fn width(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3368,9 +3438,10 @@ impl<'a> FramesContextRef<'a> {
         unsafe { width_ptr.read() }
     }
 
-    /// Field: AVHWFramesContext.height
+    /// Wraps `fld::AVHWFramesContext.height`
     ///
     /// The allocated height of the surfaces, in pixels.
+    #[doc(alias = "AVHWFramesContext.height")]
     #[must_use]
     pub fn height(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3419,7 +3490,7 @@ impl fmt::Debug for FramesContextRef<'_> {
 }
 
 impl<'a> FramesContextMut<'a> {
-    /// Field: AVHWFramesContext.hwctx
+    /// Wraps `fld::AVHWFramesContext.hwctx`
     ///
     /// The device type's frames context, as a `T`, to fill before
     /// [`UninitFrames::init`], borrowed for as long as this handle (reborrow
@@ -3433,6 +3504,7 @@ impl<'a> FramesContextMut<'a> {
     /// surfaces or textures a caller provides there, and its
     /// `frames_uninit` releases what it finds whether the context was
     /// initialised or not.
+    #[doc(alias = "AVHWFramesContext.hwctx")]
     #[must_use]
     pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -3447,7 +3519,7 @@ impl<'a> FramesContextMut<'a> {
         unsafe { T::mut_from_void_ptr(hwctx) }
     }
 
-    /// Field: AVHWFramesContext.free
+    /// Wraps `fld::AVHWFramesContext.free`
     ///
     /// Makes `f` the context's free callback, dropping the one this set
     /// before: C calls it once, on the thread releasing the context's last
@@ -3475,6 +3547,7 @@ impl<'a> FramesContextMut<'a> {
     ///     let _ = frames.context_mut().set_free_callback(move |_| drop(local));
     /// }
     /// ```
+    #[doc(alias = "AVHWFramesContext.free")]
     pub fn set_free_callback<F>(&mut self, f: F) -> Result<(), F>
     where
         F: FnOnce(FramesContextMut<'_>) + Send + 'static,
@@ -3488,10 +3561,11 @@ impl<'a> FramesContextMut<'a> {
         }
     }
 
-    /// Field: AVHWFramesContext.free
+    /// Wraps `fld::AVHWFramesContext.free`
     ///
     /// Takes the free callback [`set_free_callback`](Self::set_free_callback)
     /// installed out, uncalled; `None` when it installed none.
+    #[doc(alias = "AVHWFramesContext.free")]
     #[must_use]
     pub fn take_free_callback(&mut self) -> Option<FramesFreeCallback> {
         let on_free = self.hooks_mut_if_installed()?.on_free.take();
@@ -3499,7 +3573,7 @@ impl<'a> FramesContextMut<'a> {
         on_free
     }
 
-    /// Field: `AVHWFramesContext.user_opaque`
+    /// Wraps `fld::AVHWFramesContext.user_opaque`
     ///
     /// Makes `data` the context's user data, dropping the value this set
     /// before. It lives as long as the context, readable through
@@ -3522,6 +3596,7 @@ impl<'a> FramesContextMut<'a> {
     ///     let _ = frames.context_mut().set_user_data(Cell::new(1));
     /// }
     /// ```
+    #[doc(alias = "AVHWFramesContext.user_opaque")]
     pub fn set_user_data<T>(&mut self, data: T) -> Result<(), T>
     where
         T: Any + Send + Sync,
@@ -3535,10 +3610,11 @@ impl<'a> FramesContextMut<'a> {
         }
     }
 
-    /// Field: `AVHWFramesContext.user_opaque`
+    /// Wraps `fld::AVHWFramesContext.user_opaque`
     ///
     /// Takes the user data [`set_user_data`](Self::set_user_data) stored out;
     /// `None` when it stored none.
+    #[doc(alias = "AVHWFramesContext.user_opaque")]
     #[must_use]
     pub fn take_user_data(&mut self) -> Option<Box<dyn Any + Send + Sync>> {
         let data = self.hooks_mut_if_installed()?.data.take();
@@ -3546,7 +3622,7 @@ impl<'a> FramesContextMut<'a> {
         data
     }
 
-    /// Field: AVHWFramesContext.pool
+    /// Wraps `fld::AVHWFramesContext.pool`
     ///
     /// Makes `pool` the one `av_hwframe_get_buffer` takes the context's
     /// surfaces from, in place of the one the backend would make, dropping
@@ -3574,6 +3650,7 @@ impl<'a> FramesContextMut<'a> {
     /// one only for a backend whose surfaces are bytes.
     ///
     /// [`BufferPool::new`]: super::buffer::BufferPool::new
+    #[doc(alias = "AVHWFramesContext.pool")]
     #[expect(
         clippy::redundant_closure_for_method_calls,
         reason = "`CBox::as_c_ptr` is ambiguous between the owner and its uninitialised form as a path"
@@ -3610,12 +3687,13 @@ impl<'a> FramesContextMut<'a> {
         }
     }
 
-    /// Field: AVHWFramesContext.pool
+    /// Wraps `fld::AVHWFramesContext.pool`
     ///
     /// Takes the pool [`set_pool`](Self::set_pool) set out, leaving the
     /// context without one, as allocated: initialisation then has the backend
     /// make its own. `None` when it set none (the backend's, or C code's,
     /// pool is not the caller's to take).
+    #[doc(alias = "AVHWFramesContext.pool")]
     #[must_use]
     pub fn take_pool(&mut self) -> Option<BufferPoolBox> {
         let pool = self.hooks_mut_if_installed()?.pool.take()?;
@@ -3630,13 +3708,14 @@ impl<'a> FramesContextMut<'a> {
         Some(pool)
     }
 
-    /// Field: `AVHWFramesContext.initial_pool_size`
+    /// Wraps `fld::AVHWFramesContext.initial_pool_size`
     ///
     /// Sets how many frames initialisation preallocates, as for
     /// [`FramesContextRef::initial_pool_size`]. Backends whose pools cannot
     /// grow need it set to at least the frames used at once (a codec's
     /// reference frames and more) when the context has no pool of the
     /// caller's.
+    #[doc(alias = "AVHWFramesContext.initial_pool_size")]
     pub fn set_initial_pool_size(&mut self, size: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `initial_pool_size` field is in bounds; nothing is accessed here.
@@ -3647,11 +3726,12 @@ impl<'a> FramesContextMut<'a> {
         unsafe { initial_pool_size_ptr.write(size) }
     }
 
-    /// Field: AVHWFramesContext.format
+    /// Wraps `fld::AVHWFramesContext.format`
     ///
     /// Sets the hardware pixel format of the context's surfaces: one the
     /// device's backend lists, or [`UninitFrames::init`] fails with
     /// `AVERROR(ENOSYS)`.
+    #[doc(alias = "AVHWFramesContext.format")]
     pub fn set_format(&mut self, format: PixelFormat) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `format` field is in bounds; nothing is accessed here.
@@ -3661,11 +3741,12 @@ impl<'a> FramesContextMut<'a> {
         unsafe { format_ptr.write(format.into_raw()) }
     }
 
-    /// Field: `AVHWFramesContext.sw_format`
+    /// Wraps `fld::AVHWFramesContext.sw_format`
     ///
     /// Sets the pixel format of the data the surfaces hold, as for
     /// [`FramesContextRef::sw_format`]: one the backend supports, or its
     /// initialisation fails.
+    #[doc(alias = "AVHWFramesContext.sw_format")]
     pub fn set_sw_format(&mut self, format: PixelFormat) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `sw_format` field is in bounds; nothing is accessed here.
@@ -3676,11 +3757,12 @@ impl<'a> FramesContextMut<'a> {
         unsafe { sw_format_ptr.write(format.into_raw()) }
     }
 
-    /// Field: AVHWFramesContext.width
+    /// Wraps `fld::AVHWFramesContext.width`
     ///
     /// Sets the allocated width of the surfaces, in pixels: a size
     /// `av_image_check_size` accepts with the height, or
     /// [`UninitFrames::init`] fails with `AVERROR(EINVAL)`.
+    #[doc(alias = "AVHWFramesContext.width")]
     pub fn set_width(&mut self, width: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `width` field is in bounds; nothing is accessed here.
@@ -3690,10 +3772,11 @@ impl<'a> FramesContextMut<'a> {
         unsafe { width_ptr.write(width) }
     }
 
-    /// Field: AVHWFramesContext.height
+    /// Wraps `fld::AVHWFramesContext.height`
     ///
     /// Sets the allocated height of the surfaces, in pixels, as for
     /// [`set_width`](Self::set_width).
+    #[doc(alias = "AVHWFramesContext.height")]
     pub fn set_height(&mut self, height: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `height` field is in bounds; nothing is accessed here.
