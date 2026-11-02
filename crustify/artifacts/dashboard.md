@@ -16,7 +16,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **assistant parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
+- **assistant parallelism** — up to `32` concurrent batch processes from the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
 - **branch** — `crustify/main`, tip `<sha>`
 - **deps** — crustify `12b8cab` (`main`, plus an uncommitted `translator.md` edit), ffibox `196c5fb` (`main`)
 - **build version** — `3`
@@ -33,7 +33,7 @@ Review batches run by `crustify spawn-reviewer`, LLM-as-a-Judge over each landed
 - **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
-- **assistant parallelism** — up to `16` concurrent batch processes from `libavutil/options`; `10` before
+- **assistant parallelism** — up to `32` concurrent batch processes from the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
 - **branch** — `crustify/reviews/libavutil/hwcontext/wave-2`, tip `2a1f7d6d5a`
 - **agents** — `51` (one stopped by the provider), over `23` wave(s)
 
@@ -2159,3 +2159,13 @@ under the container's `/work/.claude/projects/-target/`, each marked with `recov
 Every orchestrator log in the campaign dir now has a record, so the row carries no `+`. It
 excludes the CLI's auxiliary requests, which the transcript does not record.
 
+### Annotation pass
+
+On 2026-11-02 the conventions' Anchors section changed to kind-qualified anchors in backticks,
+``/// Wraps `fn::<name>` ``, each beside a `#[doc(alias = "<name>")]`, on the public item that stands
+in for the C item. The landed bindings are brought to it by review batches with the `conventions`
+and `fix` objectives, one per `.rs` file, on the `paths` route, filing no reports: a smoke batch on
+`bprint.rs` (wave `670`, `reviewer/run-51`, `openrouter/openai/gpt-6-sol`, `$1.08`), then the
+remaining files in wave `671`. Neither wave has an entry in `schedule.json`, and their batches fill
+no dashboard rows. From wave `671` the settings' `workload` answer raises the parallelism to `32`
+agents.

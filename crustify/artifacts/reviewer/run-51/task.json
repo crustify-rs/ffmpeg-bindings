@@ -1,0 +1,13 @@
+{
+  "objectives": ["conventions", "fix"],
+  "paths": ["src/libavutil/libavutil/bprint.rs"],
+  "wave": 670,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/bprint.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-670",
+  "model": "openrouter/openai/gpt-6-sol",
+  "billing": "api",
+  "instructions": "instructions.md"
+}
