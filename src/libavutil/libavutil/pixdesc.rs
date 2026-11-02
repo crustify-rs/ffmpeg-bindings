@@ -47,7 +47,7 @@ use ffibox::{CMutSeam, CPlainElem, CRefSeam, CSlice, CSliceMut, CZeroable, defin
 
 use super::ffi;
 use super::imgutils::{Planes, PlanesMut};
-/// Wraps: `AVColorSpace`
+/// Wraps `ty::AVColorSpace`
 /// Handwritten
 ///
 /// The YUV colour space (matrix coefficients) of a picture, as numbered by
@@ -74,6 +74,7 @@ use super::imgutils::{Planes, PlanesMut};
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVColorSpace")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColorSpace(ffi::AVColorSpace);
@@ -198,7 +199,7 @@ impl From<ColorSpace> for ffi::AVColorSpace {
 // memory is the whole of it.
 unsafe impl CPlainElem for ColorSpace {}
 
-/// Wraps: `AVColorTransferCharacteristic`
+/// Wraps `ty::AVColorTransferCharacteristic`
 /// Handwritten
 ///
 /// The colour transfer characteristic (opto-electronic transfer function) of
@@ -228,6 +229,7 @@ unsafe impl CPlainElem for ColorSpace {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVColorTransferCharacteristic")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColorTransfer(ffi::AVColorTransferCharacteristic);
@@ -362,7 +364,7 @@ impl From<ColorTransfer> for ffi::AVColorTransferCharacteristic {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ColorTransfer {}
 
-/// Wraps: `AVAlphaMode`
+/// Wraps `ty::AVAlphaMode`
 /// Handwritten
 ///
 /// How a picture's alpha channel relates to its colour values.
@@ -389,6 +391,7 @@ unsafe impl CPlainElem for ColorTransfer {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVAlphaMode")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AlphaMode(ffi::AVAlphaMode);
@@ -462,7 +465,7 @@ impl From<AlphaMode> for ffi::AVAlphaMode {
 // memory is the whole of it.
 unsafe impl CPlainElem for AlphaMode {}
 
-/// Wraps: `AVPixelFormat`
+/// Wraps `ty::AVPixelFormat`
 /// Handwritten
 ///
 /// The layout of a picture's pixels in memory: its planes, the order and
@@ -512,6 +515,7 @@ unsafe impl CPlainElem for AlphaMode {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVPixelFormat")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PixelFormat(ffi::AVPixelFormat);
@@ -1582,7 +1586,7 @@ impl From<PixelFormat> for ffi::AVPixelFormat {
 // memory is the whole of it.
 unsafe impl CPlainElem for PixelFormat {}
 
-/// Wraps: `AVColorPrimaries`
+/// Wraps `ty::AVColorPrimaries`
 /// Handwritten
 ///
 /// The chromaticity coordinates of a picture's source primaries, as
@@ -1611,6 +1615,7 @@ unsafe impl CPlainElem for PixelFormat {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVColorPrimaries")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColorPrimaries(ffi::AVColorPrimaries);
@@ -1730,7 +1735,7 @@ impl From<ColorPrimaries> for ffi::AVColorPrimaries {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ColorPrimaries {}
 
-/// Wraps: `AVColorRange`
+/// Wraps `ty::AVColorRange`
 /// Handwritten
 ///
 /// The range of values a picture's samples take: limited ("MPEG", "TV")
@@ -1762,6 +1767,7 @@ unsafe impl CPlainElem for ColorPrimaries {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVColorRange")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColorRange(ffi::AVColorRange);
@@ -1838,7 +1844,7 @@ impl From<ColorRange> for ffi::AVColorRange {
 // C memory is the whole of it.
 unsafe impl CPlainElem for ColorRange {}
 
-/// Wraps: `AVChromaLocation`
+/// Wraps `ty::AVChromaLocation`
 /// Handwritten
 ///
 /// Where the first (top left) chroma sample of a subsampled picture sits
@@ -1876,6 +1882,7 @@ unsafe impl CPlainElem for ColorRange {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVChromaLocation")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ChromaLocation(ffi::AVChromaLocation);
@@ -1962,7 +1969,7 @@ impl From<ChromaLocation> for ffi::AVChromaLocation {
 unsafe impl CPlainElem for ChromaLocation {}
 
 define_ctype!(
-    /// Wraps: AVComponentDescriptor
+    /// Wraps `ty::AVComponentDescriptor`
     ///
     /// The memory layout of one component of a pixel format: its plane, the
     /// distance between consecutive pixels, its offset in the first pixel,
@@ -1973,6 +1980,7 @@ define_ctype!(
     /// No field is range-checked, by C or here: C's own table stores an
     /// offset of `-1` for the big-endian 16-bit packed RGB formats, and its
     /// users may write any `int`.
+    #[doc(alias = "AVComponentDescriptor")]
     #[derive(Clone, Copy)]
     ComponentDescriptor,
     ComponentDescriptorRef,
@@ -2093,9 +2101,10 @@ impl fmt::Debug for ComponentDescriptorRef<'_> {
     reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
 )]
 impl ComponentDescriptorRef<'_> {
-    /// Field: AVComponentDescriptor.plane
+    /// Wraps `fld::AVComponentDescriptor.plane`
     ///
     /// Which of the four planes holds the component.
+    #[doc(alias = "AVComponentDescriptor.plane")]
     #[must_use]
     pub fn plane(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2107,10 +2116,11 @@ impl ComponentDescriptorRef<'_> {
         unsafe { plane_ptr.read() }
     }
 
-    /// Field: AVComponentDescriptor.step
+    /// Wraps `fld::AVComponentDescriptor.step`
     ///
     /// The number of elements between two horizontally consecutive pixels:
     /// bits for bitstream formats, bytes otherwise.
+    #[doc(alias = "AVComponentDescriptor.step")]
     #[must_use]
     pub fn step(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2122,10 +2132,11 @@ impl ComponentDescriptorRef<'_> {
         unsafe { step_ptr.read() }
     }
 
-    /// Field: AVComponentDescriptor.offset
+    /// Wraps `fld::AVComponentDescriptor.offset`
     ///
     /// The number of elements before the component of the first pixel: bits
     /// for bitstream formats, bytes otherwise. It may be negative.
+    #[doc(alias = "AVComponentDescriptor.offset")]
     #[must_use]
     pub fn offset(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2137,9 +2148,10 @@ impl ComponentDescriptorRef<'_> {
         unsafe { offset_ptr.read() }
     }
 
-    /// Field: AVComponentDescriptor.shift
+    /// Wraps `fld::AVComponentDescriptor.shift`
     ///
     /// The number of least significant bits to shift away to get the value.
+    #[doc(alias = "AVComponentDescriptor.shift")]
     #[must_use]
     pub fn shift(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2151,10 +2163,11 @@ impl ComponentDescriptorRef<'_> {
         unsafe { shift_ptr.read() }
     }
 
-    /// Field: AVComponentDescriptor.depth
+    /// Wraps `fld::AVComponentDescriptor.depth`
     ///
     /// The number of bits in the component; 0 for a component the format
     /// does not have.
+    #[doc(alias = "AVComponentDescriptor.depth")]
     #[must_use]
     pub fn depth(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2189,10 +2202,11 @@ impl ComponentDescriptorRef<'_> {
 }
 
 impl ComponentDescriptorMut<'_> {
-    /// Field: AVComponentDescriptor.plane
+    /// Wraps `fld::AVComponentDescriptor.plane`
     ///
     /// Sets the plane holding the component, leaving the other fields as
     /// they are.
+    #[doc(alias = "AVComponentDescriptor.plane")]
     pub fn set_plane(&mut self, plane: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `plane` field is in bounds; nothing is accessed here.
@@ -2203,10 +2217,11 @@ impl ComponentDescriptorMut<'_> {
         unsafe { plane_ptr.write(plane) }
     }
 
-    /// Field: AVComponentDescriptor.step
+    /// Wraps `fld::AVComponentDescriptor.step`
     ///
     /// Sets the distance between consecutive pixels, leaving the other
     /// fields as they are.
+    #[doc(alias = "AVComponentDescriptor.step")]
     pub fn set_step(&mut self, step: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `step` field is in bounds; nothing is accessed here.
@@ -2217,10 +2232,11 @@ impl ComponentDescriptorMut<'_> {
         unsafe { step_ptr.write(step) }
     }
 
-    /// Field: AVComponentDescriptor.offset
+    /// Wraps `fld::AVComponentDescriptor.offset`
     ///
     /// Sets the offset of the first pixel's component, leaving the other
     /// fields as they are; a negative offset is stored as given.
+    #[doc(alias = "AVComponentDescriptor.offset")]
     pub fn set_offset(&mut self, offset: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `offset` field is in bounds; nothing is accessed here.
@@ -2231,10 +2247,11 @@ impl ComponentDescriptorMut<'_> {
         unsafe { offset_ptr.write(offset) }
     }
 
-    /// Field: AVComponentDescriptor.shift
+    /// Wraps `fld::AVComponentDescriptor.shift`
     ///
     /// Sets the number of low bits to shift away, leaving the other fields
     /// as they are.
+    #[doc(alias = "AVComponentDescriptor.shift")]
     pub fn set_shift(&mut self, shift: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `shift` field is in bounds; nothing is accessed here.
@@ -2245,10 +2262,11 @@ impl ComponentDescriptorMut<'_> {
         unsafe { shift_ptr.write(shift) }
     }
 
-    /// Field: AVComponentDescriptor.depth
+    /// Wraps `fld::AVComponentDescriptor.depth`
     ///
     /// Sets the component's width in bits, leaving the other fields as they
     /// are.
+    #[doc(alias = "AVComponentDescriptor.depth")]
     pub fn set_depth(&mut self, depth: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `depth` field is in bounds; nothing is accessed here.
@@ -2403,7 +2421,7 @@ impl BitAnd for PixelFormatFlags {
 }
 
 define_ctype!(
-    /// Wraps: AVPixFmtDescriptor
+    /// Wraps `ty::AVPixFmtDescriptor`
     ///
     /// How a pixel format stores its pixels in up to four planes: its name
     /// and aliases, its component count and layouts, its chroma subsampling
@@ -2427,6 +2445,7 @@ define_ctype!(
     /// siblings) index its components by the component count and each
     /// component's plane, and shift by the chroma shifts and depths, so a
     /// wrapper passing a Rust-built descriptor to them checks those first.
+    #[doc(alias = "AVPixFmtDescriptor")]
     #[derive(Clone, Copy)]
     PixelFormatDescriptor,
     PixelFormatDescriptorRef,
@@ -2559,11 +2578,12 @@ type DescriptorFields = (
 );
 
 impl<'a> PixelFormatDescriptorRef<'a> {
-    /// Field: AVPixFmtDescriptor.name
+    /// Wraps `fld::AVPixFmtDescriptor.name`
     ///
     /// The format's name, such as `yuv420p`; `None` for a descriptor without
     /// one, such as the all-zero descriptor C stores for a format its table
     /// leaves out.
+    #[doc(alias = "AVPixFmtDescriptor.name")]
     #[must_use]
     pub fn name(&self) -> Option<&'static CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2578,11 +2598,12 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
     }
 
-    /// Field: `AVPixFmtDescriptor.nb_components`
+    /// Wraps `fld::AVPixFmtDescriptor.nb_components`
     ///
     /// The number of components each pixel has, 1 to 4 in C's table (0 for
     /// a format it leaves out); the first ones of
     /// [`components`](Self::components) describe them.
+    #[doc(alias = "AVPixFmtDescriptor.nb_components")]
     #[must_use]
     pub fn component_count(&self) -> u8 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2594,10 +2615,11 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         unsafe { nb_components_ptr.read() }
     }
 
-    /// Field: `AVPixFmtDescriptor.log2_chroma_w`
+    /// Wraps `fld::AVPixFmtDescriptor.log2_chroma_w`
     ///
     /// How far to shift the luma width right, rounding up, to get the chroma
     /// width: 1 for `yuv420p`.
+    #[doc(alias = "AVPixFmtDescriptor.log2_chroma_w")]
     #[must_use]
     pub fn log2_chroma_w(&self) -> u8 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2609,10 +2631,11 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         unsafe { log2_chroma_w_ptr.read() }
     }
 
-    /// Field: `AVPixFmtDescriptor.log2_chroma_h`
+    /// Wraps `fld::AVPixFmtDescriptor.log2_chroma_h`
     ///
     /// How far to shift the luma height right, rounding up, to get the
     /// chroma height: 1 for `yuv420p`.
+    #[doc(alias = "AVPixFmtDescriptor.log2_chroma_h")]
     #[must_use]
     pub fn log2_chroma_h(&self) -> u8 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2624,9 +2647,10 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         unsafe { log2_chroma_h_ptr.read() }
     }
 
-    /// Field: AVPixFmtDescriptor.flags
+    /// Wraps `fld::AVPixFmtDescriptor.flags`
     ///
     /// The format's [`PixelFormatFlags`], unnamed bits included.
+    #[doc(alias = "AVPixFmtDescriptor.flags")]
     #[must_use]
     pub fn flags(&self) -> PixelFormatFlags {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2638,12 +2662,13 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         PixelFormatFlags(unsafe { flags_ptr.read() })
     }
 
-    /// Field: AVPixFmtDescriptor.comp
+    /// Wraps `fld::AVPixFmtDescriptor.comp`
     ///
     /// The layouts of the four component slots, borrowed from the
     /// descriptor: luma (or red), then chroma (or green and blue), with
     /// alpha always last; slots past the component count are all-zero in
     /// C's table.
+    #[doc(alias = "AVPixFmtDescriptor.comp")]
     #[must_use]
     pub fn components(&self) -> CSlice<'a, ComponentDescriptor> {
         // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
@@ -2664,10 +2689,11 @@ impl<'a> PixelFormatDescriptorRef<'a> {
         }
     }
 
-    /// Field: AVPixFmtDescriptor.alias
+    /// Wraps `fld::AVPixFmtDescriptor.alias`
     ///
     /// The format's alternative names, comma-separated, such as `gray8,y8`
     /// for `gray`; `None` for most formats.
+    #[doc(alias = "AVPixFmtDescriptor.alias")]
     #[must_use]
     pub fn alias(&self) -> Option<&'static CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2716,11 +2742,12 @@ impl<'a> PixelFormatDescriptorRef<'a> {
 }
 
 impl<'a> PixelFormatDescriptorMut<'a> {
-    /// Field: AVPixFmtDescriptor.name
+    /// Wraps `fld::AVPixFmtDescriptor.name`
     ///
     /// Sets the format's name, or clears it with `None`, leaving the other
     /// fields as they are. The string is borrowed for the whole program, as
     /// C's own names are.
+    #[doc(alias = "AVPixFmtDescriptor.name")]
     pub fn set_name(&mut self, name: Option<&'static CStr>) {
         let p = name.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2733,10 +2760,11 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         unsafe { name_ptr.write(p) }
     }
 
-    /// Field: `AVPixFmtDescriptor.nb_components`
+    /// Wraps `fld::AVPixFmtDescriptor.nb_components`
     ///
     /// Sets the number of components each pixel has, leaving the other
     /// fields as they are. Any value is stored; C's table only holds 0 to 4.
+    #[doc(alias = "AVPixFmtDescriptor.nb_components")]
     pub fn set_component_count(&mut self, count: u8) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `nb_components` field is in bounds; nothing is accessed here.
@@ -2747,9 +2775,10 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         unsafe { nb_components_ptr.write(count) }
     }
 
-    /// Field: `AVPixFmtDescriptor.log2_chroma_w`
+    /// Wraps `fld::AVPixFmtDescriptor.log2_chroma_w`
     ///
     /// Sets the chroma width shift, leaving the other fields as they are.
+    #[doc(alias = "AVPixFmtDescriptor.log2_chroma_w")]
     pub fn set_log2_chroma_w(&mut self, shift: u8) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `log2_chroma_w` field is in bounds; nothing is accessed here.
@@ -2760,9 +2789,10 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         unsafe { log2_chroma_w_ptr.write(shift) }
     }
 
-    /// Field: `AVPixFmtDescriptor.log2_chroma_h`
+    /// Wraps `fld::AVPixFmtDescriptor.log2_chroma_h`
     ///
     /// Sets the chroma height shift, leaving the other fields as they are.
+    #[doc(alias = "AVPixFmtDescriptor.log2_chroma_h")]
     pub fn set_log2_chroma_h(&mut self, shift: u8) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `log2_chroma_h` field is in bounds; nothing is accessed here.
@@ -2773,10 +2803,11 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         unsafe { log2_chroma_h_ptr.write(shift) }
     }
 
-    /// Field: AVPixFmtDescriptor.flags
+    /// Wraps `fld::AVPixFmtDescriptor.flags`
     ///
     /// Sets the format's flags, unnamed bits included, leaving the other
     /// fields as they are.
+    #[doc(alias = "AVPixFmtDescriptor.flags")]
     pub fn set_flags(&mut self, flags: PixelFormatFlags) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `flags` field is in bounds; nothing is accessed here.
@@ -2787,10 +2818,11 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         unsafe { flags_ptr.write(flags.0) }
     }
 
-    /// Field: AVPixFmtDescriptor.comp
+    /// Wraps `fld::AVPixFmtDescriptor.comp`
     ///
     /// The four component slots, exclusively borrowed from the descriptor
     /// for writing in place through their handles.
+    #[doc(alias = "AVPixFmtDescriptor.comp")]
     #[must_use]
     pub fn components_mut(&mut self) -> CSliceMut<'_, ComponentDescriptor> {
         // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
@@ -2810,12 +2842,13 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         }
     }
 
-    /// Field: AVPixFmtDescriptor.comp
+    /// Wraps `fld::AVPixFmtDescriptor.comp`
     ///
     /// The four component slots, exclusively borrowed for the handle's whole
     /// lifetime, giving the handle up: the by-value counterpart of
     /// [`components_mut`](Self::components_mut), for a run that outlives a
     /// temporary handle (`d.as_mut().into_components_mut()`).
+    #[doc(alias = "AVPixFmtDescriptor.comp")]
     #[must_use]
     pub fn into_components_mut(mut self) -> CSliceMut<'a, ComponentDescriptor> {
         // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
@@ -2832,11 +2865,12 @@ impl<'a> PixelFormatDescriptorMut<'a> {
         }
     }
 
-    /// Field: AVPixFmtDescriptor.alias
+    /// Wraps `fld::AVPixFmtDescriptor.alias`
     ///
     /// Sets the format's comma-separated alternative names, or clears them
     /// with `None`, leaving the other fields as they are. The string is
     /// borrowed for the whole program, as C's own aliases are.
+    #[doc(alias = "AVPixFmtDescriptor.alias")]
     pub fn set_alias(&mut self, alias: Option<&'static CStr>) {
         let p = alias.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2865,10 +2899,11 @@ fn found(ret: c_int) -> Option<c_uint> {
 }
 
 impl ColorRange {
-    /// Wraps: `av_color_range_from_name`
+    /// Wraps `fn::av_color_range_from_name`
     ///
     /// The color range `name` names: `unknown`, `tv` or `pc`; `None` for any
     /// other name. Names are matched exactly, case included.
+    #[doc(alias = "av_color_range_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
@@ -2879,12 +2914,13 @@ impl ColorRange {
 }
 
 impl ColorPrimaries {
-    /// Wraps: `av_color_primaries_from_name`
+    /// Wraps `fn::av_color_primaries_from_name`
     ///
     /// The color primaries `name` names, such as `bt709` or `vgamut`; `None`
     /// for any other name. Names are matched exactly, case included; the
     /// `reserved` name shared by two values yields the first,
     /// [`RESERVED0`](Self::RESERVED0).
+    #[doc(alias = "av_color_primaries_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
@@ -2894,12 +2930,13 @@ impl ColorPrimaries {
 }
 
 impl ColorTransfer {
-    /// Wraps: `av_color_transfer_from_name`
+    /// Wraps `fn::av_color_transfer_from_name`
     ///
     /// The transfer characteristic `name` names, such as `bt709`,
     /// `smpte2084` or `vlog`; `None` for any other name. Names are matched
     /// exactly, case included; the `reserved` name shared by two values
     /// yields the first, [`RESERVED0`](Self::RESERVED0).
+    #[doc(alias = "av_color_transfer_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
@@ -2909,10 +2946,11 @@ impl ColorTransfer {
 }
 
 impl ColorSpace {
-    /// Wraps: `av_color_space_from_name`
+    /// Wraps `fn::av_color_space_from_name`
     ///
     /// The color space `name` names, such as `gbr` or `bt709`; `None` for any
     /// other name. Names are matched exactly, case included.
+    #[doc(alias = "av_color_space_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
@@ -2922,10 +2960,11 @@ impl ColorSpace {
 }
 
 impl ChromaLocation {
-    /// Wraps: `av_chroma_location_from_name`
+    /// Wraps `fn::av_chroma_location_from_name`
     ///
     /// The chroma location `name` names, such as `left` or `center`; `None`
     /// for any other name. Names are matched exactly, case included.
+    #[doc(alias = "av_chroma_location_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
@@ -2935,7 +2974,7 @@ impl ChromaLocation {
 }
 
 impl PixelFormat {
-    /// Wraps: `av_pix_fmt_swap_endianness`
+    /// Wraps `fn::av_pix_fmt_swap_endianness`
     ///
     /// The same format in the other byte order: [`RGB48LE`](Self::RGB48LE)
     /// for [`RGB48BE`](Self::RGB48BE) and back. `None` for a format with no
@@ -2943,6 +2982,7 @@ impl PixelFormat {
     /// [`YUV420P`](Self::YUV420P)), for one whose other-endian twin C does
     /// not list, and for [`NONE`](Self::NONE) and every value C does not
     /// name.
+    #[doc(alias = "av_pix_fmt_swap_endianness")]
     #[must_use]
     pub fn swap_endianness(self) -> Option<Self> {
         // SAFETY: C bounds-checks the value against its descriptor table
@@ -2969,7 +3009,7 @@ unsafe fn static_name(name: *const c_char) -> Option<&'static CStr> {
 }
 
 impl ColorRange {
-    /// Wraps: `av_color_range_name`
+    /// Wraps `fn::av_color_range_name`
     ///
     /// The name C gives this range, `unknown`, `tv` or `pc`, which
     /// [`from_name`](Self::from_name) maps back; `None` for any value C does
@@ -2980,6 +3020,7 @@ impl ColorRange {
     /// assert_eq!(ColorRange::JPEG.name(), Some(c"pc"));
     /// assert_eq!(ColorRange::from_name(c"tv"), Some(ColorRange::MPEG));
     /// ```
+    #[doc(alias = "av_color_range_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -2991,13 +3032,14 @@ impl ColorRange {
 }
 
 impl ColorPrimaries {
-    /// Wraps: `av_color_primaries_name`
+    /// Wraps `fn::av_color_primaries_name`
     ///
     /// The name C gives these primaries, such as `bt709` or `vgamut`; `None`
     /// for the values C leaves unnamed (13 to 21, and any other it does not
     /// know). [`RESERVED0`](Self::RESERVED0) and [`RESERVED`](Self::RESERVED)
     /// are both `reserved`, which [`from_name`](Self::from_name) maps back to
     /// the first.
+    #[doc(alias = "av_color_primaries_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3008,13 +3050,14 @@ impl ColorPrimaries {
 }
 
 impl ColorTransfer {
-    /// Wraps: `av_color_transfer_name`
+    /// Wraps `fn::av_color_transfer_name`
     ///
     /// The name C gives this transfer characteristic, such as `bt709`,
     /// `smpte2084` or `vlog`; `None` for any value C does not name.
     /// [`RESERVED0`](Self::RESERVED0) and [`RESERVED`](Self::RESERVED) are
     /// both `reserved`, which [`from_name`](Self::from_name) maps back to the
     /// first.
+    #[doc(alias = "av_color_transfer_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3025,10 +3068,11 @@ impl ColorTransfer {
 }
 
 impl ColorSpace {
-    /// Wraps: `av_color_space_name`
+    /// Wraps `fn::av_color_space_name`
     ///
     /// The name C gives this color space, such as `gbr` or `bt709`; `None`
     /// for any value C does not name.
+    #[doc(alias = "av_color_space_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3039,10 +3083,11 @@ impl ColorSpace {
 }
 
 impl ChromaLocation {
-    /// Wraps: `av_chroma_location_name`
+    /// Wraps `fn::av_chroma_location_name`
     ///
     /// The name C gives this chroma location, such as `unspecified`, `left`
     /// or `topleft`; `None` for any value C does not name.
+    #[doc(alias = "av_chroma_location_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3051,7 +3096,7 @@ impl ChromaLocation {
         unsafe { static_name(chroma_location_name) }
     }
 
-    /// Wraps: `av_chroma_location_enum_to_pos`
+    /// Wraps `fn::av_chroma_location_enum_to_pos`
     ///
     /// Where this location puts the first chroma sample, as the `(x, y)`
     /// position swscale takes: luma sample `(0, 0)` is the origin and luma
@@ -3068,6 +3113,7 @@ impl ChromaLocation {
     /// );
     /// assert_eq!(ChromaLocation::UNSPECIFIED.position(), None);
     /// ```
+    #[doc(alias = "av_chroma_location_enum_to_pos")]
     #[must_use]
     pub fn position(self) -> Option<(i32, i32)> {
         let (mut x, mut y) = (0, 0);
@@ -3078,11 +3124,12 @@ impl ChromaLocation {
         (ret == 0).then_some((x, y))
     }
 
-    /// Wraps: `av_chroma_location_pos_to_enum`
+    /// Wraps `fn::av_chroma_location_pos_to_enum`
     ///
     /// The location whose [`position`](Self::position) is `(x, y)`, or
     /// `None` when no location puts the first chroma sample there, which C
     /// reports as [`UNSPECIFIED`](Self::UNSPECIFIED).
+    #[doc(alias = "av_chroma_location_pos_to_enum")]
     #[must_use]
     pub fn from_position(x: i32, y: i32) -> Option<Self> {
         // SAFETY: `av_chroma_location_pos_to_enum` takes two integers by
@@ -3093,10 +3140,11 @@ impl ChromaLocation {
 }
 
 impl AlphaMode {
-    /// Wraps: `av_alpha_mode_name`
+    /// Wraps `fn::av_alpha_mode_name`
     ///
     /// The name C gives this alpha mode, `unspecified`, `premultiplied` or
     /// `straight`; `None` for any value C does not name.
+    #[doc(alias = "av_alpha_mode_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3105,11 +3153,12 @@ impl AlphaMode {
         unsafe { static_name(alpha_mode_name) }
     }
 
-    /// Wraps: `av_alpha_mode_from_name`
+    /// Wraps `fn::av_alpha_mode_from_name`
     ///
     /// The alpha mode `name` names: `unspecified`, `premultiplied` or
     /// `straight`; `None` for any other name. Names are matched exactly,
     /// case included.
+    #[doc(alias = "av_alpha_mode_from_name")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: as in `ColorRange::from_name`.
@@ -3252,7 +3301,7 @@ fn loss_or_error(ret: c_int) -> Result<Loss, i32> {
 }
 
 impl PixelFormat {
-    /// Wraps: `av_get_pix_fmt_name`
+    /// Wraps `fn::av_get_pix_fmt_name`
     ///
     /// The short name C gives this pixel format, such as `yuv420p` or
     /// `rgb48le`, which [`from_name`](Self::from_name) maps back; `None` for
@@ -3263,6 +3312,7 @@ impl PixelFormat {
     /// assert_eq!(PixelFormat::YUV420P.name(), Some(c"yuv420p"));
     /// assert_eq!(PixelFormat::NONE.name(), None);
     /// ```
+    #[doc(alias = "av_get_pix_fmt_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -3273,7 +3323,7 @@ impl PixelFormat {
         unsafe { static_name(get_pix_fmt_name) }
     }
 
-    /// Wraps: `av_get_pix_fmt`
+    /// Wraps `fn::av_get_pix_fmt`
     ///
     /// The pixel format `name` names: a descriptor's name or one of its
     /// aliases, `rgb32` and `bgr32` for the native-endian packed 32-bit RGB
@@ -3291,6 +3341,7 @@ impl PixelFormat {
     /// assert_eq!(PixelFormat::from_name(c"gray16"), Some(PixelFormat::GRAY16));
     /// assert_eq!(PixelFormat::from_name(c"no such format"), None);
     /// ```
+    #[doc(alias = "av_get_pix_fmt")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
@@ -3300,7 +3351,7 @@ impl PixelFormat {
         Some(Self::from_raw(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: `av_get_pix_fmt_loss`
+    /// Wraps `fn::av_get_pix_fmt_loss`
     ///
     /// The kinds of information converting from this pixel format to `dst`
     /// loses; with `has_alpha` false, losing the alpha channel does not
@@ -3324,6 +3375,7 @@ impl PixelFormat {
     ///     Err(-4)
     /// );
     /// ```
+    #[doc(alias = "av_get_pix_fmt_loss")]
     pub fn conversion_loss(self, dst: PixelFormat, has_alpha: bool) -> Result<Loss, i32> {
         // SAFETY: `av_get_pix_fmt_loss` takes three integers by value,
         // looks each format up with a bounds check, and touches no caller
@@ -3334,7 +3386,7 @@ impl PixelFormat {
         loss_or_error(ret)
     }
 
-    /// Wraps: `av_find_best_pix_fmt_of_2`
+    /// Wraps `fn::av_find_best_pix_fmt_of_2`
     ///
     /// Which of `dst1` and `dst2` this pixel format converts to with the
     /// least loss, counting the loss of alpha only when `has_alpha` is set.
@@ -3348,6 +3400,7 @@ impl PixelFormat {
     /// let best = PixelFormat::RGBA.best_of_two(PixelFormat::RGB24, PixelFormat::BGRA, true);
     /// assert_eq!(best, PixelFormat::BGRA);
     /// ```
+    #[doc(alias = "av_find_best_pix_fmt_of_2")]
     #[must_use]
     pub fn best_of_two(self, dst1: PixelFormat, dst2: PixelFormat, has_alpha: bool) -> PixelFormat {
         // SAFETY: `av_find_best_pix_fmt_of_2` takes the formats and flag by
@@ -3364,13 +3417,14 @@ impl PixelFormat {
         Self::from_raw(raw)
     }
 
-    /// Wraps: `av_find_best_pix_fmt_of_2`
+    /// Wraps `fn::av_find_best_pix_fmt_of_2`
     ///
     /// As [`best_of_two`](Self::best_of_two), scoring only the kinds of loss
     /// not in `ignore`, and returning the chosen format with the loss of
     /// converting to it, as [`conversion_loss`](Self::conversion_loss)
     /// reports it: every kind counts there, alpha only with `has_alpha`.
     /// `ignore` plays no part when either candidate is unknown.
+    #[doc(alias = "av_find_best_pix_fmt_of_2")]
     pub fn best_of_two_with_loss(
         self,
         dst1: PixelFormat,
@@ -3396,7 +3450,7 @@ impl PixelFormat {
 }
 
 impl PixelFormat {
-    /// Wraps: `av_get_pix_fmt_string`
+    /// Wraps `fn::av_get_pix_fmt_string`
     ///
     /// Writes a line describing this pixel format into `buf` and returns it,
     /// borrowed from `buf`: its name left-aligned in 11 columns, then its
@@ -3422,6 +3476,7 @@ impl PixelFormat {
     ///     Some(c"name nb_components nb_bits")
     /// );
     /// ```
+    #[doc(alias = "av_get_pix_fmt_string")]
     pub fn describe(self, buf: &mut [u8]) -> Option<&CStr> {
         if buf.is_empty() || self.into_raw() >= ffi::AV_PIX_FMT_NB {
             // C's `snprintf` writes nothing into an empty buffer, and C
@@ -3440,7 +3495,7 @@ impl PixelFormat {
         CStr::from_bytes_until_nul(buf).ok()
     }
 
-    /// Wraps: `av_pix_fmt_count_planes`
+    /// Wraps `fn::av_pix_fmt_count_planes`
     ///
     /// The number of planes this pixel format stores its components in: 1
     /// for packed formats, up to 4 for planar ones, 0 for hardware formats.
@@ -3448,6 +3503,7 @@ impl PixelFormat {
     ///
     /// A palettized format ([`PAL8`](Self::PAL8)) counts its one plane of
     /// indices, not the palette C keeps beside it.
+    #[doc(alias = "av_pix_fmt_count_planes")]
     #[must_use]
     pub fn plane_count(self) -> Option<usize> {
         // SAFETY: `av_pix_fmt_count_planes` takes the enum by value and
@@ -3456,7 +3512,7 @@ impl PixelFormat {
         usize::try_from(ret).ok()
     }
 
-    /// Wraps: `av_pix_fmt_get_chroma_sub_sample`
+    /// Wraps `fn::av_pix_fmt_get_chroma_sub_sample`
     ///
     /// The chroma subsampling of this pixel format, as base-2 logarithms:
     /// `(horizontal, vertical)`, the amounts to right-shift (rounding up) a
@@ -3464,6 +3520,7 @@ impl PixelFormat {
     /// [`YUV420P`](Self::YUV420P), `(0, 0)` for formats without subsampled
     /// chroma. `None` for [`NONE`](Self::NONE) and any value without a
     /// descriptor.
+    #[doc(alias = "av_pix_fmt_get_chroma_sub_sample")]
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
@@ -3490,7 +3547,7 @@ impl PixelFormat {
 }
 
 impl PixelFormat {
-    /// Wraps: `av_pix_fmt_desc_get`
+    /// Wraps `fn::av_pix_fmt_desc_get`
     ///
     /// This pixel format's descriptor in C's table, borrowed for the whole
     /// program: the table is static and never written. `None` for
@@ -3517,6 +3574,7 @@ impl PixelFormat {
     /// assert_eq!(desc.pixel_format(), Some(PixelFormat::YUV420P));
     /// assert!(PixelFormat::NONE.descriptor().is_none());
     /// ```
+    #[doc(alias = "av_pix_fmt_desc_get")]
     #[must_use]
     pub fn descriptor(self) -> Option<PixelFormatDescriptorRef<'static>> {
         // For the unsafe operations below: `av_pix_fmt_desc_get` takes the enum by value, checks
@@ -3534,11 +3592,12 @@ impl PixelFormat {
 }
 
 impl PixelFormatDescriptorRef<'_> {
-    /// Wraps: `av_pix_fmt_desc_get_id`
+    /// Wraps `fn::av_pix_fmt_desc_get_id`
     ///
     /// The pixel format whose entry in C's table this handle addresses;
     /// `None` for a descriptor anywhere else, such as a copy of an entry
     /// held in Rust. C compares the address only, never reading through it.
+    #[doc(alias = "av_pix_fmt_desc_get_id")]
     #[must_use]
     pub fn pixel_format(&self) -> Option<PixelFormat> {
         // SAFETY: C compares `desc` against the bounds of its static table
@@ -3549,11 +3608,12 @@ impl PixelFormatDescriptorRef<'_> {
         Some(PixelFormat::from_raw(raw)).filter(|&f| f != PixelFormat::NONE)
     }
 
-    /// Wraps: `av_pix_fmt_desc_next`
+    /// Wraps `fn::av_pix_fmt_desc_next`
     ///
     /// The next named descriptor in C's table after the entry this handle
     /// addresses, skipping the entries the table leaves out; `None` past the
     /// last one, and for a descriptor that is not an entry of C's table.
+    #[doc(alias = "av_pix_fmt_desc_next")]
     #[must_use]
     pub fn next_in_table(&self) -> Option<PixelFormatDescriptorRef<'static>> {
         next_descriptor(Some(*self))
@@ -3586,7 +3646,7 @@ fn next_descriptor(
     unsafe { PixelFormatDescriptorRef::from_ptr(pix_fmt_desc_next.cast_mut()) }
 }
 
-/// Wraps: `av_pix_fmt_desc_next`
+/// Wraps `fn::av_pix_fmt_desc_next`
 ///
 /// Every named pixel format descriptor in C's table, in the table's order:
 /// the order of [`PixelFormat`]'s values, skipping the ones the table leaves
@@ -3598,6 +3658,7 @@ fn next_descriptor(
 /// assert_eq!(first.pixel_format(), Some(PixelFormat::YUV420P));
 /// assert!(descriptors().any(|d| d.name() == Some(c"rgb24")));
 /// ```
+#[doc(alias = "av_pix_fmt_desc_next")]
 #[must_use]
 pub fn descriptors() -> Descriptors {
     Descriptors {
@@ -3713,7 +3774,7 @@ impl PixelFormatDescriptorRef<'_> {
         Ok(bits >> log2_pixels)
     }
 
-    /// Wraps: `av_get_bits_per_pixel`
+    /// Wraps `fn::av_get_bits_per_pixel`
     ///
     /// The number of bits that represent a pixel, averaged over the chroma
     /// subsampling and excluding padding: 12 for
@@ -3732,6 +3793,7 @@ impl PixelFormatDescriptorRef<'_> {
     /// let desc = PixelFormat::YUV420P.descriptor().unwrap();
     /// assert_eq!(desc.bits_per_pixel(), Ok(12));
     /// ```
+    #[doc(alias = "av_get_bits_per_pixel")]
     pub fn bits_per_pixel(&self) -> Result<u32, InvalidDescriptor> {
         self.checked_bits_per_pixel()?;
         // SAFETY: the handle addresses a live, initialised descriptor, which
@@ -3742,7 +3804,7 @@ impl PixelFormatDescriptorRef<'_> {
         Ok(bits.cast_unsigned())
     }
 
-    /// Wraps: `av_get_padded_bits_per_pixel`
+    /// Wraps `fn::av_get_padded_bits_per_pixel`
     ///
     /// The number of bits a pixel occupies, padding and unused bits
     /// included, averaged over the chroma subsampling: 12 for
@@ -3764,6 +3826,7 @@ impl PixelFormatDescriptorRef<'_> {
     /// let desc = PixelFormat::RGB0.descriptor().unwrap();
     /// assert_eq!(desc.padded_bits_per_pixel(), Ok(32));
     /// ```
+    #[doc(alias = "av_get_padded_bits_per_pixel")]
     pub fn padded_bits_per_pixel(&self) -> Result<u32, InvalidDescriptor> {
         self.checked_padded_bits_per_pixel()?;
         // SAFETY: the handle addresses a live, initialised descriptor, which
@@ -4111,7 +4174,7 @@ fn read_line_with(
     Ok(())
 }
 
-/// Wraps: `av_read_image_line2`
+/// Wraps `fn::av_read_image_line2`
 ///
 /// Reads `dst.len()` values of component `component` (0 to 3, in the
 /// order of [`components`](PixelFormatDescriptorRef::components)) of the
@@ -4158,6 +4221,7 @@ fn read_line_with(
 /// read_image_line(&mut green, planes, desc, 0, 0, 1, false).unwrap();
 /// assert_eq!(green, [2, 5]);
 /// ```
+#[doc(alias = "av_read_image_line2")]
 pub fn read_image_line<T: LineElement>(
     dst: &mut [T],
     planes: Planes<'_>,
@@ -4200,13 +4264,14 @@ pub fn read_image_line<T: LineElement>(
     )
 }
 
-/// Wraps: `av_read_image_line`
+/// Wraps `fn::av_read_image_line`
 ///
 /// [`read_image_line`] into `u16`s, through C's original entry point.
 ///
 /// # Errors
 ///
 /// As for [`read_image_line`].
+#[doc(alias = "av_read_image_line")]
 pub fn read_image_line_u16(
     dst: &mut [u16],
     planes: Planes<'_>,
@@ -4273,7 +4338,7 @@ fn write_line_with(
     Ok(())
 }
 
-/// Wraps: `av_write_image_line2`
+/// Wraps `fn::av_write_image_line2`
 ///
 /// Writes the values of `src` to component `component` (0 to 3) of the
 /// pixels from `x` on of row `y` of an image in `planes`, laid out as
@@ -4304,6 +4369,7 @@ fn write_line_with(
 /// write_image_line(&[31u32, 1], &mut planes, desc, 0, 0, 0).unwrap();
 /// assert_eq!(row, [0x00, 0xF8, 0x00, 0x08]);
 /// ```
+#[doc(alias = "av_write_image_line2")]
 pub fn write_image_line<T: LineElement>(
     src: &[T],
     planes: &mut PlanesMut<'_>,
@@ -4335,13 +4401,14 @@ pub fn write_image_line<T: LineElement>(
     })
 }
 
-/// Wraps: `av_write_image_line`
+/// Wraps `fn::av_write_image_line`
 ///
 /// [`write_image_line`] from `u16`s, through C's original entry point.
 ///
 /// # Errors
 ///
 /// As for [`write_image_line`].
+#[doc(alias = "av_write_image_line")]
 pub fn write_image_line_u16(
     src: &[u16],
     planes: &mut PlanesMut<'_>,
