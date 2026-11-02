@@ -83,11 +83,12 @@ libavfilter-sys = { version = "0.1.0", path = "libavfilter-sys" }
 libavdevice-sys = { version = "0.1.0", path = "libavdevice-sys" }
 # Wrappers of the out-of-tree libraries, each pinned to its side campaign's working branch
 # (`wrapper.pin` in crustify/artifacts/dependencies.json), and patched below to its clone
-# beside this repository while the campaign extends it.
+# beside this repository while the campaign extends it, by absolute path, which the batch
+# worktrees under crustify/.worktrees resolve too.
 glibc-bindings = { version = "0.1.0", git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
 
 [patch."https://github.com/crustify-rs/glibc-bindings"]
-glibc-bindings = { path = "../glibc-bindings" }
+glibc-bindings = { path = "/work/glibc-bindings" }
 
 # ffibox is pinned by Git so that this crate and the wrappers it takes by Git
 # resolve one copy of it; patched to the local checkout while the campaign runs.
