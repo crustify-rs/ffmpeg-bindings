@@ -14,7 +14,7 @@ use super::ffi;
 use super::mem::Heap;
 
 define_ctype!(
-    /// Wraps: AVTWOFISH
+    /// Wraps `ty::AVTWOFISH`
     ///
     /// An initialized Twofish context. Its private C fields are not exposed.
     /// No `Send`/`Sync` guarantee is added.
@@ -36,6 +36,7 @@ define_ctype!(
     /// drop(owner);
     /// let _copy = shared;
     /// ```
+    #[doc(alias = "AVTWOFISH")]
     Twofish,
     TwofishRef,
     TwofishMut,
@@ -58,10 +59,11 @@ pub type TwofishBox = CBox<Twofish, TwofishFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TwofishFree;
 
-/// Wraps: `av_free`
 // SAFETY: TwofishBox adopts only `av_twofish_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Twofish> for TwofishFree {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Twofish>) {
         // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
         unsafe { <Heap as CDrop<Twofish>>::c_drop(&Heap, ptr) }
@@ -122,7 +124,7 @@ fn validate_key(key: &[u8], key_bits: i32) -> Result<(), InitError> {
 }
 
 impl Twofish {
-    /// Wraps: `av_twofish_alloc`
+    /// Wraps `fn::av_twofish_alloc`
     ///
     /// Allocate a fully initialized context and return C's initialization
     /// status. Zero bits (including an empty key), partial bytes and counts
@@ -134,6 +136,7 @@ impl Twofish {
     /// Returns [`InitError::NegativeKeyBits`] for a negative bit count, [`InitError::KeyTooShort`]
     /// when `key` holds fewer bytes than the count needs, and [`InitError::AllocationFailed`] when
     /// C cannot allocate the context.
+    #[doc(alias = "av_twofish_alloc")]
     pub fn new(key: &[u8], key_bits: i32) -> Result<(TwofishBox, InitStatus), InitError> {
         validate_key(key, key_bits)?;
         // SAFETY: as the comment below states, for this part of the operation.
@@ -149,7 +152,7 @@ impl Twofish {
 }
 
 impl TwofishMut<'_> {
-    /// Wraps: `av_twofish_init`
+    /// Wraps `fn::av_twofish_init`
     ///
     /// Replace the key schedule, preserving C's padding/truncation status.
     /// An invalid bit count or short slice leaves the old schedule unchanged.
@@ -159,6 +162,7 @@ impl TwofishMut<'_> {
     ///
     /// Returns [`InitError::NegativeKeyBits`] for a negative bit count, and
     /// [`InitError::KeyTooShort`] when `key` holds fewer bytes than the count needs.
+    #[doc(alias = "av_twofish_init")]
     pub fn init(&mut self, key: &[u8], key_bits: i32) -> Result<InitStatus, InitError> {
         validate_key(key, key_bits)?;
         // SAFETY: this handle exclusively borrows a full C context; validation
@@ -175,9 +179,10 @@ impl TwofishMut<'_> {
     }
 }
 
-/// Wraps: `av_twofish_size`
+/// Wraps `var::av_twofish_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_twofish_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -196,7 +201,7 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl TwofishRef<'_> {
-    /// Wraps: `av_twofish_crypt`
+    /// Wraps `fn::av_twofish_crypt`
     ///
     /// Encrypt or decrypt whole 16-byte blocks. A mutable
     /// IV selects CBC and is updated after each block; `None` selects ECB.
@@ -207,6 +212,7 @@ impl TwofishRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_twofish_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -231,12 +237,15 @@ impl TwofishRef<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_twofish_crypt`
+    ///
     /// The in-place form of `crypt`, with the same validation and IV semantics.
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_twofish_crypt")]
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
