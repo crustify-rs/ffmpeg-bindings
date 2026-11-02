@@ -12,7 +12,7 @@ use super::aes::{CryptError, Direction, buffer_count};
 use super::ffi;
 
 define_ctype!(
-    /// Wraps: AVCAST5
+    /// Wraps `ty::AVCAST5`
     ///
     /// Opaque CAST-128 context. Only C knows its size: never allocate this
     /// layout by value or through a generic Rust-size allocator. Use
@@ -46,6 +46,7 @@ define_ctype!(
     /// drop(owner);
     /// handle.init(&[0; 16]).unwrap();
     /// ```
+    #[doc(alias = "AVCAST5")]
     Cast5,
     Cast5Ref,
     Cast5Mut,
@@ -58,10 +59,11 @@ define_ctype!(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cast5Free;
 
-/// Wraps: `av_free`
 // SAFETY: av_cast5_alloc returns sole-owned av_mallocz storage with no
 // sub-allocations; av_free releases it without reading the context.
 unsafe impl CDrop<Cast5> for Cast5Free {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Cast5>) {
         // SAFETY: CDrop's caller transfers the sole live allocation paired
         // with this policy. av_free releases it once, without reading it.
@@ -103,7 +105,7 @@ fn key_bits(key: &[u8]) -> Result<i32, InitError> {
 }
 
 impl Cast5 {
-    /// Wraps: `av_cast5_alloc`
+    /// Wraps `fn::av_cast5_alloc`
     ///
     /// Allocates and initializes a context using a 5–16 byte key. C copies
     /// the key during initialization, so the returned owner does not borrow
@@ -114,6 +116,7 @@ impl Cast5 {
     /// Returns [`InitError::InvalidKeyLength`] for a key outside 5 to 16 bytes,
     /// [`InitError::AllocationFailed`] when C cannot allocate the context, and [`InitError::C`]
     /// with C's code when `av_cast5_init` fails.
+    #[doc(alias = "av_cast5_alloc")]
     pub fn new(key: &[u8]) -> Result<Cast5Box, InitError> {
         key_bits(key)?;
         // SAFETY: as the comment below states, for this part of the operation.
@@ -130,7 +133,7 @@ impl Cast5 {
 }
 
 impl Cast5Mut<'_> {
-    /// Wraps: `av_cast5_init`
+    /// Wraps `fn::av_cast5_init`
     ///
     /// Replaces the round keys using a 5–16 byte key. C does not retain the
     /// key. Invalid lengths leave the existing state unchanged.
@@ -139,6 +142,7 @@ impl Cast5Mut<'_> {
     ///
     /// Returns [`InitError::InvalidKeyLength`] for a key outside 5 to 16 bytes, and
     /// [`InitError::C`] with C's code when `av_cast5_init` fails.
+    #[doc(alias = "av_cast5_init")]
     pub fn init(&mut self, key: &[u8]) -> Result<(), InitError> {
         let bits = key_bits(key)?;
         // SAFETY: this exclusive handle addresses a full C-allocated context,
@@ -153,9 +157,10 @@ impl Cast5Mut<'_> {
     }
 }
 
-/// Wraps: `av_cast5_size`
+/// Wraps `var::av_cast5_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_cast5_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -164,7 +169,7 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl Cast5Ref<'_> {
-    /// Wraps: `av_cast5_crypt`
+    /// Wraps `fn::av_cast5_crypt`
     ///
     /// Encrypt or decrypt whole blocks in ECB mode.
     /// Buffers must have equal lengths; errors leave all state unchanged.
@@ -173,6 +178,7 @@ impl Cast5Ref<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_cast5_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -199,12 +205,15 @@ impl Cast5Ref<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_cast5_crypt`
+    ///
     /// In-place form of [`Self::crypt`], with the same modes and validation.
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_cast5_crypt")]
     pub fn crypt_in_place(&self, data: &mut [u8], direction: Direction) -> Result<(), CryptError> {
         let count = buffer_count(data.len(), data.len(), 8)?;
         if count == 0 {
@@ -230,7 +239,7 @@ impl Cast5Ref<'_> {
 }
 
 impl Cast5Ref<'_> {
-    /// Wraps: `av_cast5_crypt2`
+    /// Wraps `fn::av_cast5_crypt2`
     ///
     /// Encrypt or decrypt whole blocks.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
@@ -240,6 +249,7 @@ impl Cast5Ref<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_cast5_crypt2")]
     pub fn crypt_cbc(
         &self,
         dst: &mut [u8],
@@ -268,12 +278,15 @@ impl Cast5Ref<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_cast5_crypt2`
+    ///
     /// In-place form of [`Self::crypt_cbc`], with the same modes and validation.
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_cast5_crypt2")]
     pub fn crypt_cbc_in_place(
         &self,
         data: &mut [u8],
