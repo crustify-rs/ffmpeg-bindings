@@ -69,7 +69,7 @@ use super::side_data::{SideDataArrayMut, SideDataArrayRef, copy_into, zero_into}
 use super::utils::PictureType;
 use super::{ffi, imgutils, refstruct};
 
-/// Wraps: `AVFrameSideDataType`
+/// Wraps `ty::AVFrameSideDataType`
 /// Handwritten
 ///
 /// The kind of side data attached to a frame, which decides how its payload
@@ -103,6 +103,7 @@ use super::{ffi, imgutils, refstruct};
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVFrameSideDataType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SideDataType(ffi::AVFrameSideDataType);
@@ -295,7 +296,7 @@ impl From<SideDataType> for ffi::AVFrameSideDataType {
 // identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for SideDataType {}
 
-/// Wraps: `AVActiveFormatDescription`
+/// Wraps `ty::AVActiveFormatDescription`
 /// Handwritten
 ///
 /// An Active Format Description (ETSI TS 101 154): which part of a coded
@@ -326,6 +327,7 @@ unsafe impl CPlainElem for SideDataType {}
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVActiveFormatDescription")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActiveFormatDescription(ffi::AVActiveFormatDescription);
@@ -441,7 +443,7 @@ impl From<u8> for ActiveFormatDescription {
 // C-side identity: a copy read out of C memory is the whole of it.
 unsafe impl CPlainElem for ActiveFormatDescription {}
 
-/// Wraps: `AVSideDataProps`
+/// Wraps `ty::AVSideDataProps`
 /// Handwritten
 ///
 /// A set of `AVSideDataProps` bits: what a side data type's payload depends
@@ -456,6 +458,7 @@ unsafe impl CPlainElem for ActiveFormatDescription {}
 /// carry them along.
 ///
 /// [`from_bits_retain`]: SideDataProps::from_bits_retain
+#[doc(alias = "AVSideDataProps")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SideDataProps(ffi::AVSideDataProps);
@@ -678,7 +681,7 @@ impl From<SideDataProps> for ffi::AVSideDataProps {
 }
 
 define_ctype!(
-    /// Wraps: AVSideDataDescriptor
+    /// Wraps `ty::AVSideDataDescriptor`
     ///
     /// What a side data type is: its human-readable name and its
     /// [`SideDataProps`]. Its getters are on [`SideDataDescriptorRef`]
@@ -696,6 +699,7 @@ define_ctype!(
     /// hand it out as a `&'static CStr`, which outlives the descriptor and can
     /// be set into another one. The `props` bits are not range-checked, by C
     /// or here.
+    #[doc(alias = "AVSideDataDescriptor")]
     #[derive(Clone, Copy)]
     SideDataDescriptor,
     SideDataDescriptorRef,
@@ -825,11 +829,12 @@ impl fmt::Debug for SideDataDescriptorRef<'_> {
     reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
 )]
 impl SideDataDescriptorRef<'_> {
-    /// Field: AVSideDataDescriptor.name
+    /// Wraps `fld::AVSideDataDescriptor.name`
     ///
     /// The side data type's human-readable description, such as
     /// `Stereo 3D`; `None` for a descriptor without one, such as the
     /// all-zero descriptor. Every descriptor in C's table has one.
+    #[doc(alias = "AVSideDataDescriptor.name")]
     #[must_use]
     pub fn name(&self) -> Option<&'static CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -844,9 +849,10 @@ impl SideDataDescriptorRef<'_> {
         (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
     }
 
-    /// Field: AVSideDataDescriptor.props
+    /// Wraps `fld::AVSideDataDescriptor.props`
     ///
     /// The side data type's [`SideDataProps`], unnamed bits included.
+    #[doc(alias = "AVSideDataDescriptor.props")]
     #[must_use]
     pub fn props(&self) -> SideDataProps {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -877,11 +883,12 @@ impl SideDataDescriptorRef<'_> {
 }
 
 impl SideDataDescriptorMut<'_> {
-    /// Field: AVSideDataDescriptor.name
+    /// Wraps `fld::AVSideDataDescriptor.name`
     ///
     /// Sets the side data type's description, or clears it with `None`,
     /// leaving the properties as they are. The string is borrowed for the
     /// whole program, as C's own names are.
+    #[doc(alias = "AVSideDataDescriptor.name")]
     pub fn set_name(&mut self, name: Option<&'static CStr>) {
         let p = name.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -894,10 +901,11 @@ impl SideDataDescriptorMut<'_> {
         unsafe { name_ptr.write(p) }
     }
 
-    /// Field: AVSideDataDescriptor.props
+    /// Wraps `fld::AVSideDataDescriptor.props`
     ///
     /// Sets the side data type's properties, unnamed bits included, leaving
     /// the name as it is.
+    #[doc(alias = "AVSideDataDescriptor.props")]
     pub fn set_props(&mut self, props: SideDataProps) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `props` field is in bounds; nothing is accessed here.
@@ -918,7 +926,7 @@ impl SideDataDescriptorMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVRegionOfInterest
+    /// Wraps `ty::AVRegionOfInterest`
     ///
     /// A rectangle of a video frame and the encoder quality to give it: one
     /// element of `REGIONS_OF_INTEREST` frame side data
@@ -960,6 +968,7 @@ define_ctype!(
     /// region.set_top(1);
     /// offset.set_num(1);
     /// ```
+    #[doc(alias = "AVRegionOfInterest")]
     #[derive(Clone, Copy)]
     RegionOfInterest,
     RegionOfInterestRef,
@@ -1099,10 +1108,11 @@ impl fmt::Debug for RegionOfInterestRef<'_> {
     reason = "the conventions' getters and setters take `&self` and `&mut self` on the handles"
 )]
 impl<'a> RegionOfInterestRef<'a> {
-    /// Field: `AVRegionOfInterest.self_size`
+    /// Wraps `fld::AVRegionOfInterest.self_size`
     ///
     /// The size this element claims, which readers of a side data array take
     /// as its stride.
+    #[doc(alias = "AVRegionOfInterest.self_size")]
     #[must_use]
     pub fn self_size(&self) -> u32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1114,9 +1124,10 @@ impl<'a> RegionOfInterestRef<'a> {
         unsafe { self_size_ptr.read() }
     }
 
-    /// Field: AVRegionOfInterest.top
+    /// Wraps `fld::AVRegionOfInterest.top`
     ///
     /// The distance in pixels from the frame's top edge to the region's.
+    #[doc(alias = "AVRegionOfInterest.top")]
     #[must_use]
     pub fn top(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1126,10 +1137,11 @@ impl<'a> RegionOfInterestRef<'a> {
         unsafe { top_ptr.read() }
     }
 
-    /// Field: AVRegionOfInterest.bottom
+    /// Wraps `fld::AVRegionOfInterest.bottom`
     ///
     /// The distance in pixels from the frame's top edge to the region's
     /// bottom edge.
+    #[doc(alias = "AVRegionOfInterest.bottom")]
     #[must_use]
     pub fn bottom(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1139,9 +1151,10 @@ impl<'a> RegionOfInterestRef<'a> {
         unsafe { bottom_ptr.read() }
     }
 
-    /// Field: AVRegionOfInterest.left
+    /// Wraps `fld::AVRegionOfInterest.left`
     ///
     /// The distance in pixels from the frame's left edge to the region's.
+    #[doc(alias = "AVRegionOfInterest.left")]
     #[must_use]
     pub fn left(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1151,10 +1164,11 @@ impl<'a> RegionOfInterestRef<'a> {
         unsafe { left_ptr.read() }
     }
 
-    /// Field: AVRegionOfInterest.right
+    /// Wraps `fld::AVRegionOfInterest.right`
     ///
     /// The distance in pixels from the frame's left edge to the region's
     /// right edge.
+    #[doc(alias = "AVRegionOfInterest.right")]
     #[must_use]
     pub fn right(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1164,7 +1178,7 @@ impl<'a> RegionOfInterestRef<'a> {
         unsafe { right_ptr.read() }
     }
 
-    /// Field: AVRegionOfInterest.qoffset
+    /// Wraps `fld::AVRegionOfInterest.qoffset`
     ///
     /// The quantisation offset, as a handle over it that lives as long as
     /// this one.
@@ -1172,6 +1186,7 @@ impl<'a> RegionOfInterestRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVRegionOfInterest.qoffset")]
     #[must_use]
     pub fn qoffset(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1207,11 +1222,12 @@ impl<'a> RegionOfInterestRef<'a> {
 }
 
 impl RegionOfInterestMut<'_> {
-    /// Field: `AVRegionOfInterest.self_size`
+    /// Wraps `fld::AVRegionOfInterest.self_size`
     ///
     /// Sets the size this element claims; C requires
     /// [`RegionOfInterest::SELF_SIZE`], and its readers read past the side
     /// data payload for a smaller nonzero size (see [`RegionOfInterest`]).
+    #[doc(alias = "AVRegionOfInterest.self_size")]
     pub fn set_self_size(&mut self, self_size: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `self_size` field is in bounds; nothing is accessed here.
@@ -1222,9 +1238,10 @@ impl RegionOfInterestMut<'_> {
         unsafe { self_size_ptr.write(self_size) }
     }
 
-    /// Field: AVRegionOfInterest.top
+    /// Wraps `fld::AVRegionOfInterest.top`
     ///
     /// Sets the distance from the frame's top edge to the region's.
+    #[doc(alias = "AVRegionOfInterest.top")]
     pub fn set_top(&mut self, top: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `top` field is in bounds; nothing is accessed here.
@@ -1233,10 +1250,11 @@ impl RegionOfInterestMut<'_> {
         unsafe { top_ptr.write(top) }
     }
 
-    /// Field: AVRegionOfInterest.bottom
+    /// Wraps `fld::AVRegionOfInterest.bottom`
     ///
     /// Sets the distance from the frame's top edge to the region's bottom
     /// edge.
+    #[doc(alias = "AVRegionOfInterest.bottom")]
     pub fn set_bottom(&mut self, bottom: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `bottom` field is in bounds; nothing is accessed here.
@@ -1245,9 +1263,10 @@ impl RegionOfInterestMut<'_> {
         unsafe { bottom_ptr.write(bottom) }
     }
 
-    /// Field: AVRegionOfInterest.left
+    /// Wraps `fld::AVRegionOfInterest.left`
     ///
     /// Sets the distance from the frame's left edge to the region's.
+    #[doc(alias = "AVRegionOfInterest.left")]
     pub fn set_left(&mut self, left: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `left` field is in bounds; nothing is accessed here.
@@ -1256,10 +1275,11 @@ impl RegionOfInterestMut<'_> {
         unsafe { left_ptr.write(left) }
     }
 
-    /// Field: AVRegionOfInterest.right
+    /// Wraps `fld::AVRegionOfInterest.right`
     ///
     /// Sets the distance from the frame's left edge to the region's right
     /// edge.
+    #[doc(alias = "AVRegionOfInterest.right")]
     pub fn set_right(&mut self, right: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `right` field is in bounds; nothing is accessed here.
@@ -1268,7 +1288,7 @@ impl RegionOfInterestMut<'_> {
         unsafe { right_ptr.write(right) }
     }
 
-    /// Field: AVRegionOfInterest.qoffset
+    /// Wraps `fld::AVRegionOfInterest.qoffset`
     ///
     /// An exclusive handle over the quantisation offset, for writing its
     /// parts; this handle is frozen while it lives.
@@ -1276,6 +1296,7 @@ impl RegionOfInterestMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVRegionOfInterest.qoffset")]
     #[must_use]
     pub fn qoffset_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1288,9 +1309,10 @@ impl RegionOfInterestMut<'_> {
         unsafe { RationalMut::from_ptr(qoffset_ptr) }.expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVRegionOfInterest.qoffset
+    /// Wraps `fld::AVRegionOfInterest.qoffset`
     ///
     /// Sets the quantisation offset.
+    #[doc(alias = "AVRegionOfInterest.qoffset")]
     pub fn set_qoffset(&mut self, qoffset: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `qoffset` field is in bounds; nothing is accessed here.
@@ -1309,7 +1331,7 @@ impl RegionOfInterestMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVFrameSideData
+    /// Wraps `ty::AVFrameSideData`
     ///
     /// One piece of side data: a payload of bytes whose layout its
     /// [`kind`](SideDataRef::kind) decides, the
@@ -1365,6 +1387,7 @@ define_ctype!(
     /// `Send` and `Sync`: the entry is plain data, its buffer reference and
     /// dictionary are both, and the shared bytes are written only through a
     /// sole reference.
+    #[doc(alias = "AVFrameSideData")]
     SideData,
     SideDataRef,
     SideDataMut,
@@ -1398,10 +1421,11 @@ unsafe impl Sync for SideDataRef<'_> {}
 unsafe impl Sync for SideDataMut<'_> {}
 
 impl<'a> SideDataRef<'a> {
-    /// Field: AVFrameSideData.type
+    /// Wraps `fld::AVFrameSideData.type`
     ///
     /// The kind of side data this is (C's `type`), which tells how its
     /// payload is laid out.
+    #[doc(alias = "AVFrameSideData.type")]
     #[must_use]
     pub fn kind(&self) -> SideDataType {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1431,11 +1455,12 @@ impl<'a> SideDataRef<'a> {
         }
     }
 
-    /// Field: AVFrameSideData.data
+    /// Wraps `fld::AVFrameSideData.data`
     ///
     /// The payload, borrowed for as long as the entry is. Nothing writes it
     /// meanwhile: a writer needs the only reference to its buffer, and the
     /// entry holds one.
+    #[doc(alias = "AVFrameSideData.data")]
     #[must_use]
     pub fn data(&self) -> &'a [u8] {
         let (data, len) = self.parts();
@@ -1446,9 +1471,10 @@ impl<'a> SideDataRef<'a> {
         unsafe { slice::from_raw_parts(data.as_ptr(), len) }
     }
 
-    /// Field: AVFrameSideData.size
+    /// Wraps `fld::AVFrameSideData.size`
     ///
     /// The number of bytes in the payload.
+    #[doc(alias = "AVFrameSideData.size")]
     #[must_use]
     pub fn len(&self) -> usize {
         self.parts().1
@@ -1460,7 +1486,7 @@ impl<'a> SideDataRef<'a> {
         self.len() == 0
     }
 
-    /// Field: AVFrameSideData.buf
+    /// Wraps `fld::AVFrameSideData.buf`
     ///
     /// The reference to the buffer holding the payload, borrowed from the
     /// entry. Its own window may differ from the payload's only where C code
@@ -1470,6 +1496,7 @@ impl<'a> SideDataRef<'a> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an entry holds a buffer reference.
+    #[doc(alias = "AVFrameSideData.buf")]
     #[must_use]
     pub fn buffer(&self) -> BufferReferenceRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1483,9 +1510,10 @@ impl<'a> SideDataRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }.expect("an entry holds a buffer reference")
     }
 
-    /// Field: AVFrameSideData.metadata
+    /// Wraps `fld::AVFrameSideData.metadata`
     ///
     /// The entry's metadata, borrowed from it; `None` when it has none.
+    #[doc(alias = "AVFrameSideData.metadata")]
     #[must_use]
     pub fn metadata(&self) -> Option<DictionaryRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1518,7 +1546,7 @@ impl fmt::Debug for SideDataMut<'_> {
 }
 
 impl SideDataMut<'_> {
-    /// Field: AVFrameSideData.type
+    /// Wraps `fld::AVFrameSideData.type`
     ///
     /// Makes this entry side data of `kind`, leaving the payload as it is.
     ///
@@ -1528,6 +1556,7 @@ impl SideDataMut<'_> {
     /// says before the entry reaches them. Nor does C keep kinds unique: the
     /// lookups return the first entry of a kind, and the removals take them
     /// all.
+    #[doc(alias = "AVFrameSideData.type")]
     pub fn set_kind(&mut self, kind: SideDataType) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `type_` field is in bounds; nothing is accessed here.
@@ -1538,12 +1567,13 @@ impl SideDataMut<'_> {
         unsafe { type_ptr.write(kind.into_raw()) }
     }
 
-    /// Field: AVFrameSideData.data
+    /// Wraps `fld::AVFrameSideData.data`
     ///
     /// The payload, writable, when the entry's buffer has no other reference
     /// and is not read-only (`av_buffer_is_writable`); `None` otherwise.
     /// Cloning the entry's reference, or the entry into another array, makes
     /// it unwritable until the copy is gone.
+    #[doc(alias = "AVFrameSideData.data")]
     #[must_use]
     pub fn data_mut(&mut self) -> Option<&mut [u8]> {
         let shared = self.as_ref();
@@ -1559,7 +1589,7 @@ impl SideDataMut<'_> {
         Some(unsafe { slice::from_raw_parts_mut(data.as_ptr(), len) })
     }
 
-    /// Field: AVFrameSideData.buf
+    /// Wraps `fld::AVFrameSideData.buf`
     ///
     /// Makes `with` the entry's buffer reference and its window the payload,
     /// as C does when it replaces an entry's buffer, and returns the
@@ -1568,6 +1598,7 @@ impl SideDataMut<'_> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an entry holds a buffer reference.
+    #[doc(alias = "AVFrameSideData.buf")]
     #[must_use = "dropping the old reference releases it; use `set_buffer` for that"]
     pub fn replace_buffer(&mut self, with: BufferReferenceBox) -> BufferReferenceBox {
         let new = with.into_c();
@@ -1611,19 +1642,21 @@ impl SideDataMut<'_> {
         unsafe { BufferReferenceBox::from_c(old) }.expect("an entry holds a buffer reference")
     }
 
-    /// Field: AVFrameSideData.buf
+    /// Wraps `fld::AVFrameSideData.buf`
     ///
     /// Makes `with` the entry's buffer reference and its window the payload,
     /// and releases the reference the entry held, as
     /// [`replace_buffer`](Self::replace_buffer) and a drop.
+    #[doc(alias = "AVFrameSideData.buf")]
     pub fn set_buffer(&mut self, with: BufferReferenceBox) {
         drop(self.replace_buffer(with));
     }
 
-    /// Field: AVFrameSideData.metadata
+    /// Wraps `fld::AVFrameSideData.metadata`
     ///
     /// Makes `with` the entry's metadata, and returns the metadata the entry
     /// held.
+    #[doc(alias = "AVFrameSideData.metadata")]
     #[must_use = "dropping the old metadata frees it; use `set_metadata` for that"]
     pub fn replace_metadata(&mut self, with: Dict) -> Dict {
         let new = Option::<DictionaryBox>::from(with).map_or(ptr::null_mut(), CBox::into_c);
@@ -1647,17 +1680,19 @@ impl SideDataMut<'_> {
         Dict::from(unsafe { DictionaryBox::from_c(old) })
     }
 
-    /// Field: AVFrameSideData.metadata
+    /// Wraps `fld::AVFrameSideData.metadata`
     ///
     /// Makes `with` the entry's metadata, and frees the metadata the entry
     /// held, as [`replace_metadata`](Self::replace_metadata) and a drop.
+    #[doc(alias = "AVFrameSideData.metadata")]
     pub fn set_metadata(&mut self, with: Dict) {
         drop(self.replace_metadata(with));
     }
 
-    /// Field: AVFrameSideData.metadata
+    /// Wraps `fld::AVFrameSideData.metadata`
     ///
     /// Takes the entry's metadata out, leaving it none.
+    #[doc(alias = "AVFrameSideData.metadata")]
     #[must_use]
     pub fn take_metadata(&mut self) -> Dict {
         self.replace_metadata(Dict::new())
@@ -1869,7 +1904,7 @@ impl fmt::Display for PlaneError {
 impl std::error::Error for PlaneError {}
 
 define_ctype!(
-    /// Wraps: AVFrame
+    /// Wraps `ty::AVFrame`
     ///
     /// Decoded audio or video: the planes of its samples or pixels, the
     /// buffer references that hold them, what describes them (format,
@@ -1954,6 +1989,7 @@ define_ctype!(
     ///
     /// `Send` and `Sync`: what a frame owns is, and the shared bytes are
     /// written only through a sole reference.
+    #[doc(alias = "AVFrame")]
     Frame,
     FrameRef,
     FrameMut,
@@ -2009,8 +2045,6 @@ unsafe fn frame_free(frame: *mut ffi::AVFrame) {
     unsafe { ffi::av_frame_free(&raw mut slot) }
 }
 
-/// Wraps: `av_frame_free`
-///
 /// The release policy of a [`FrameBox`]: `av_frame_free` releases every
 /// buffer reference, side data entry, dictionary and array the frame holds
 /// and frees the struct. Its constructor is `av_frame_alloc`
@@ -2032,7 +2066,13 @@ unsafe fn frame_free(frame: *mut ffi::AVFrame) {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct FrameFree;
 
-impl_cdrop!(FrameFree, Frame, frame_free);
+impl_cdrop!(
+    /// Wraps `fn::av_frame_free`
+    #[doc(alias = "av_frame_free")]
+    FrameFree,
+    Frame,
+    frame_free
+);
 
 // SAFETY: a non-NULL result is a fresh frame C allocated with av_malloc and
 // set to its defaults (get_frame_defaults: every pointer NULL, extended_data
@@ -2040,6 +2080,8 @@ impl_cdrop!(FrameFree, Frame, frame_free);
 // nothing and so satisfies `Frame`'s invariant, and which `av_frame_free`
 // releases.
 unsafe impl CNew<Frame> for FrameFree {
+    /// Wraps `fn::av_frame_alloc`
+    #[doc(alias = "av_frame_alloc")]
     fn c_new(&self) -> Option<NonNull<Frame>> {
         // SAFETY: no precondition; NULL when C cannot allocate.
         NonNull::new(unsafe { ffi::av_frame_alloc() }.cast())
@@ -2059,8 +2101,6 @@ unsafe impl CNew<Frame> for FrameFree {
 pub type FrameBox = CBox<Frame, FrameFree>;
 
 impl Frame {
-    /// Wraps: `av_frame_alloc`
-    ///
     /// A new frame with C's defaults: no data, buffer, side data or
     /// metadata, an unknown format (-1), no timestamps
     /// (`AV_NOPTS_VALUE`), a 0/1 time base and sample aspect ratio,
@@ -2278,7 +2318,7 @@ impl<'a> FrameRef<'a> {
         Some(&buf.data()[offset..])
     }
 
-    /// Field: AVFrame.data
+    /// Wraps `fld::AVFrame.data`
     ///
     /// Plane `i`'s bytes: from where its `data` pointer points to the end of
     /// the buffer reference holding it, borrowed for as long as the frame
@@ -2293,12 +2333,13 @@ impl<'a> FrameRef<'a> {
     /// format, dimensions or sample count and line size to tell. Nothing
     /// writes them meanwhile: a writer needs the only reference to their
     /// buffer, and the frame holds one.
+    #[doc(alias = "AVFrame.data")]
     #[must_use]
     pub fn plane(&self, i: usize) -> Option<&'a [u8]> {
         self.view(*self.data_ptrs().get(i)?)
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Plane or channel `i`'s bytes through `extended_data`, as
     /// [`plane`](Self::plane) reads `data`: where it points to the end of the
@@ -2310,6 +2351,7 @@ impl<'a> FrameRef<'a> {
     /// `extended_data` is the frame's own `data`, and this reads what
     /// `plane` does; planar audio with more channels lists every channel's
     /// plane here.
+    #[doc(alias = "AVFrame.extended_data")]
     #[must_use]
     pub fn extended_plane(&self, i: usize) -> Option<&'a [u8]> {
         let (ext, count) = self.extended_parts();
@@ -2325,29 +2367,34 @@ impl<'a> FrameRef<'a> {
         self.view(unsafe { ext_at.read() })
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// The number of entries [`extended_plane`](Self::extended_plane) reads:
     /// [`NUM_DATA_POINTERS`] while `extended_data` is the frame's own `data`,
     /// and the channel layout's count (none for a negative one) while it is
     /// a separate array ([`FrameMut::alloc_extended_data`]).
+    #[doc(alias = "AVFrame.extended_data")]
     #[must_use]
     pub fn extended_plane_count(&self) -> usize {
         self.extended_parts().1
     }
 
+    /// Wraps `fld::AVFrame.extended_data`
+    ///
     /// Whether `extended_data` is an array of its own
     /// ([`FrameMut::alloc_extended_data`]) rather than the frame's `data`.
+    #[doc(alias = "AVFrame.extended_data")]
     #[must_use]
     pub fn has_extended_data(&self) -> bool {
         self.has_extended_array()
     }
 
-    /// Field: AVFrame.linesize
+    /// Wraps `fld::AVFrame.linesize`
     ///
     /// The line sizes of the planes: for video, each plane's byte stride,
     /// negative for a bottom-up plane; for audio, the size of each plane in
     /// `[0]` alone.
+    #[doc(alias = "AVFrame.linesize")]
     #[must_use]
     pub fn linesizes(&self) -> [i32; NUM_DATA_POINTERS] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2358,9 +2405,10 @@ impl<'a> FrameRef<'a> {
         unsafe { linesize_ptr.read() }
     }
 
-    /// Field: AVFrame.width
+    /// Wraps `fld::AVFrame.width`
     ///
     /// The coded width of a video frame, in pixels.
+    #[doc(alias = "AVFrame.width")]
     #[must_use]
     pub fn width(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2371,9 +2419,10 @@ impl<'a> FrameRef<'a> {
         unsafe { width_ptr.read() }
     }
 
-    /// Field: AVFrame.height
+    /// Wraps `fld::AVFrame.height`
     ///
     /// The coded height of a video frame, in pixels.
+    #[doc(alias = "AVFrame.height")]
     #[must_use]
     pub fn height(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2383,9 +2432,10 @@ impl<'a> FrameRef<'a> {
         unsafe { height_ptr.read() }
     }
 
-    /// Field: `AVFrame.nb_samples`
+    /// Wraps `fld::AVFrame.nb_samples`
     ///
     /// The number of audio samples per channel.
+    #[doc(alias = "AVFrame.nb_samples")]
     #[must_use]
     pub fn sample_count(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2395,10 +2445,11 @@ impl<'a> FrameRef<'a> {
         unsafe { nb_samples_ptr.read() }
     }
 
-    /// Field: AVFrame.format
+    /// Wraps `fld::AVFrame.format`
     ///
     /// The format as C stores it: a [`PixelFormat`] for video, a
     /// [`SampleFormat`] for audio, -1 when unknown.
+    #[doc(alias = "AVFrame.format")]
     #[must_use]
     pub fn format(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2408,23 +2459,30 @@ impl<'a> FrameRef<'a> {
         unsafe { format_ptr.read() }
     }
 
+    /// Wraps `fld::AVFrame.format`
+    ///
     /// The format read as a video frame's pixel format;
     /// [`PixelFormat::NONE`] when unknown.
+    #[doc(alias = "AVFrame.format")]
     #[must_use]
     pub fn pixel_format(&self) -> PixelFormat {
         PixelFormat::from_raw(self.format())
     }
 
+    /// Wraps `fld::AVFrame.format`
+    ///
     /// The format read as an audio frame's sample format;
     /// [`SampleFormat::NONE`] when unknown.
+    #[doc(alias = "AVFrame.format")]
     #[must_use]
     pub fn sample_format(&self) -> SampleFormat {
         SampleFormat::from_raw(self.format())
     }
 
-    /// Field: `AVFrame.pict_type`
+    /// Wraps `fld::AVFrame.pict_type`
     ///
     /// The picture type of a video frame.
+    #[doc(alias = "AVFrame.pict_type")]
     #[must_use]
     pub fn picture_type(&self) -> PictureType {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2436,7 +2494,7 @@ impl<'a> FrameRef<'a> {
         PictureType::from_raw(unsafe { pict_type_ptr.read() })
     }
 
-    /// Field: `AVFrame.sample_aspect_ratio`
+    /// Wraps `fld::AVFrame.sample_aspect_ratio`
     ///
     /// The sample aspect ratio of a video frame, 0/1 when unknown, as a
     /// handle over it that lives as long as this one.
@@ -2444,6 +2502,7 @@ impl<'a> FrameRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.sample_aspect_ratio")]
     #[must_use]
     pub fn sample_aspect_ratio(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -2457,10 +2516,11 @@ impl<'a> FrameRef<'a> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVFrame.pts
+    /// Wraps `fld::AVFrame.pts`
     ///
     /// The presentation timestamp, in [`time_base`](Self::time_base) units;
     /// `AV_NOPTS_VALUE` when unknown.
+    #[doc(alias = "AVFrame.pts")]
     #[must_use]
     pub fn pts(&self) -> i64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2471,10 +2531,11 @@ impl<'a> FrameRef<'a> {
         unsafe { pts_ptr.read() }
     }
 
-    /// Field: `AVFrame.pkt_dts`
+    /// Wraps `fld::AVFrame.pkt_dts`
     ///
     /// The decoding timestamp of the packet the frame was decoded from;
     /// `AV_NOPTS_VALUE` when unknown.
+    #[doc(alias = "AVFrame.pkt_dts")]
     #[must_use]
     pub fn packet_dts(&self) -> i64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2484,7 +2545,7 @@ impl<'a> FrameRef<'a> {
         unsafe { pkt_dts_ptr.read() }
     }
 
-    /// Field: `AVFrame.time_base`
+    /// Wraps `fld::AVFrame.time_base`
     ///
     /// The time base of the frame's timestamps, as a handle over it that
     /// lives as long as this one.
@@ -2492,6 +2553,7 @@ impl<'a> FrameRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.time_base")]
     #[must_use]
     pub fn time_base(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -2502,9 +2564,10 @@ impl<'a> FrameRef<'a> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVFrame.quality
+    /// Wraps `fld::AVFrame.quality`
     ///
     /// The quality, from 1 (good) to `FF_LAMBDA_MAX` (bad).
+    #[doc(alias = "AVFrame.quality")]
     #[must_use]
     pub fn quality(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2514,12 +2577,13 @@ impl<'a> FrameRef<'a> {
         unsafe { quality_ptr.read() }
     }
 
-    /// Field: AVFrame.opaque
+    /// Wraps `fld::AVFrame.opaque`
     ///
     /// The owner's user pointer, as the address it is. FFmpeg never
     /// dereferences it (it only copies it with the frame's properties, and
     /// to and from packets when asked), so what it points at is its
     /// setter's business.
+    #[doc(alias = "AVFrame.opaque")]
     #[must_use]
     pub fn opaque(&self) -> *mut c_void {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2531,10 +2595,11 @@ impl<'a> FrameRef<'a> {
         unsafe { opaque_ptr.read() }
     }
 
-    /// Field: `AVFrame.repeat_pict`
+    /// Wraps `fld::AVFrame.repeat_pict`
     ///
     /// The number of fields to repeat: the frame lasts `repeat_pict + 2`
     /// field durations.
+    #[doc(alias = "AVFrame.repeat_pict")]
     #[must_use]
     pub fn repeat_pict(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2544,9 +2609,10 @@ impl<'a> FrameRef<'a> {
         unsafe { repeat_pict_ptr.read() }
     }
 
-    /// Field: `AVFrame.sample_rate`
+    /// Wraps `fld::AVFrame.sample_rate`
     ///
     /// The sample rate of the audio, in Hz.
+    #[doc(alias = "AVFrame.sample_rate")]
     #[must_use]
     pub fn sample_rate(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2556,13 +2622,14 @@ impl<'a> FrameRef<'a> {
         unsafe { sample_rate_ptr.read() }
     }
 
-    /// Field: AVFrame.buf
+    /// Wraps `fld::AVFrame.buf`
     ///
     /// Buffer reference `i` of the planes' bytes, borrowed from the frame;
     /// `None` when the frame holds none at `i` or `i` is
     /// [`NUM_DATA_POINTERS`] or more. Its
     /// [`try_clone`](BufferReferenceRef::try_clone) shares the bytes, which
     /// makes no plane in them writable while the copy lives.
+    #[doc(alias = "AVFrame.buf")]
     #[must_use]
     pub fn buffer(&self, i: usize) -> Option<BufferReferenceRef<'a>> {
         let buf = *self.buffer_ptrs().get(i)?;
@@ -2572,11 +2639,12 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: `AVFrame.extended_buf`
+    /// Wraps `fld::AVFrame.extended_buf`
     ///
     /// Extra buffer reference `i`, for the planes of audio with more
     /// planes than [`NUM_DATA_POINTERS`], borrowed from the frame; `None`
     /// past the [`extended_buffer_count`](Self::extended_buffer_count).
+    #[doc(alias = "AVFrame.extended_buf")]
     #[must_use]
     pub fn extended_buffer(&self, i: usize) -> Option<BufferReferenceRef<'a>> {
         let (bufs, count) = self.extended_buffer_parts();
@@ -2595,18 +2663,21 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: `AVFrame.nb_extended_buf`
+    /// Wraps `fld::AVFrame.nb_extended_buf`
     ///
     /// The number of extra buffer references.
+    #[doc(alias = "AVFrame.nb_extended_buf")]
     #[must_use]
     pub fn extended_buffer_count(&self) -> usize {
         self.extended_buffer_parts().1
     }
 
-    /// Field: `AVFrame.side_data`
-    /// Field: `AVFrame.nb_side_data`
+    /// Wraps `fld::AVFrame.side_data`
+    /// Wraps `fld::AVFrame.nb_side_data`
     ///
     /// The frame's side data, borrowed from it.
+    #[doc(alias = "AVFrame.side_data")]
+    #[doc(alias = "AVFrame.nb_side_data")]
     #[must_use]
     pub fn side_data(&self) -> SideDataArrayRef<'a> {
         let p = self.as_ptr();
@@ -2627,9 +2698,10 @@ impl<'a> FrameRef<'a> {
         unsafe { SideDataArrayRef::from_raw_parts(entries, len) }
     }
 
-    /// Field: AVFrame.flags
+    /// Wraps `fld::AVFrame.flags`
     ///
     /// The frame's flags.
+    #[doc(alias = "AVFrame.flags")]
     #[must_use]
     pub fn flags(&self) -> FrameFlags {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2639,9 +2711,10 @@ impl<'a> FrameRef<'a> {
         FrameFlags::from_bits_retain(unsafe { flags_ptr.read() })
     }
 
-    /// Field: `AVFrame.color_range`
+    /// Wraps `fld::AVFrame.color_range`
     ///
     /// The color range, MPEG or JPEG.
+    #[doc(alias = "AVFrame.color_range")]
     #[must_use]
     pub fn color_range(&self) -> ColorRange {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2651,9 +2724,10 @@ impl<'a> FrameRef<'a> {
         ColorRange::from_raw(unsafe { color_range_ptr.read() })
     }
 
-    /// Field: `AVFrame.color_primaries`
+    /// Wraps `fld::AVFrame.color_primaries`
     ///
     /// The color primaries.
+    #[doc(alias = "AVFrame.color_primaries")]
     #[must_use]
     pub fn color_primaries(&self) -> ColorPrimaries {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2663,9 +2737,10 @@ impl<'a> FrameRef<'a> {
         ColorPrimaries::from_raw(unsafe { color_primaries_ptr.read() })
     }
 
-    /// Field: `AVFrame.color_trc`
+    /// Wraps `fld::AVFrame.color_trc`
     ///
     /// The color transfer characteristic.
+    #[doc(alias = "AVFrame.color_trc")]
     #[must_use]
     pub fn color_transfer(&self) -> ColorTransfer {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2675,9 +2750,10 @@ impl<'a> FrameRef<'a> {
         ColorTransfer::from_raw(unsafe { color_trc_ptr.read() })
     }
 
-    /// Field: AVFrame.colorspace
+    /// Wraps `fld::AVFrame.colorspace`
     ///
     /// The YUV color space.
+    #[doc(alias = "AVFrame.colorspace")]
     #[must_use]
     pub fn color_space(&self) -> ColorSpace {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2687,9 +2763,10 @@ impl<'a> FrameRef<'a> {
         ColorSpace::from_raw(unsafe { colorspace_ptr.read() })
     }
 
-    /// Field: `AVFrame.chroma_location`
+    /// Wraps `fld::AVFrame.chroma_location`
     ///
     /// The location of the chroma samples.
+    #[doc(alias = "AVFrame.chroma_location")]
     #[must_use]
     pub fn chroma_location(&self) -> ChromaLocation {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2699,10 +2776,11 @@ impl<'a> FrameRef<'a> {
         ChromaLocation::from_raw(unsafe { chroma_location_ptr.read() })
     }
 
-    /// Field: `AVFrame.best_effort_timestamp`
+    /// Wraps `fld::AVFrame.best_effort_timestamp`
     ///
     /// The timestamp a decoder estimated by heuristics, in stream time base;
     /// `AV_NOPTS_VALUE` when unknown.
+    #[doc(alias = "AVFrame.best_effort_timestamp")]
     #[must_use]
     pub fn best_effort_timestamp(&self) -> i64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2712,9 +2790,10 @@ impl<'a> FrameRef<'a> {
         unsafe { best_effort_timestamp_ptr.read() }
     }
 
-    /// Field: AVFrame.metadata
+    /// Wraps `fld::AVFrame.metadata`
     ///
     /// The frame's metadata, borrowed from it; `None` when it has none.
+    #[doc(alias = "AVFrame.metadata")]
     #[must_use]
     pub fn metadata(&self) -> Option<DictionaryRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2729,9 +2808,10 @@ impl<'a> FrameRef<'a> {
         unsafe { DictionaryRef::from_ptr(dict) }
     }
 
-    /// Field: `AVFrame.decode_error_flags`
+    /// Wraps `fld::AVFrame.decode_error_flags`
     ///
     /// The errors the decoder met while producing the frame.
+    #[doc(alias = "AVFrame.decode_error_flags")]
     #[must_use]
     pub fn decode_error_flags(&self) -> DecodeErrorFlags {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2741,7 +2821,7 @@ impl<'a> FrameRef<'a> {
         DecodeErrorFlags::from_bits_retain(unsafe { decode_error_flags_ptr.read() })
     }
 
-    /// Field: `AVFrame.hw_frames_ctx`
+    /// Wraps `fld::AVFrame.hw_frames_ctx`
     ///
     /// The hardware frames context of a hardware frame, through the
     /// reference the frame owns, borrowed from the frame; `None` for a
@@ -2751,6 +2831,7 @@ impl<'a> FrameRef<'a> {
     /// The reference says which context the frame claims to belong to, not
     /// that its buffers are that context's surfaces: see
     /// [`FrameMut::replace_hw_frames_context`].
+    #[doc(alias = "AVFrame.hw_frames_ctx")]
     #[must_use]
     pub fn hw_frames_context(&self) -> Option<FramesReferenceRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2778,11 +2859,12 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: `AVFrame.opaque_ref`
+    /// Wraps `fld::AVFrame.opaque_ref`
     ///
     /// The owner's reference-counted user data, borrowed from the frame;
     /// `None` when it has none. FFmpeg only shares it with the frame's
     /// copies, and to and from packets when asked.
+    #[doc(alias = "AVFrame.opaque_ref")]
     #[must_use]
     pub fn opaque_ref(&self) -> Option<BufferReferenceRef<'a>> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2795,10 +2877,11 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Field: `AVFrame.crop_top`
+    /// Wraps `fld::AVFrame.crop_top`
     ///
     /// The number of pixel rows to discard from the top of a video frame for
     /// presentation.
+    #[doc(alias = "AVFrame.crop_top")]
     #[must_use]
     pub fn crop_top(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2809,9 +2892,10 @@ impl<'a> FrameRef<'a> {
         unsafe { crop_top_ptr.read() }
     }
 
-    /// Field: `AVFrame.crop_bottom`
+    /// Wraps `fld::AVFrame.crop_bottom`
     ///
     /// The number of pixel rows to discard from the bottom.
+    #[doc(alias = "AVFrame.crop_bottom")]
     #[must_use]
     pub fn crop_bottom(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2821,9 +2905,10 @@ impl<'a> FrameRef<'a> {
         unsafe { crop_bottom_ptr.read() }
     }
 
-    /// Field: `AVFrame.crop_left`
+    /// Wraps `fld::AVFrame.crop_left`
     ///
     /// The number of pixel columns to discard from the left.
+    #[doc(alias = "AVFrame.crop_left")]
     #[must_use]
     pub fn crop_left(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2833,9 +2918,10 @@ impl<'a> FrameRef<'a> {
         unsafe { crop_left_ptr.read() }
     }
 
-    /// Field: `AVFrame.crop_right`
+    /// Wraps `fld::AVFrame.crop_right`
     ///
     /// The number of pixel columns to discard from the right.
+    #[doc(alias = "AVFrame.crop_right")]
     #[must_use]
     pub fn crop_right(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2845,13 +2931,14 @@ impl<'a> FrameRef<'a> {
         unsafe { crop_right_ptr.read() }
     }
 
-    /// Field: `AVFrame.private_ref`
+    /// Wraps `fld::AVFrame.private_ref`
     ///
     /// Whether the FFmpeg library holding the frame keeps a private
     /// `RefStruct` reference in it. That reference is the library's alone,
     /// which C clears before the frame leaves it, so a frame Rust receives
     /// has none, and nothing here sets one; [`FrameMut::reset`] and the
     /// frame's drop release it and [`try_clone`](Self::try_clone) shares it.
+    #[doc(alias = "AVFrame.private_ref")]
     #[must_use]
     pub fn has_private_ref(&self) -> bool {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2863,7 +2950,7 @@ impl<'a> FrameRef<'a> {
         !unsafe { private_ref_ptr.read() }.is_null()
     }
 
-    /// Field: `AVFrame.ch_layout`
+    /// Wraps `fld::AVFrame.ch_layout`
     ///
     /// The channel layout of the audio, as a handle over it that lives as
     /// long as this one.
@@ -2871,6 +2958,7 @@ impl<'a> FrameRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.ch_layout")]
     #[must_use]
     pub fn channel_layout(&self) -> ChannelLayoutRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -2884,10 +2972,11 @@ impl<'a> FrameRef<'a> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVFrame.duration
+    /// Wraps `fld::AVFrame.duration`
     ///
     /// The duration of the frame, in [`time_base`](Self::time_base) units; 0
     /// when unknown.
+    #[doc(alias = "AVFrame.duration")]
     #[must_use]
     pub fn duration(&self) -> i64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2897,9 +2986,10 @@ impl<'a> FrameRef<'a> {
         unsafe { duration_ptr.read() }
     }
 
-    /// Field: `AVFrame.alpha_mode`
+    /// Wraps `fld::AVFrame.alpha_mode`
     ///
     /// How the alpha channel of the video is to be handled.
+    #[doc(alias = "AVFrame.alpha_mode")]
     #[must_use]
     pub fn alpha_mode(&self) -> AlphaMode {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -2956,7 +3046,7 @@ impl<'a> FrameRef<'a> {
         (self.copy_reads_past_extended_data() || self.sample_rounding_overflows()).then_some(EINVAL)
     }
 
-    /// Wraps: `av_frame_clone`
+    /// Wraps `fn::av_frame_clone`
     ///
     /// A new frame describing the same data: the same properties, side data
     /// (sharing each payload's buffer), metadata (copied) and channel
@@ -2979,6 +3069,7 @@ impl<'a> FrameRef<'a> {
     /// buffers C cannot allocate without overflowing an `int` (audio of
     /// `INT_MAX - 31` samples), or which holds a hardware frames context
     /// (C would copy it through the context's backend, as from a surface).
+    #[doc(alias = "av_frame_clone")]
     #[must_use]
     pub fn try_clone(&self) -> Option<FrameBox> {
         if !self.may_clone() || (!self.is_counted() && self.copy_refusal().is_some()) {
@@ -3245,19 +3336,20 @@ impl FrameMut<'_> {
         Some(unsafe { slice::from_raw_parts_mut(elem, len - offset) })
     }
 
-    /// Field: AVFrame.data
+    /// Wraps `fld::AVFrame.data`
     ///
     /// Plane `i`'s bytes, writable, as [`FrameRef::plane`] reads them, when
     /// the buffer holding them has no other reference and is not read-only;
     /// `None` otherwise. Cloning the frame or the buffer reference makes them
     /// unwritable until the copy is gone.
+    #[doc(alias = "AVFrame.data")]
     #[must_use]
     pub fn plane_mut(&mut self, i: usize) -> Option<&mut [u8]> {
         let p = *self.as_ref().data_ptrs().get(i)?;
         self.view_mut(p)
     }
 
-    /// Field: AVFrame.data
+    /// Wraps `fld::AVFrame.data`
     ///
     /// Points plane `plane` `offset` bytes into buffer reference `buffer`,
     /// counted across `buf` (`0..NUM_DATA_POINTERS`) and then `extended_buf`.
@@ -3269,6 +3361,7 @@ impl FrameMut<'_> {
     /// `buffer`, or none at index 0; [`PlaneError::OutOfBounds`] when
     /// `offset` is not below that reference's length. The plane is left as
     /// it was.
+    #[doc(alias = "AVFrame.data")]
     pub fn set_plane(
         &mut self,
         plane: usize,
@@ -3298,10 +3391,11 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Field: AVFrame.data
+    /// Wraps `fld::AVFrame.data`
     ///
     /// Makes plane `i` NULL, as C wants of every plane the format does not
     /// use; does nothing for an index of [`NUM_DATA_POINTERS`] or more.
+    #[doc(alias = "AVFrame.data")]
     pub fn clear_plane(&mut self, i: usize) {
         if i < NUM_DATA_POINTERS {
             let p = self.as_mut_ptr();
@@ -3320,7 +3414,7 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Field: AVFrame.data
+    /// Wraps `fld::AVFrame.data`
     ///
     /// Stores `data` as plane `i`'s pointer, unchecked, for a frame whose
     /// data is not reference counted: memory the caller keeps, which C reads
@@ -3349,6 +3443,7 @@ impl FrameMut<'_> {
     /// A buffer reference added later at index 0 clears every plane outside
     /// it, this one included, and
     /// [`alloc_extended_data`](Self::alloc_extended_data) does not copy it.
+    #[doc(alias = "AVFrame.data")]
     pub unsafe fn set_data_ptr(&mut self, i: usize, data: *mut u8) {
         assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
         let p = self.as_mut_ptr();
@@ -3362,11 +3457,12 @@ impl FrameMut<'_> {
         unsafe { v.write(data) };
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Entry `i` of `extended_data`'s bytes, writable, as
     /// [`FrameRef::extended_plane`] reads them, when the buffer holding them
     /// has no other reference and is not read-only; `None` otherwise.
+    #[doc(alias = "AVFrame.extended_data")]
     #[must_use]
     pub fn extended_plane_mut(&mut self, i: usize) -> Option<&mut [u8]> {
         let (ext, count) = self.as_ref().extended_parts();
@@ -3381,7 +3477,7 @@ impl FrameMut<'_> {
         self.view_mut(p)
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Points entry `i` of `extended_data` `offset` bytes into buffer
     /// reference `buffer`, as [`set_plane`](Self::set_plane) does for
@@ -3392,6 +3488,7 @@ impl FrameMut<'_> {
     ///
     /// As `set_plane`'s, [`PlaneError::NoPlane`] meaning an index of
     /// [`FrameRef::extended_plane_count`] or more.
+    #[doc(alias = "AVFrame.extended_data")]
     pub fn set_extended_plane(
         &mut self,
         i: usize,
@@ -3413,10 +3510,11 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Makes entry `i` of `extended_data` NULL; does nothing for an index of
     /// [`FrameRef::extended_plane_count`] or more.
+    #[doc(alias = "AVFrame.extended_data")]
     pub fn clear_extended_plane(&mut self, i: usize) {
         let (ext, count) = self.as_ref().extended_parts();
         if i < count {
@@ -3428,7 +3526,7 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Stores `data` as entry `i` of `extended_data`, unchecked, as
     /// [`set_data_ptr`](Self::set_data_ptr) does for `data`. While
@@ -3444,6 +3542,7 @@ impl FrameMut<'_> {
     /// # Safety
     ///
     /// As for `set_data_ptr`.
+    #[doc(alias = "AVFrame.extended_data")]
     pub unsafe fn set_extended_data_ptr(&mut self, i: usize, data: *mut u8) {
         let (ext, count) = self.as_ref().extended_parts();
         assert!(i < count, "extended plane {i} out of range");
@@ -3455,7 +3554,7 @@ impl FrameMut<'_> {
         unsafe { ext_at.write(data) };
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Gives the frame an `extended_data` array of its own, of one entry per
     /// channel of its layout, as C allocates for planar audio with more
@@ -3473,6 +3572,7 @@ impl FrameMut<'_> {
     ///
     /// `AVERROR(EINVAL)` for a layout of no channel; `AVERROR(ENOMEM)` when
     /// the array cannot be allocated. The frame is left as it was.
+    #[doc(alias = "AVFrame.extended_data")]
     pub fn alloc_extended_data(&mut self) -> Result<(), i32> {
         let shared = self.as_ref();
         let channels = shared.channel_layout().channel_count();
@@ -3504,10 +3604,11 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Field: `AVFrame.extended_data`
+    /// Wraps `fld::AVFrame.extended_data`
     ///
     /// Frees the frame's own `extended_data` array, if any, and points
     /// `extended_data` back at `data`, as C's defaults have it.
+    #[doc(alias = "AVFrame.extended_data")]
     pub fn reset_extended_data(&mut self) {
         let p = self.as_mut_ptr();
         // SAFETY: the address of the `data` field, projected without a read.
@@ -3542,13 +3643,14 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Field: AVFrame.linesize
+    /// Wraps `fld::AVFrame.linesize`
     ///
     /// Sets plane `i`'s line size.
     ///
     /// # Panics
     ///
     /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[doc(alias = "AVFrame.linesize")]
     pub fn set_linesize(&mut self, i: usize, linesize: i32) {
         assert!(i < NUM_DATA_POINTERS, "plane {i} out of range");
         let p = self.as_mut_ptr();
@@ -3568,9 +3670,10 @@ impl FrameMut<'_> {
         };
     }
 
-    /// Field: AVFrame.linesize
+    /// Wraps `fld::AVFrame.linesize`
     ///
     /// Sets every plane's line size.
+    #[doc(alias = "AVFrame.linesize")]
     pub fn set_linesizes(&mut self, linesizes: [i32; NUM_DATA_POINTERS]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `linesize` field is in bounds; nothing is accessed here.
@@ -3579,10 +3682,11 @@ impl FrameMut<'_> {
         unsafe { linesize_ptr.write(linesizes) };
     }
 
-    /// Field: AVFrame.width
+    /// Wraps `fld::AVFrame.width`
     ///
     /// Sets the coded width. Rust reads no plane through it; C routines that
     /// do (copies, allocations, cropping) check it as their wrappers say.
+    #[doc(alias = "AVFrame.width")]
     pub fn set_width(&mut self, width: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `width` field is in bounds; nothing is accessed here.
@@ -3592,10 +3696,11 @@ impl FrameMut<'_> {
         unsafe { width_ptr.write(width) }
     }
 
-    /// Field: AVFrame.height
+    /// Wraps `fld::AVFrame.height`
     ///
     /// Sets the coded height, as [`set_width`](Self::set_width) does the
     /// width.
+    #[doc(alias = "AVFrame.height")]
     pub fn set_height(&mut self, height: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `height` field is in bounds; nothing is accessed here.
@@ -3604,10 +3709,11 @@ impl FrameMut<'_> {
         unsafe { height_ptr.write(height) }
     }
 
-    /// Field: `AVFrame.nb_samples`
+    /// Wraps `fld::AVFrame.nb_samples`
     ///
     /// Sets the number of audio samples per channel, as
     /// [`set_width`](Self::set_width) does the width.
+    #[doc(alias = "AVFrame.nb_samples")]
     pub fn set_sample_count(&mut self, count: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `nb_samples` field is in bounds; nothing is accessed here.
@@ -3616,10 +3722,11 @@ impl FrameMut<'_> {
         unsafe { nb_samples_ptr.write(count) }
     }
 
-    /// Field: AVFrame.format
+    /// Wraps `fld::AVFrame.format`
     ///
     /// Sets the format as C stores it, -1 for unknown, as
     /// [`set_width`](Self::set_width) does the width.
+    #[doc(alias = "AVFrame.format")]
     pub fn set_format(&mut self, format: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `format` field is in bounds; nothing is accessed here.
@@ -3628,19 +3735,26 @@ impl FrameMut<'_> {
         unsafe { format_ptr.write(format) }
     }
 
+    /// Wraps `fld::AVFrame.format`
+    ///
     /// Sets the format to a video frame's pixel format.
+    #[doc(alias = "AVFrame.format")]
     pub fn set_pixel_format(&mut self, format: PixelFormat) {
         self.set_format(format.into_raw());
     }
 
+    /// Wraps `fld::AVFrame.format`
+    ///
     /// Sets the format to an audio frame's sample format.
+    #[doc(alias = "AVFrame.format")]
     pub fn set_sample_format(&mut self, format: SampleFormat) {
         self.set_format(format.into_raw());
     }
 
-    /// Field: `AVFrame.pict_type`
+    /// Wraps `fld::AVFrame.pict_type`
     ///
     /// Sets the picture type.
+    #[doc(alias = "AVFrame.pict_type")]
     pub fn set_picture_type(&mut self, kind: PictureType) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `pict_type` field is in bounds; nothing is accessed here.
@@ -3650,7 +3764,7 @@ impl FrameMut<'_> {
         unsafe { pict_type_ptr.write(kind.into_raw()) }
     }
 
-    /// Field: `AVFrame.sample_aspect_ratio`
+    /// Wraps `fld::AVFrame.sample_aspect_ratio`
     ///
     /// An exclusive handle over the sample aspect ratio, for writing its
     /// parts; this handle is frozen while it lives.
@@ -3658,6 +3772,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.sample_aspect_ratio")]
     #[must_use]
     pub fn sample_aspect_ratio_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -3672,9 +3787,10 @@ impl FrameMut<'_> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: `AVFrame.sample_aspect_ratio`
+    /// Wraps `fld::AVFrame.sample_aspect_ratio`
     ///
     /// Sets the sample aspect ratio.
+    #[doc(alias = "AVFrame.sample_aspect_ratio")]
     pub fn set_sample_aspect_ratio(&mut self, ratio: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `sample_aspect_ratio` field is in bounds; nothing is accessed here.
@@ -3685,9 +3801,10 @@ impl FrameMut<'_> {
         unsafe { sample_aspect_ratio_ptr.write(ratio.into_raw()) }
     }
 
-    /// Field: AVFrame.pts
+    /// Wraps `fld::AVFrame.pts`
     ///
     /// Sets the presentation timestamp.
+    #[doc(alias = "AVFrame.pts")]
     pub fn set_pts(&mut self, pts: i64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `pts` field is in bounds; nothing is accessed here.
@@ -3697,9 +3814,10 @@ impl FrameMut<'_> {
         unsafe { pts_ptr.write(pts) }
     }
 
-    /// Field: `AVFrame.pkt_dts`
+    /// Wraps `fld::AVFrame.pkt_dts`
     ///
     /// Sets the decoding timestamp of the frame's packet.
+    #[doc(alias = "AVFrame.pkt_dts")]
     pub fn set_packet_dts(&mut self, dts: i64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `pkt_dts` field is in bounds; nothing is accessed here.
@@ -3708,7 +3826,7 @@ impl FrameMut<'_> {
         unsafe { pkt_dts_ptr.write(dts) }
     }
 
-    /// Field: `AVFrame.time_base`
+    /// Wraps `fld::AVFrame.time_base`
     ///
     /// An exclusive handle over the time base, for writing its parts; this
     /// handle is frozen while it lives.
@@ -3716,6 +3834,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.time_base")]
     #[must_use]
     pub fn time_base_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -3726,9 +3845,10 @@ impl FrameMut<'_> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: `AVFrame.time_base`
+    /// Wraps `fld::AVFrame.time_base`
     ///
     /// Sets the time base.
+    #[doc(alias = "AVFrame.time_base")]
     pub fn set_time_base(&mut self, time_base: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `time_base` field is in bounds; nothing is accessed here.
@@ -3737,9 +3857,10 @@ impl FrameMut<'_> {
         unsafe { time_base_ptr.write(time_base.into_raw()) }
     }
 
-    /// Field: AVFrame.quality
+    /// Wraps `fld::AVFrame.quality`
     ///
     /// Sets the quality.
+    #[doc(alias = "AVFrame.quality")]
     pub fn set_quality(&mut self, quality: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `quality` field is in bounds; nothing is accessed here.
@@ -3748,12 +3869,13 @@ impl FrameMut<'_> {
         unsafe { quality_ptr.write(quality) }
     }
 
-    /// Field: AVFrame.opaque
+    /// Wraps `fld::AVFrame.opaque`
     ///
     /// Stores the user pointer `opaque`, NULL included. Nothing in FFmpeg or
     /// this crate dereferences or frees it, so any address is safe to store:
     /// keeping what it points at alive for as long as the caller means to
     /// read it back is the caller's concern.
+    #[doc(alias = "AVFrame.opaque")]
     #[expect(
         clippy::not_unsafe_ptr_arg_deref,
         reason = "stored, never dereferenced"
@@ -3768,9 +3890,10 @@ impl FrameMut<'_> {
         unsafe { opaque_ptr.write(opaque) }
     }
 
-    /// Field: `AVFrame.repeat_pict`
+    /// Wraps `fld::AVFrame.repeat_pict`
     ///
     /// Sets the number of fields to repeat.
+    #[doc(alias = "AVFrame.repeat_pict")]
     pub fn set_repeat_pict(&mut self, repeat: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `repeat_pict` field is in bounds; nothing is accessed here.
@@ -3779,9 +3902,10 @@ impl FrameMut<'_> {
         unsafe { repeat_pict_ptr.write(repeat) }
     }
 
-    /// Field: `AVFrame.sample_rate`
+    /// Wraps `fld::AVFrame.sample_rate`
     ///
     /// Sets the sample rate.
+    #[doc(alias = "AVFrame.sample_rate")]
     pub fn set_sample_rate(&mut self, rate: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `sample_rate` field is in bounds; nothing is accessed here.
@@ -3790,7 +3914,7 @@ impl FrameMut<'_> {
         unsafe { sample_rate_ptr.write(rate) }
     }
 
-    /// Field: AVFrame.buf
+    /// Wraps `fld::AVFrame.buf`
     ///
     /// Makes `with` buffer reference `i` (none for `None`) and returns the
     /// reference the frame held there, as an owner. Every plane pointer
@@ -3805,6 +3929,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[doc(alias = "AVFrame.buf")]
     #[must_use = "dropping the old reference releases it; use `set_buffer` for that"]
     pub fn replace_buffer(
         &mut self,
@@ -3837,7 +3962,7 @@ impl FrameMut<'_> {
         unsafe { BufferReferenceBox::from_c(old) }
     }
 
-    /// Field: AVFrame.buf
+    /// Wraps `fld::AVFrame.buf`
     ///
     /// Makes `with` buffer reference `i` and releases the one the frame held,
     /// as [`replace_buffer`](Self::replace_buffer) and a drop.
@@ -3845,11 +3970,12 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[doc(alias = "AVFrame.buf")]
     pub fn set_buffer(&mut self, i: usize, with: Option<BufferReferenceBox>) {
         drop(self.replace_buffer(i, with));
     }
 
-    /// Field: AVFrame.buf
+    /// Wraps `fld::AVFrame.buf`
     ///
     /// Takes buffer reference `i` out, as [`replace_buffer`](Self::replace_buffer)
     /// with `None`; `None` when the frame held none there.
@@ -3857,12 +3983,13 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// For an index of [`NUM_DATA_POINTERS`] or more.
+    #[doc(alias = "AVFrame.buf")]
     #[must_use]
     pub fn take_buffer(&mut self, i: usize) -> Option<BufferReferenceBox> {
         self.replace_buffer(i, None)
     }
 
-    /// Field: `AVFrame.extended_buf`
+    /// Wraps `fld::AVFrame.extended_buf`
     ///
     /// Makes `with` extra buffer reference `i` and returns the one the frame
     /// held there, clearing the plane pointers left pointing inside no
@@ -3877,6 +4004,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an extra buffer reference is not NULL.
+    #[doc(alias = "AVFrame.extended_buf")]
     pub fn replace_extended_buffer(
         &mut self,
         i: usize,
@@ -3908,7 +4036,7 @@ impl FrameMut<'_> {
             .expect("an extra buffer reference is not NULL"))
     }
 
-    /// Field: `AVFrame.extended_buf`
+    /// Wraps `fld::AVFrame.extended_buf`
     ///
     /// Appends `with` to the extra buffer references, growing their array;
     /// `with` comes back when C cannot.
@@ -3916,6 +4044,7 @@ impl FrameMut<'_> {
     /// # Errors
     ///
     /// Returns `with` when C cannot grow the array.
+    #[doc(alias = "AVFrame.extended_buf")]
     pub fn push_extended_buffer(
         &mut self,
         with: BufferReferenceBox,
@@ -3958,7 +4087,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Field: `AVFrame.extended_buf`
+    /// Wraps `fld::AVFrame.extended_buf`
     ///
     /// Takes the last extra buffer reference out, freeing their array with
     /// the last one, and clears the plane pointers left pointing inside no
@@ -3968,6 +4097,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an extra buffer reference is not NULL.
+    #[doc(alias = "AVFrame.extended_buf")]
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
@@ -4005,14 +4135,16 @@ impl FrameMut<'_> {
         Some(old.expect("an extra buffer reference is not NULL"))
     }
 
-    /// Field: `AVFrame.side_data`
-    /// Field: `AVFrame.nb_side_data`
+    /// Wraps `fld::AVFrame.side_data`
+    /// Wraps `fld::AVFrame.nb_side_data`
     ///
     /// The frame's side data, writable, borrowed exclusively from it.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVFrame.side_data")]
+    #[doc(alias = "AVFrame.nb_side_data")]
     #[must_use]
     pub fn side_data_mut(&mut self) -> SideDataArrayMut<'_> {
         let p = self.as_mut_ptr();
@@ -4031,9 +4163,10 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Field: AVFrame.flags
+    /// Wraps `fld::AVFrame.flags`
     ///
     /// Sets the frame's flags.
+    #[doc(alias = "AVFrame.flags")]
     pub fn set_flags(&mut self, flags: FrameFlags) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `flags` field is in bounds; nothing is accessed here.
@@ -4042,9 +4175,10 @@ impl FrameMut<'_> {
         unsafe { flags_ptr.write(flags.bits()) }
     }
 
-    /// Field: `AVFrame.color_range`
+    /// Wraps `fld::AVFrame.color_range`
     ///
     /// Sets the color range.
+    #[doc(alias = "AVFrame.color_range")]
     pub fn set_color_range(&mut self, range: ColorRange) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `color_range` field is in bounds; nothing is accessed here.
@@ -4053,9 +4187,10 @@ impl FrameMut<'_> {
         unsafe { color_range_ptr.write(range.into_raw()) }
     }
 
-    /// Field: `AVFrame.color_primaries`
+    /// Wraps `fld::AVFrame.color_primaries`
     ///
     /// Sets the color primaries.
+    #[doc(alias = "AVFrame.color_primaries")]
     pub fn set_color_primaries(&mut self, primaries: ColorPrimaries) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `color_primaries` field is in bounds; nothing is accessed here.
@@ -4064,9 +4199,10 @@ impl FrameMut<'_> {
         unsafe { color_primaries_ptr.write(primaries.into_raw()) }
     }
 
-    /// Field: `AVFrame.color_trc`
+    /// Wraps `fld::AVFrame.color_trc`
     ///
     /// Sets the color transfer characteristic.
+    #[doc(alias = "AVFrame.color_trc")]
     pub fn set_color_transfer(&mut self, transfer: ColorTransfer) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `color_trc` field is in bounds; nothing is accessed here.
@@ -4075,9 +4211,10 @@ impl FrameMut<'_> {
         unsafe { color_trc_ptr.write(transfer.into_raw()) }
     }
 
-    /// Field: AVFrame.colorspace
+    /// Wraps `fld::AVFrame.colorspace`
     ///
     /// Sets the YUV color space.
+    #[doc(alias = "AVFrame.colorspace")]
     pub fn set_color_space(&mut self, space: ColorSpace) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `colorspace` field is in bounds; nothing is accessed here.
@@ -4086,9 +4223,10 @@ impl FrameMut<'_> {
         unsafe { colorspace_ptr.write(space.into_raw()) }
     }
 
-    /// Field: `AVFrame.chroma_location`
+    /// Wraps `fld::AVFrame.chroma_location`
     ///
     /// Sets the location of the chroma samples.
+    #[doc(alias = "AVFrame.chroma_location")]
     pub fn set_chroma_location(&mut self, location: ChromaLocation) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `chroma_location` field is in bounds; nothing is accessed here.
@@ -4097,9 +4235,10 @@ impl FrameMut<'_> {
         unsafe { chroma_location_ptr.write(location.into_raw()) }
     }
 
-    /// Field: `AVFrame.best_effort_timestamp`
+    /// Wraps `fld::AVFrame.best_effort_timestamp`
     ///
     /// Sets the estimated timestamp.
+    #[doc(alias = "AVFrame.best_effort_timestamp")]
     pub fn set_best_effort_timestamp(&mut self, timestamp: i64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `best_effort_timestamp` field is in bounds; nothing is accessed here.
@@ -4109,10 +4248,11 @@ impl FrameMut<'_> {
         unsafe { best_effort_timestamp_ptr.write(timestamp) }
     }
 
-    /// Field: AVFrame.metadata
+    /// Wraps `fld::AVFrame.metadata`
     ///
     /// Makes `with` the frame's metadata, and returns the metadata the frame
     /// held.
+    #[doc(alias = "AVFrame.metadata")]
     #[must_use = "dropping the old metadata frees it; use `set_metadata` for that"]
     pub fn replace_metadata(&mut self, with: Dict) -> Dict {
         let new = Option::<DictionaryBox>::from(with).map_or(ptr::null_mut(), CBox::into_c);
@@ -4136,25 +4276,28 @@ impl FrameMut<'_> {
         Dict::from(unsafe { DictionaryBox::from_c(old) })
     }
 
-    /// Field: AVFrame.metadata
+    /// Wraps `fld::AVFrame.metadata`
     ///
     /// Makes `with` the frame's metadata, and frees the metadata the frame
     /// held, as [`replace_metadata`](Self::replace_metadata) and a drop.
+    #[doc(alias = "AVFrame.metadata")]
     pub fn set_metadata(&mut self, with: Dict) {
         drop(self.replace_metadata(with));
     }
 
-    /// Field: AVFrame.metadata
+    /// Wraps `fld::AVFrame.metadata`
     ///
     /// Takes the frame's metadata out, leaving it none.
+    #[doc(alias = "AVFrame.metadata")]
     #[must_use]
     pub fn take_metadata(&mut self) -> Dict {
         self.replace_metadata(Dict::new())
     }
 
-    /// Field: `AVFrame.decode_error_flags`
+    /// Wraps `fld::AVFrame.decode_error_flags`
     ///
     /// Sets the decode error flags.
+    #[doc(alias = "AVFrame.decode_error_flags")]
     pub fn set_decode_error_flags(&mut self, flags: DecodeErrorFlags) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `decode_error_flags` field is in bounds; nothing is accessed here.
@@ -4197,7 +4340,7 @@ impl FrameMut<'_> {
         unsafe { BufferReferenceBox::from_c(old) }
     }
 
-    /// Field: `AVFrame.hw_frames_ctx`
+    /// Wraps `fld::AVFrame.hw_frames_ctx`
     ///
     /// Makes `with` the frame's hardware frames context reference (none for
     /// `None`) and returns the one it held.
@@ -4220,6 +4363,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that a frames context reference is not NULL.
+    #[doc(alias = "AVFrame.hw_frames_ctx")]
     #[must_use = "dropping the old reference releases it"]
     pub fn replace_hw_frames_context(
         &mut self,
@@ -4238,19 +4382,21 @@ impl FrameMut<'_> {
         unsafe { FramesReferenceBox::from_c(old.into_c()) }
     }
 
-    /// Field: `AVFrame.hw_frames_ctx`
+    /// Wraps `fld::AVFrame.hw_frames_ctx`
     ///
     /// Takes the frame's hardware frames context reference out, leaving it
     /// none; `None` when it held none.
+    #[doc(alias = "AVFrame.hw_frames_ctx")]
     #[must_use]
     pub fn take_hw_frames_context(&mut self) -> Option<FramesReferenceBox> {
         self.replace_hw_frames_context(None)
     }
 
-    /// Field: `AVFrame.opaque_ref`
+    /// Wraps `fld::AVFrame.opaque_ref`
     ///
     /// Makes `with` the owner's reference-counted user data (none for
     /// `None`) and returns the reference the frame held.
+    #[doc(alias = "AVFrame.opaque_ref")]
     #[must_use = "dropping the old reference releases it; use `set_opaque_ref` for that"]
     pub fn replace_opaque_ref(
         &mut self,
@@ -4261,20 +4407,22 @@ impl FrameMut<'_> {
         self.replace_reference(ReferenceField::OpaqueRef, with)
     }
 
-    /// Field: `AVFrame.opaque_ref`
+    /// Wraps `fld::AVFrame.opaque_ref`
     ///
     /// Makes `with` the owner's reference-counted user data and releases the
     /// reference the frame held, as
     /// [`replace_opaque_ref`](Self::replace_opaque_ref) and a drop.
+    #[doc(alias = "AVFrame.opaque_ref")]
     pub fn set_opaque_ref(&mut self, with: Option<BufferReferenceBox>) {
         drop(self.replace_opaque_ref(with));
     }
 
-    /// Field: `AVFrame.crop_top`
+    /// Wraps `fld::AVFrame.crop_top`
     ///
     /// Sets the number of rows to discard from the top. Rust reads no plane
     /// through it; `av_frame_apply_cropping` checks it against the
     /// dimensions.
+    #[doc(alias = "AVFrame.crop_top")]
     pub fn set_crop_top(&mut self, rows: usize) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `crop_top` field is in bounds; nothing is accessed here.
@@ -4284,9 +4432,10 @@ impl FrameMut<'_> {
         unsafe { crop_top_ptr.write(rows) }
     }
 
-    /// Field: `AVFrame.crop_bottom`
+    /// Wraps `fld::AVFrame.crop_bottom`
     ///
     /// Sets the number of rows to discard from the bottom.
+    #[doc(alias = "AVFrame.crop_bottom")]
     pub fn set_crop_bottom(&mut self, rows: usize) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `crop_bottom` field is in bounds; nothing is accessed here.
@@ -4295,9 +4444,10 @@ impl FrameMut<'_> {
         unsafe { crop_bottom_ptr.write(rows) }
     }
 
-    /// Field: `AVFrame.crop_left`
+    /// Wraps `fld::AVFrame.crop_left`
     ///
     /// Sets the number of columns to discard from the left.
+    #[doc(alias = "AVFrame.crop_left")]
     pub fn set_crop_left(&mut self, columns: usize) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `crop_left` field is in bounds; nothing is accessed here.
@@ -4306,9 +4456,10 @@ impl FrameMut<'_> {
         unsafe { crop_left_ptr.write(columns) }
     }
 
-    /// Field: `AVFrame.crop_right`
+    /// Wraps `fld::AVFrame.crop_right`
     ///
     /// Sets the number of columns to discard from the right.
+    #[doc(alias = "AVFrame.crop_right")]
     pub fn set_crop_right(&mut self, columns: usize) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `crop_right` field is in bounds; nothing is accessed here.
@@ -4317,13 +4468,14 @@ impl FrameMut<'_> {
         unsafe { crop_right_ptr.write(columns) }
     }
 
-    /// Field: `AVFrame.ch_layout`
+    /// Wraps `fld::AVFrame.ch_layout`
     ///
     /// An exclusive handle over the channel layout, for changing it in
     /// place; `None` while `extended_data` is an array of the frame's own
     /// ([`FrameRef::has_extended_data`]), whose length C knows only as the
     /// channel count, which the handle could raise past it. This handle is
     /// frozen while it lives.
+    #[doc(alias = "AVFrame.ch_layout")]
     #[must_use]
     pub fn channel_layout_mut(&mut self) -> Option<ChannelLayoutMut<'_>> {
         if self.as_ref().has_extended_array() {
@@ -4340,7 +4492,7 @@ impl FrameMut<'_> {
         unsafe { ChannelLayoutMut::from_ptr(ch_layout_ptr) }
     }
 
-    /// Field: `AVFrame.ch_layout`
+    /// Wraps `fld::AVFrame.ch_layout`
     ///
     /// Makes `with` the frame's channel layout and returns the layout it
     /// held. While `extended_data` is an array of the frame's own, a layout
@@ -4351,6 +4503,7 @@ impl FrameMut<'_> {
     ///
     /// Returns `with` when `extended_data` is the frame's own array and `with` has more channels
     /// than the current layout.
+    #[doc(alias = "AVFrame.ch_layout")]
     pub fn replace_channel_layout(
         &mut self,
         with: ChannelLayoutVal,
@@ -4377,7 +4530,7 @@ impl FrameMut<'_> {
         Ok(unsafe { ChannelLayoutVal::new(old) })
     }
 
-    /// Field: `AVFrame.ch_layout`
+    /// Wraps `fld::AVFrame.ch_layout`
     ///
     /// Makes `with` the frame's channel layout and disposes of the layout it
     /// held, as [`replace_channel_layout`](Self::replace_channel_layout) and
@@ -4386,13 +4539,15 @@ impl FrameMut<'_> {
     /// # Errors
     ///
     /// Returns `with` where [`replace_channel_layout`](Self::replace_channel_layout) refuses it.
+    #[doc(alias = "AVFrame.ch_layout")]
     pub fn set_channel_layout(&mut self, with: ChannelLayoutVal) -> Result<(), ChannelLayoutVal> {
         self.replace_channel_layout(with).map(drop)
     }
 
-    /// Field: AVFrame.duration
+    /// Wraps `fld::AVFrame.duration`
     ///
     /// Sets the duration.
+    #[doc(alias = "AVFrame.duration")]
     pub fn set_duration(&mut self, duration: i64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `duration` field is in bounds; nothing is accessed here.
@@ -4401,9 +4556,10 @@ impl FrameMut<'_> {
         unsafe { duration_ptr.write(duration) }
     }
 
-    /// Field: `AVFrame.alpha_mode`
+    /// Wraps `fld::AVFrame.alpha_mode`
     ///
     /// Sets how the alpha channel is to be handled.
+    #[doc(alias = "AVFrame.alpha_mode")]
     pub fn set_alpha_mode(&mut self, mode: AlphaMode) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `alpha_mode` field is in bounds; nothing is accessed here.
@@ -4412,12 +4568,13 @@ impl FrameMut<'_> {
         unsafe { alpha_mode_ptr.write(mode.into_raw()) }
     }
 
-    /// Wraps: `av_frame_unref`
+    /// Wraps `fn::av_frame_unref`
     ///
     /// Releases everything the frame holds (buffer references, side data,
     /// metadata, `extended_data` and `extended_buf` arrays, the hardware
     /// context, user data and private references, the channel layout) and
     /// gives every field its default back, as [`Frame::new`] makes it.
+    #[doc(alias = "av_frame_unref")]
     pub fn reset(&mut self) {
         // SAFETY: a live frame satisfying the type's invariant, which C
         // releases field by field (av_frame_side_data_free, av_buffer_unref,
@@ -4905,7 +5062,7 @@ impl<'a> FrameRef<'a> {
         })
     }
 
-    /// Wraps: `av_frame_is_writable`
+    /// Wraps `fn::av_frame_is_writable`
     ///
     /// Whether every plane of the frame is this frame's alone to write: it is
     /// reference counted, and none of its buffer references has another
@@ -4913,6 +5070,7 @@ impl<'a> FrameRef<'a> {
     /// stale by the time it is read, as another holder of the handle may
     /// clone the frame meanwhile; through an exclusive one it holds until the
     /// frame or one of its references is cloned.
+    #[doc(alias = "av_frame_is_writable")]
     #[must_use]
     pub fn is_writable(&self) -> bool {
         // SAFETY: a live frame satisfying the type's invariant, which C only
@@ -4921,7 +5079,7 @@ impl<'a> FrameRef<'a> {
         unsafe { ffi::av_frame_is_writable(self.as_ptr().cast_mut()) != 0 }
     }
 
-    /// Wraps: `av_frame_get_plane_buffer`
+    /// Wraps `fn::av_frame_get_plane_buffer`
     ///
     /// The buffer reference holding plane or channel `plane` (an
     /// [`extended_plane`](Self::extended_plane) index), borrowed from the
@@ -4931,6 +5089,7 @@ impl<'a> FrameRef<'a> {
     /// of the references `buf` holds up to its first gap and `extended_buf`.
     /// Also `None` past the entries the frame holds, which C would read past
     /// `extended_data`'s array for.
+    #[doc(alias = "av_frame_get_plane_buffer")]
     #[must_use]
     pub fn plane_buffer(&self, plane: usize) -> Option<BufferReferenceRef<'a>> {
         if plane >= self.extended_plane_count() {
@@ -4946,10 +5105,11 @@ impl<'a> FrameRef<'a> {
         unsafe { BufferReferenceRef::from_ptr(buf) }
     }
 
-    /// Wraps: `av_frame_get_side_data`
+    /// Wraps `fn::av_frame_get_side_data`
     ///
     /// The frame's first side data entry of `kind`, borrowed from it; `None`
     /// when it has none.
+    #[doc(alias = "av_frame_get_side_data")]
     #[must_use]
     pub fn find_side_data(&self, kind: SideDataType) -> Option<SideDataRef<'a>> {
         // SAFETY: a live frame, whose side data array C only reads; it
@@ -5052,7 +5212,7 @@ impl FrameMut<'_> {
         }
     }
 
-    /// Wraps: `av_frame_ref`
+    /// Wraps `fn::av_frame_ref`
     ///
     /// Makes this frame a new reference to `src`'s data, as
     /// [`FrameRef::try_clone`] makes a new frame: first reset, it takes
@@ -5085,6 +5245,7 @@ impl FrameMut<'_> {
     /// assert_eq!(dst.as_ref().pts(), 7);
     /// assert_eq!(dst.as_ref().buffer(0).unwrap().ref_count(), 2);
     /// ```
+    #[doc(alias = "av_frame_ref")]
     pub fn try_clone_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         self.reset();
         if !src.may_clone() {
@@ -5107,7 +5268,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_frame_replace`
+    /// Wraps `fn::av_frame_replace`
     ///
     /// Makes this frame describe the same data as `src`, as
     /// [`try_clone_from`](Self::try_clone_from) does, but keeping what it
@@ -5135,6 +5296,7 @@ impl FrameMut<'_> {
     /// context, as [`try_clone_from`](Self::try_clone_from) refuses: the
     /// frame is then left as it was. Otherwise C's
     /// errors (memory, a failed copy), on which the frame is reset.
+    #[doc(alias = "av_frame_replace")]
     pub fn assign(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         if !src.may_clone() {
             return Err(ENOMEM);
@@ -5173,11 +5335,12 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_frame_move_ref`
+    /// Wraps `fn::av_frame_move_ref`
     ///
     /// Resets this frame and moves everything `src` holds into it, leaving
     /// `src` as [`Frame::new`] makes a frame: no data is copied and no
     /// reference added.
+    #[doc(alias = "av_frame_move_ref")]
     pub fn move_from(&mut self, mut src: FrameMut<'_>) {
         self.reset();
         // SAFETY: two distinct live frames (both borrowed exclusively), the
@@ -5188,7 +5351,7 @@ impl FrameMut<'_> {
         unsafe { ffi::av_frame_move_ref(self.as_mut_ptr(), src.as_mut_ptr()) }
     }
 
-    /// Wraps: `av_frame_move_ref`
+    /// Wraps `fn::av_frame_move_ref`
     ///
     /// Moves everything this frame holds into a new frame, leaving this one
     /// as [`Frame::new`] makes a frame; `None`, with this frame untouched,
@@ -5202,6 +5365,7 @@ impl FrameMut<'_> {
     /// assert_eq!(moved.as_ref().pts(), 3);
     /// assert_eq!(frame.as_ref().pts(), Frame::new().unwrap().as_ref().pts());
     /// ```
+    #[doc(alias = "av_frame_move_ref")]
     #[must_use]
     pub fn take(&mut self) -> Option<FrameBox> {
         let mut moved = Frame::new()?;
@@ -5209,7 +5373,7 @@ impl FrameMut<'_> {
         Some(moved)
     }
 
-    /// Wraps: `av_frame_copy`
+    /// Wraps `fn::av_frame_copy`
     ///
     /// Copies `src`'s planes into this frame's own, which must already
     /// describe the same image or samples: the same format; for video
@@ -5234,6 +5398,7 @@ impl FrameMut<'_> {
     /// computation overflows. `AVERROR(ENOSYS)` for frames holding a
     /// hardware frames context, which this crate cannot copy yet. Nothing
     /// is written then.
+    #[doc(alias = "av_frame_copy")]
     pub fn copy_data_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         let dst = self.as_ref();
         if dst.hw_frames_context().is_some() || src.hw_frames_context().is_some() {
@@ -5254,7 +5419,7 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_frame_copy_props`
+    /// Wraps `fn::av_frame_copy_props`
     ///
     /// Copies `src`'s properties into this frame: every field but the
     /// planes, buffers, format, dimensions, sample count, channel layout and
@@ -5277,6 +5442,7 @@ impl FrameMut<'_> {
     /// payload at a NULL window
     /// ([`BufferReference::from_heap_vec`](super::buffer::BufferReference::from_heap_vec) of an
     /// empty vector), which C copies from with `memcpy`.
+    #[doc(alias = "av_frame_copy_props")]
     pub fn copy_props_from(&mut self, src: FrameRef<'_>) -> Result<(), c_int> {
         let dst = self.as_ref();
         if let Some(ret) = src.props_copy_refusal(dst.width(), dst.height()) {
@@ -5294,7 +5460,7 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_frame_get_buffer`
+    /// Wraps `fn::av_frame_get_buffer`
     ///
     /// Gives the frame new planes, in buffers C allocates for its format and
     /// dimensions (video: a positive width and height) or for its sample
@@ -5331,6 +5497,7 @@ impl FrameMut<'_> {
     /// when C cannot allocate. The frame then has no planes; when an
     /// allocation fails, C resets it whole (properties and side data
     /// included).
+    #[doc(alias = "av_frame_get_buffer")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
@@ -5371,7 +5538,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_frame_make_writable`
+    /// Wraps `fn::av_frame_make_writable`
     ///
     /// Makes every plane of the frame its own to write
     /// ([`FrameRef::is_writable`]): when one of its buffers is shared or
@@ -5412,6 +5579,7 @@ impl FrameMut<'_> {
     /// frame unchanged: `AVERROR(EINVAL)` for a frame whose geometry does
     /// not describe planes inside its buffers, `AVERROR(ENOSYS)` for a
     /// hardware frame.
+    #[doc(alias = "av_frame_make_writable")]
     pub fn make_writable(&mut self) -> Result<(), c_int> {
         let shared = self.as_ref();
         if shared.is_writable() {
@@ -5451,7 +5619,7 @@ impl FrameMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_frame_apply_cropping`
+    /// Wraps `fn::av_frame_apply_cropping`
     ///
     /// Crops the frame by its [`crop_top`](FrameRef::crop_top),
     /// `crop_bottom`, `crop_left` and `crop_right`: its plane pointers move
@@ -5493,6 +5661,7 @@ impl FrameMut<'_> {
     /// rows cropped from the top, a palettized frame with planes past the
     /// palette, offsets or edges whose low 32 bits are zero, a rounding
     /// shift past 30), with the frame unchanged.
+    #[doc(alias = "av_frame_apply_cropping")]
     pub fn apply_cropping(&mut self, flags: CropFlags) -> Result<(), c_int> {
         if !self.as_ref().crop_is_sound(flags) {
             return Err(EINVAL);
@@ -5506,10 +5675,11 @@ impl FrameMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_frame_get_side_data`
+    /// Wraps `fn::av_frame_get_side_data`
     ///
     /// The frame's first side data entry of `kind`, writable; `None` when it
     /// has none.
+    #[doc(alias = "av_frame_get_side_data")]
     #[must_use]
     pub fn find_side_data_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
         // SAFETY: a live frame, whose side data array C only reads; it
@@ -5520,7 +5690,7 @@ impl FrameMut<'_> {
         unsafe { SideDataMut::from_ptr(entry) }
     }
 
-    /// Wraps: `av_frame_new_side_data`
+    /// Wraps `fn::av_frame_new_side_data`
     ///
     /// Appends side data of `kind` with a new payload of `size` zeroed bytes,
     /// and returns the entry holding it, writable
@@ -5549,6 +5719,7 @@ impl FrameMut<'_> {
     ///     [8]
     /// );
     /// ```
+    #[doc(alias = "av_frame_new_side_data")]
     pub fn alloc_side_data_zeroed(
         &mut self,
         kind: SideDataType,
@@ -5557,12 +5728,13 @@ impl FrameMut<'_> {
         self.new_side_data(kind, size, zero_into)
     }
 
-    /// Wraps: `av_frame_new_side_data`
+    /// Wraps `fn::av_frame_new_side_data`
     ///
     /// Appends side data of `kind` with a new payload copied from `bytes`,
     /// and returns the entry holding it, as
     /// [`alloc_side_data_zeroed`](Self::alloc_side_data_zeroed) does with
     /// zeroes.
+    #[doc(alias = "av_frame_new_side_data")]
     pub fn alloc_side_data_from_slice(
         &mut self,
         kind: SideDataType,
@@ -5612,7 +5784,7 @@ impl FrameMut<'_> {
         unsafe { SideDataMut::from_ptr(entry) }
     }
 
-    /// Wraps: `av_frame_new_side_data_from_buf`
+    /// Wraps `fn::av_frame_new_side_data_from_buf`
     ///
     /// Appends side data of `kind` whose payload is `buf`'s bytes, and returns
     /// the entry holding it; the entry takes `buf` over. Unlike
@@ -5627,6 +5799,7 @@ impl FrameMut<'_> {
     /// # Panics
     ///
     /// Only if C takes over a reference it did not add to the frame.
+    #[doc(alias = "av_frame_new_side_data_from_buf")]
     pub fn add_side_data(
         &mut self,
         kind: SideDataType,
@@ -5648,10 +5821,11 @@ impl FrameMut<'_> {
         Ok(unsafe { SideDataMut::from_ptr(entry) }.expect("C returned an entry"))
     }
 
-    /// Wraps: `av_frame_remove_side_data`
+    /// Wraps `fn::av_frame_remove_side_data`
     ///
     /// Removes every side data entry of `kind`, freeing each with its buffer
     /// reference and metadata, as [`SideDataArrayMut::remove`] does.
+    #[doc(alias = "av_frame_remove_side_data")]
     pub fn remove_side_data(&mut self, kind: SideDataType) {
         // SAFETY: a live frame, reached through the exclusive handle, so no
         // handle to an entry C frees or moves is alive; C keeps the count
