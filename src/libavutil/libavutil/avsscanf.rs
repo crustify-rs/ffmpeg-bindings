@@ -311,7 +311,7 @@ fn bind_scan_args(
     Ok(ptrs)
 }
 
-/// Wraps: `av_sscanf`
+/// Wraps `fn::av_sscanf`
 ///
 /// Reads `input` by `format`, as C's `sscanf` in the C locale, storing each
 /// conversion into the next destination of `args`.
@@ -343,6 +343,7 @@ fn bind_scan_args(
 ///
 /// Returns the number of destinations assigned, which stops at the first conversion that fails to
 /// match, or `None` when the input ends before any is assigned (C's `EOF`).
+#[doc(alias = "av_sscanf")]
 pub fn scan(
     input: &CStr,
     format: &CStr,
