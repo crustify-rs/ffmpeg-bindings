@@ -62,7 +62,7 @@ impl fmt::Display for SadError {
 
 impl std::error::Error for SadError {}
 
-/// Wraps: `av_pixelutils_sad_fn`
+/// Wraps `ty::av_pixelutils_sad_fn`
 ///
 /// A sum-of-absolute-differences function over square blocks of
 /// [`size`](Self::size) x `size` bytes, as `av_pixelutils_get_sad_fn` selects
@@ -71,6 +71,7 @@ impl std::error::Error for SadError {}
 ///
 /// It keeps no state and reads only the blocks it is given: a handle is
 /// `Copy`, `Send` and `Sync`.
+#[doc(alias = "av_pixelutils_sad_fn")]
 #[derive(Clone, Copy, Debug)]
 pub struct SadFn {
     /// A function from `av_pixelutils_get_sad_fn(log2_size, log2_size,
@@ -83,7 +84,7 @@ pub struct SadFn {
 }
 
 impl SadFn {
-    /// Wraps: `av_pixelutils_get_sad_fn`
+    /// Wraps `fn::av_pixelutils_get_sad_fn`
     ///
     /// The function C selects for blocks of `2^log2_size` x `2^log2_size`
     /// bytes whose addresses meet `alignment`: SIMD code when the CPU has it
@@ -94,6 +95,7 @@ impl SadFn {
     ///
     /// C's log context is used only by a libavutil built without
     /// pixelutils, which logs that it is missing; this passes none.
+    #[doc(alias = "av_pixelutils_get_sad_fn")]
     #[must_use]
     pub fn new(log2_size: u32, alignment: SadAlignment) -> Option<Self> {
         let bits = c_int::try_from(log2_size).ok()?;
