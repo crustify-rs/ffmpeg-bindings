@@ -48,8 +48,8 @@ use super::ffi;
 use super::mem::HeapVec;
 
 define_ctype!(
-    /// Wraps: AVBuffer
-    ///
+    /// Wraps `ty::AVBuffer`
+    #[doc(alias = "AVBuffer")]
     /// A reference-counted data buffer, reached only through the references
     /// that keep it alive: its handles borrow from one of them, and there is
     /// no owner of the body itself. C keeps the layout private.
@@ -94,8 +94,8 @@ impl BufferRef<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVBufferPool
-    ///
+    /// Wraps `ty::AVBufferPool`
+    #[doc(alias = "AVBufferPool")]
     /// A pool of equally sized, reusable buffers, owned by the caller as a
     /// [`BufferPoolBox`]. C keeps the layout private.
     ///
@@ -136,7 +136,6 @@ unsafe impl Sync for BufferPoolRef<'_> {}
 // handle.
 unsafe impl Sync for BufferPoolMut<'_> {}
 
-/// Wraps: `av_buffer_pool_uninit`
 /// Handwritten
 ///
 /// Releases the caller's reference to a pool. `impl_cdrop!` would need a
@@ -153,6 +152,8 @@ pub struct BufferPoolUninit;
 // the mutex and decrements the count, freeing the pool only when no buffer is
 // outstanding. It never reads the box's storage after that decrement.
 unsafe impl CDrop<BufferPool> for BufferPoolUninit {
+    /// Wraps `fn::av_buffer_pool_uninit`
+    #[doc(alias = "av_buffer_pool_uninit")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<BufferPool>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferPool>();
@@ -185,8 +186,8 @@ unsafe impl CDrop<BufferPool> for BufferPoolUninit {
 pub type BufferPoolBox = CBox<BufferPool, BufferPoolUninit>;
 
 impl BufferPool {
-    /// Wraps: `av_buffer_pool_init`
-    ///
+    /// Wraps `fn::av_buffer_pool_init`
+    #[doc(alias = "av_buffer_pool_init")]
     /// A pool of `size`-byte buffers allocated with C's default allocator,
     /// `av_buffer_alloc`. Nothing is allocated for the buffers until one is
     /// requested, so any `size` succeeds here. `None` when C cannot allocate
@@ -204,8 +205,10 @@ impl BufferPool {
         unsafe { BufferPoolBox::from_c(buffer_pool_init) }
     }
 
-    /// Wraps: `av_buffer_pool_init2`
-    ///
+    /// Wraps `fn::av_buffer_pool_init2`
+    #[doc(alias = "av_buffer_pool_init2")]
+    /// Wraps `fn::av_buffer_pool_init`
+    #[doc(alias = "av_buffer_pool_init")]
     /// A pool of `size`-byte buffers drawn from `alloc`, called with `size`
     /// whenever the pool has no free buffer. The pool owns `alloc`: it is
     /// dropped when the pool is finally freed, after this box is dropped and
@@ -294,8 +297,8 @@ impl BufferPool {
 }
 
 impl BufferPoolRef<'_> {
-    /// Wraps: `av_buffer_pool_get`
-    ///
+    /// Wraps `fn::av_buffer_pool_get`
+    #[doc(alias = "av_buffer_pool_get")]
     /// A buffer of the pool's size: one of its free buffers, its bytes as
     /// their last user left them, or else a new one from the pool's
     /// allocator. It is the buffer's only reference, and its bytes are not
@@ -329,8 +332,8 @@ impl BufferPoolRef<'_> {
         buf.as_ref().is_writable().then_some(UninitBuffer(buf))
     }
 
-    /// Wraps: `av_buffer_pool_buffer_get_opaque`
-    ///
+    /// Wraps `fn::av_buffer_pool_buffer_get_opaque`
+    #[doc(alias = "av_buffer_pool_buffer_get_opaque")]
     /// A buffer as [`get`](Self::get) hands it out, and the opaque its
     /// allocator created it with: a pool takes its buffers' own opaque over
     /// ([`BufferReferenceRef::opaque`] reads the pool's bookkeeping), and
@@ -377,8 +380,8 @@ where
     drop(unsafe { Box::from_raw(state.cast::<F>()) });
 }
 
-/// Wraps: `av_buffer_default_free`
-///
+/// Wraps `fn::av_buffer_default_free`
+#[doc(alias = "av_buffer_default_free")]
 /// Releases `data` as an `AVBuffer` created without a free callback releases
 /// its data: C frees the `av_malloc`-family block with `av_free` and ignores
 /// its `opaque` argument. The elements are never dropped, as when `data`
@@ -392,8 +395,8 @@ pub fn default_free<T>(data: HeapVec<T>) {
 }
 
 define_ctype!(
-    /// Wraps: AVBufferRef
-    ///
+    /// Wraps `ty::AVBufferRef`
+    #[doc(alias = "AVBufferRef")]
     /// One reference to a [`Buffer`]: one of its counted references, and a
     /// window of [`len`](BufferReferenceRef::len) bytes into its data. Its
     /// getters are on [`BufferReferenceRef`] (`as_ref()`), its setters on
@@ -449,7 +452,6 @@ unsafe impl Send for BufferReferenceMut<'_> {}
 // a shared handle; the setters need `&mut`.
 unsafe impl Sync for BufferReferenceMut<'_> {}
 
-/// Wraps: `av_buffer_unref`
 /// Handwritten
 ///
 /// Releases a [`BufferReferenceBox`]'s reference: C frees the struct and drops
@@ -470,6 +472,8 @@ pub struct BufferUnref;
 // buffer's count with acq_rel ordering, running the data release and freeing
 // the body on the last one. It reads nothing of the box afterwards.
 unsafe impl CDrop<BufferReference> for BufferUnref {
+    /// Wraps `fn::av_buffer_unref`
+    #[doc(alias = "av_buffer_unref")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<BufferReference>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVBufferRef>();
@@ -502,8 +506,6 @@ fn status(ret: c_int) -> Result<(), c_int> {
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: `av_buffer_ref`
-///
 /// A new reference to the same buffer, the same window of the same bytes.
 // SAFETY: a non-null result is a fresh av_mallocz'd struct, independent of
 // `ptr` and released by `c_drop`. What the two references share is the
@@ -512,6 +514,8 @@ fn status(ret: c_int) -> Result<(), c_int> {
 // count, so writing through either box never reaches the other's bytes. NULL
 // means C failed, or the count would near wrapping (`MAX_REFERENCES`).
 unsafe impl CDupClone<BufferReference> for BufferUnref {
+    /// Wraps `fn::av_buffer_ref`
+    #[doc(alias = "av_buffer_ref")]
     #[inline]
     unsafe fn c_dup(&self, ptr: NonNull<BufferReference>) -> Option<NonNull<BufferReference>> {
         // SAFETY: the caller passes a live reference, borrowed for the call.
@@ -562,8 +566,8 @@ unsafe impl CDupClone<BufferReference> for BufferUnref {
 pub type BufferReferenceBox = CBox<BufferReference, BufferUnref>;
 
 impl BufferReference {
-    /// Wraps: `av_buffer_alloc`
-    ///
+    /// Wraps `fn::av_buffer_alloc`
+    #[doc(alias = "av_buffer_alloc")]
     /// A reference to a new buffer of `size` uninitialised `av_malloc` bytes,
     /// which C frees with `av_free`; `None` when C cannot allocate them (more
     /// than the [`set_max_alloc`](super::mem::set_max_alloc) limit, or out of
@@ -580,8 +584,8 @@ impl BufferReference {
         unsafe { BufferReferenceBox::from_c(buffer_alloc) }.map(UninitBuffer)
     }
 
-    /// Wraps: `av_buffer_allocz`
-    ///
+    /// Wraps `fn::av_buffer_allocz`
+    #[doc(alias = "av_buffer_allocz")]
     /// A reference to a new buffer of `size` zeroed `av_malloc` bytes, which C
     /// frees with `av_free`; `None` when C cannot allocate them.
     #[must_use]
@@ -594,8 +598,8 @@ impl BufferReference {
         unsafe { BufferReferenceBox::from_c(buffer_allocz) }
     }
 
-    /// Wraps: `av_buffer_realloc`
-    ///
+    /// Wraps `fn::av_buffer_realloc`
+    #[doc(alias = "av_buffer_realloc")]
     /// A reference to a new buffer of `size` uninitialised bytes, as
     /// [`alloc`](Self::alloc), that can be resized in place: C allocates
     /// them with `av_realloc` and marks the buffer for it, so that
@@ -617,8 +621,8 @@ impl BufferReference {
         unsafe { BufferReferenceBox::from_c(slot) }.map(UninitBuffer)
     }
 
-    /// Wraps: `av_buffer_create`
-    ///
+    /// Wraps `fn::av_buffer_create`
+    #[doc(alias = "av_buffer_create")]
     /// A reference to a new, writable buffer over `data`, which it then owns:
     /// C frees the block with `av_free` once the last reference is released
     /// (`av_buffer_default_free`). An empty array makes an empty buffer. When
@@ -642,8 +646,8 @@ impl BufferReference {
         })
     }
 
-    /// Wraps: `av_buffer_create`
-    ///
+    /// Wraps `fn::av_buffer_create`
+    #[doc(alias = "av_buffer_create")]
     /// A reference to a new, writable buffer over the bytes of `owner`, which
     /// the buffer then owns: `owner` is dropped once the last reference is
     /// released, on the thread releasing it, hence `Send`. A panic in its
@@ -680,8 +684,8 @@ impl BufferReference {
         })
     }
 
-    /// Wraps: `av_buffer_create`
-    ///
+    /// Wraps `fn::av_buffer_create`
+    #[doc(alias = "av_buffer_create")]
     /// A reference to a new, read-only buffer over the bytes of `owner`, which
     /// the buffer then owns, as [`from_owner`](Self::from_owner). The buffer
     /// carries C's `AV_BUFFER_FLAG_READONLY`, so no reference to it is ever
@@ -759,8 +763,8 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { data_ptr.read() }.is_null()
     }
 
-    /// Wraps: `av_buffer_is_writable`
-    ///
+    /// Wraps `fn::av_buffer_is_writable`
+    #[doc(alias = "av_buffer_is_writable")]
     /// Whether the buffer has this one reference and is not read-only, so
     /// that its bytes are this reference's alone to write
     /// ([`data_mut`](BufferReferenceMut::data_mut)). Through a shared handle
@@ -774,8 +778,8 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { ffi::av_buffer_is_writable(self.as_ptr()) != 0 }
     }
 
-    /// Wraps: `av_buffer_get_ref_count`
-    ///
+    /// Wraps `fn::av_buffer_get_ref_count`
+    #[doc(alias = "av_buffer_get_ref_count")]
     /// The number of references to the buffer, this one included. Other
     /// threads may clone or release references to it meanwhile, so the
     /// count may be stale by the time it is read; it is at least 1.
@@ -787,8 +791,8 @@ impl<'a> BufferReferenceRef<'a> {
         count.cast_unsigned()
     }
 
-    /// Wraps: `av_buffer_get_opaque`
-    ///
+    /// Wraps `fn::av_buffer_get_opaque`
+    #[doc(alias = "av_buffer_get_opaque")]
     /// The opaque the buffer was created with, as the address it is. C hands
     /// it to the buffer's data release and never reads it otherwise, so what
     /// it points at, and for how long, is its creator's business: it comes
@@ -812,8 +816,8 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { ffi::av_buffer_get_opaque(self.as_ptr()) }
     }
 
-    /// Field: AVBufferRef.data
-    ///
+    /// Wraps `fld::AVBufferRef.data`
+    #[doc(alias = "AVBufferRef.data")]
     /// The bytes this reference describes, borrowed for as long as it lives.
     /// Nothing writes them meanwhile: a writer needs the only reference to
     /// the buffer, and this is one.
@@ -827,8 +831,8 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { slice::from_raw_parts(data.as_ptr(), len) }
     }
 
-    /// Field: AVBufferRef.size
-    ///
+    /// Wraps `fld::AVBufferRef.size`
+    #[doc(alias = "AVBufferRef.size")]
     /// The number of bytes this reference describes, which may be fewer than
     /// its buffer holds.
     #[must_use]
@@ -847,8 +851,8 @@ impl<'a> BufferReferenceRef<'a> {
         self.len() == 0
     }
 
-    /// Field: AVBufferRef.buffer
-    ///
+    /// Wraps `fld::AVBufferRef.buffer`
+    #[doc(alias = "AVBufferRef.buffer")]
     /// The buffer this reference counts, whose identity tells whether two
     /// references share their data ([`BufferRef::ptr_eq`]).
     ///
@@ -868,8 +872,8 @@ impl<'a> BufferReferenceRef<'a> {
         unsafe { BufferRef::from_ptr(buffer) }.expect("a reference counts a buffer")
     }
 
-    /// Field: AVBufferRef.buffer
-    ///
+    /// Wraps `fld::AVBufferRef.buffer`
+    #[doc(alias = "AVBufferRef.buffer")]
     /// A new, owned reference to the same buffer, describing the same bytes
     /// (`av_buffer_ref`, as [`BufferReferenceBox`]'s `clone`); `None` when C
     /// cannot allocate it, or the buffer's count would near wrapping.
@@ -897,8 +901,8 @@ impl fmt::Debug for BufferReferenceRef<'_> {
 }
 
 impl BufferReferenceMut<'_> {
-    /// Field: AVBufferRef.data
-    ///
+    /// Wraps `fld::AVBufferRef.data`
+    #[doc(alias = "AVBufferRef.data")]
     /// The bytes this reference describes, writable, when the buffer has no
     /// other reference and is not read-only (`av_buffer_is_writable`); `None`
     /// otherwise. Cloning the reference makes it unwritable until the clone
@@ -919,8 +923,10 @@ impl BufferReferenceMut<'_> {
         Some(unsafe { slice::from_raw_parts_mut(data.as_ptr(), len) })
     }
 
-    /// Field: AVBufferRef.data
-    ///
+    /// Wraps `fld::AVBufferRef.data`
+    #[doc(alias = "AVBufferRef.data")]
+    /// Wraps `fld::AVBufferRef.size`
+    #[doc(alias = "AVBufferRef.size")]
     /// Drops the first `n` bytes from the window this reference describes,
     /// as C callers do by advancing `data`; the buffer and other references
     /// to it are unchanged.
@@ -955,8 +961,8 @@ impl BufferReferenceMut<'_> {
         }
     }
 
-    /// Field: AVBufferRef.size
-    ///
+    /// Wraps `fld::AVBufferRef.size`
+    #[doc(alias = "AVBufferRef.size")]
     /// Shortens the window this reference describes to its first `len`
     /// bytes, as C callers do by lowering `size`; nothing changes when it is
     /// no longer than that already.
@@ -972,8 +978,8 @@ impl BufferReferenceMut<'_> {
         }
     }
 
-    /// Field: AVBufferRef.buffer
-    ///
+    /// Wraps `fld::AVBufferRef.buffer`
+    #[doc(alias = "AVBufferRef.buffer")]
     /// Makes this the reference `with` was, buffer and window, and returns
     /// the reference this was, as an owner. The struct C may know this
     /// reference by stays where it is; only the contents move.
@@ -987,16 +993,16 @@ impl BufferReferenceMut<'_> {
         with
     }
 
-    /// Field: AVBufferRef.buffer
-    ///
+    /// Wraps `fld::AVBufferRef.buffer`
+    #[doc(alias = "AVBufferRef.buffer")]
     /// Makes this the reference `with` was, and releases the reference this
     /// was, as [`replace`](Self::replace) and a drop.
     pub fn set(&mut self, with: BufferReferenceBox) {
         drop(self.replace(with));
     }
 
-    /// Wraps: `av_buffer_make_writable`
-    ///
+    /// Wraps `fn::av_buffer_make_writable`
+    #[doc(alias = "av_buffer_make_writable")]
     /// The bytes this reference describes, writable, as
     /// [`data_mut`](Self::data_mut) hands them out, after C copies them
     /// into a new buffer of their length when the reference is not writable
@@ -1034,8 +1040,8 @@ impl BufferReferenceMut<'_> {
         Ok(self.data_mut().expect("C made the reference writable"))
     }
 
-    /// Wraps: `av_buffer_realloc`
-    ///
+    /// Wraps `fn::av_buffer_realloc`
+    #[doc(alias = "av_buffer_realloc")]
     /// Resizes the window this reference describes to `len` bytes, as
     /// `Vec::resize`: its first bytes up to the shorter length are kept, and
     /// any new ones set to `value`. A buffer from
@@ -1115,8 +1121,8 @@ impl BufferReferenceMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_buffer_replace`
-    ///
+    /// Wraps `fn::av_buffer_replace`
+    #[doc(alias = "av_buffer_replace")]
     /// Makes this reference describe what `src` does, buffer and window:
     /// when both count the same buffer, only the window changes; otherwise
     /// this one takes a new count of `src`'s buffer and releases its old
@@ -1143,8 +1149,8 @@ impl BufferReferenceMut<'_> {
     }
 }
 
-/// Wraps: `av_buffer_replace`
-///
+/// Wraps `fn::av_buffer_replace`
+#[doc(alias = "av_buffer_replace")]
 /// Makes `dst` a reference to what `src` describes, buffer and window, or
 /// empty for `None`, as C does with a reference slot: a `dst` that counts
 /// `src`'s buffer only takes its window, and any other is released and
@@ -1190,7 +1196,6 @@ pub fn assign(
     status(ret)
 }
 
-/// Wraps: `AVBufferRef`
 /// Handwritten
 ///
 /// A reference to a buffer whose bytes may not be initialised yet: what
@@ -1232,8 +1237,8 @@ pub fn assign(
 pub struct UninitBuffer(BufferReferenceBox);
 
 impl UninitBuffer {
-    /// Wraps: `av_buffer_create`
-    ///
+    /// Wraps `fn::av_buffer_create`
+    #[doc(alias = "av_buffer_create")]
     /// A reference to a new, writable buffer over the possibly uninitialised
     /// bytes of `owner`, which the buffer then owns, as
     /// [`BufferReference::from_owner`] does for initialised ones: `owner` is
@@ -1286,6 +1291,8 @@ impl UninitBuffer {
         })
     }
 
+    /// Wraps `fld::AVBufferRef.size`
+    #[doc(alias = "AVBufferRef.size")]
     /// The number of bytes the reference describes.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -1298,6 +1305,8 @@ impl UninitBuffer {
         self.len() == 0
     }
 
+    /// Wraps `fld::AVBufferRef.data`
+    #[doc(alias = "AVBufferRef.data")]
     /// The bytes, which may be uninitialised.
     #[must_use]
     pub fn as_slice(&self) -> &[MaybeUninit<u8>] {
@@ -1309,6 +1318,8 @@ impl UninitBuffer {
         unsafe { slice::from_raw_parts(data.cast::<MaybeUninit<u8>>().as_ptr(), len) }
     }
 
+    /// Wraps `fld::AVBufferRef.data`
+    #[doc(alias = "AVBufferRef.data")]
     /// The bytes, writable, which may be uninitialised.
     #[must_use]
     pub fn as_mut_slice(&mut self) -> &mut [MaybeUninit<u8>] {
@@ -1348,8 +1359,8 @@ impl UninitBuffer {
         unsafe { self.assume_init() }
     }
 
-    /// Wraps: `av_buffer_realloc`
-    ///
+    /// Wraps `fn::av_buffer_realloc`
+    #[doc(alias = "av_buffer_realloc")]
     /// Resizes the bytes to `len`, keeping the first ones up to the shorter
     /// length; any new ones are uninitialised. A buffer from
     /// [`BufferReference::alloc_resizable`] whose window still starts at its
