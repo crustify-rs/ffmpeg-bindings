@@ -12,9 +12,10 @@ use super::ffi;
 use super::mem::Heap;
 
 define_ctype!(
-    /// Wraps: AVRC4
+    /// Wraps `ty::AVRC4`
     ///
     /// Resource-free RC4 state. Copies are independent stream checkpoints.
+    #[doc(alias = "AVRC4")]
     #[derive(Clone, Copy)]
     Rc4,
     Rc4Ref,
@@ -37,10 +38,11 @@ pub type Rc4Box = CBox<Rc4, Heap>;
 // no permutation invariant is required for memory safety. Heap frees only storage.
 unsafe impl CZeroable for Rc4 {}
 
-/// Wraps: `av_rc4_alloc`
 // SAFETY: av_rc4_alloc returns a fresh, zero-filled AVRC4 (or NULL), with
 // exactly Rc4's layout; Heap releases that av_malloc-family allocation.
 unsafe impl CNew<Rc4> for Heap {
+    /// Wraps `fn::av_rc4_alloc`
+    #[doc(alias = "av_rc4_alloc")]
     fn c_new(&self) -> Option<NonNull<Rc4>> {
         // SAFETY: the allocator has no arguments or preconditions.
         NonNull::new(unsafe { ffi::av_rc4_alloc() }.cast())
@@ -88,7 +90,8 @@ fn key_bits(len: usize) -> Result<i32, i32> {
 }
 
 impl<'a> Rc4Ref<'a> {
-    /// Field: AVRC4.x
+    /// Wraps `fld::AVRC4.x`
+    #[doc(alias = "AVRC4.x")]
     #[must_use]
     pub fn x(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -98,7 +101,8 @@ impl<'a> Rc4Ref<'a> {
         unsafe { x_ptr.read() }
     }
 
-    /// Field: AVRC4.y
+    /// Wraps `fld::AVRC4.y`
+    #[doc(alias = "AVRC4.y")]
     #[must_use]
     pub fn y(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -108,10 +112,11 @@ impl<'a> Rc4Ref<'a> {
         unsafe { y_ptr.read() }
     }
 
-    /// Field: AVRC4.state
+    /// Wraps `fld::AVRC4.state`
     ///
     /// A shared view of all 256 bytes, tied to the context borrow rather than a
     /// Rust reference over C-owned memory.
+    #[doc(alias = "AVRC4.state")]
     #[must_use]
     pub fn state(&self) -> CSlice<'a, u8> {
         // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
@@ -131,7 +136,7 @@ impl<'a> Rc4Ref<'a> {
 }
 
 impl Rc4Mut<'_> {
-    /// Wraps: `av_rc4_init`
+    /// Wraps `fn::av_rc4_init`
     ///
     /// Reset the stream with a nonempty byte key. Rejects empty keys (C
     /// reads past them) and lengths whose bit count cannot fit a C int,
@@ -140,6 +145,7 @@ impl Rc4Mut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_rc4_init` returns when it fails.
+    #[doc(alias = "av_rc4_init")]
     pub fn init(&mut self, key: &[u8]) -> Result<(), i32> {
         let bits = key_bits(key.len())?;
         // SAFETY: this handle is exclusive; C writes the complete context,
@@ -149,7 +155,10 @@ impl Rc4Mut<'_> {
         if result < 0 { Err(result) } else { Ok(()) }
     }
 
+    /// Wraps `fld::AVRC4.x`
+    ///
     /// Set the C index verbatim; C truncates it to a byte when used.
+    #[doc(alias = "AVRC4.x")]
     pub fn set_x(&mut self, value: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `x` field is in bounds; nothing is accessed here.
@@ -159,7 +168,10 @@ impl Rc4Mut<'_> {
         unsafe { x_ptr.write(value) }
     }
 
+    /// Wraps `fld::AVRC4.y`
+    ///
     /// Set the C index verbatim; C truncates it to a byte when used.
+    #[doc(alias = "AVRC4.y")]
     pub fn set_y(&mut self, value: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `y` field is in bounds; nothing is accessed here.
@@ -168,8 +180,11 @@ impl Rc4Mut<'_> {
         unsafe { y_ptr.write(value) }
     }
 
+    /// Wraps `fld::AVRC4.state`
+    ///
     /// Exclusively reborrow the 256 state bytes; arbitrary byte values are
     /// memory-safe, though changing them changes the stream algorithm.
+    #[doc(alias = "AVRC4.state")]
     pub fn state_mut(&mut self) -> CSliceMut<'_, u8> {
         // SAFETY: the handle's pointer is to a live object, as the block below relies on, so the
         // place of its `state` field is in bounds; nothing is accessed here.
@@ -186,7 +201,10 @@ impl Rc4Mut<'_> {
         }
     }
 
+    /// Wraps `fld::AVRC4.state`
+    ///
     /// Replace all state bytes without retaining the input.
+    #[doc(alias = "AVRC4.state")]
     pub fn set_state(&mut self, state: &[u8; 256]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `state` field is in bounds; nothing is accessed here.
@@ -205,7 +223,7 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl Rc4Mut<'_> {
-    /// Wraps: `av_rc4_crypt`
+    /// Wraps `fn::av_rc4_crypt`
     ///
     /// Encrypt or decrypt bytes into a separate buffer. Only `src.len()` output
     /// bytes change. Returns an error for a short output or a length above C `INT_MAX`,
@@ -223,6 +241,7 @@ impl Rc4Mut<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_rc4_crypt")]
     pub fn crypt(&mut self, dst: &mut [u8], src: &[u8]) -> Result<(), CryptError> {
         let count = crypt_count(src.len(), dst.len())?;
         // SAFETY: exclusive live context, count readable/writable bytes in
@@ -240,12 +259,15 @@ impl Rc4Mut<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_rc4_crypt`
+    ///
     /// Encrypt or decrypt in place; the same length limit as `crypt` applies.
     ///
     /// # Errors
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_rc4_crypt")]
     pub fn crypt_in_place(&mut self, data: &mut [u8]) -> Result<(), CryptError> {
         let count = crypt_count(data.len(), data.len())?;
         // SAFETY: exclusive context and writable data; C explicitly supports
@@ -264,6 +286,8 @@ impl Rc4Mut<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_rc4_crypt`
+    ///
     /// Write stream bytes without input (C's nullable source contract).
     /// Returns an error without changing state for lengths above C `INT_MAX`.
     ///
@@ -271,6 +295,7 @@ impl Rc4Mut<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_rc4_crypt")]
     pub fn keystream(&mut self, dst: &mut [u8]) -> Result<(), CryptError> {
         let count = crypt_count(dst.len(), dst.len())?;
         // SAFETY: exclusive context and count writable bytes; a null source
