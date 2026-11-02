@@ -24,7 +24,7 @@ use super::frame::{
 };
 
 impl SideDataType {
-    /// Wraps: `av_frame_side_data_desc`
+    /// Wraps `fn::av_frame_side_data_desc`
     ///
     /// This side data type's descriptor in C's table, borrowed for the whole
     /// program: the table is static and never written, and its names are
@@ -47,6 +47,7 @@ impl SideDataType {
     /// assert_eq!(desc.name(), Some(c"3x3 displaymatrix"));
     /// assert!(desc.props().contains(SideDataProps::GLOBAL));
     /// ```
+    #[doc(alias = "av_frame_side_data_desc")]
     #[must_use]
     pub fn descriptor(self) -> Option<SideDataDescriptorRef<'static>> {
         // For the unsafe operations below: `av_frame_side_data_desc` takes the enum by value,
@@ -62,7 +63,7 @@ impl SideDataType {
         }
     }
 
-    /// Wraps: `av_frame_side_data_name`
+    /// Wraps `fn::av_frame_side_data_name`
     ///
     /// This side data type's human-readable name, the
     /// [`name`](SideDataDescriptorRef::name) of its
@@ -73,6 +74,7 @@ impl SideDataType {
     /// use ffmpeg_bindings::libavutil::libavutil::frame::SideDataType;
     /// assert_eq!(SideDataType::STEREO_3D.name(), Some(c"Stereo 3D"));
     /// ```
+    #[doc(alias = "av_frame_side_data_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: `av_frame_side_data_name` takes the enum by value and
@@ -85,7 +87,6 @@ impl SideDataType {
     }
 }
 
-/// Wraps: `av_frame_side_data_free`
 /// Handwritten
 ///
 /// An owned array of side data: C's `AVFrameSideData **sd` and `int nb_sd`
@@ -203,6 +204,8 @@ impl Default for SideDataArray {
 }
 
 impl Drop for SideDataArray {
+    /// Wraps `fn::av_frame_side_data_free`
+    #[doc(alias = "av_frame_side_data_free")]
     fn drop(&mut self) {
         // SAFETY: the owner's array, which C frees with every entry, their
         // buffer references and metadata, NULLing and zeroing the variables.
@@ -503,7 +506,7 @@ impl BitOrAssign for SideDataFlags {
 }
 
 impl SideDataArrayMut<'_> {
-    /// Wraps: `av_frame_side_data_add`
+    /// Wraps `fn::av_frame_side_data_add`
     ///
     /// Adds side data of `kind` whose payload is `buf`'s bytes, and returns
     /// the entry holding it; the entry takes `buf` over. `buf` comes back
@@ -543,6 +546,7 @@ impl SideDataArrayMut<'_> {
     ///
     /// With [`UNIQUE`](SideDataFlags::UNIQUE), C first removes every entry of `kind`, even when it
     /// then fails to add.
+    #[doc(alias = "av_frame_side_data_add")]
     pub fn add(
         &mut self,
         kind: SideDataType,
@@ -717,13 +721,14 @@ impl ExactSizeIterator for SideDataIterMut<'_> {}
 impl FusedIterator for SideDataIterMut<'_> {}
 
 impl<'a> SideDataArrayRef<'a> {
-    /// Wraps: `av_frame_side_data_get_c`
+    /// Wraps `fn::av_frame_side_data_get_c`
     ///
     /// The first entry of `kind`, in array order; `None` when there is none.
     ///
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an array counts entries in an int.
+    #[doc(alias = "av_frame_side_data_get_c")]
     #[must_use]
     pub fn find(&self, kind: SideDataType) -> Option<SideDataRef<'a>> {
         // The count came from a `c_int`, so it converts back.
@@ -820,20 +825,22 @@ impl SideDataMut<'_> {
 }
 
 impl SideDataArrayMut<'_> {
-    /// Wraps: `av_frame_side_data_get`
+    /// Wraps `fn::av_frame_side_data_get`
     ///
     /// The first entry of `kind`, in array order, writable; `None` when
     /// there is none.
+    #[doc(alias = "av_frame_side_data_get")]
     #[must_use]
     pub fn find_mut(&mut self, kind: SideDataType) -> Option<SideDataMut<'_>> {
         self.as_mut().into_found(kind)
     }
 
-    /// Wraps: `av_frame_side_data_remove`
+    /// Wraps `fn::av_frame_side_data_remove`
     ///
     /// Removes every entry of `kind`, freeing each with its buffer reference
     /// and metadata. C moves the array's last entry into each freed slot, so
     /// the others may change order.
+    #[doc(alias = "av_frame_side_data_remove")]
     pub fn remove(&mut self, kind: SideDataType) {
         // SAFETY: the array's two variables, exclusively borrowed, so no
         // handle to an entry C frees or moves is alive; C keeps the count
@@ -847,13 +854,14 @@ impl SideDataArrayMut<'_> {
         }
     }
 
-    /// Wraps: `av_frame_side_data_remove_by_props`
+    /// Wraps `fn::av_frame_side_data_remove_by_props`
     ///
     /// Removes every entry whose kind has properties in common with `props`
     /// ([`SideDataProps::intersects`] its
     /// [`descriptor`](SideDataType::descriptor)'s), freeing each with its
     /// buffer reference and metadata, as [`remove`](Self::remove) does. Kinds
     /// C has no descriptor for stay.
+    #[doc(alias = "av_frame_side_data_remove_by_props")]
     pub fn remove_by_props(&mut self, props: SideDataProps) {
         // C's `int` filter, the bits as they are (C ANDs it with an unsigned
         // `props`, which converts it back).
@@ -868,7 +876,7 @@ impl SideDataArrayMut<'_> {
         }
     }
 
-    /// Wraps: `av_frame_side_data_clone`
+    /// Wraps `fn::av_frame_side_data_clone`
     ///
     /// Adds a copy of `src`, an entry of another array: one that shares its
     /// buffer, through a new reference (so neither payload is writable while
@@ -907,6 +915,7 @@ impl SideDataArrayMut<'_> {
     /// # Panics
     ///
     /// Only if C breaks the guarantee that an entry of the kind is present.
+    #[doc(alias = "av_frame_side_data_clone")]
     pub fn add_clone(&mut self, src: SideDataRef<'_>, flags: SideDataFlags) -> Result<(), c_int> {
         if !may_add_reference(src.buffer().ref_count()) {
             return Err(ENOMEM);
@@ -936,7 +945,7 @@ impl SideDataArrayMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_frame_side_data_new`
+    /// Wraps `fn::av_frame_side_data_new`
     ///
     /// Adds side data of `kind` with a new payload of `size` zeroed bytes,
     /// and returns the entry holding it, as [`add`](Self::add) does with a
@@ -957,6 +966,7 @@ impl SideDataArrayMut<'_> {
     /// entry.data_mut().unwrap()[0] = 10;
     /// assert_eq!(array.as_ref().find(SideDataType::AFD).unwrap().data(), [10]);
     /// ```
+    #[doc(alias = "av_frame_side_data_new")]
     pub fn alloc_zeroed(
         &mut self,
         kind: SideDataType,
@@ -966,11 +976,12 @@ impl SideDataArrayMut<'_> {
         self.as_mut().into_new_entry(kind, size, flags, zero_into)
     }
 
-    /// Wraps: `av_frame_side_data_new`
+    /// Wraps `fn::av_frame_side_data_new`
     ///
     /// Adds side data of `kind` with a new payload copied from `bytes`, and
     /// returns the entry holding it, as [`alloc_zeroed`](Self::alloc_zeroed)
     /// does with zeroes.
+    #[doc(alias = "av_frame_side_data_new")]
     pub fn alloc_from_slice(
         &mut self,
         kind: SideDataType,
