@@ -120,9 +120,10 @@ macro_rules! impl_value_traits {
 }
 
 define_ctype!(
-    /// Wraps: unaligned_16
+    /// Wraps `ty::unaligned_16`
     ///
     /// A native-endian `u16` at any alignment: 2 bytes, aligned to 1.
+    #[doc(alias = "unaligned_16")]
     #[derive(Clone, Copy)]
     Unaligned16,
     Unaligned16Ref,
@@ -186,9 +187,10 @@ impl<'a> Unaligned16Ref<'a> {
             .expect("a reference is non-null")
     }
 
-    /// Field: `unaligned_16.l`
+    /// Wraps `fld::unaligned_16.l`
     ///
     /// The `u16` the union holds, in native byte order.
+    #[doc(alias = "unaligned_16.l")]
     #[inline]
     #[must_use]
     pub fn value(&self) -> u16 {
@@ -217,9 +219,10 @@ impl<'a> Unaligned16Mut<'a> {
         unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
     }
 
-    /// Field: `unaligned_16.l`
+    /// Wraps `fld::unaligned_16.l`
     ///
     /// Stores `value` in native byte order.
+    #[doc(alias = "unaligned_16.l")]
     #[inline]
     pub fn set_value(&mut self, value: u16) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -233,9 +236,10 @@ impl<'a> Unaligned16Mut<'a> {
 }
 
 define_ctype!(
-    /// Wraps: unaligned_32
+    /// Wraps `ty::unaligned_32`
     ///
     /// A native-endian `u32` at any alignment: 4 bytes, aligned to 1.
+    #[doc(alias = "unaligned_32")]
     #[derive(Clone, Copy)]
     Unaligned32,
     Unaligned32Ref,
@@ -293,9 +297,10 @@ impl<'a> Unaligned32Ref<'a> {
             .expect("a reference is non-null")
     }
 
-    /// Field: `unaligned_32.l`
+    /// Wraps `fld::unaligned_32.l`
     ///
     /// The `u32` the union holds, in native byte order.
+    #[doc(alias = "unaligned_32.l")]
     #[inline]
     #[must_use]
     pub fn value(&self) -> u32 {
@@ -331,9 +336,10 @@ impl<'a> Unaligned32Mut<'a> {
         unsafe { Self::from_ptr(ptr::from_mut(bytes).cast()) }.expect("a reference is non-null")
     }
 
-    /// Field: `unaligned_32.l`
+    /// Wraps `fld::unaligned_32.l`
     ///
     /// Stores `value` in native byte order.
+    #[doc(alias = "unaligned_32.l")]
     #[inline]
     pub fn set_value(&mut self, value: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -347,10 +353,11 @@ impl<'a> Unaligned32Mut<'a> {
 }
 
 define_ctype!(
-    /// Wraps: unaligned_64
+    /// Wraps `ty::unaligned_64`
     ///
     /// A native-endian `u64` at any alignment: 8 bytes, aligned to 1. It owns
     /// nothing, so it copies as a value.
+    #[doc(alias = "unaligned_64")]
     #[derive(Clone, Copy)]
     Unaligned64,
     Unaligned64Ref,
@@ -418,7 +425,7 @@ impl<'a> Unaligned64Ref<'a> {
 }
 
 impl Unaligned64Ref<'_> {
-    /// Field: `unaligned_64.l`
+    /// Wraps `fld::unaligned_64.l`
     ///
     /// The stored value, read without assuming alignment (`AV_RN64`). The
     /// shared handle has no setter:
@@ -427,6 +434,7 @@ impl Unaligned64Ref<'_> {
     /// use ffmpeg_bindings::libavutil::libavutil::intreadwrite_h::Unaligned64Ref;
     /// Unaligned64Ref::from_bytes(&[0; 8]).set_value(1);
     /// ```
+    #[doc(alias = "unaligned_64.l")]
     #[inline]
     #[must_use]
     pub fn value(&self) -> u64 {
@@ -458,9 +466,10 @@ impl<'a> Unaligned64Mut<'a> {
         handle.expect("a reference is never null")
     }
 
-    /// Field: `unaligned_64.l`
+    /// Wraps `fld::unaligned_64.l`
     ///
     /// Stores `value`, without assuming alignment (`AV_WN64`).
+    #[doc(alias = "unaligned_64.l")]
     #[inline]
     pub fn set_value(&mut self, value: u64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -474,11 +483,12 @@ impl<'a> Unaligned64Mut<'a> {
 }
 
 define_ctype!(
-    /// Wraps: av_alias16
+    /// Wraps `ty::av_alias16`
     ///
     /// Two bytes viewed as a native-endian `u16` or as bytes. Every view
     /// covers both bytes, so a write through one is wholly visible through
     /// the other.
+    #[doc(alias = "av_alias16")]
     #[derive(Clone, Copy)]
     Alias16,
     Alias16Ref,
@@ -588,9 +598,10 @@ impl<'a> Alias16Ref<'a> {
 }
 
 impl Alias16Ref<'_> {
-    /// Field: `av_alias16.u16`
+    /// Wraps `fld::av_alias16.u16`
     ///
     /// Both bytes as a native-endian `u16`.
+    #[doc(alias = "av_alias16.u16")]
     #[must_use]
     pub fn u16(&self) -> u16 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -601,9 +612,10 @@ impl Alias16Ref<'_> {
         unsafe { u16_ptr.read() }
     }
 
-    /// Field: `av_alias16.u8`
+    /// Wraps `fld::av_alias16.u8`
     ///
     /// Both bytes, in memory order.
+    #[doc(alias = "av_alias16.u8")]
     #[must_use]
     pub fn u8x2(&self) -> [u8; 2] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -638,9 +650,10 @@ impl<'a> Alias16Mut<'a> {
 }
 
 impl Alias16Mut<'_> {
-    /// Field: `av_alias16.u16`
+    /// Wraps `fld::av_alias16.u16`
     ///
     /// Stores `v` over both bytes, in native byte order.
+    #[doc(alias = "av_alias16.u16")]
     pub fn set_u16(&mut self, v: u16) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u16_` field is in bounds; nothing is accessed here.
@@ -650,9 +663,10 @@ impl Alias16Mut<'_> {
         unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: `av_alias16.u8`
+    /// Wraps `fld::av_alias16.u8`
     ///
     /// Stores both bytes, in memory order.
+    #[doc(alias = "av_alias16.u8")]
     pub fn set_u8x2(&mut self, v: [u8; 2]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u8_` field is in bounds; nothing is accessed here.
@@ -663,11 +677,12 @@ impl Alias16Mut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: av_alias32
+    /// Wraps `ty::av_alias32`
     ///
     /// Four bytes viewed as a native-endian `u32`, two `u16` lanes, bytes, or
     /// an `f32`. Every view covers all four bytes, so a write through one is
     /// wholly visible through the others.
+    #[doc(alias = "av_alias32")]
     #[derive(Clone, Copy)]
     Alias32,
     Alias32Ref,
@@ -793,9 +808,10 @@ impl<'a> Alias32Ref<'a> {
 }
 
 impl Alias32Ref<'_> {
-    /// Field: `av_alias32.u32`
+    /// Wraps `fld::av_alias32.u32`
     ///
     /// All four bytes as a native-endian `u32`.
+    #[doc(alias = "av_alias32.u32")]
     #[must_use]
     pub fn u32(&self) -> u32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -806,9 +822,10 @@ impl Alias32Ref<'_> {
         unsafe { u32_ptr.read() }
     }
 
-    /// Field: `av_alias32.u16`
+    /// Wraps `fld::av_alias32.u16`
     ///
     /// The two native-endian `u16` lanes, in memory order.
+    #[doc(alias = "av_alias32.u16")]
     #[must_use]
     pub fn u16x2(&self) -> [u16; 2] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -818,9 +835,10 @@ impl Alias32Ref<'_> {
         unsafe { u16_ptr.read() }
     }
 
-    /// Field: `av_alias32.u8`
+    /// Wraps `fld::av_alias32.u8`
     ///
     /// All four bytes, in memory order.
+    #[doc(alias = "av_alias32.u8")]
     #[must_use]
     pub fn u8x4(&self) -> [u8; 4] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -830,9 +848,10 @@ impl Alias32Ref<'_> {
         unsafe { u8_ptr.read() }
     }
 
-    /// Field: `av_alias32.f32`
+    /// Wraps `fld::av_alias32.f32`
     ///
     /// All four bytes as an `f32`, bit for bit (`f32::from_bits(self.u32())`).
+    #[doc(alias = "av_alias32.f32")]
     #[must_use]
     pub fn f32(&self) -> f32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -868,9 +887,10 @@ impl<'a> Alias32Mut<'a> {
 }
 
 impl Alias32Mut<'_> {
-    /// Field: `av_alias32.u32`
+    /// Wraps `fld::av_alias32.u32`
     ///
     /// Stores `v` over all four bytes, in native byte order.
+    #[doc(alias = "av_alias32.u32")]
     pub fn set_u32(&mut self, v: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u32_` field is in bounds; nothing is accessed here.
@@ -880,9 +900,10 @@ impl Alias32Mut<'_> {
         unsafe { u32_ptr.write(v) }
     }
 
-    /// Field: `av_alias32.u16`
+    /// Wraps `fld::av_alias32.u16`
     ///
     /// Stores both `u16` lanes, in memory order.
+    #[doc(alias = "av_alias32.u16")]
     pub fn set_u16x2(&mut self, v: [u16; 2]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u16_` field is in bounds; nothing is accessed here.
@@ -891,9 +912,10 @@ impl Alias32Mut<'_> {
         unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: `av_alias32.u8`
+    /// Wraps `fld::av_alias32.u8`
     ///
     /// Stores all four bytes, in memory order.
+    #[doc(alias = "av_alias32.u8")]
     pub fn set_u8x4(&mut self, v: [u8; 4]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u8_` field is in bounds; nothing is accessed here.
@@ -902,9 +924,10 @@ impl Alias32Mut<'_> {
         unsafe { u8_ptr.write(v) }
     }
 
-    /// Field: `av_alias32.f32`
+    /// Wraps `fld::av_alias32.f32`
     ///
     /// Stores `v`'s bits over all four bytes; a NaN keeps its payload.
+    #[doc(alias = "av_alias32.f32")]
     pub fn set_f32(&mut self, v: f32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `f32_` field is in bounds; nothing is accessed here.
@@ -915,12 +938,13 @@ impl Alias32Mut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: av_alias64
+    /// Wraps `ty::av_alias64`
     ///
     /// Eight bytes viewed as a native-endian `u64`, two `u32` lanes, four
     /// `u16` lanes, bytes, an `f64`, or two `f32` lanes. Every view covers all
     /// eight bytes, so a write through one is wholly visible through the
     /// others.
+    #[doc(alias = "av_alias64")]
     #[derive(Clone, Copy)]
     Alias64,
     Alias64Ref,
@@ -1038,9 +1062,10 @@ impl fmt::Debug for Alias64Ref<'_> {
 }
 
 impl Alias64Ref<'_> {
-    /// Field: `av_alias64.u64`
+    /// Wraps `fld::av_alias64.u64`
     ///
     /// All eight bytes as a native-endian `u64`.
+    #[doc(alias = "av_alias64.u64")]
     #[must_use]
     pub fn u64(&self) -> u64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1051,9 +1076,10 @@ impl Alias64Ref<'_> {
         unsafe { u64_ptr.read() }
     }
 
-    /// Field: `av_alias64.u32`
+    /// Wraps `fld::av_alias64.u32`
     ///
     /// The two native-endian `u32` lanes, in memory order.
+    #[doc(alias = "av_alias64.u32")]
     #[must_use]
     pub fn u32x2(&self) -> [u32; 2] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1063,9 +1089,10 @@ impl Alias64Ref<'_> {
         unsafe { u32_ptr.read() }
     }
 
-    /// Field: `av_alias64.u16`
+    /// Wraps `fld::av_alias64.u16`
     ///
     /// The four native-endian `u16` lanes, in memory order.
+    #[doc(alias = "av_alias64.u16")]
     #[must_use]
     pub fn u16x4(&self) -> [u16; 4] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1075,9 +1102,10 @@ impl Alias64Ref<'_> {
         unsafe { u16_ptr.read() }
     }
 
-    /// Field: `av_alias64.u8`
+    /// Wraps `fld::av_alias64.u8`
     ///
     /// All eight bytes, in memory order.
+    #[doc(alias = "av_alias64.u8")]
     #[must_use]
     pub fn u8x8(&self) -> [u8; 8] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1087,9 +1115,10 @@ impl Alias64Ref<'_> {
         unsafe { u8_ptr.read() }
     }
 
-    /// Field: `av_alias64.f64`
+    /// Wraps `fld::av_alias64.f64`
     ///
     /// All eight bytes as an `f64`, bit for bit (`f64::from_bits(self.u64())`).
+    #[doc(alias = "av_alias64.f64")]
     #[must_use]
     pub fn f64(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1100,9 +1129,10 @@ impl Alias64Ref<'_> {
         unsafe { f64_ptr.read() }
     }
 
-    /// Field: `av_alias64.f32`
+    /// Wraps `fld::av_alias64.f32`
     ///
     /// The two `f32` lanes, in memory order, bit for bit.
+    #[doc(alias = "av_alias64.f32")]
     #[must_use]
     pub fn f32x2(&self) -> [f32; 2] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1115,9 +1145,10 @@ impl Alias64Ref<'_> {
 }
 
 impl Alias64Mut<'_> {
-    /// Field: `av_alias64.u64`
+    /// Wraps `fld::av_alias64.u64`
     ///
     /// Stores `v` over all eight bytes, in native byte order.
+    #[doc(alias = "av_alias64.u64")]
     pub fn set_u64(&mut self, v: u64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u64_` field is in bounds; nothing is accessed here.
@@ -1127,9 +1158,10 @@ impl Alias64Mut<'_> {
         unsafe { u64_ptr.write(v) }
     }
 
-    /// Field: `av_alias64.u32`
+    /// Wraps `fld::av_alias64.u32`
     ///
     /// Stores both `u32` lanes, in memory order.
+    #[doc(alias = "av_alias64.u32")]
     pub fn set_u32x2(&mut self, v: [u32; 2]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u32_` field is in bounds; nothing is accessed here.
@@ -1138,9 +1170,10 @@ impl Alias64Mut<'_> {
         unsafe { u32_ptr.write(v) }
     }
 
-    /// Field: `av_alias64.u16`
+    /// Wraps `fld::av_alias64.u16`
     ///
     /// Stores all four `u16` lanes, in memory order.
+    #[doc(alias = "av_alias64.u16")]
     pub fn set_u16x4(&mut self, v: [u16; 4]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u16_` field is in bounds; nothing is accessed here.
@@ -1149,9 +1182,10 @@ impl Alias64Mut<'_> {
         unsafe { u16_ptr.write(v) }
     }
 
-    /// Field: `av_alias64.u8`
+    /// Wraps `fld::av_alias64.u8`
     ///
     /// Stores all eight bytes, in memory order.
+    #[doc(alias = "av_alias64.u8")]
     pub fn set_u8x8(&mut self, v: [u8; 8]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `u8_` field is in bounds; nothing is accessed here.
@@ -1160,9 +1194,10 @@ impl Alias64Mut<'_> {
         unsafe { u8_ptr.write(v) }
     }
 
-    /// Field: `av_alias64.f64`
+    /// Wraps `fld::av_alias64.f64`
     ///
     /// Stores `v`'s bits over all eight bytes; a NaN keeps its payload.
+    #[doc(alias = "av_alias64.f64")]
     pub fn set_f64(&mut self, v: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `f64_` field is in bounds; nothing is accessed here.
@@ -1171,10 +1206,11 @@ impl Alias64Mut<'_> {
         unsafe { f64_ptr.write(v) }
     }
 
-    /// Field: `av_alias64.f32`
+    /// Wraps `fld::av_alias64.f32`
     ///
     /// Stores both `f32` lanes' bits, in memory order; a NaN keeps its
     /// payload.
+    #[doc(alias = "av_alias64.f32")]
     pub fn set_f32x2(&mut self, v: [f32; 2]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `f32_` field is in bounds; nothing is accessed here.
