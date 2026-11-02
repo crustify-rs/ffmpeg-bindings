@@ -79,11 +79,12 @@ use super::samplefmt::SampleFormat;
 use super::{avstring, channel_layout, eval, ffi, parseutils};
 
 define_ctype!(
-    /// Wraps: AVOption
+    /// Wraps `ty::AVOption`
     ///
     /// One option of an `AVClass`: its name, help text, type, default value,
     /// bounds, flags and unit. Reached as an [`OptionDefRef`] borrowed from
     /// the class's static option table.
+    #[doc(alias = "AVOption")]
     OptionDef,
     OptionDefRef,
     OptionDefMut,
@@ -170,10 +171,11 @@ impl PartialEq for OptionDefault<'_> {
 }
 
 impl<'a> OptionDefRef<'a> {
-    /// Field: AVOption.name
+    /// Wraps `fld::AVOption.name`
     ///
     /// The option's name; `None` only for the terminating entry of a table,
     /// which libavutil's lookups never return.
+    #[doc(alias = "AVOption.name")]
     #[must_use]
     pub fn name(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -186,9 +188,10 @@ impl<'a> OptionDefRef<'a> {
         unsafe { opt_c_str(name) }
     }
 
-    /// Field: AVOption.help
+    /// Wraps `fld::AVOption.help`
     ///
     /// Short English help text; `None` when the option has none.
+    #[doc(alias = "AVOption.help")]
     #[must_use]
     pub fn help(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -200,11 +203,12 @@ impl<'a> OptionDefRef<'a> {
         unsafe { opt_c_str(help) }
     }
 
-    /// Field: AVOption.offset
+    /// Wraps `fld::AVOption.offset`
     ///
     /// Byte offset of the option's value within the object its class
     /// describes; 0 for a `CONST` option. Native access only: foreign code
     /// reads and writes values through the `av_opt_get` / `av_opt_set` family.
+    #[doc(alias = "AVOption.offset")]
     #[must_use]
     pub fn offset(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -214,10 +218,11 @@ impl<'a> OptionDefRef<'a> {
         unsafe { offset_ptr.read() }
     }
 
-    /// Field: AVOption.type
+    /// Wraps `fld::AVOption.type`
     ///
     /// The option's type: a base type, possibly combined with
     /// [`OptionType::ARRAY`].
+    #[doc(alias = "AVOption.type")]
     #[must_use]
     pub fn option_type(&self) -> OptionType {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -228,17 +233,22 @@ impl<'a> OptionDefRef<'a> {
         OptionType(unsafe { type_ptr.read() })
     }
 
-    /// Field: `AVOption.default_val`
-    /// Field: `AVOption.default_val.i64`
-    /// Field: `AVOption.default_val.dbl`
-    /// Field: `AVOption.default_val.str`
-    /// Field: `AVOption.default_val.arr`
+    /// Wraps `fld::AVOption.default_val`
+    /// Wraps `fld::AVOption.default_val.i64`
+    /// Wraps `fld::AVOption.default_val.dbl`
+    /// Wraps `fld::AVOption.default_val.str`
+    /// Wraps `fld::AVOption.default_val.arr`
     ///
     /// The default value, read through the union member [`option_type`]
     /// selects. `default_val.q` has no variant: libavutil never reads it, and
     /// takes a `RATIONAL` default from `dbl`.
     ///
     /// [`option_type`]: Self::option_type
+    #[doc(alias = "AVOption.default_val")]
+    #[doc(alias = "AVOption.default_val.i64")]
+    #[doc(alias = "AVOption.default_val.dbl")]
+    #[doc(alias = "AVOption.default_val.str")]
+    #[doc(alias = "AVOption.default_val.arr")]
     #[must_use]
     pub fn default_value(&self) -> OptionDefault<'a> {
         use OptionType as T;
@@ -310,9 +320,10 @@ impl<'a> OptionDefRef<'a> {
         }
     }
 
-    /// Field: AVOption.min
+    /// Wraps `fld::AVOption.min`
     ///
     /// The minimum valid value.
+    #[doc(alias = "AVOption.min")]
     #[must_use]
     pub fn min(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -322,9 +333,10 @@ impl<'a> OptionDefRef<'a> {
         unsafe { min_ptr.read() }
     }
 
-    /// Field: AVOption.max
+    /// Wraps `fld::AVOption.max`
     ///
     /// The maximum valid value.
+    #[doc(alias = "AVOption.max")]
     #[must_use]
     pub fn max(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -334,9 +346,10 @@ impl<'a> OptionDefRef<'a> {
         unsafe { max_ptr.read() }
     }
 
-    /// Field: AVOption.flags
+    /// Wraps `fld::AVOption.flags`
     ///
     /// A combination of `AV_OPT_FLAG_*`.
+    #[doc(alias = "AVOption.flags")]
     #[must_use]
     pub fn flags(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -346,10 +359,11 @@ impl<'a> OptionDefRef<'a> {
         unsafe { flags_ptr.read() }
     }
 
-    /// Field: AVOption.unit
+    /// Wraps `fld::AVOption.unit`
     ///
     /// The logical unit shared by an option and its named constants; `None`
     /// when it belongs to none.
+    #[doc(alias = "AVOption.unit")]
     #[must_use]
     pub fn unit(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -362,7 +376,7 @@ impl<'a> OptionDefRef<'a> {
     }
 }
 
-/// Wraps: `AVOptionType`
+/// Wraps `ty::AVOptionType`
 /// Handwritten
 ///
 /// The type of an option (`enum AVOptionType`): the C type of the value it
@@ -376,6 +390,7 @@ impl<'a> OptionDefRef<'a> {
 /// base; [`base`](Self::base) and [`array`](Self::array) convert between the
 /// two. `ffi::AVOptionType` has no zero enumerator, and libavutil reads 0 only
 /// as the type of a table's terminating entry, so there is no `Default`.
+#[doc(alias = "AVOptionType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OptionType(ffi::AVOptionType);
@@ -530,7 +545,7 @@ impl From<OptionType> for ffi::AVOptionType {
 }
 
 define_ctype!(
-    /// Wraps: AVOptionArrayDef
+    /// Wraps `ty::AVOptionArrayDef`
     ///
     /// The definition of an array option (`AV_OPT_TYPE_FLAG_ARRAY`), which
     /// its `AVOption.default_val.arr` points to: the default value as a
@@ -542,6 +557,7 @@ define_ctype!(
     /// value starts from [`OptionArrayDef::new`]; its default can only be a
     /// `'static` string, so every handle's `def` is NULL or a string that
     /// outlives it. No C routine allocates, copies or frees a definition.
+    #[doc(alias = "AVOptionArrayDef")]
     OptionArrayDef,
     OptionArrayDefRef,
     OptionArrayDefMut,
@@ -619,11 +635,12 @@ impl Default for OptionArrayDef {
 }
 
 impl<'a> OptionArrayDefRef<'a> {
-    /// Field: AVOptionArrayDef.def
+    /// Wraps `fld::AVOptionArrayDef.def`
     ///
     /// The default value, elements joined by [`separator`](Self::separator)
     /// as `av_opt_get` would serialize them (`"1,2"`), which
     /// `av_opt_set_defaults` parses; `None` when the option has no default.
+    #[doc(alias = "AVOptionArrayDef.def")]
     #[must_use]
     pub fn def(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -637,10 +654,11 @@ impl<'a> OptionArrayDefRef<'a> {
         unsafe { opt_c_str(def) }
     }
 
-    /// Field: `AVOptionArrayDef.size_min`
+    /// Wraps `fld::AVOptionArrayDef.size_min`
     ///
     /// The minimum number of elements; when non-zero, the default holds at
     /// least that many (C fails to set fewer).
+    #[doc(alias = "AVOptionArrayDef.size_min")]
     #[must_use]
     pub fn size_min(&self) -> u32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -650,9 +668,10 @@ impl<'a> OptionArrayDefRef<'a> {
         unsafe { size_min_ptr.read() }
     }
 
-    /// Field: `AVOptionArrayDef.size_max`
+    /// Wraps `fld::AVOptionArrayDef.size_max`
     ///
     /// The maximum number of elements; `None` when unlimited (C's 0).
+    #[doc(alias = "AVOptionArrayDef.size_max")]
     #[must_use]
     pub fn size_max(&self) -> Option<NonZeroU32> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -662,10 +681,11 @@ impl<'a> OptionArrayDefRef<'a> {
         NonZeroU32::new(unsafe { size_max_ptr.read() })
     }
 
-    /// Field: AVOptionArrayDef.sep
+    /// Wraps `fld::AVOptionArrayDef.sep`
     ///
     /// The separator between elements in an option's string form, as C uses
     /// it: the stored byte, or `b','` when none is stored (C's 0).
+    #[doc(alias = "AVOptionArrayDef.sep")]
     #[must_use]
     pub fn separator(&self) -> u8 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -695,11 +715,12 @@ impl fmt::Debug for OptionArrayDefRef<'_> {
 }
 
 impl OptionArrayDefMut<'_> {
-    /// Field: AVOptionArrayDef.def
+    /// Wraps `fld::AVOptionArrayDef.def`
     ///
     /// Sets the default value, in the syntax of [`OptionArrayDefRef::def`],
     /// or none. `'static`, because a definition holds the pointer for as long
     /// as an option table may publish it.
+    #[doc(alias = "AVOptionArrayDef.def")]
     pub fn set_def(&mut self, def: Option<&'static CStr>) {
         let def = def.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -711,9 +732,10 @@ impl OptionArrayDefMut<'_> {
         unsafe { def_ptr.write(def) }
     }
 
-    /// Field: `AVOptionArrayDef.size_min`
+    /// Wraps `fld::AVOptionArrayDef.size_min`
     ///
     /// Sets the minimum number of elements.
+    #[doc(alias = "AVOptionArrayDef.size_min")]
     pub fn set_size_min(&mut self, size_min: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `size_min` field is in bounds; nothing is accessed here.
@@ -722,9 +744,10 @@ impl OptionArrayDefMut<'_> {
         unsafe { size_min_ptr.write(size_min) }
     }
 
-    /// Field: `AVOptionArrayDef.size_max`
+    /// Wraps `fld::AVOptionArrayDef.size_max`
     ///
     /// Sets the maximum number of elements, or none.
+    #[doc(alias = "AVOptionArrayDef.size_max")]
     pub fn set_size_max(&mut self, size_max: Option<NonZeroU32>) {
         let size_max = size_max.map_or(0, NonZeroU32::get);
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -734,7 +757,7 @@ impl OptionArrayDefMut<'_> {
         unsafe { size_max_ptr.write(size_max) }
     }
 
-    /// Field: AVOptionArrayDef.sep
+    /// Wraps `fld::AVOptionArrayDef.sep`
     ///
     /// Sets the separator: a printable ASCII character other than a letter,
     /// a digit or the backslash, as `libavutil/opt.h` requires, or 0 for the
@@ -743,6 +766,7 @@ impl OptionArrayDefMut<'_> {
     /// # Errors
     ///
     /// Returns [`InvalidSeparator`] for any other byte, leaving the separator unchanged.
+    #[doc(alias = "AVOptionArrayDef.sep")]
     pub fn set_separator(&mut self, sep: u8) -> Result<(), InvalidSeparator> {
         let valid = sep == 0
             || (sep.is_ascii_graphic() || sep == b' ')
@@ -761,10 +785,11 @@ impl OptionArrayDefMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVOptionRanges
+    /// Wraps `ty::AVOptionRanges`
     ///
     /// The allowed ranges of one option, `range_count()` ranges for each of
     /// `component_count()` components. Owned as an [`OptionRangesBox`].
+    #[doc(alias = "AVOptionRanges")]
     OptionRanges,
     OptionRangesRef,
     OptionRangesMut,
@@ -818,7 +843,6 @@ pub struct OptionRangesFree;
 /// ```
 pub type OptionRangesBox = CBox<OptionRanges, OptionRangesFree>;
 
-/// Wraps: `av_opt_freep_ranges`
 /// Handwritten
 ///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the list's
@@ -829,6 +853,8 @@ pub type OptionRangesBox = CBox<OptionRanges, OptionRangesFree>;
 // exactly once. No safe path changes the counts or the array it reads.
 unsafe impl CDrop<OptionRanges> for OptionRangesFree {
     #[inline]
+    /// Wraps `fn::av_opt_freep_ranges`
+    #[doc(alias = "av_opt_freep_ranges")]
     unsafe fn c_drop(&self, ptr: NonNull<OptionRanges>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVOptionRanges>();
         // SAFETY: the caller hands over a live list whose claim it owns;
@@ -904,9 +930,10 @@ fn query_ranges(
 }
 
 impl<'a> OptionRangesRef<'a> {
-    /// Field: `AVOptionRanges.nb_ranges`
+    /// Wraps `fld::AVOptionRanges.nb_ranges`
     ///
     /// The number of ranges per component.
+    #[doc(alias = "AVOptionRanges.nb_ranges")]
     #[must_use]
     pub fn range_count(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -917,13 +944,14 @@ impl<'a> OptionRangesRef<'a> {
         usize::try_from(n).unwrap_or(0)
     }
 
-    /// Field: `AVOptionRanges.nb_components`
+    /// Wraps `fld::AVOptionRanges.nb_components`
     ///
     /// The number of components: 1 from the default ranges, and whatever a
     /// class's `query_ranges` callback returned for a query with
     /// `AV_OPT_MULTI_COMPONENT_RANGE`, such as 3 for an `IMAGE_SIZE` (pixel
     /// count, width, height); 1 without that flag, whatever the callback
     /// built.
+    #[doc(alias = "AVOptionRanges.nb_components")]
     #[must_use]
     pub fn component_count(&self) -> usize {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -934,11 +962,12 @@ impl<'a> OptionRangesRef<'a> {
         usize::try_from(n).unwrap_or(0)
     }
 
-    /// Field: AVOptionRanges.range
+    /// Wraps `fld::AVOptionRanges.range`
     ///
     /// Every range, component-major: component `c`'s range `i` is element
     /// `c * range_count() + i`, as [`get`](Self::get) indexes. An element is
     /// `None` when a class callback left it NULL.
+    #[doc(alias = "AVOptionRanges.range")]
     #[must_use]
     pub fn ranges(&self) -> RangeIter<'a> {
         RangeIter {
@@ -948,10 +977,11 @@ impl<'a> OptionRangesRef<'a> {
         }
     }
 
-    /// Field: AVOptionRanges.range
+    /// Wraps `fld::AVOptionRanges.range`
     ///
     /// Range `index` of component `component`; `None` when either is out of
     /// bounds, or when a class callback left the element NULL.
+    #[doc(alias = "AVOptionRanges.range")]
     #[must_use]
     pub fn get(&self, index: usize, component: usize) -> Option<OptionRangeRef<'a>> {
         if index >= self.range_count() || component >= self.component_count() {
@@ -1002,10 +1032,11 @@ impl<'a> OptionRangesRef<'a> {
 }
 
 impl OptionRangesMut<'_> {
-    /// Field: AVOptionRanges.range
+    /// Wraps `fld::AVOptionRanges.range`
     ///
     /// Range `index` of component `component`, to rewrite; `None` as for
     /// [`OptionRangesRef::get`]. The list's shape stays read-only.
+    #[doc(alias = "AVOptionRanges.range")]
     pub fn get_mut(&mut self, index: usize, component: usize) -> Option<OptionRangeMut<'_>> {
         let range = self.as_ref().get(index, component)?.as_ptr();
         // SAFETY: `range` addresses a live range the list owns, which only
@@ -1017,7 +1048,7 @@ impl OptionRangesMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVOptionRange
+    /// Wraps `ty::AVOptionRange`
     ///
     /// One allowed range of values, or one allowed value, of an option
     /// component: an element of an [`OptionRanges`] list, which owns it and
@@ -1025,6 +1056,7 @@ define_ctype!(
     /// it is only ever borrowed from its list: as an [`OptionRangeRef`] from
     /// [`OptionRangesRef::get`] or [`OptionRangesRef::ranges`], and as an
     /// [`OptionRangeMut`] from [`OptionRangesMut::get_mut`].
+    #[doc(alias = "AVOptionRange")]
     OptionRange,
     OptionRangeRef,
     OptionRangeMut,
@@ -1054,10 +1086,11 @@ unsafe impl Sync for OptionRangeRef<'_> {}
 unsafe impl Sync for OptionRangeMut<'_> {}
 
 impl<'a> OptionRangeRef<'a> {
-    /// Field: AVOptionRange.str
+    /// Wraps `fld::AVOptionRange.str`
     ///
     /// The range's string form, when its producer gave one; `None` for every
     /// range of the default query, which leaves it NULL.
+    #[doc(alias = "AVOptionRange.str")]
     #[must_use]
     pub fn label(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1071,13 +1104,14 @@ impl<'a> OptionRangeRef<'a> {
         unsafe { opt_c_str(label) }
     }
 
-    /// Field: `AVOptionRange.value_min`
+    /// Wraps `fld::AVOptionRange.value_min`
     ///
     /// The smallest allowed value, or the value when [`is_range`] is
     /// `false`. For a string option it is the minimum length, for an image
     /// size the minimum pixel count, width or height, by component.
     ///
     /// [`is_range`]: Self::is_range
+    #[doc(alias = "AVOptionRange.value_min")]
     #[must_use]
     pub fn value_min(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1087,9 +1121,10 @@ impl<'a> OptionRangeRef<'a> {
         unsafe { value_min_ptr.read() }
     }
 
-    /// Field: `AVOptionRange.value_max`
+    /// Wraps `fld::AVOptionRange.value_max`
     ///
     /// The largest allowed value, as for [`value_min`](Self::value_min).
+    #[doc(alias = "AVOptionRange.value_max")]
     #[must_use]
     pub fn value_max(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1099,10 +1134,11 @@ impl<'a> OptionRangeRef<'a> {
         unsafe { value_max_ptr.read() }
     }
 
-    /// Field: `AVOptionRange.component_min`
+    /// Wraps `fld::AVOptionRange.component_min`
     ///
     /// The smallest allowed value of one component of the value; for a
     /// string option, the smallest allowed code point.
+    #[doc(alias = "AVOptionRange.component_min")]
     #[must_use]
     pub fn component_min(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1112,10 +1148,11 @@ impl<'a> OptionRangeRef<'a> {
         unsafe { component_min_ptr.read() }
     }
 
-    /// Field: `AVOptionRange.component_max`
+    /// Wraps `fld::AVOptionRange.component_max`
     ///
     /// The largest allowed value of one component, as for
     /// [`component_min`](Self::component_min): 127 limits a string to ASCII.
+    #[doc(alias = "AVOptionRange.component_max")]
     #[must_use]
     pub fn component_max(&self) -> f64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1125,11 +1162,12 @@ impl<'a> OptionRangeRef<'a> {
         unsafe { component_max_ptr.read() }
     }
 
-    /// Field: `AVOptionRange.is_range`
+    /// Wraps `fld::AVOptionRange.is_range`
     ///
     /// Whether the range spans [`value_min`](Self::value_min) to
     /// [`value_max`](Self::value_max) rather than naming the single value
     /// `value_min`: C's flag is non-zero.
+    #[doc(alias = "AVOptionRange.is_range")]
     #[must_use]
     pub fn is_range(&self) -> bool {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1141,11 +1179,12 @@ impl<'a> OptionRangeRef<'a> {
 }
 
 impl OptionRangeMut<'_> {
-    /// Field: AVOptionRange.str
+    /// Wraps `fld::AVOptionRange.str`
     ///
     /// Replaces the range's string with `label`, or clears it with `None`,
     /// releasing the previous one; the list releases the new one with
     /// itself.
+    #[doc(alias = "AVOptionRange.str")]
     pub fn set_label(&mut self, label: Option<HeapString>) {
         drop(self.take_label());
         let new = label.map_or(ptr::null_mut(), HeapString::into_raw);
@@ -1158,10 +1197,11 @@ impl OptionRangeMut<'_> {
         unsafe { str_ptr.write(new) };
     }
 
-    /// Field: AVOptionRange.str
+    /// Wraps `fld::AVOptionRange.str`
     ///
     /// Takes the range's string out of it, leaving it without one; `None`
     /// when it has none.
+    #[doc(alias = "AVOptionRange.str")]
     pub fn take_label(&mut self) -> Option<HeapString> {
         let range = self.as_mut_ptr();
         // SAFETY: `range` is to a live object, as the access below relies on,
@@ -1177,9 +1217,10 @@ impl OptionRangeMut<'_> {
         unsafe { HeapString::from_raw(old.cast_mut()) }
     }
 
-    /// Field: `AVOptionRange.value_min`
+    /// Wraps `fld::AVOptionRange.value_min`
     ///
     /// Sets the smallest allowed value, or the value of a single-value range.
+    #[doc(alias = "AVOptionRange.value_min")]
     pub fn set_value_min(&mut self, value: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `value_min` field is in bounds; nothing is accessed here.
@@ -1188,9 +1229,10 @@ impl OptionRangeMut<'_> {
         unsafe { value_min_ptr.write(value) }
     }
 
-    /// Field: `AVOptionRange.value_max`
+    /// Wraps `fld::AVOptionRange.value_max`
     ///
     /// Sets the largest allowed value.
+    #[doc(alias = "AVOptionRange.value_max")]
     pub fn set_value_max(&mut self, value: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `value_max` field is in bounds; nothing is accessed here.
@@ -1199,9 +1241,10 @@ impl OptionRangeMut<'_> {
         unsafe { value_max_ptr.write(value) }
     }
 
-    /// Field: `AVOptionRange.component_min`
+    /// Wraps `fld::AVOptionRange.component_min`
     ///
     /// Sets the smallest allowed value of one component.
+    #[doc(alias = "AVOptionRange.component_min")]
     pub fn set_component_min(&mut self, value: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `component_min` field is in bounds; nothing is accessed here.
@@ -1210,9 +1253,10 @@ impl OptionRangeMut<'_> {
         unsafe { component_min_ptr.write(value) }
     }
 
-    /// Field: `AVOptionRange.component_max`
+    /// Wraps `fld::AVOptionRange.component_max`
     ///
     /// Sets the largest allowed value of one component.
+    #[doc(alias = "AVOptionRange.component_max")]
     pub fn set_component_max(&mut self, value: f64) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `component_max` field is in bounds; nothing is accessed here.
@@ -1221,10 +1265,11 @@ impl OptionRangeMut<'_> {
         unsafe { component_max_ptr.write(value) }
     }
 
-    /// Field: `AVOptionRange.is_range`
+    /// Wraps `fld::AVOptionRange.is_range`
     ///
     /// Makes the range span `value_min` to `value_max` (`true`, stored as 1)
     /// or name the single value `value_min` (`false`, stored as 0).
+    #[doc(alias = "AVOptionRange.is_range")]
     pub fn set_is_range(&mut self, is_range: bool) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `is_range` field is in bounds; nothing is accessed here.
@@ -1596,11 +1641,12 @@ impl<'a> ObjectRef<'a> {
         class.expect("an object's class is not NULL")
     }
 
-    /// Wraps: `av_opt_child_next`
+    /// Wraps `fn::av_opt_child_next`
     ///
     /// The object's `AVOptions`-enabled children, as its class's
     /// `child_next` callback lists them (a format context's private data and
     /// I/O context, say); none when the class has no callback.
+    #[doc(alias = "av_opt_child_next")]
     #[must_use]
     pub fn children(&self) -> Children<'a> {
         Children {
@@ -1610,7 +1656,7 @@ impl<'a> ObjectRef<'a> {
         }
     }
 
-    /// Wraps: `av_opt_get`
+    /// Wraps `fn::av_opt_get`
     ///
     /// The value of option `name`, formatted as a string in the syntax
     /// [`ObjectMut::set`] parses: a number, `true` / `false` / `auto`, a
@@ -1624,11 +1670,12 @@ impl<'a> ObjectRef<'a> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option (or one without a value
     /// in the object), `AVERROR(EINVAL)` for a value that does not format,
     /// `AVERROR(ENOMEM)`.
+    #[doc(alias = "av_opt_get")]
     pub fn get(&self, name: &CStr, flags: SearchFlags) -> Result<HeapString, i32> {
         self.get_raw(name, flags.0)?.ok_or(AVERROR_BUG)
     }
 
-    /// Wraps: `av_opt_get`
+    /// Wraps `fn::av_opt_get`
     ///
     /// As [`get`](Self::get), but `None` for a string, binary or dictionary
     /// option, or an array, that is unset (NULL), rather than `""`
@@ -1637,6 +1684,7 @@ impl<'a> ObjectRef<'a> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_get` returns when it fails.
+    #[doc(alias = "av_opt_get")]
     pub fn get_nullable(&self, name: &CStr, flags: SearchFlags) -> Result<Option<HeapString>, i32> {
         self.get_raw(name, flags.0 | ffi::AV_OPT_ALLOW_NULL.cast_signed())
     }
@@ -1657,7 +1705,7 @@ impl<'a> ObjectRef<'a> {
         Ok(unsafe { HeapString::from_raw(out.cast::<c_char>()) })
     }
 
-    /// Wraps: `av_opt_get_int`
+    /// Wraps `fn::av_opt_get_int`
     ///
     /// The value of numeric option `name` as an integer: an integer, flags,
     /// boolean, format or duration as stored; a float, double or rational
@@ -1669,6 +1717,7 @@ impl<'a> ObjectRef<'a> {
     /// array or a non-numeric option. Also `AVERROR(ERANGE)`, before C reads
     /// it, for a float, double or rational whose value is NaN or outside the
     /// `i64` range (`1/0`): C converts it unchecked, undefined behaviour.
+    #[doc(alias = "av_opt_get_int")]
     pub fn get_int(&self, name: &CStr, flags: SearchFlags) -> Result<i64, i32> {
         if let Some((o, _)) = self.lookup(name, None, flags.0)
             && !o.option_type().is_array()
@@ -1688,7 +1737,7 @@ impl<'a> ObjectRef<'a> {
         if ret < 0 { Err(ret) } else { Ok(out) }
     }
 
-    /// Wraps: `av_opt_get_double`
+    /// Wraps `fn::av_opt_get_double`
     ///
     /// The value of numeric option `name` as a double; a rational's
     /// quotient, which is infinite or NaN for a zero denominator.
@@ -1696,6 +1745,7 @@ impl<'a> ObjectRef<'a> {
     /// # Errors
     ///
     /// As [`get_int`](Self::get_int), without the range check.
+    #[doc(alias = "av_opt_get_double")]
     pub fn get_double(&self, name: &CStr, flags: SearchFlags) -> Result<f64, i32> {
         let (obj, mut out) = (self.as_ptr(), 0.0);
         // SAFETY: as for `get`; `out` is a writable double.
@@ -1703,7 +1753,7 @@ impl<'a> ObjectRef<'a> {
         if ret < 0 { Err(ret) } else { Ok(out) }
     }
 
-    /// Wraps: `av_opt_get_image_size`
+    /// Wraps `fn::av_opt_get_image_size`
     ///
     /// The width and height of image size option `name`.
     ///
@@ -1711,6 +1761,7 @@ impl<'a> ObjectRef<'a> {
     ///
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
     /// (logged) for an option of another type.
+    #[doc(alias = "av_opt_get_image_size")]
     pub fn get_image_size(&self, name: &CStr, flags: SearchFlags) -> Result<(i32, i32), i32> {
         let (mut w, mut h) = (0, 0);
         // SAFETY: as for `get`; `w` and `h` are writable `int`s.
@@ -1726,7 +1777,7 @@ impl<'a> ObjectRef<'a> {
         if ret < 0 { Err(ret) } else { Ok((w, h)) }
     }
 
-    /// Wraps: `av_opt_get_array_size`
+    /// Wraps `fn::av_opt_get_array_size`
     ///
     /// The number of elements of array option `name`.
     ///
@@ -1734,6 +1785,7 @@ impl<'a> ObjectRef<'a> {
     ///
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for an
     /// option that is not an array.
+    #[doc(alias = "av_opt_get_array_size")]
     pub fn get_array_size(&self, name: &CStr, flags: SearchFlags) -> Result<usize, i32> {
         let (obj, mut out) = (self.as_ptr(), 0);
         // SAFETY: as for `get`; `out` is a writable `unsigned`.
@@ -1741,7 +1793,7 @@ impl<'a> ObjectRef<'a> {
         if ret < 0 { Err(ret) } else { Ok(out as usize) }
     }
 
-    /// Wraps: `av_opt_is_set_to_default_by_name`
+    /// Wraps `fn::av_opt_is_set_to_default_by_name`
     ///
     /// Whether option `name` holds its default value. A named constant
     /// always does.
@@ -1751,6 +1803,7 @@ impl<'a> ObjectRef<'a> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, the code of C's parse
     /// of a default string it cannot parse, `AVERROR_PATCHWELCOME` (logged)
     /// for a type C cannot compare.
+    #[doc(alias = "av_opt_is_set_to_default_by_name")]
     pub fn is_set_to_default(&self, name: &CStr, flags: SearchFlags) -> Result<bool, i32> {
         let obj = self.as_ptr();
         // SAFETY: as for `get`.
@@ -1758,7 +1811,7 @@ impl<'a> ObjectRef<'a> {
         if ret < 0 { Err(ret) } else { Ok(ret > 0) }
     }
 
-    /// Wraps: `av_opt_flag_is_set`
+    /// Wraps `fn::av_opt_flag_is_set`
     ///
     /// Whether flags option `field` of the object (not of a child) has the
     /// bits of `flag`, a named constant of its unit. `false` as well when
@@ -1770,6 +1823,7 @@ impl<'a> ObjectRef<'a> {
     /// C cannot convert to an integer without undefined behaviour (as
     /// [`get_int`](Self::get_int) refuses it) reads as not set, as C's failed
     /// read does.
+    #[doc(alias = "av_opt_flag_is_set")]
     #[must_use]
     pub fn flag_is_set(&self, field: &CStr, flag: &CStr) -> bool {
         let Some((field_opt, _)) = self.lookup(field, None, 0) else {
@@ -1795,7 +1849,7 @@ impl<'a> ObjectRef<'a> {
             || matches!(flag_opt.default_value(), OptionDefault::Int(bits) if value & bits != 0)
     }
 
-    /// Wraps: `av_opt_serialize`
+    /// Wraps `fn::av_opt_serialize`
     ///
     /// The object's options as `key=value` pairs in one string, which
     /// [`ObjectMut::set_from_string`] parses back: each option whose flags
@@ -1809,6 +1863,7 @@ impl<'a> ObjectRef<'a> {
     /// `AVERROR(EINVAL)` (logged) for a separator that is NUL or `\`, or two
     /// equal separators; the error of the first option that does not format;
     /// `AVERROR(ENOMEM)`.
+    #[doc(alias = "av_opt_serialize")]
     pub fn serialize(
         &self,
         opt_flags: i32,
@@ -1836,12 +1891,13 @@ impl<'a> ObjectRef<'a> {
         unsafe { HeapString::from_raw(out) }.ok_or(AVERROR_BUG)
     }
 
-    /// Wraps: `av_opt_show2`
+    /// Wraps `fn::av_opt_show2`
     ///
     /// Logs the object's options at `AV_LOG_INFO`, in `log_ctx`'s context:
     /// each option whose flags intersect `req_flags` and miss `rej_flags`,
     /// with its type, flags, help, ranges and default, and the named
     /// constants of its unit.
+    #[doc(alias = "av_opt_show2")]
     #[expect(
         clippy::similar_names,
         reason = "the names follow the C variables they mirror"
@@ -1951,9 +2007,10 @@ pub struct ChildrenMut<'a> {
 }
 
 impl ChildrenMut<'_> {
-    /// Wraps: `av_opt_child_next`
+    /// Wraps `fn::av_opt_child_next`
     ///
     /// The next child, borrowed exclusively until the cursor moves on.
+    #[doc(alias = "av_opt_child_next")]
     pub fn next_child(&mut self) -> Option<ObjectMut<'_>> {
         if self.done {
             return None;
@@ -2041,7 +2098,7 @@ impl ObjectMut<'_> {
         }
     }
 
-    /// Wraps: `av_opt_set`
+    /// Wraps `fn::av_opt_set`
     ///
     /// Parses `val` as option `name`'s type and stores it: an arithmetic
     /// expression, possibly with SI suffixes and the unit's named constants,
@@ -2073,6 +2130,7 @@ impl ObjectMut<'_> {
     /// as it was; C stores the bytes of its uninitialised parse buffer.
     ///
     /// [`eval::parse_and_eval`]: super::eval::parse_and_eval
+    #[doc(alias = "av_opt_set")]
     pub fn set(&mut self, name: &CStr, val: &CStr, flags: SearchFlags) -> Result<(), i32> {
         if let Some(err) = self.as_ref().value_refusal(name, val.to_bytes(), flags.0)? {
             return Err(err);
@@ -2096,7 +2154,7 @@ impl ObjectMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_opt_set_int`
+    /// Wraps `fn::av_opt_set_int`
     ///
     /// Stores `val` in numeric option `name`, converted to its type.
     ///
@@ -2106,6 +2164,7 @@ impl ObjectMut<'_> {
     /// `AVERROR(EINVAL)` for an array option, which C would overwrite as a
     /// scalar, and `AVERROR(ERANGE)` for a value outside the `int` range in a
     /// rational's bounds, which C converts unchecked.
+    #[doc(alias = "av_opt_set_int")]
     pub fn set_int(&mut self, name: &CStr, val: i64, flags: SearchFlags) -> Result<(), i32> {
         if let Some(err) = self.as_ref().number_refusal(name, 1.0, val, flags.0) {
             return Err(err);
@@ -2116,7 +2175,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_double`
+    /// Wraps `fn::av_opt_set_double`
     ///
     /// Stores `val` in numeric option `name`, converted to its type (rounded
     /// to nearest for an integer).
@@ -2125,6 +2184,7 @@ impl ObjectMut<'_> {
     ///
     /// As [`set_int`](Self::set_int); NaN or a value outside the `int` range
     /// in a rational's bounds is refused with `AVERROR(ERANGE)`.
+    #[doc(alias = "av_opt_set_double")]
     pub fn set_double(&mut self, name: &CStr, val: f64, flags: SearchFlags) -> Result<(), i32> {
         if let Some(err) = self.as_ref().number_refusal(name, val, 1, flags.0) {
             return Err(err);
@@ -2134,7 +2194,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_bin`
+    /// Wraps `fn::av_opt_set_bin`
     ///
     /// Stores a copy of `val` in binary option `name`, replacing and freeing
     /// its buffer; an empty `val` leaves it NULL.
@@ -2145,6 +2205,7 @@ impl ObjectMut<'_> {
     /// another type. Also, before C runs, `AVERROR(ERANGE)` for a `val` of
     /// more than `INT_MAX` bytes, and `AVERROR(EINVAL)` for an array option,
     /// whose type C's error message would look up out of bounds.
+    #[doc(alias = "av_opt_set_bin")]
     pub fn set_bin(&mut self, name: &CStr, val: &[u8], flags: SearchFlags) -> Result<(), i32> {
         let len = c_int::try_from(val.len()).map_err(|_| ERANGE)?;
         if let Some(err) = self
@@ -2161,7 +2222,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_image_size`
+    /// Wraps `fn::av_opt_set_image_size`
     ///
     /// Stores `width` by `height` in image size option `name`.
     ///
@@ -2169,6 +2230,7 @@ impl ObjectMut<'_> {
     ///
     /// As [`set_bin`](Self::set_bin), and `AVERROR(EINVAL)` (logged) for a
     /// negative dimension.
+    #[doc(alias = "av_opt_set_image_size")]
     pub fn set_image_size(
         &mut self,
         name: &CStr,
@@ -2189,7 +2251,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_defaults`
+    /// Wraps `fn::av_opt_set_defaults`
     ///
     /// Sets every option of the object, except read-only ones, to its
     /// default, freeing the values it replaces.
@@ -2197,6 +2259,7 @@ impl ObjectMut<'_> {
     /// When memory runs out, an option whose default C fails to parse is left
     /// unset or as C's parse left it: a video rate then holds the numerator
     /// `sscanf` stored and an uninitialised denominator, as in C.
+    #[doc(alias = "av_opt_set_defaults")]
     pub fn set_defaults(&mut self) {
         // SAFETY: the handle's exclusive borrow covers C's writes; the
         // contract makes every default parse without undefined behaviour and
@@ -2204,16 +2267,17 @@ impl ObjectMut<'_> {
         unsafe { ffi::av_opt_set_defaults(self.as_mut_ptr()) }
     }
 
-    /// Wraps: `av_opt_set_defaults2`
+    /// Wraps `fn::av_opt_set_defaults2`
     ///
     /// As [`set_defaults`](Self::set_defaults), for the options whose flags
     /// and `mask` equal `flags` (`AV_OPT_FLAG_*` bits).
+    #[doc(alias = "av_opt_set_defaults2")]
     pub fn set_defaults_masked(&mut self, mask: i32, flags: i32) {
         // SAFETY: as for `set_defaults`.
         unsafe { ffi::av_opt_set_defaults2(self.as_mut_ptr(), mask, flags) }
     }
 
-    /// Wraps: `av_opt_set_from_string`
+    /// Wraps `fn::av_opt_set_from_string`
     ///
     /// Parses `opts` as `key=value` pairs and sets each as [`set`](Self::set)
     /// does, on the object itself: pairs are separated by any byte of
@@ -2233,6 +2297,7 @@ impl ObjectMut<'_> {
     /// uninitialised parse buffer in its option, as C does: the pair C
     /// stopped at is not known here, so [`set`](Self::set)'s restore does
     /// not apply.
+    #[doc(alias = "av_opt_set_from_string")]
     pub fn set_from_string(
         &mut self,
         opts: &CStr,
@@ -2265,7 +2330,7 @@ impl ObjectMut<'_> {
         usize::try_from(ret).map_err(|_| ret)
     }
 
-    /// Wraps: `av_set_options_string`
+    /// Wraps `fn::av_set_options_string`
     ///
     /// Sets options of the object or its children from the list `opts`:
     /// `key` and `value` pairs, each key followed by one byte of
@@ -2289,6 +2354,7 @@ impl ObjectMut<'_> {
     /// uninitialised parse buffer in its option, as C does: the pair C
     /// stopped at is not known here, so [`set`](Self::set)'s restore does
     /// not apply.
+    #[doc(alias = "av_set_options_string")]
     pub fn set_options_string(
         &mut self,
         opts: &CStr,
@@ -2315,7 +2381,7 @@ impl ObjectMut<'_> {
         usize::try_from(ret).map_err(|_| ret)
     }
 
-    /// Wraps: `av_opt_free`
+    /// Wraps `fn::av_opt_free`
     ///
     /// Frees every value the object's options own (strings, binary buffers,
     /// dictionaries, arrays, channel layout maps) and leaves them unset; the
@@ -2324,6 +2390,7 @@ impl ObjectMut<'_> {
     /// Beyond C: C keeps a binary option's length when it frees the buffer,
     /// after which C's own readers dereference the NULL buffer for that many
     /// bytes; the length is reset to 0 here.
+    #[doc(alias = "av_opt_free")]
     pub fn free_options(&mut self) {
         let obj = self.as_mut_ptr();
         // SAFETY: the handle's exclusive borrow covers C's writes; the
@@ -2348,7 +2415,7 @@ impl ObjectMut<'_> {
         }
     }
 
-    /// Wraps: `av_opt_copy`
+    /// Wraps `fn::av_opt_copy`
     ///
     /// Copies every option value of `src` into the object, which must be of
     /// the same class: values `src` owns are duplicated, and the ones they
@@ -2358,6 +2425,7 @@ impl ObjectMut<'_> {
     ///
     /// `AVERROR(EINVAL)` when the classes differ; otherwise the last error of
     /// an option that did not copy (`AVERROR(ENOMEM)`), the others copied.
+    #[doc(alias = "av_opt_copy")]
     pub fn copy_from(&mut self, src: ObjectRef<'_>) -> Result<(), i32> {
         // SAFETY: the exclusive borrow of `self` and the shared one of `src`
         // cover C's writes and reads, and keep the two objects distinct; C
@@ -2885,7 +2953,7 @@ pub struct KeyValue<'s> {
     pub rest: &'s CStr,
 }
 
-/// Wraps: `av_opt_get_key_value`
+/// Wraps `fn::av_opt_get_key_value`
 ///
 /// Reads the key-value pair at the front of `opts`: a key of the bytes
 /// option names use (`a-z A-Z 0-9 - . / _`, whitespace around it ignored)
@@ -2897,6 +2965,7 @@ pub struct KeyValue<'s> {
 ///
 /// `AVERROR(EINVAL)` for a pair without a key (unless `implicit_key`),
 /// `AVERROR(ENOMEM)`.
+#[doc(alias = "av_opt_get_key_value")]
 #[expect(
     clippy::similar_names,
     reason = "the names follow the C variables they mirror"
@@ -2948,7 +3017,7 @@ pub fn parse_key_value<'s>(
 
 /// The typed getters.
 impl ObjectRef<'_> {
-    /// Wraps: `av_opt_get_q`
+    /// Wraps `fn::av_opt_get_q`
     ///
     /// The value of numeric option `name` as a rational: a rational as
     /// stored, an integer whose value fits an `int` over 1, anything else
@@ -2960,6 +3029,7 @@ impl ObjectRef<'_> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for an
     /// array or an option of another type (a video rate included; see
     /// [`get_video_rate`](Self::get_video_rate)).
+    #[doc(alias = "av_opt_get_q")]
     pub fn get_rational(&self, name: &CStr, flags: SearchFlags) -> Result<Rational, i32> {
         let mut out = ffi::AVRational { num: 0, den: 0 };
         // SAFETY: the handle's contract covers C's reads of the object, its
@@ -2974,7 +3044,7 @@ impl ObjectRef<'_> {
         }
     }
 
-    /// Wraps: `av_opt_get_video_rate`
+    /// Wraps `fn::av_opt_get_video_rate`
     ///
     /// The value of video rate option `name`, as stored; for any other
     /// option, as [`get_rational`](Self::get_rational) reads it.
@@ -2988,6 +3058,7 @@ impl ObjectRef<'_> {
     /// # Errors
     ///
     /// As [`get_rational`](Self::get_rational) for any other option.
+    #[doc(alias = "av_opt_get_video_rate")]
     pub fn get_video_rate(&self, name: &CStr, flags: SearchFlags) -> Result<Rational, i32> {
         if let Some((o, target)) = self.lookup(name, None, flags.0)
             && o.option_type() == OptionType::VIDEO_RATE
@@ -3011,7 +3082,7 @@ impl ObjectRef<'_> {
         }
     }
 
-    /// Wraps: `av_opt_get_pixel_fmt`
+    /// Wraps `fn::av_opt_get_pixel_fmt`
     ///
     /// The value of pixel format option `name`, as stored.
     ///
@@ -3019,6 +3090,7 @@ impl ObjectRef<'_> {
     ///
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
     /// (logged) for an option of another type, arrays included.
+    #[doc(alias = "av_opt_get_pixel_fmt")]
     pub fn get_pixel_format(&self, name: &CStr, flags: SearchFlags) -> Result<PixelFormat, i32> {
         let (obj, mut out) = (self.as_ptr(), 0);
         // SAFETY: as for `get_rational`; `out` is a writable
@@ -3031,13 +3103,14 @@ impl ObjectRef<'_> {
         }
     }
 
-    /// Wraps: `av_opt_get_sample_fmt`
+    /// Wraps `fn::av_opt_get_sample_fmt`
     ///
     /// The value of sample format option `name`, as stored.
     ///
     /// # Errors
     ///
     /// As [`get_pixel_format`](Self::get_pixel_format).
+    #[doc(alias = "av_opt_get_sample_fmt")]
     pub fn get_sample_format(&self, name: &CStr, flags: SearchFlags) -> Result<SampleFormat, i32> {
         let (obj, mut out) = (self.as_ptr(), 0);
         // SAFETY: as for `get_pixel_format`, for an `enum AVSampleFormat`.
@@ -3049,7 +3122,7 @@ impl ObjectRef<'_> {
         }
     }
 
-    /// Wraps: `av_opt_get_chlayout`
+    /// Wraps `fn::av_opt_get_chlayout`
     ///
     /// A copy of the value of channel layout option `name`
     /// (`av_channel_layout_copy`): a custom map is duplicated.
@@ -3059,6 +3132,7 @@ impl ObjectRef<'_> {
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)`
     /// (logged) for an option of another type, arrays included, and the
     /// errors of [`ChannelLayoutRef::try_clone`](channel_layout::ChannelLayoutRef::try_clone).
+    #[doc(alias = "av_opt_get_chlayout")]
     pub fn get_channel_layout(
         &self,
         name: &CStr,
@@ -3073,7 +3147,7 @@ impl ObjectRef<'_> {
         if ret < 0 { Err(ret) } else { Ok(out) }
     }
 
-    /// Wraps: `av_opt_get_dict_val`
+    /// Wraps `fn::av_opt_get_dict_val`
     ///
     /// A copy of the value of dictionary option `name`, empty for an unset
     /// one. As C copies it (`av_dict_copy` with no flags), entries whose
@@ -3083,6 +3157,7 @@ impl ObjectRef<'_> {
     ///
     /// `AVERROR_OPTION_NOT_FOUND` for no such option, `AVERROR(EINVAL)` for an
     /// option of another type, arrays included, `AVERROR(ENOMEM)`.
+    #[doc(alias = "av_opt_get_dict_val")]
     pub fn get_dict(&self, name: &CStr, flags: SearchFlags) -> Result<Dict, i32> {
         let (obj, mut out) = (self.as_ptr(), ptr::null_mut());
         // SAFETY: as for `get_rational`; `out` is a NULL dictionary slot, into
@@ -3095,7 +3170,7 @@ impl ObjectRef<'_> {
         if ret < 0 { Err(ret) } else { Ok(copy) }
     }
 
-    /// Wraps: `av_opt_get_array`
+    /// Wraps `fn::av_opt_get_array`
     ///
     /// Elements `start..start + count` of array option `name`, read as `T`,
     /// as the scalar getter of `T`'s option type reads a value: as stored
@@ -3116,6 +3191,7 @@ impl ObjectRef<'_> {
     /// such an array no layout), and `AVERROR(ERANGE)` for an `i64` read of a
     /// float, double or rational element whose value is NaN or outside the
     /// `i64` range, which C converts unchecked.
+    #[doc(alias = "av_opt_get_array")]
     pub fn get_array<T: ArrayElement>(
         &self,
         name: &CStr,
@@ -3358,7 +3434,7 @@ unsafe impl element::Element for ChannelLayoutVal {
 impl ArrayElement for ChannelLayoutVal {}
 
 impl<'a> ClassRef<'a> {
-    /// Wraps: `av_opt_child_class_iterate`
+    /// Wraps `fn::av_opt_child_class_iterate`
     ///
     /// The classes of the `AVOptions`-enabled children an object of this
     /// class may have, which a search of its options with children
@@ -3367,6 +3443,7 @@ impl<'a> ClassRef<'a> {
     /// returns NULL. None for a class without a `child_class_iterate`
     /// callback. The same classes as [`child_classes`](Self::child_classes),
     /// through `opt.h`'s entry point.
+    #[doc(alias = "av_opt_child_class_iterate")]
     #[must_use]
     pub fn potential_children(&self) -> PotentialChildren<'a> {
         PotentialChildren {
@@ -3416,7 +3493,7 @@ impl core::iter::FusedIterator for PotentialChildren<'_> {}
 
 /// Typed setters, array edits and dictionary appliers.
 impl ObjectMut<'_> {
-    /// Wraps: `av_opt_set_q`
+    /// Wraps `fn::av_opt_set_q`
     ///
     /// Stores `val` in numeric option `name`, converted to its type: kept as
     /// is in a rational or video rate, its quotient (rounded to nearest for
@@ -3431,6 +3508,7 @@ impl ObjectMut<'_> {
     /// option's) or not a valid set of flags. Also, before C runs,
     /// `AVERROR(EINVAL)` for an array option, which C would overwrite as a
     /// scalar.
+    #[doc(alias = "av_opt_set_q")]
     pub fn set_rational(
         &mut self,
         name: &CStr,
@@ -3448,7 +3526,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_video_rate`
+    /// Wraps `fn::av_opt_set_video_rate`
     ///
     /// Stores `val`, as is, in video rate option `name`.
     ///
@@ -3456,6 +3534,7 @@ impl ObjectMut<'_> {
     ///
     /// As [`set_bin`](Self::set_bin), and `AVERROR(ERANGE)` (logged) for a
     /// rate out of the option's range or with a zero denominator.
+    #[doc(alias = "av_opt_set_video_rate")]
     pub fn set_video_rate(
         &mut self,
         name: &CStr,
@@ -3474,7 +3553,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_pixel_fmt`
+    /// Wraps `fn::av_opt_set_pixel_fmt`
     ///
     /// Stores `fmt` in pixel format option `name`.
     ///
@@ -3484,6 +3563,7 @@ impl ObjectMut<'_> {
     /// format outside the option's range or the formats this libavutil
     /// knows ([`PixelFormat::NONE`] is in range when the option's minimum
     /// allows it).
+    #[doc(alias = "av_opt_set_pixel_fmt")]
     pub fn set_pixel_format(
         &mut self,
         name: &CStr,
@@ -3503,13 +3583,14 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_sample_fmt`
+    /// Wraps `fn::av_opt_set_sample_fmt`
     ///
     /// Stores `fmt` in sample format option `name`.
     ///
     /// # Errors
     ///
     /// As [`set_pixel_format`](Self::set_pixel_format), for sample formats.
+    #[doc(alias = "av_opt_set_sample_fmt")]
     pub fn set_sample_format(
         &mut self,
         name: &CStr,
@@ -3528,7 +3609,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_chlayout`
+    /// Wraps `fn::av_opt_set_chlayout`
     ///
     /// Stores a copy of `layout` in channel layout option `name`, releasing
     /// the layout it replaces; `layout` stays the caller's.
@@ -3547,6 +3628,7 @@ impl ObjectMut<'_> {
     /// left the empty layout of unspecified order here.
     ///
     /// [`ChannelCustom::from_raw`]: super::channel_layout::ChannelCustom::from_raw
+    #[doc(alias = "av_opt_set_chlayout")]
     pub fn set_channel_layout(
         &mut self,
         name: &CStr,
@@ -3601,7 +3683,7 @@ impl ObjectMut<'_> {
         }
     }
 
-    /// Wraps: `av_opt_set_dict_val`
+    /// Wraps `fn::av_opt_set_dict_val`
     ///
     /// Stores a copy of `val` in dictionary option `name`, freeing the
     /// dictionary it replaces; `None` is the empty dictionary. `val` stays
@@ -3612,6 +3694,7 @@ impl ObjectMut<'_> {
     ///
     /// As [`set_bin`](Self::set_bin), and `AVERROR(ENOMEM)`, after which the
     /// option holds the entries copied so far.
+    #[doc(alias = "av_opt_set_dict_val")]
     pub fn set_dictionary(
         &mut self,
         name: &CStr,
@@ -3629,7 +3712,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_array`
+    /// Wraps `fn::av_opt_set_array`
     ///
     /// Inserts `values` into array option `name` before element `start`
     /// (`start` equal to the array's size appends), shifting the elements
@@ -3664,6 +3747,7 @@ impl ObjectMut<'_> {
     /// [`set_int`](Self::set_int), [`set_double`](Self::set_double),
     /// [`set_channel_layout`](Self::set_channel_layout)), with that
     /// setter's error.
+    #[doc(alias = "av_opt_set_array")]
     pub fn insert_array<T: ArrayInput>(
         &mut self,
         name: &CStr,
@@ -3674,7 +3758,7 @@ impl ObjectMut<'_> {
         self.store_array(name, start, values, flags.0)
     }
 
-    /// Wraps: `av_opt_set_array`
+    /// Wraps `fn::av_opt_set_array`
     ///
     /// As [`insert_array`](Self::insert_array), but `values` replace the
     /// elements from `start` on (`AV_OPT_ARRAY_REPLACE`), whose values are
@@ -3683,6 +3767,7 @@ impl ObjectMut<'_> {
     /// # Errors
     ///
     /// As [`insert_array`](Self::insert_array).
+    #[doc(alias = "av_opt_set_array")]
     pub fn replace_array<T: ArrayInput>(
         &mut self,
         name: &CStr,
@@ -3693,7 +3778,7 @@ impl ObjectMut<'_> {
         self.store_array(name, start, values, flags.0 | ARRAY_REPLACE)
     }
 
-    /// Wraps: `av_opt_set_array`
+    /// Wraps `fn::av_opt_set_array`
     ///
     /// Removes `count` elements of array option `name` from element `start`
     /// on, releasing their values and shifting the later ones down.
@@ -3712,6 +3797,7 @@ impl ObjectMut<'_> {
     /// elements repeat or address released values, which a later read or
     /// `av_opt_free` uses again (a double free); the count is set to the new
     /// size here.
+    #[doc(alias = "av_opt_set_array")]
     pub fn remove_array(
         &mut self,
         name: &CStr,
@@ -3778,7 +3864,7 @@ impl ObjectMut<'_> {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_opt_set_dict`
+    /// Wraps `fn::av_opt_set_dict`
     ///
     /// Sets each entry of `options`, in order, as [`set`](Self::set) sets
     /// its key to its value, on the object itself; on success `options` is
@@ -3796,6 +3882,7 @@ impl ObjectMut<'_> {
     /// uninitialised parse buffer in its option, as C does: the entry C
     /// stopped at is not known here, so [`set`](Self::set)'s restore does
     /// not apply.
+    #[doc(alias = "av_opt_set_dict")]
     pub fn set_from_dict(&mut self, options: &mut Dict) -> Result<(), i32> {
         self.apply_dict(options, 0, |obj, slot| {
             // SAFETY: as for `set`, for each entry; `slot` is the dictionary
@@ -3804,7 +3891,7 @@ impl ObjectMut<'_> {
         })
     }
 
-    /// Wraps: `av_opt_set_dict2`
+    /// Wraps `fn::av_opt_set_dict2`
     ///
     /// As [`set_from_dict`](Self::set_from_dict), setting each entry with
     /// `flags` ([`SearchFlags::CHILDREN`] reaches the children's options).
@@ -3812,6 +3899,7 @@ impl ObjectMut<'_> {
     /// # Errors
     ///
     /// As [`set_from_dict`](Self::set_from_dict).
+    #[doc(alias = "av_opt_set_dict2")]
     pub fn set_from_dict_with(
         &mut self,
         options: &mut Dict,
@@ -4186,13 +4274,14 @@ const SEARCH_FAKE_OBJ: c_int = ffi::AV_OPT_SEARCH_FAKE_OBJ.cast_signed();
 /// Lookups, the option walk, the default check of one option and range
 /// queries.
 impl<'a> ObjectRef<'a> {
-    /// Wraps: `av_opt_find`
+    /// Wraps `fn::av_opt_find`
     ///
     /// The option `name` of the object or, with [`SearchFlags::CHILDREN`],
     /// of a child, whose options are searched first, recursively: an option
     /// that is no named constant when `unit` is `None`, else a named constant
     /// of `unit`, and only one whose flags include `opt_flags`
     /// (`AV_OPT_FLAG_*`). `None` when no option matches.
+    #[doc(alias = "av_opt_find")]
     pub fn find(
         &self,
         name: &CStr,
@@ -4212,11 +4301,12 @@ impl<'a> ObjectRef<'a> {
         unsafe { OptionDefRef::from_ptr(o.cast_mut()) }
     }
 
-    /// Wraps: `av_opt_find2`
+    /// Wraps `fn::av_opt_find2`
     ///
     /// As [`find`](Self::find), with the object that holds the option's
     /// value: this object, or the child the option was found in, on which
     /// [`is_option_set_to_default`](Self::is_option_set_to_default) checks it.
+    #[doc(alias = "av_opt_find2")]
     #[must_use]
     pub fn find_with_target(
         &self,
@@ -4232,11 +4322,12 @@ impl<'a> ObjectRef<'a> {
         Some((o, target))
     }
 
-    /// Wraps: `av_opt_next`
+    /// Wraps `fn::av_opt_next`
     ///
     /// The options of the object's class, in table order, named constants
     /// included: the entries `av_opt_next` walks, which [`ClassRef::options`]
     /// lists too.
+    #[doc(alias = "av_opt_next")]
     #[must_use]
     pub fn options(&self) -> Options<'a> {
         Options {
@@ -4246,7 +4337,7 @@ impl<'a> ObjectRef<'a> {
         }
     }
 
-    /// Wraps: `av_opt_is_set_to_default`
+    /// Wraps `fn::av_opt_is_set_to_default`
     ///
     /// Whether option `o` holds its default value in the object: as
     /// [`is_set_to_default`](Self::is_set_to_default), for an option already
@@ -4259,6 +4350,7 @@ impl<'a> ObjectRef<'a> {
     /// this object: an option found in a child is checked on that child (the
     /// target [`find_with_target`](Self::find_with_target) returns).
     /// Otherwise as [`is_set_to_default`](Self::is_set_to_default).
+    #[doc(alias = "av_opt_is_set_to_default")]
     pub fn is_option_set_to_default(&self, o: OptionDefRef<'_>) -> Result<bool, i32> {
         if !self.has_option(o) {
             return Err(EINVAL);
@@ -4278,7 +4370,7 @@ impl<'a> ObjectRef<'a> {
         at < table.len() * size && at.is_multiple_of(size)
     }
 
-    /// Wraps: `av_opt_query_ranges`
+    /// Wraps `fn::av_opt_query_ranges`
     ///
     /// The allowed ranges of option `key` of the object (or, with
     /// [`RangeFlags::CHILDREN`], of a child), from its class's `query_ranges`
@@ -4293,11 +4385,12 @@ impl<'a> ObjectRef<'a> {
     /// `AVERROR(ENOMEM)` for an unknown key (a named constant included) as for
     /// an allocation failure, and `AVERROR(ENOSYS)` for a type with no
     /// ranges. `AVERROR_BUG` for a callback that succeeds without a list.
+    #[doc(alias = "av_opt_query_ranges")]
     pub fn option_ranges(&self, key: &CStr, flags: RangeFlags) -> Result<OptionRangesBox, i32> {
         query_ranges(RangeQuery::Class, RangeTarget::Object(*self), key, flags)
     }
 
-    /// Wraps: `av_opt_query_ranges_default`
+    /// Wraps `fn::av_opt_query_ranges_default`
     ///
     /// The allowed ranges of option `key` of the object (or, with
     /// [`RangeFlags::CHILDREN`], of a child), built from the option's `min` /
@@ -4307,6 +4400,7 @@ impl<'a> ObjectRef<'a> {
     /// # Errors
     ///
     /// As the default query of [`option_ranges`](Self::option_ranges).
+    #[doc(alias = "av_opt_query_ranges_default")]
     pub fn default_option_ranges(
         &self,
         key: &CStr,
@@ -4363,12 +4457,13 @@ impl fmt::Debug for Options<'_> {
 /// (`AV_OPT_SEARCH_FAKE_OBJ`), a pointer to the class pointer, through which
 /// C reads only the class.
 impl<'a> ClassRef<'a> {
-    /// Wraps: `av_opt_find`
+    /// Wraps `fn::av_opt_find`
     ///
     /// The option `name` of the class or, with [`SearchFlags::CHILDREN`], of
     /// the class of a potential child
     /// ([`potential_children`](Self::potential_children)), whose options are
     /// searched first, recursively; matched as [`ObjectRef::find`] matches.
+    #[doc(alias = "av_opt_find")]
     pub fn find(
         &self,
         name: &CStr,
@@ -4391,7 +4486,7 @@ impl<'a> ClassRef<'a> {
         unsafe { OptionDefRef::from_ptr(o.cast_mut()) }
     }
 
-    /// Wraps: `av_opt_query_ranges`
+    /// Wraps `fn::av_opt_query_ranges`
     ///
     /// The allowed ranges of option `key` of the class (or, with
     /// [`RangeFlags::CHILDREN`], of a potential child's class), from its
@@ -4402,11 +4497,12 @@ impl<'a> ClassRef<'a> {
     /// # Errors
     ///
     /// Errors as for [`ObjectRef::option_ranges`].
+    #[doc(alias = "av_opt_query_ranges")]
     pub fn option_ranges(&self, key: &CStr, flags: RangeFlags) -> Result<OptionRangesBox, i32> {
         query_ranges(RangeQuery::Class, RangeTarget::Class(*self), key, flags)
     }
 
-    /// Wraps: `av_opt_query_ranges_default`
+    /// Wraps `fn::av_opt_query_ranges_default`
     ///
     /// The allowed ranges of option `key` of the class (or, with
     /// [`RangeFlags::CHILDREN`], of a potential child's class), built from
@@ -4417,6 +4513,7 @@ impl<'a> ClassRef<'a> {
     /// # Errors
     ///
     /// Errors as for [`ObjectRef::default_option_ranges`].
+    #[doc(alias = "av_opt_query_ranges_default")]
     pub fn default_option_ranges(
         &self,
         key: &CStr,
@@ -4479,7 +4576,7 @@ type EvalFn<T> =
 /// unchecked, and `AVERROR(ERANGE)` for a flag operand outside the `int64_t`
 /// range or a rational within wide bounds outside the `int` range.
 impl OptionDefRef<'_> {
-    /// Wraps: `av_opt_eval_flags`
+    /// Wraps `fn::av_opt_eval_flags`
     ///
     /// Evaluates `val` as this flags option's value into `flags`: `+` / `-`
     /// separated tokens, each a named constant of the option's unit or an
@@ -4492,6 +4589,7 @@ impl OptionDefRef<'_> {
     ///
     /// `flags` is read first and written after each token, so a token that fails leaves the earlier
     /// ones applied, as in C.
+    #[doc(alias = "av_opt_eval_flags")]
     pub fn eval_flags<'c>(
         &self,
         ctx: impl Into<EvalContext<'c>>,
@@ -4507,7 +4605,7 @@ impl OptionDefRef<'_> {
         )
     }
 
-    /// Wraps: `av_opt_eval_int`
+    /// Wraps `fn::av_opt_eval_int`
     ///
     /// Evaluates `val` as this `INT` option's value, rounded to the nearest
     /// integer.
@@ -4515,6 +4613,7 @@ impl OptionDefRef<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_int` returns when it fails.
+    #[doc(alias = "av_opt_eval_int")]
     pub fn eval_int<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<i32, i32> {
         let mut out = 0;
         self.eval(
@@ -4527,7 +4626,7 @@ impl OptionDefRef<'_> {
         Ok(out)
     }
 
-    /// Wraps: `av_opt_eval_uint`
+    /// Wraps `fn::av_opt_eval_uint`
     ///
     /// Evaluates `val` as this `UINT` option's value, rounded to the nearest
     /// integer.
@@ -4535,6 +4634,7 @@ impl OptionDefRef<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_uint` returns when it fails.
+    #[doc(alias = "av_opt_eval_uint")]
     pub fn eval_uint<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<u32, i32> {
         let mut out = 0;
         self.eval(
@@ -4547,7 +4647,7 @@ impl OptionDefRef<'_> {
         Ok(out)
     }
 
-    /// Wraps: `av_opt_eval_int64`
+    /// Wraps `fn::av_opt_eval_int64`
     ///
     /// Evaluates `val` as this `INT64` option's value, rounded to the nearest
     /// integer.
@@ -4555,6 +4655,7 @@ impl OptionDefRef<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_int64` returns when it fails.
+    #[doc(alias = "av_opt_eval_int64")]
     pub fn eval_int64<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<i64, i32> {
         let mut out = 0;
         self.eval(
@@ -4567,13 +4668,14 @@ impl OptionDefRef<'_> {
         Ok(out)
     }
 
-    /// Wraps: `av_opt_eval_float`
+    /// Wraps `fn::av_opt_eval_float`
     ///
     /// Evaluates `val` as this `FLOAT` option's value.
     ///
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_float` returns when it fails.
+    #[doc(alias = "av_opt_eval_float")]
     pub fn eval_float<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<f32, i32> {
         let mut out = 0.0;
         self.eval(
@@ -4586,13 +4688,14 @@ impl OptionDefRef<'_> {
         Ok(out)
     }
 
-    /// Wraps: `av_opt_eval_double`
+    /// Wraps `fn::av_opt_eval_double`
     ///
     /// Evaluates `val` as this `DOUBLE` option's value.
     ///
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_double` returns when it fails.
+    #[doc(alias = "av_opt_eval_double")]
     pub fn eval_double<'c>(&self, ctx: impl Into<EvalContext<'c>>, val: &CStr) -> Result<f64, i32> {
         let mut out = 0.0;
         self.eval(
@@ -4605,7 +4708,7 @@ impl OptionDefRef<'_> {
         Ok(out)
     }
 
-    /// Wraps: `av_opt_eval_q`
+    /// Wraps `fn::av_opt_eval_q`
     ///
     /// Evaluates `val` as this `RATIONAL` option's value: `num:den` or
     /// `num/den` as written when within the bounds, else an expression's
@@ -4615,6 +4718,7 @@ impl OptionDefRef<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_opt_eval_q` returns when it fails.
+    #[doc(alias = "av_opt_eval_q")]
     pub fn eval_rational<'c>(
         &self,
         ctx: impl Into<EvalContext<'c>>,
