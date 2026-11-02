@@ -18,7 +18,7 @@ use super::mem::{Heap, HeapBox};
 // SAFETY: the generated handles match the public ffi::AVDES layout; raw
 // fields are integers or fixed arrays, and borrow lifetimes govern access.
 define_ctype!(
-    /// Wraps: AVDES
+    /// Wraps `ty::AVDES`
     ///
     /// The public DES layout. Fields are reached through [`DesRef`] and
     /// [`DesMut`], never references to a C-owned object.
@@ -33,6 +33,7 @@ define_ctype!(
     /// }
     /// let _ = view.round_keys();
     /// ```
+    #[doc(alias = "AVDES")]
     #[derive(Clone, Copy)]
     Des,
     DesRef,
@@ -49,10 +50,11 @@ pub type DesBox = HeapBox<Des>;
 // SAFETY: zero initializes the integer flag and every fixed integer array.
 unsafe impl CZeroable for Des {}
 
-/// Wraps: `av_des_alloc`
 // av_des_alloc returns a fresh, zero-filled AVDES allocation or NULL.
 // SAFETY: zero is a valid Des; Heap frees its av_malloc-family storage.
 unsafe impl CNew<Des> for Heap {
+    /// Wraps `fn::av_des_alloc`
+    #[doc(alias = "av_des_alloc")]
     fn c_new(&self) -> Option<NonNull<Des>> {
         // SAFETY: av_des_alloc takes no arguments and retains no Rust state.
         let raw = unsafe { ffi::av_des_alloc() };
@@ -98,9 +100,10 @@ fn key_bits(len: usize) -> Result<i32, i32> {
 }
 
 impl DesRef<'_> {
-    /// Field: `AVDES.triple_des`
+    /// Wraps `fld::AVDES.triple_des`
     ///
     /// The raw mode flag. C treats any nonzero value as triple-DES.
+    #[doc(alias = "AVDES.triple_des")]
     #[must_use]
     pub fn triple_des(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -111,9 +114,10 @@ impl DesRef<'_> {
         unsafe { triple_des_ptr.read() }
     }
 
-    /// Field: `AVDES.round_keys`
+    /// Wraps `fld::AVDES.round_keys`
     ///
     /// A copy of all three 16-round schedules, including inactive schedules.
+    #[doc(alias = "AVDES.round_keys")]
     #[must_use]
     pub fn round_keys(&self) -> [[u64; 16]; 3] {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -126,7 +130,7 @@ impl DesRef<'_> {
 }
 
 impl DesRef<'_> {
-    /// Wraps: `av_des_crypt`
+    /// Wraps `fn::av_des_crypt`
     ///
     /// Encrypt or decrypt whole 8-byte blocks. `None` selects ECB; an IV
     /// selects CBC and is updated for the next call. Unequal lengths, partial
@@ -146,6 +150,7 @@ impl DesRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_des_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -175,7 +180,7 @@ impl DesRef<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_des_crypt`
+    /// Wraps `fn::av_des_crypt`
     ///
     /// The exact in-place variant of [`Self::crypt`], with the same validation.
     ///
@@ -183,6 +188,7 @@ impl DesRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_des_crypt")]
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
@@ -212,7 +218,7 @@ impl DesRef<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_des_crypt`
+    /// Wraps `fn::av_des_crypt`
     ///
     /// Encrypt/decrypt zero blocks into `dst`. Uses real zero-filled input:
     /// C's advertised NULL input is defective for multiple blocks because
@@ -222,6 +228,7 @@ impl DesRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_des_crypt")]
     pub fn crypt_zeros(
         &self,
         dst: &mut [u8],
@@ -233,7 +240,7 @@ impl DesRef<'_> {
         self.crypt_in_place(dst, iv, direction)
     }
 
-    /// Wraps: `av_des_mac`
+    /// Wraps `fn::av_des_mac`
     ///
     /// CBC-MAC of whole blocks. Empty input returns the initial all-zero MAC.
     /// The context is borrowed read-only; no input or result pointer is retained.
@@ -242,6 +249,7 @@ impl DesRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context and output
     /// unchanged.
+    #[doc(alias = "av_des_mac")]
     pub fn mac(&self, src: &[u8]) -> Result<[u8; 8], CryptError> {
         let count = buffer_count(src.len(), src.len(), 8)?;
         let mut mac = [0; 8];
@@ -264,7 +272,7 @@ impl DesRef<'_> {
 }
 
 impl DesMut<'_> {
-    /// Wraps: `av_des_init`
+    /// Wraps `fn::av_des_init`
     ///
     /// Reinitializes with an 8- or 24-byte key. Invalid lengths return -22
     /// without changing any field. In single-DES mode C leaves the other
@@ -273,6 +281,7 @@ impl DesMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_des_init` returns when it fails.
+    #[doc(alias = "av_des_init")]
     pub fn init(&mut self, key: &[u8], decrypt: bool) -> Result<(), i32> {
         let bits = key_bits(key.len())?;
         let mode = i32::from(decrypt);
@@ -284,6 +293,8 @@ impl DesMut<'_> {
         if result < 0 { Err(result) } else { Ok(()) }
     }
 
+    /// Wraps `fld::AVDES.triple_des`
+    ///
     /// Sets the raw mode flag; every integer value is valid for C.
     /// Shared and exclusive reborrows cannot overlap:
     /// ```compile_fail,E0502
@@ -303,6 +314,7 @@ impl DesMut<'_> {
     /// outer.set_triple_des(1);
     /// inner.set_triple_des(0);
     /// ```
+    #[doc(alias = "AVDES.triple_des")]
     pub fn set_triple_des(&mut self, flag: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `triple_des` field is in bounds; nothing is accessed here.
@@ -312,7 +324,10 @@ impl DesMut<'_> {
         unsafe { triple_des_ptr.write(flag) }
     }
 
+    /// Wraps `fld::AVDES.round_keys`
+    ///
     /// Replaces all three schedules with fully initialized integer arrays.
+    #[doc(alias = "AVDES.round_keys")]
     pub fn set_round_keys(&mut self, keys: [[u64; 16]; 3]) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `round_keys` field is in bounds; nothing is accessed here.
