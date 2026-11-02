@@ -58,11 +58,12 @@ use super::opt::AVERROR_BUG;
 const MULTIKEY: c_int = ffi::AV_DICT_MULTIKEY.cast_signed();
 
 define_ctype!(
-    /// Wraps: AVDictionary
+    /// Wraps `ty::AVDictionary`
     ///
     /// A dictionary of key/value strings, opaque outside `dict.c`. Owned as a
     /// [`Dict`] (possibly empty) or a [`DictionaryBox`] (never empty), and
     /// read through a [`DictionaryRef`].
+    #[doc(alias = "AVDictionary")]
     Dictionary,
     DictionaryRef,
     DictionaryMut,
@@ -111,7 +112,6 @@ pub struct DictionaryFree;
 /// of memory, where `clone` aborts.
 pub type DictionaryBox = CBox<Dictionary, DictionaryFree>;
 
-/// Wraps: `av_dict_free`
 /// Handwritten
 ///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the
@@ -121,6 +121,8 @@ pub type DictionaryBox = CBox<Dictionary, DictionaryFree>;
 // array, then the struct, exactly once. The only writer a safe path reaches
 // is `av_dict_set` on a `Dict`'s slot, which keeps it such a dictionary.
 unsafe impl CDrop<Dictionary> for DictionaryFree {
+    /// Wraps `fn::av_dict_free`
+    #[doc(alias = "av_dict_free")]
     #[inline]
     unsafe fn c_drop(&self, ptr: NonNull<Dictionary>) {
         let mut slot = ptr.as_ptr().cast::<ffi::AVDictionary>();
@@ -131,7 +133,6 @@ unsafe impl CDrop<Dictionary> for DictionaryFree {
     }
 }
 
-/// Wraps: `av_dict_copy`
 /// Handwritten
 ///
 /// The copy needs a fresh destination slot, the `AV_DICT_MULTIKEY` flag (with
@@ -144,6 +145,8 @@ unsafe impl CDrop<Dictionary> for DictionaryFree {
 // source and `c_drop` releases it. On failure the partial copy is freed here
 // and `None` returned.
 unsafe impl CDupClone<Dictionary> for DictionaryFree {
+    /// Wraps `fn::av_dict_copy`
+    #[doc(alias = "av_dict_copy")]
     unsafe fn c_dup(&self, ptr: NonNull<Dictionary>) -> Option<NonNull<Dictionary>> {
         let mut copy = ptr::null_mut();
         let src = ptr.as_ptr().cast::<ffi::AVDictionary>();
@@ -341,7 +344,7 @@ impl BitOrAssign for Flags {
 /// The writers: each may allocate the dictionary or, deleting its last
 /// entry, free it, so they act on the owner.
 impl Dict {
-    /// Wraps: `av_dict_set`
+    /// Wraps `fn::av_dict_set`
     ///
     /// Stores a copy of `value` under a copy of `key`. Without
     /// [`Flags::MULTIKEY`] it replaces the first entry whose key matches
@@ -355,6 +358,7 @@ impl Dict {
     ///
     /// `AVERROR(ENOMEM)` when C runs out of memory, which leaves the
     /// entries as they were.
+    #[doc(alias = "av_dict_set")]
     pub fn set(&mut self, key: &CStr, value: &CStr, flags: Flags) -> Result<(), i32> {
         let (key, value) = (key.as_ptr(), value.as_ptr());
         // SAFETY: `key` and `value` are live C strings C copies, and no
@@ -363,7 +367,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_dict_set`
+    /// Wraps `fn::av_dict_set`
     ///
     /// Deletes the first entry whose key matches `key` (per `flags`), whose
     /// place the last entry then takes; deleting the last entry empties the
@@ -374,6 +378,7 @@ impl Dict {
     ///
     /// `AVERROR(ENOMEM)` when C cannot copy `key`, which leaves the entries
     /// as they were.
+    #[doc(alias = "av_dict_set")]
     pub fn remove(&mut self, key: &CStr, flags: Flags) -> Result<(), i32> {
         let (key, flags) = (key.as_ptr(), flags.0);
         // SAFETY: as for `set`, with a NULL value, which deletes.
@@ -381,7 +386,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_dict_set`
+    /// Wraps `fn::av_dict_set`
     ///
     /// As [`set`](Self::set), storing `key` and `value` themselves rather
     /// than copies (`AV_DICT_DONT_STRDUP_KEY | AV_DICT_DONT_STRDUP_VAL`):
@@ -393,6 +398,7 @@ impl Dict {
     /// # Errors
     ///
     /// As [`set`](Self::set).
+    #[doc(alias = "av_dict_set")]
     pub fn set_owned(
         &mut self,
         key: HeapString,
@@ -410,13 +416,14 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_dict_set_int`
+    /// Wraps `fn::av_dict_set_int`
     ///
     /// As [`set`](Self::set), storing `value` in decimal.
     ///
     /// # Errors
     ///
     /// As [`set`](Self::set).
+    #[doc(alias = "av_dict_set_int")]
     pub fn set_int(&mut self, key: &CStr, value: i64, flags: Flags) -> Result<(), i32> {
         let key = key.as_ptr();
         // SAFETY: as for `set`; C formats `value` into its own buffer.
@@ -424,7 +431,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_dict_parse_string`
+    /// Wraps `fn::av_dict_parse_string`
     ///
     /// Stores, as [`set`](Self::set) with `flags`, each `key=value` pair of
     /// `s`, in order: a key is ended by a byte of `key_val_sep`, a value by
@@ -436,6 +443,7 @@ impl Dict {
     ///
     /// `AVERROR(EINVAL)` at the first pair with an empty key or value, or no
     /// key separator, and `AVERROR(ENOMEM)`; the pairs before it stay stored.
+    #[doc(alias = "av_dict_parse_string")]
     pub fn parse_pairs(
         &mut self,
         s: &CStr,
@@ -453,7 +461,7 @@ impl Dict {
         if ret < 0 { Err(ret) } else { Ok(()) }
     }
 
-    /// Wraps: `av_dict_copy`
+    /// Wraps `fn::av_dict_copy`
     ///
     /// Stores, as [`set`](Self::set) with `flags`, every entry of `src`, in
     /// order (none when `src` is `None`, an empty dictionary). With
@@ -464,6 +472,7 @@ impl Dict {
     /// # Errors
     ///
     /// `AVERROR(ENOMEM)`; the entries copied before it stay stored.
+    #[doc(alias = "av_dict_copy")]
     pub fn copy_from(&mut self, src: Option<DictionaryRef<'_>>, flags: Flags) -> Result<(), i32> {
         let src = src.map_or(ptr::null(), |d| d.as_ptr());
         // SAFETY: `src` is NULL or a live dictionary the shared borrow keeps
@@ -477,7 +486,10 @@ impl Dict {
 /// The readers, for a dictionary that may be empty: as [`DictionaryRef`]'s,
 /// on C's NULL dictionary when it is.
 impl Dict {
+    /// Wraps `fn::av_dict_count`
+    ///
     /// The number of entries, as [`DictionaryRef::len`]; 0 when empty.
+    #[doc(alias = "av_dict_count")]
     #[must_use]
     pub fn len(&self) -> usize {
         count(self.as_ref())
@@ -489,30 +501,42 @@ impl Dict {
         self.0.is_none()
     }
 
+    /// Wraps `fn::av_dict_iterate`
+    ///
     /// The entries in order, as [`DictionaryRef::iter`].
+    #[doc(alias = "av_dict_iterate")]
     #[must_use]
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.as_ref())
     }
 
+    /// Wraps `fn::av_dict_get`
+    ///
     /// The first entry whose key matches `key`, as [`DictionaryRef::get`].
+    #[doc(alias = "av_dict_get")]
     #[must_use]
     pub fn get(&self, key: &CStr, flags: Flags) -> Option<DictionaryEntryRef<'_>> {
         first(self.as_ref(), key, flags)
     }
 
+    /// Wraps `fn::av_dict_get`
+    ///
     /// Every entry whose key matches `key`, as [`DictionaryRef::get_all`].
+    #[doc(alias = "av_dict_get")]
     #[must_use]
     pub fn get_all<'k>(&self, key: &'k CStr, flags: Flags) -> Matches<'_, 'k> {
         Matches::new(self.as_ref(), key, flags)
     }
 
+    /// Wraps `fn::av_dict_get_string`
+    ///
     /// The entries as one string, as [`DictionaryRef::serialize`]; `""` when
     /// empty.
     ///
     /// # Errors
     ///
     /// As [`DictionaryRef::serialize`].
+    #[doc(alias = "av_dict_get_string")]
     pub fn serialize(&self, key_val_sep: u8, pairs_sep: u8) -> Result<HeapString, i32> {
         serialize(self.as_ref(), key_val_sep, pairs_sep)
     }
@@ -528,10 +552,11 @@ impl<'a> IntoIterator for &'a Dict {
 }
 
 impl<'a> DictionaryRef<'a> {
-    /// Wraps: `av_dict_count`
+    /// Wraps `fn::av_dict_count`
     ///
     /// The number of entries, never 0 for a dictionary (an empty one is a
     /// [`Dict`] holding none).
+    #[doc(alias = "av_dict_count")]
     #[must_use]
     pub fn len(&self) -> usize {
         count(Some(*self))
@@ -543,10 +568,11 @@ impl<'a> DictionaryRef<'a> {
         self.len() == 0
     }
 
-    /// Wraps: `av_dict_iterate`
+    /// Wraps `fn::av_dict_iterate`
     ///
     /// The entries in order: insertion order, except where a write replaced
     /// or deleted an entry (see [`Dict::set`] and [`Dict::remove`]).
+    #[doc(alias = "av_dict_iterate")]
     #[must_use]
     #[expect(
         clippy::iter_without_into_iter,
@@ -556,28 +582,30 @@ impl<'a> DictionaryRef<'a> {
         Iter::new(Some(*self))
     }
 
-    /// Wraps: `av_dict_get`
+    /// Wraps `fn::av_dict_get`
     ///
     /// The first entry whose key matches `key`: equal to it ignoring ASCII
     /// case, or with equal case under [`Flags::MATCH_CASE`], and with
     /// [`Flags::IGNORE_SUFFIX`] any key starting with it. Other flags are
     /// ignored.
+    #[doc(alias = "av_dict_get")]
     #[must_use]
     pub fn get(&self, key: &CStr, flags: Flags) -> Option<DictionaryEntryRef<'a>> {
         first(Some(*self), key, flags)
     }
 
-    /// Wraps: `av_dict_get`
+    /// Wraps `fn::av_dict_get`
     ///
     /// Every entry whose key matches `key` as [`get`](Self::get) matches it,
     /// in order: C's `av_dict_get` called again after each match. With
     /// [`Flags::IGNORE_SUFFIX`] and the empty key, every entry.
+    #[doc(alias = "av_dict_get")]
     #[must_use]
     pub fn get_all<'k>(&self, key: &'k CStr, flags: Flags) -> Matches<'a, 'k> {
         Matches::new(Some(*self), key, flags)
     }
 
-    /// Wraps: `av_dict_get_string`
+    /// Wraps `fn::av_dict_get_string`
     ///
     /// The entries as one string: each key, `key_val_sep` and value, the
     /// pairs separated by `pairs_sep`, with a `\` before each separator, `'`
@@ -588,6 +616,7 @@ impl<'a> DictionaryRef<'a> {
     ///
     /// `AVERROR(EINVAL)` for a separator that is NUL or `\`, or two equal
     /// separators; `AVERROR(ENOMEM)`.
+    #[doc(alias = "av_dict_get_string")]
     pub fn serialize(&self, key_val_sep: u8, pairs_sep: u8) -> Result<HeapString, i32> {
         serialize(Some(*self), key_val_sep, pairs_sep)
     }
@@ -759,12 +788,13 @@ impl<'a> Iterator for Matches<'a, '_> {
 impl FusedIterator for Matches<'_, '_> {}
 
 define_ctype!(
-    /// Wraps: AVDictionaryEntry
+    /// Wraps `ty::AVDictionaryEntry`
     ///
     /// One key/value pair of a dictionary, borrowed from it as a
     /// [`DictionaryEntryRef`]. Both strings are owned by the dictionary,
     /// never NULL, and live until the next insertion or deletion, which the
     /// handle's borrow of the dictionary excludes.
+    #[doc(alias = "AVDictionaryEntry")]
     DictionaryEntry,
     DictionaryEntryRef,
     DictionaryEntryMut,
@@ -792,7 +822,7 @@ unsafe impl Sync for DictionaryEntryRef<'_> {}
 unsafe impl Sync for DictionaryEntryMut<'_> {}
 
 impl<'a> DictionaryEntryRef<'a> {
-    /// Field: AVDictionaryEntry.key
+    /// Wraps `fld::AVDictionaryEntry.key`
     ///
     /// The entry's key, as it was inserted (lookups compare it
     /// case-insensitively unless asked not to).
@@ -800,6 +830,7 @@ impl<'a> DictionaryEntryRef<'a> {
     /// # Panics
     ///
     /// If the key is NULL, which `av_dict_set` never stores.
+    #[doc(alias = "AVDictionaryEntry.key")]
     #[must_use]
     pub fn key(&self) -> &'a CStr {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -813,13 +844,14 @@ impl<'a> DictionaryEntryRef<'a> {
         unsafe { CStr::from_ptr(key.as_ptr()) }
     }
 
-    /// Field: AVDictionaryEntry.value
+    /// Wraps `fld::AVDictionaryEntry.value`
     ///
     /// The entry's value.
     ///
     /// # Panics
     ///
     /// If the value is NULL, which `av_dict_set` never stores.
+    #[doc(alias = "AVDictionaryEntry.value")]
     #[must_use]
     pub fn value(&self) -> &'a CStr {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
