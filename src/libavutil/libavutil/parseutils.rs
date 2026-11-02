@@ -120,7 +120,7 @@ fn checked_slen(color: &CStr, len: usize) -> Result<c_int, i32> {
     Ok(slen)
 }
 
-/// Wraps: `av_parse_color`
+/// Wraps `fn::av_parse_color`
 ///
 /// The red, green, blue and alpha bytes `color` names, in that order.
 ///
@@ -137,11 +137,12 @@ fn checked_slen(color: &CStr, len: usize) -> Result<c_int, i32> {
 /// Fails with `AVERROR(EINVAL)` otherwise, after logging why at `AV_LOG_ERROR` without a context.
 /// An opacity `strtod` reads as NaN (`red@nan`), which C would convert to a byte (UB), fails with
 /// `AVERROR(EINVAL)` before C runs, without logging.
+#[doc(alias = "av_parse_color")]
 pub fn parse_color(color: &CStr) -> Result<[u8; 4], i32> {
     parse_color_prefix(color, usize::MAX)
 }
 
-/// Wraps: `av_parse_color`
+/// Wraps `fn::av_parse_color`
 ///
 /// As [`parse_color`], reading the color from the first `len` bytes of
 /// `color` only (the whole string when it is shorter); an invalid alpha
@@ -152,6 +153,7 @@ pub fn parse_color(color: &CStr) -> Result<[u8; 4], i32> {
 /// A prefix that ends inside the `#` or `0x` marker fails with `AVERROR(EINVAL)` before C runs,
 /// without logging: C copies no color for such a prefix and reads an uninitialised buffer, or reads
 /// past the prefix.
+#[doc(alias = "av_parse_color")]
 pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
     let slen = checked_slen(color, len)?;
     let mut rgba = [0u8; 4];
@@ -166,7 +168,7 @@ pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
     if ret < 0 { Err(ret) } else { Ok(rgba) }
 }
 
-/// Wraps: `av_parse_color`
+/// Wraps `fn::av_parse_color`
 ///
 /// As [`parse_color`], or with `Some(len)` as [`parse_color_prefix`], logging
 /// a failure with `log_ctx` as the context (`None` for no context).
@@ -174,6 +176,7 @@ pub fn parse_color_prefix(color: &CStr, len: usize) -> Result<[u8; 4], i32> {
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_parse_color` returns when it fails.
+#[doc(alias = "av_parse_color")]
 pub fn parse_color_with_context(
     color: &CStr,
     len: Option<usize>,
@@ -189,7 +192,7 @@ pub fn parse_color_with_context(
     if ret < 0 { Err(ret) } else { Ok(rgba) }
 }
 
-/// Wraps: `av_parse_video_size`
+/// Wraps `fn::av_parse_video_size`
 ///
 /// The width and height, both positive, that `size` gives: a named size
 /// (`vga`, `hd1080`, `4k`, ...; case-sensitive) or `<width>x<height>`, two
@@ -200,6 +203,7 @@ pub fn parse_color_with_context(
 /// # Errors
 ///
 /// Fails with `AVERROR(EINVAL)` on trailing bytes or a dimension that is not positive.
+#[doc(alias = "av_parse_video_size")]
 pub fn parse_video_size(size: &CStr) -> Result<(i32, i32), i32> {
     let (mut width, mut height) = (0, 0);
     // SAFETY: `width` and `height` are writable locals, and `size` a live
@@ -222,7 +226,7 @@ fn parse_time(timestr: &CStr, duration: bool) -> Result<i64, i32> {
     if ret < 0 { Err(ret) } else { Ok(timeval) }
 }
 
-/// Wraps: `av_parse_time`
+/// Wraps `fn::av_parse_time`
 ///
 /// The microseconds since 1970-01-01 00:00:00 UTC of the date `date`:
 ///
@@ -239,11 +243,12 @@ fn parse_time(timestr: &CStr, duration: bool) -> Result<i64, i32> {
 ///
 /// Fails with `AVERROR(EINVAL)` on a malformed date, and `AVERROR(ERANGE)` when the microseconds
 /// overflow an `i64`.
+#[doc(alias = "av_parse_time")]
 pub fn parse_date(date: &CStr) -> Result<i64, i32> {
     parse_time(date, false)
 }
 
-/// Wraps: `av_parse_time`
+/// Wraps `fn::av_parse_time`
 ///
 /// The microseconds the duration `duration` spans:
 ///
@@ -260,11 +265,12 @@ pub fn parse_date(date: &CStr) -> Result<i64, i32> {
 ///
 /// Fails with `AVERROR(EINVAL)` on a malformed duration, and `AVERROR(ERANGE)` when it overflows an
 /// `i64` of microseconds.
+#[doc(alias = "av_parse_time")]
 pub fn parse_duration(duration: &CStr) -> Result<i64, i32> {
     parse_time(duration, true)
 }
 
-/// Wraps: `av_find_info_tag`
+/// Wraps `fn::av_find_info_tag`
 ///
 /// The value of tag `tag` in `info`, a URL query string of the form
 /// `?tag1=val1&tag2=val2...` (the leading `?` is optional), written into
@@ -276,6 +282,7 @@ pub fn parse_duration(duration: &CStr) -> Result<i64, i32> {
 /// An empty `buf` cannot hold the terminator C always writes: the tag is then
 /// looked up into a one-byte scratch buffer, and a match yields the empty
 /// value.
+#[doc(alias = "av_find_info_tag")]
 pub fn find_info_tag<'b>(buf: &'b mut [u8], tag: &CStr, info: &CStr) -> Option<&'b CStr> {
     if buf.is_empty() {
         let mut scratch = [0u8; 1];
@@ -301,11 +308,12 @@ pub fn find_info_tag<'b>(buf: &'b mut [u8], tag: &CStr, info: &CStr) -> Option<&
     CStr::from_bytes_until_nul(buf).ok()
 }
 
-/// Wraps: `av_get_known_color_name`
+/// Wraps `fn::av_get_known_color_name`
 ///
 /// Entry `index` of the table of named colors `av_parse_color` recognizes,
 /// in its order (alphabetical, `"AliceBlue"` first): the color's name and
 /// its red, green and blue components. `None` past the end of the table.
+#[doc(alias = "av_get_known_color_name")]
 #[must_use]
 pub fn known_color_name(index: usize) -> Option<(&'static CStr, [u8; 3])> {
     let index = c_int::try_from(index).ok()?;
@@ -353,7 +361,7 @@ fn parse_ratio_raw(
     }
 }
 
-/// Wraps: `av_parse_ratio`
+/// Wraps `fn::av_parse_ratio`
 ///
 /// The ratio `ratio` gives, both terms at most `max` in magnitude:
 ///
@@ -389,11 +397,12 @@ fn parse_ratio_raw(
 ///     Ok((3, 4))
 /// );
 /// ```
+#[doc(alias = "av_parse_ratio")]
 pub fn parse_ratio(ratio: &CStr, max: i32) -> Result<Rational, i32> {
     parse_ratio_raw(ratio, max, 0, None)
 }
 
-/// Wraps: `av_parse_ratio`
+/// Wraps `fn::av_parse_ratio`
 ///
 /// As [`parse_ratio`], logging an expression's errors with `log_offset`
 /// added to their level, as messages of an `"Eval"` context whose parent is
@@ -404,6 +413,7 @@ pub fn parse_ratio(ratio: &CStr, max: i32) -> Result<Rational, i32> {
 ///
 /// As [`parse_ratio`]; the refused expressions include a `log_offset` that
 /// overflows an `int` added to C's levels.
+#[doc(alias = "av_parse_ratio")]
 pub fn parse_ratio_with_context(
     ratio: &CStr,
     max: i32,
@@ -413,7 +423,7 @@ pub fn parse_ratio_with_context(
     parse_ratio_raw(ratio, max, log_offset, log_ctx)
 }
 
-/// Wraps: `av_parse_video_rate`
+/// Wraps `fn::av_parse_video_rate`
 ///
 /// The frame rate `rate` gives, both terms positive: a named rate (`ntsc`,
 /// `pal`, `qntsc`, `qpal`, `sntsc`, `spal`, `film`, `ntsc-film`;
@@ -427,6 +437,7 @@ pub fn parse_ratio_with_context(
 /// both positive, `AVERROR(ENOMEM)`; nothing is logged. Also
 /// `AVERROR(EINVAL)`, before C runs, for an expression
 /// [`eval::parse_and_eval`] refuses.
+#[doc(alias = "av_parse_video_rate")]
 pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
     if eval::refuses(rate.to_bytes(), ffi::AV_LOG_MAX_OFFSET.cast_signed()) {
         return Err(AVERROR_EINVAL);
@@ -444,7 +455,7 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
     }
 }
 
-/// Wraps: `av_small_strptime`
+/// Wraps `fn::av_small_strptime`
 ///
 /// Reads the start of `s` as `fmt` describes it, storing each field it
 /// reads in `tm`, and returns the rest of `s`: the bytes after the last one
@@ -481,6 +492,7 @@ pub fn parse_video_rate(rate: &CStr) -> Result<Rational, i32> {
 /// );
 /// assert_eq!(tm.as_ref().sec(), 56);
 /// ```
+#[doc(alias = "av_small_strptime")]
 #[must_use]
 pub fn small_strptime<'s>(s: &'s CStr, fmt: &CStr, mut tm: TmMut<'_>) -> Option<&'s CStr> {
     // SAFETY: `s` and `fmt` are live NUL-terminated strings C only reads,
@@ -517,7 +529,7 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
     Some((days, secs))
 }
 
-/// Wraps: `av_timegm`
+/// Wraps `fn::av_timegm`
 ///
 /// The seconds since 1970-01-01 00:00:00 UTC of the UTC time `tm`, from its
 /// year, month, day, hour, minute and second; the other fields are ignored.
@@ -539,6 +551,7 @@ fn timegm_terms(tm: TmRef<'_>) -> Option<(c_int, c_int)> {
 /// t.set_mday(1);
 /// assert_eq!(timegm(tm.as_ref()), Some(946_684_800));
 /// ```
+#[doc(alias = "av_timegm")]
 #[must_use]
 pub fn timegm(tm: TmRef<'_>) -> Option<i64> {
     timegm_terms(tm)?;
