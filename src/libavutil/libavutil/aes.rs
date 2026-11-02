@@ -91,8 +91,8 @@ impl fmt::Display for InitError {
 impl std::error::Error for InitError {}
 
 define_ctype!(
-    /// Wraps: AVAES
-    ///
+    /// Wraps `ty::AVAES`
+    #[doc(alias = "AVAES")]
     /// An initialized AES context. The public C type is opaque: this layout
     /// names the FFI pointee only, never its private size or fields. Construct
     /// an owner with [`Aes::new`], not an inline value or a generic allocator.
@@ -127,10 +127,11 @@ unsafe impl CDrop<MaybeUninit<Aes>> for AesFree {
     }
 }
 
-/// Wraps: `av_aes_alloc`
 // SAFETY: C allocates the full private body with its required alignment, not
 // size_of::<Aes>() (the public forward declaration has no body). AesFree releases it.
 unsafe impl CAlloc<Aes> for AesFree {
+    /// Wraps `fn::av_aes_alloc`
+    #[doc(alias = "av_aes_alloc")]
     fn c_alloc(&self) -> Option<NonNull<MaybeUninit<Aes>>> {
         // SAFETY: the allocator takes no arguments and transfers fresh storage.
         NonNull::new(unsafe { ffi::av_aes_alloc() }.cast())
@@ -170,6 +171,8 @@ fn key_bits(key: &[u8]) -> Result<i32, InitError> {
 }
 
 impl Aes {
+    /// Wraps `fn::av_aes_init`
+    #[doc(alias = "av_aes_init")]
     /// Allocate and initialize a context. The key may be dropped immediately.
     ///
     /// # Errors
@@ -197,8 +200,8 @@ impl Aes {
 }
 
 impl AesMut<'_> {
-    /// Wraps: `av_aes_init`
-    ///
+    /// Wraps `fn::av_aes_init`
+    #[doc(alias = "av_aes_init")]
     /// Replace the key schedule. Invalid key lengths leave the context unchanged.
     ///
     /// # Errors
@@ -222,8 +225,8 @@ impl AesMut<'_> {
     }
 }
 
-/// Wraps: `av_aes_size`
-///
+/// Wraps `var::av_aes_size`
+#[doc(alias = "av_aes_size")]
 /// The C context's size in bytes, borrowed from immutable C static storage.
 #[must_use]
 pub fn context_size() -> &'static i32 {
@@ -233,8 +236,8 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl AesMut<'_> {
-    /// Wraps: `av_aes_crypt`
-    ///
+    /// Wraps `fn::av_aes_crypt`
+    #[doc(alias = "av_aes_crypt")]
     /// Process whole blocks with the direction selected by initialization.
     /// C ignores its redundant decrypt argument.
     /// `None` selects ECB; `Some` selects CBC and updates the IV after each block.
@@ -286,6 +289,8 @@ impl AesMut<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_aes_crypt`
+    #[doc(alias = "av_aes_crypt")]
     /// In-place form of [`Self::crypt`], with the same modes and validation.
     ///
     /// # Errors
