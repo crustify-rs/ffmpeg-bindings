@@ -21,7 +21,7 @@ use core::fmt;
 use super::ffi;
 use super::rational::Rational;
 
-/// Wraps: `AVRounding`
+/// Wraps `ty::AVRounding`
 ///
 /// The rounding of a rescale: a method ([`ZERO`](Self::ZERO),
 /// [`INF`](Self::INF), [`DOWN`](Self::DOWN), [`UP`](Self::UP) or
@@ -33,6 +33,7 @@ use super::rational::Rational;
 /// a method, alone or `ORed` with `AV_ROUND_PASS_MINMAX`. A `Rounding` holds
 /// only those accepted values; [`TryFrom`] rejects the others, and the value
 /// passes to C unchanged through [`From`], as a layout-compatible newtype.
+#[doc(alias = "AVRounding")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Rounding(ffi::AVRounding);
@@ -137,7 +138,7 @@ impl fmt::Display for InvalidRounding {
 
 impl std::error::Error for InvalidRounding {}
 
-/// Wraps: `av_compare_mod`
+/// Wraps `fn::av_compare_mod`
 ///
 /// Compares `a % m` with `b % m` for a power-of-two `m`: the wrapped
 /// difference of the low `log2(m)` bits of `a` and `b`, read as a signed
@@ -146,6 +147,7 @@ impl std::error::Error for InvalidRounding {}
 ///
 /// A modulus that is not a power of two gives a meaningless but defined
 /// result, as in C; `m == 0` compares the whole 64 bits.
+#[doc(alias = "av_compare_mod")]
 #[inline]
 #[must_use]
 pub fn compare_mod(a: u64, b: u64, m: u64) -> i64 {
@@ -154,11 +156,12 @@ pub fn compare_mod(a: u64, b: u64, m: u64) -> i64 {
     unsafe { ffi::av_compare_mod(a, b, m) }
 }
 
-/// Wraps: `av_bessel_i0`
+/// Wraps `fn::av_bessel_i0`
 ///
 /// The zeroth-order modified Bessel function of the first kind, `I0(x)`,
 /// from C's minimax rational approximations. Even in `x`; NaN yields NaN and
 /// a large `|x|` overflows to infinity.
+#[doc(alias = "av_bessel_i0")]
 #[inline]
 #[must_use]
 pub fn bessel_i0(x: f64) -> f64 {
@@ -167,19 +170,20 @@ pub fn bessel_i0(x: f64) -> f64 {
     unsafe { ffi::av_bessel_i0(x) }
 }
 
-/// Wraps: `av_gcd`
+/// Wraps `fn::av_gcd`
 ///
 /// The greatest common divisor of `a` and `b`, up to sign: non-negative when
 /// both are, `b` when `a` is 0 and `a` when `b` is 0 (so `gcd(0, 0) == 0`). A
 /// divisor of `2^63` comes back as `i64::MIN`, its bit pattern: `gcd(i64::MIN,
 /// i64::MIN)` is `i64::MIN`.
+#[doc(alias = "av_gcd")]
 #[must_use]
 pub fn gcd(a: i64, b: i64) -> i64 {
     // SAFETY: `av_gcd` takes its arguments by value and has no preconditions.
     unsafe { ffi::av_gcd(a, b) }
 }
 
-/// Wraps: `av_rescale`
+/// Wraps `fn::av_rescale`
 ///
 /// `a * b / c`, computed without intermediate overflow and rounded to
 /// nearest, halfway cases away from zero ([`Rounding::NEAR_INF`]).
@@ -188,6 +192,7 @@ pub fn gcd(a: i64, b: i64) -> i64 {
 /// `c <= 0`, `b < 0`, or a quotient beyond the `i64` range. C reports each of
 /// these as `INT64_MIN`, which is never a rescaled value: the smallest result
 /// it returns is `-i64::MAX`.
+#[doc(alias = "av_rescale")]
 #[must_use]
 pub fn rescale(a: i64, b: i64, c: i64) -> Option<i64> {
     // SAFETY: `av_rescale` takes integers by value, reads no memory and
@@ -206,7 +211,7 @@ fn rescaled(r: i64, a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64> {
     (r != i64::MIN || passed).then_some(r)
 }
 
-/// Wraps: `av_rescale_rnd`
+/// Wraps `fn::av_rescale_rnd`
 ///
 /// `a * b / c`, computed without intermediate overflow and rounded by
 /// `rounding`. Under [`Rounding::pass_min_max`], `i64::MIN` and `i64::MAX`
@@ -216,6 +221,7 @@ fn rescaled(r: i64, a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64> {
 /// `c <= 0`, `b < 0`, or a quotient beyond the `i64` range. C reports each of
 /// these as `INT64_MIN`, which a rescale otherwise only returns as the
 /// passed-through `i64::MIN`.
+#[doc(alias = "av_rescale_rnd")]
 #[must_use]
 pub fn rescale_rounded(a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64> {
     // SAFETY: `av_rescale_rnd` takes integers by value, reads no memory and
@@ -225,7 +231,7 @@ pub fn rescale_rounded(a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64
     rescaled(r, a, b, c, rounding)
 }
 
-/// Wraps: `av_rescale_q_rnd`
+/// Wraps `fn::av_rescale_q_rnd`
 ///
 /// `a * bq / cq`, the value `a` in units of `bq` expressed in units of `cq`
 /// (a timestamp from one time base to another), rounded by `rounding`. Under
@@ -235,6 +241,7 @@ pub fn rescale_rounded(a: i64, b: i64, c: i64, rounding: Rounding) -> Option<i64
 /// `None` as for [`rescale_rounded`] of `a`, `bq.num * cq.den` and
 /// `cq.num * bq.den`: in particular when that divisor is not positive or that
 /// multiplier is negative, as for a time base with a non-positive part.
+#[doc(alias = "av_rescale_q_rnd")]
 #[must_use]
 pub fn rescale_rational_rounded(
     a: i64,
@@ -256,7 +263,7 @@ pub fn rescale_rational_rounded(
     )
 }
 
-/// Wraps: `av_rescale_q`
+/// Wraps `fn::av_rescale_q`
 ///
 /// [`rescale_rational_rounded`] rounding to nearest, halfway cases away from
 /// zero ([`Rounding::NEAR_INF`]): `a` in units of `bq` expressed in units of
@@ -264,6 +271,7 @@ pub fn rescale_rational_rounded(
 ///
 /// `None` as for [`rescale_rational_rounded`]; `i64::MIN` is rescaled as
 /// `-i64::MAX`, never passed through.
+#[doc(alias = "av_rescale_q")]
 #[must_use]
 pub fn rescale_rational(a: i64, bq: Rational, cq: Rational) -> Option<i64> {
     // SAFETY: as for `rescale_rational_rounded`, with `AV_ROUND_NEAR_INF`.
@@ -271,13 +279,14 @@ pub fn rescale_rational(a: i64, bq: Rational, cq: Rational) -> Option<i64> {
     (r != i64::MIN).then_some(r)
 }
 
-/// Wraps: `av_compare_ts`
+/// Wraps `fn::av_compare_ts`
 ///
 /// Orders the timestamp `ts_a` in time base `tb_a` against `ts_b` in `tb_b`.
 ///
 /// As in C, the answer is meaningful only when each timestamp, expressed in
 /// the other's time base, fits an `i64`, and both time bases are positive;
 /// otherwise it is an arbitrary but defined ordering.
+#[doc(alias = "av_compare_ts")]
 #[must_use]
 #[expect(
     clippy::similar_names,
@@ -291,7 +300,7 @@ pub fn compare_timestamps(ts_a: i64, tb_a: Rational, ts_b: i64, tb_b: Rational) 
     unsafe { ffi::av_compare_ts(ts_a, tb_a.into_raw(), ts_b, tb_b.into_raw()) }.cmp(&0)
 }
 
-/// Wraps: `av_rescale_delta`
+/// Wraps `fn::av_rescale_delta`
 ///
 /// Rescales the timestamp `in_ts` from `in_tb` to `out_tb`, keeping
 /// successive packets' known durations: call it once per packet of a stream,
@@ -312,6 +321,7 @@ pub fn compare_timestamps(ts_a: i64, tb_a: Rational, ts_b: i64, tb_b: Rational) 
 /// value too close to `i64::MAX` to add `duration` to). `None` also when C
 /// cannot represent the result in `out_tb`; `last` is then updated as C
 /// updates it.
+#[doc(alias = "av_rescale_delta")]
 #[expect(
     clippy::similar_names,
     reason = "the names follow the C variables they mirror"
@@ -371,7 +381,7 @@ pub fn rescale_delta(
     (r != i64::MIN).then_some(r)
 }
 
-/// Wraps: `av_add_stable`
+/// Wraps `fn::av_add_stable`
 ///
 /// The timestamp `ts`, in time base `ts_tb`, advanced by `inc` units of
 /// `inc_tb`, such that adding the same increment repeatedly accumulates no
@@ -386,6 +396,7 @@ pub fn rescale_delta(
 /// - a zero numerator of `ts_tb`, or `inc_tb` whose product with `inc` has a zero denominator;
 /// - an increment that is a whole negative number of `ts_tb` units (negative increments are not
 ///   supported by C: shorter ones return `ts` unchanged).
+#[doc(alias = "av_add_stable")]
 #[must_use]
 pub fn add_stable(ts_tb: Rational, ts: i64, inc_tb: Rational, inc: i64) -> Option<i64> {
     // C's divisibility test, computed as C does, through the same
