@@ -39,11 +39,12 @@ use ffibox::{CMutSeam, CRefSeam, CZeroable, define_ctype};
 use super::ffi;
 
 define_ctype!(
-    /// Wraps: AVRational
+    /// Wraps `ty::AVRational`
     ///
     /// A rational number as a pair of `int`s, neither reduced nor checked.
     /// Its getters are on [`RationalRef`] (`as_ref()`), its setters on
     /// [`RationalMut`] (`as_mut()`).
+    #[doc(alias = "AVRational")]
     #[derive(Clone, Copy)]
     Rational,
     RationalRef,
@@ -76,10 +77,11 @@ unsafe impl Sync for RationalRef<'_> {}
 unsafe impl Sync for RationalMut<'_> {}
 
 impl Rational {
-    /// Wraps: `av_make_q`
+    /// Wraps `fn::av_make_q`
     ///
     /// The rational `num / den`, as given: not reduced, and a zero or
     /// negative denominator is kept.
+    #[doc(alias = "av_make_q")]
     #[must_use]
     pub fn new(num: i32, den: i32) -> Self {
         // SAFETY: `av_make_q` takes both parts by value, has no
@@ -132,9 +134,10 @@ impl fmt::Debug for RationalRef<'_> {
 }
 
 impl RationalRef<'_> {
-    /// Field: AVRational.num
+    /// Wraps `fld::AVRational.num`
     ///
     /// The numerator.
+    #[doc(alias = "AVRational.num")]
     #[must_use]
     pub fn num(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -146,9 +149,10 @@ impl RationalRef<'_> {
         unsafe { num_ptr.read() }
     }
 
-    /// Field: AVRational.den
+    /// Wraps `fld::AVRational.den`
     ///
     /// The denominator, possibly zero or negative.
+    #[doc(alias = "AVRational.den")]
     #[must_use]
     pub fn den(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -172,9 +176,10 @@ impl RationalRef<'_> {
 }
 
 impl RationalMut<'_> {
-    /// Field: AVRational.num
+    /// Wraps `fld::AVRational.num`
     ///
     /// Sets the numerator, leaving the denominator as it is.
+    #[doc(alias = "AVRational.num")]
     pub fn set_num(&mut self, num: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `num` field is in bounds; nothing is accessed here.
@@ -185,10 +190,11 @@ impl RationalMut<'_> {
         unsafe { num_ptr.write(num) }
     }
 
-    /// Field: AVRational.den
+    /// Wraps `fld::AVRational.den`
     ///
     /// Sets the denominator, leaving the numerator as it is; zero and
     /// negative values are stored as given.
+    #[doc(alias = "AVRational.den")]
     pub fn set_den(&mut self, den: i32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `den` field is in bounds; nothing is accessed here.
@@ -218,7 +224,7 @@ pub struct Reduced {
     pub exact: bool,
 }
 
-/// Wraps: `av_reduce`
+/// Wraps `fn::av_reduce`
 ///
 /// `num / den` in lowest terms, both terms at most `max` in magnitude: the
 /// exact fraction when it fits, and otherwise its closest approximation within
@@ -235,6 +241,7 @@ pub struct Reduced {
 ///
 /// The bound is an `i32` because each term of the result is one: C narrows
 /// the terms of a wider bound to `int` and overflows negating the result.
+#[doc(alias = "av_reduce")]
 #[must_use]
 pub fn reduce(num: i64, den: i64, max: i32) -> Option<Reduced> {
     if max < 0 || num == i64::MIN || den == i64::MIN {
@@ -255,10 +262,11 @@ pub fn reduce(num: i64, den: i64, max: i32) -> Option<Reduced> {
 }
 
 impl Rational {
-    /// Wraps: `av_inv_q`
+    /// Wraps `fn::av_inv_q`
     ///
     /// The reciprocal `den / num`: the two parts swapped, so `0/d` becomes
     /// `d/0` and the sign stays where it was.
+    #[doc(alias = "av_inv_q")]
     #[must_use]
     pub fn recip(self) -> Self {
         // SAFETY: `av_inv_q` takes the struct by value and only swaps its
@@ -266,10 +274,11 @@ impl Rational {
         Self::from_raw(unsafe { ffi::av_inv_q(self.into_raw()) })
     }
 
-    /// Wraps: `av_q2d`
+    /// Wraps `fn::av_q2d`
     ///
     /// The value as an `f64`: `num as f64 / den as f64`, so `x/0` is an
     /// infinity of `x`'s sign and `0/0` is NaN.
+    #[doc(alias = "av_q2d")]
     #[must_use]
     pub fn to_f64(self) -> f64 {
         // SAFETY: `av_q2d` takes the struct by value and divides in floating
@@ -277,7 +286,7 @@ impl Rational {
         unsafe { ffi::av_q2d(self.into_raw()) }
     }
 
-    /// Wraps: `av_d2q`
+    /// Wraps `fn::av_d2q`
     ///
     /// The closest rational to `d` whose terms are at most `max` in
     /// magnitude: `0/0` for NaN, `1/0` or `-1/0` beyond `±(i32::MAX + 3)`
@@ -285,6 +294,7 @@ impl Rational {
     /// fraction over a power of two (see [`reduce`]).
     ///
     /// `None` for a negative `max`, which C's reduction cannot bound.
+    #[doc(alias = "av_d2q")]
     #[must_use]
     pub fn from_f64(d: f64, max: i32) -> Option<Self> {
         if max < 0 {
@@ -298,7 +308,7 @@ impl Rational {
         Some(Self::from_raw(unsafe { ffi::av_d2q(d, max) }))
     }
 
-    /// Wraps: `av_nearer_q`
+    /// Wraps `fn::av_nearer_q`
     ///
     /// Compares how near `a` and `b` are to `self`: [`Less`](Ordering::Less)
     /// when `a` is nearer, [`Greater`](Ordering::Greater) when `b` is, and
@@ -312,6 +322,7 @@ impl Rational {
     /// 1: an overflow, 0 or `INT_MIN`, no verdict in any case. A negative
     /// denominator in `self`, or in exactly one of `a` and `b`, gives a
     /// meaningless but defined answer, as in C.
+    #[doc(alias = "av_nearer_q")]
     #[must_use]
     pub fn cmp_distance(self, a: Self, b: Self) -> Option<Ordering> {
         let (ra, rb) = (a.into_raw(), b.into_raw());
@@ -333,7 +344,7 @@ impl Rational {
         }
     }
 
-    /// Wraps: `av_find_nearest_q_idx`
+    /// Wraps `fn::av_find_nearest_q_idx`
     ///
     /// The index of the candidate nearest `self`, the first one on a tie, as
     /// [`cmp_distance`](Self::cmp_distance) orders them.
@@ -347,6 +358,7 @@ impl Rational {
     /// a first candidate with that denominator overflows, and a list holding
     /// two of them is walked as C walks it to find out whether it compares
     /// them with each other.
+    #[doc(alias = "av_find_nearest_q_idx")]
     #[must_use]
     pub fn nearest(self, candidates: &[Self]) -> Option<usize> {
         let end = candidates
@@ -383,7 +395,7 @@ impl Rational {
         usize::try_from(i).ok()
     }
 
-    /// Wraps: `av_q2intfloat`
+    /// Wraps `fn::av_q2intfloat`
     ///
     /// The bits of the IEEE 754 single-precision float nearest the value,
     /// ties away from zero: C computes them in integer arithmetic, so they do
@@ -395,6 +407,7 @@ impl Rational {
     ///
     /// Diverges from C for `x/0` with `x` negative: C drops the sign and
     /// returns `+inf`; this returns `-inf` (`0xff80_0000`).
+    #[doc(alias = "av_q2intfloat")]
     #[must_use]
     pub fn to_f32_bits(self) -> Option<u32> {
         let ffi::AVRational { num, den } = self.into_raw();
@@ -414,7 +427,7 @@ impl Rational {
         Some(bits | sign)
     }
 
-    /// Wraps: `av_gcd_q`
+    /// Wraps `fn::av_gcd_q`
     ///
     /// The largest rational of which both `self` and `other` are integer
     /// multiples, the greatest common divisor of the numerators over the
@@ -423,6 +436,7 @@ impl Rational {
     ///
     /// `None` too when both denominators are zero, which C divides by. A
     /// zero denominator in one of them gives a zero multiple, as in C.
+    #[doc(alias = "av_gcd_q")]
     #[must_use]
     pub fn gcd(self, other: Self, max_den: i32) -> Option<Self> {
         let (a, b) = (self.into_raw(), other.into_raw());
@@ -453,11 +467,12 @@ impl PartialEq for Rational {
 }
 
 impl PartialOrd for Rational {
-    /// Wraps: `av_cmp_q`
+    /// Wraps `fn::av_cmp_q`
     ///
     /// Orders the values, with `x/0` as the infinity of `x`'s sign. `None`
     /// where C reports `INT_MIN`: when either is `0/0`, or one is `0/d` and
     /// the other `0/0`.
+    #[doc(alias = "av_cmp_q")]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // SAFETY: `av_cmp_q` takes the structs by value; its cross products
         // are computed in `int64_t`, where their difference cannot overflow
@@ -474,13 +489,14 @@ impl PartialOrd for Rational {
 impl Add for Rational {
     type Output = Self;
 
-    /// Wraps: `av_add_q`
+    /// Wraps `fn::av_add_q`
     ///
     /// The sum, in lowest terms when it fits, and otherwise its closest
     /// approximation with terms within `i32::MAX` (see [`reduce`]).
     ///
     /// `i32::MIN/i32::MIN + i32::MIN/i32::MIN` overflows in C; it is computed
     /// as `1/1 + 1/1`, the same value, which C reduces to the same `2/1`.
+    #[doc(alias = "av_add_q")]
     fn add(self, rhs: Self) -> Self {
         let (mut b, mut c) = (self.into_raw(), rhs.into_raw());
         if [b.num, b.den, c.num, c.den] == [i32::MIN; 4] {
@@ -499,10 +515,11 @@ impl Add for Rational {
 impl Sub for Rational {
     type Output = Self;
 
-    /// Wraps: `av_sub_q`
+    /// Wraps `fn::av_sub_q`
     ///
     /// The difference, in lowest terms when it fits, and otherwise its
     /// closest approximation with terms within `i32::MAX` (see [`reduce`]).
+    #[doc(alias = "av_sub_q")]
     fn sub(self, rhs: Self) -> Self {
         // SAFETY: `av_sub_q` takes the structs by value. The difference of the
         // cross products lies within `±(2^63 - 2^31)`, since only
@@ -516,10 +533,11 @@ impl Sub for Rational {
 impl Mul for Rational {
     type Output = Self;
 
-    /// Wraps: `av_mul_q`
+    /// Wraps `fn::av_mul_q`
     ///
     /// The product, in lowest terms when it fits, and otherwise its closest
     /// approximation with terms within `i32::MAX` (see [`reduce`]).
+    #[doc(alias = "av_mul_q")]
     fn mul(self, rhs: Self) -> Self {
         // SAFETY: `av_mul_q` takes the structs by value; each product of two
         // `int`s fits `int64_t`, and `av_reduce` with `INT_MAX` handles every
@@ -531,11 +549,12 @@ impl Mul for Rational {
 impl Div for Rational {
     type Output = Self;
 
-    /// Wraps: `av_div_q`
+    /// Wraps `fn::av_div_q`
     ///
     /// The quotient, `self` times `rhs`'s reciprocal, in lowest terms when it
     /// fits, and otherwise its closest approximation with terms within
     /// `i32::MAX`; dividing by `0/d` gives an infinity or `0/0`.
+    #[doc(alias = "av_div_q")]
     fn div(self, rhs: Self) -> Self {
         // SAFETY: `av_div_q` takes the structs by value and multiplies by the
         // swapped divisor through `av_mul_q`, defined for every `int` term
