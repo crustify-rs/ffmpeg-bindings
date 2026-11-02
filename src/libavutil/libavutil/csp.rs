@@ -47,7 +47,7 @@ use super::ffi;
 use super::pixdesc::{ColorPrimaries, ColorSpace, ColorTransfer};
 use super::rational::{Rational, RationalMut, RationalRef};
 
-/// Wraps: `av_csp_trc_function`
+/// Wraps `ty::av_csp_trc_function`
 ///
 /// A transfer function from `libavutil/csp.c`: an OETF, or an inverse EOTF
 /// (for SMPTE ST 2084 / PQ), mapping linear light to gamma-encoded light, or
@@ -57,6 +57,7 @@ use super::rational::{Rational, RationalMut, RationalRef};
 /// argument, defined (if not meaningful) for every `f64`, NaN and infinities
 /// included, and keep no state: a handle is `Copy`, `Send` and `Sync`, and
 /// calling it is safe.
+#[doc(alias = "av_csp_trc_function")]
 #[derive(Clone, Copy, Debug)]
 pub struct TrcFunction(unsafe extern "C" fn(f64) -> f64);
 
@@ -71,7 +72,7 @@ impl TrcFunction {
     }
 }
 
-/// Wraps: `av_csp_eotf_function`
+/// Wraps `ty::av_csp_eotf_function`
 ///
 /// An ITU EOTF from `libavutil/csp.c`, or its inverse, for a reference
 /// display with white point luminance `lw` and black point luminance `lb`, in
@@ -82,6 +83,7 @@ impl TrcFunction {
 /// channels they are given and nothing else, are defined (if not meaningful)
 /// for every `f64` input, and keep no state: a handle is `Copy`, `Send` and
 /// `Sync`, and calling it is safe.
+#[doc(alias = "av_csp_eotf_function")]
 #[derive(Clone, Copy, Debug)]
 pub struct EotfFunction(unsafe extern "C" fn(f64, f64, *mut f64));
 
@@ -98,7 +100,7 @@ impl EotfFunction {
 }
 
 define_ctype!(
-    /// Wraps: AVCIExy
+    /// Wraps `ty::AVCIExy`
     ///
     /// A chromaticity in the CIE 1931 xy plane, as two rationals, neither
     /// reduced nor range-checked. Its getters are on [`CieXyRef`]
@@ -107,6 +109,7 @@ define_ctype!(
     /// C's own tables hold unreduced fractions such as `3127/10000`, and an
     /// unspecified gamut is all-zero (`0/0` coordinates), so every accessor
     /// takes any pair of rationals.
+    #[doc(alias = "AVCIExy")]
     #[derive(Clone, Copy)]
     CieXy,
     CieXyRef,
@@ -220,13 +223,14 @@ impl fmt::Debug for CieXyRef<'_> {
 }
 
 impl<'a> CieXyRef<'a> {
-    /// Field: AVCIExy.x
+    /// Wraps `fld::AVCIExy.x`
     ///
     /// The x coordinate, as a handle over it that lives as long as this one.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVCIExy.x")]
     #[must_use]
     pub fn x(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -240,13 +244,14 @@ impl<'a> CieXyRef<'a> {
             .expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVCIExy.y
+    /// Wraps `fld::AVCIExy.y`
     ///
     /// The y coordinate, as a handle over it that lives as long as this one.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVCIExy.y")]
     #[must_use]
     pub fn y(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -269,7 +274,7 @@ impl<'a> CieXyRef<'a> {
 }
 
 impl CieXyMut<'_> {
-    /// Field: AVCIExy.x
+    /// Wraps `fld::AVCIExy.x`
     ///
     /// An exclusive handle over the x coordinate, for writing its parts;
     /// this handle is frozen while it lives.
@@ -277,6 +282,7 @@ impl CieXyMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVCIExy.x")]
     #[must_use]
     pub fn x_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -289,7 +295,7 @@ impl CieXyMut<'_> {
         unsafe { RationalMut::from_ptr(x_ptr) }.expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVCIExy.y
+    /// Wraps `fld::AVCIExy.y`
     ///
     /// An exclusive handle over the y coordinate, for writing its parts;
     /// this handle is frozen while it lives.
@@ -297,6 +303,7 @@ impl CieXyMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVCIExy.y")]
     #[must_use]
     pub fn y_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -306,9 +313,10 @@ impl CieXyMut<'_> {
         unsafe { RationalMut::from_ptr(y_ptr) }.expect("a field of a live struct is not NULL")
     }
 
-    /// Field: AVCIExy.x
+    /// Wraps `fld::AVCIExy.x`
     ///
     /// Sets the x coordinate, leaving y as it is.
+    #[doc(alias = "AVCIExy.x")]
     pub fn set_x(&mut self, x: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `x` field is in bounds; nothing is accessed here.
@@ -319,9 +327,10 @@ impl CieXyMut<'_> {
         unsafe { x_ptr.write(x.into_raw()) }
     }
 
-    /// Field: AVCIExy.y
+    /// Wraps `fld::AVCIExy.y`
     ///
     /// Sets the y coordinate, leaving x as it is.
+    #[doc(alias = "AVCIExy.y")]
     pub fn set_y(&mut self, y: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `y` field is in bounds; nothing is accessed here.
@@ -341,7 +350,7 @@ impl CieXyMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVLumaCoefficients
+    /// Wraps `ty::AVLumaCoefficients`
     ///
     /// The luma coefficients of a YUV-like colour space, as three
     /// [`Rational`]s: the weights of red, green and blue in luma
@@ -356,6 +365,7 @@ define_ctype!(
     /// [`from_raw`](LumaCoefficients::from_raw) or `zeroed()`. No field is
     /// checked, by C or here: each takes any pair of `int`s, as a
     /// [`Rational`] does.
+    #[doc(alias = "AVLumaCoefficients")]
     #[derive(Clone, Copy)]
     LumaCoefficients,
     LumaCoefficientsRef,
@@ -468,13 +478,14 @@ impl fmt::Debug for LumaCoefficientsRef<'_> {
 }
 
 impl<'a> LumaCoefficientsRef<'a> {
-    /// Field: AVLumaCoefficients.cr
+    /// Wraps `fld::AVLumaCoefficients.cr`
     ///
     /// The red coefficient, read through a shared handle over the field.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cr")]
     #[must_use]
     pub fn cr(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -488,13 +499,14 @@ impl<'a> LumaCoefficientsRef<'a> {
         unsafe { RationalRef::from_ptr(cr_ptr.cast_mut()) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVLumaCoefficients.cg
+    /// Wraps `fld::AVLumaCoefficients.cg`
     ///
     /// The green coefficient, read through a shared handle over the field.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cg")]
     #[must_use]
     pub fn cg(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -504,13 +516,14 @@ impl<'a> LumaCoefficientsRef<'a> {
         unsafe { RationalRef::from_ptr(cg_ptr.cast_mut()) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVLumaCoefficients.cb
+    /// Wraps `fld::AVLumaCoefficients.cb`
     ///
     /// The blue coefficient, read through a shared handle over the field.
     ///
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cb")]
     #[must_use]
     pub fn cb(&self) -> RationalRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -532,7 +545,7 @@ impl<'a> LumaCoefficientsRef<'a> {
 }
 
 impl LumaCoefficientsMut<'_> {
-    /// Field: AVLumaCoefficients.cr
+    /// Wraps `fld::AVLumaCoefficients.cr`
     ///
     /// The red coefficient, written through an exclusive handle over the
     /// field, which borrows these coefficients exclusively while it lives.
@@ -540,6 +553,7 @@ impl LumaCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cr")]
     #[must_use]
     pub fn cr_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -552,7 +566,7 @@ impl LumaCoefficientsMut<'_> {
         unsafe { RationalMut::from_ptr(cr_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVLumaCoefficients.cg
+    /// Wraps `fld::AVLumaCoefficients.cg`
     ///
     /// The green coefficient, written through an exclusive handle over the
     /// field, which borrows these coefficients exclusively while it lives.
@@ -560,6 +574,7 @@ impl LumaCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cg")]
     #[must_use]
     pub fn cg_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -569,7 +584,7 @@ impl LumaCoefficientsMut<'_> {
         unsafe { RationalMut::from_ptr(cg_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVLumaCoefficients.cb
+    /// Wraps `fld::AVLumaCoefficients.cb`
     ///
     /// The blue coefficient, written through an exclusive handle over the
     /// field, which borrows these coefficients exclusively while it lives.
@@ -577,6 +592,7 @@ impl LumaCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVLumaCoefficients.cb")]
     #[must_use]
     pub fn cb_mut(&mut self) -> RationalMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -586,9 +602,10 @@ impl LumaCoefficientsMut<'_> {
         unsafe { RationalMut::from_ptr(cb_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVLumaCoefficients.cr
+    /// Wraps `fld::AVLumaCoefficients.cr`
     ///
     /// Sets the red coefficient, leaving the others as they are.
+    #[doc(alias = "AVLumaCoefficients.cr")]
     pub fn set_cr(&mut self, cr: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `cr` field is in bounds; nothing is accessed here.
@@ -599,9 +616,10 @@ impl LumaCoefficientsMut<'_> {
         unsafe { cr_ptr.write(cr.into_raw()) }
     }
 
-    /// Field: AVLumaCoefficients.cg
+    /// Wraps `fld::AVLumaCoefficients.cg`
     ///
     /// Sets the green coefficient, leaving the others as they are.
+    #[doc(alias = "AVLumaCoefficients.cg")]
     pub fn set_cg(&mut self, cg: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `cg` field is in bounds; nothing is accessed here.
@@ -610,9 +628,10 @@ impl LumaCoefficientsMut<'_> {
         unsafe { cg_ptr.write(cg.into_raw()) }
     }
 
-    /// Field: AVLumaCoefficients.cb
+    /// Wraps `fld::AVLumaCoefficients.cb`
     ///
     /// Sets the blue coefficient, leaving the others as they are.
+    #[doc(alias = "AVLumaCoefficients.cb")]
     pub fn set_cb(&mut self, cb: Rational) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `cb` field is in bounds; nothing is accessed here.
@@ -631,7 +650,7 @@ impl LumaCoefficientsMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVPrimaryCoefficients
+    /// Wraps `ty::AVPrimaryCoefficients`
     ///
     /// The red, green and blue primaries of a gamut, each a chromaticity in
     /// the CIE 1931 xy plane ([`CieXy`]). Its getters are on
@@ -647,6 +666,7 @@ define_ctype!(
     /// [`from_raw`](PrimaryCoefficients::from_raw) or `zeroed()`. No
     /// coordinate is checked, by C or here: each takes any pair of `int`s, as
     /// a [`Rational`] does.
+    #[doc(alias = "AVPrimaryCoefficients")]
     #[derive(Clone, Copy)]
     PrimaryCoefficients,
     PrimaryCoefficientsRef,
@@ -762,7 +782,7 @@ impl fmt::Debug for PrimaryCoefficientsRef<'_> {
 }
 
 impl<'a> PrimaryCoefficientsRef<'a> {
-    /// Field: AVPrimaryCoefficients.r
+    /// Wraps `fld::AVPrimaryCoefficients.r`
     ///
     /// The red primary, read through a shared handle over the field that
     /// lives as long as this one.
@@ -770,6 +790,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.r")]
     #[must_use]
     pub fn r(&self) -> CieXyRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -783,7 +804,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
         unsafe { CieXyRef::from_ptr(r_ptr.cast_mut()) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVPrimaryCoefficients.g
+    /// Wraps `fld::AVPrimaryCoefficients.g`
     ///
     /// The green primary, read through a shared handle over the field that
     /// lives as long as this one.
@@ -791,6 +812,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.g")]
     #[must_use]
     pub fn g(&self) -> CieXyRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -800,7 +822,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
         unsafe { CieXyRef::from_ptr(g_ptr.cast_mut()) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVPrimaryCoefficients.b
+    /// Wraps `fld::AVPrimaryCoefficients.b`
     ///
     /// The blue primary, read through a shared handle over the field that
     /// lives as long as this one.
@@ -808,6 +830,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.b")]
     #[must_use]
     pub fn b(&self) -> CieXyRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -829,7 +852,7 @@ impl<'a> PrimaryCoefficientsRef<'a> {
 }
 
 impl PrimaryCoefficientsMut<'_> {
-    /// Field: AVPrimaryCoefficients.r
+    /// Wraps `fld::AVPrimaryCoefficients.r`
     ///
     /// The red primary, written through an exclusive handle over the field,
     /// which borrows these primaries exclusively while it lives.
@@ -837,6 +860,7 @@ impl PrimaryCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.r")]
     #[must_use]
     pub fn r_mut(&mut self) -> CieXyMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -849,7 +873,7 @@ impl PrimaryCoefficientsMut<'_> {
         unsafe { CieXyMut::from_ptr(r_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVPrimaryCoefficients.g
+    /// Wraps `fld::AVPrimaryCoefficients.g`
     ///
     /// The green primary, written through an exclusive handle over the
     /// field, which borrows these primaries exclusively while it lives.
@@ -857,6 +881,7 @@ impl PrimaryCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.g")]
     #[must_use]
     pub fn g_mut(&mut self) -> CieXyMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -866,7 +891,7 @@ impl PrimaryCoefficientsMut<'_> {
         unsafe { CieXyMut::from_ptr(g_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVPrimaryCoefficients.b
+    /// Wraps `fld::AVPrimaryCoefficients.b`
     ///
     /// The blue primary, written through an exclusive handle over the field,
     /// which borrows these primaries exclusively while it lives.
@@ -874,6 +899,7 @@ impl PrimaryCoefficientsMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVPrimaryCoefficients.b")]
     #[must_use]
     pub fn b_mut(&mut self) -> CieXyMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -883,9 +909,10 @@ impl PrimaryCoefficientsMut<'_> {
         unsafe { CieXyMut::from_ptr(b_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVPrimaryCoefficients.r
+    /// Wraps `fld::AVPrimaryCoefficients.r`
     ///
     /// Sets the red primary, leaving the others as they are.
+    #[doc(alias = "AVPrimaryCoefficients.r")]
     pub fn set_r(&mut self, r: CieXy) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `r` field is in bounds; nothing is accessed here.
@@ -896,9 +923,10 @@ impl PrimaryCoefficientsMut<'_> {
         unsafe { r_ptr.write(r.into_raw()) }
     }
 
-    /// Field: AVPrimaryCoefficients.g
+    /// Wraps `fld::AVPrimaryCoefficients.g`
     ///
     /// Sets the green primary, leaving the others as they are.
+    #[doc(alias = "AVPrimaryCoefficients.g")]
     pub fn set_g(&mut self, g: CieXy) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `g` field is in bounds; nothing is accessed here.
@@ -907,9 +935,10 @@ impl PrimaryCoefficientsMut<'_> {
         unsafe { g_ptr.write(g.into_raw()) }
     }
 
-    /// Field: AVPrimaryCoefficients.b
+    /// Wraps `fld::AVPrimaryCoefficients.b`
     ///
     /// Sets the blue primary, leaving the others as they are.
+    #[doc(alias = "AVPrimaryCoefficients.b")]
     pub fn set_b(&mut self, b: CieXy) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `b` field is in bounds; nothing is accessed here.
@@ -928,7 +957,7 @@ impl PrimaryCoefficientsMut<'_> {
 }
 
 define_ctype!(
-    /// Wraps: AVColorPrimariesDesc
+    /// Wraps `ty::AVColorPrimariesDesc`
     ///
     /// The complete description of a colour gamut: its white point and the
     /// chromaticities of its red, green and blue primaries, all in the CIE
@@ -946,6 +975,7 @@ define_ctype!(
     /// [`from_raw`](ColorPrimariesDescriptor::from_raw) or `zeroed()`. No
     /// coordinate is checked, by C or here: each takes any pair of `int`s, as
     /// a [`Rational`] does.
+    #[doc(alias = "AVColorPrimariesDesc")]
     #[derive(Clone, Copy)]
     ColorPrimariesDescriptor,
     ColorPrimariesDescriptorRef,
@@ -1063,7 +1093,7 @@ impl fmt::Debug for ColorPrimariesDescriptorRef<'_> {
 }
 
 impl<'a> ColorPrimariesDescriptorRef<'a> {
-    /// Field: AVColorPrimariesDesc.wp
+    /// Wraps `fld::AVColorPrimariesDesc.wp`
     ///
     /// The white point, read through a shared handle over the field that
     /// lives as long as this one.
@@ -1071,6 +1101,7 @@ impl<'a> ColorPrimariesDescriptorRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVColorPrimariesDesc.wp")]
     #[must_use]
     pub fn white_point(&self) -> CieXyRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1084,7 +1115,7 @@ impl<'a> ColorPrimariesDescriptorRef<'a> {
         unsafe { CieXyRef::from_ptr(wp_ptr.cast_mut()) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVColorPrimariesDesc.prim
+    /// Wraps `fld::AVColorPrimariesDesc.prim`
     ///
     /// The red, green and blue primaries, read through a shared handle over
     /// the field that lives as long as this one.
@@ -1092,6 +1123,7 @@ impl<'a> ColorPrimariesDescriptorRef<'a> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVColorPrimariesDesc.prim")]
     #[must_use]
     pub fn primaries(&self) -> PrimaryCoefficientsRef<'a> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1116,7 +1148,7 @@ impl<'a> ColorPrimariesDescriptorRef<'a> {
 }
 
 impl ColorPrimariesDescriptorMut<'_> {
-    /// Field: AVColorPrimariesDesc.wp
+    /// Wraps `fld::AVColorPrimariesDesc.wp`
     ///
     /// The white point, written through an exclusive handle over the field,
     /// which borrows this description exclusively while it lives.
@@ -1124,6 +1156,7 @@ impl ColorPrimariesDescriptorMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVColorPrimariesDesc.wp")]
     #[must_use]
     pub fn white_point_mut(&mut self) -> CieXyMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1136,7 +1169,7 @@ impl ColorPrimariesDescriptorMut<'_> {
         unsafe { CieXyMut::from_ptr(wp_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVColorPrimariesDesc.prim
+    /// Wraps `fld::AVColorPrimariesDesc.prim`
     ///
     /// The primaries, written through an exclusive handle over the field,
     /// which borrows this description exclusively while it lives.
@@ -1144,6 +1177,7 @@ impl ColorPrimariesDescriptorMut<'_> {
     /// # Panics
     ///
     /// Never: the place of a field of a live struct is not NULL.
+    #[doc(alias = "AVColorPrimariesDesc.prim")]
     #[must_use]
     pub fn primaries_mut(&mut self) -> PrimaryCoefficientsMut<'_> {
         // SAFETY: the handle's pointer is to a live object, as the operation below relies on,
@@ -1154,9 +1188,10 @@ impl ColorPrimariesDescriptorMut<'_> {
         unsafe { PrimaryCoefficientsMut::from_ptr(prim_ptr) }.expect("a field address is not NULL")
     }
 
-    /// Field: AVColorPrimariesDesc.wp
+    /// Wraps `fld::AVColorPrimariesDesc.wp`
     ///
     /// Sets the white point, leaving the primaries as they are.
+    #[doc(alias = "AVColorPrimariesDesc.wp")]
     pub fn set_white_point(&mut self, white_point: WhitepointCoefficients) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `wp` field is in bounds; nothing is accessed here.
@@ -1167,9 +1202,10 @@ impl ColorPrimariesDescriptorMut<'_> {
         unsafe { wp_ptr.write(white_point.into_raw()) }
     }
 
-    /// Field: AVColorPrimariesDesc.prim
+    /// Wraps `fld::AVColorPrimariesDesc.prim`
     ///
     /// Sets the primaries, leaving the white point as it is.
+    #[doc(alias = "AVColorPrimariesDesc.prim")]
     pub fn set_primaries(&mut self, primaries: PrimaryCoefficients) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `prim` field is in bounds; nothing is accessed here.
@@ -1193,12 +1229,13 @@ fn gamma(g: f64) -> Option<f64> {
 }
 
 impl ColorTransfer {
-    /// Wraps: `av_csp_approximate_trc_gamma`
+    /// Wraps `fn::av_csp_approximate_trc_gamma`
     ///
     /// The exponent of the pure power function that approximates this
     /// characteristic's OETF, after Apple's TN2257: 2.2 for sRGB (not
     /// 0.45455), 1.961 for BT.709. `None` for a characteristic C cannot
     /// reasonably match, such as the logarithmic and HDR ones.
+    #[doc(alias = "av_csp_approximate_trc_gamma")]
     #[must_use]
     pub fn approximate_trc_gamma(self) -> Option<f64> {
         // SAFETY: `av_csp_approximate_trc_gamma` takes the enum by value and
@@ -1206,18 +1243,19 @@ impl ColorTransfer {
         gamma(unsafe { ffi::av_csp_approximate_trc_gamma(self.into_raw()) })
     }
 
-    /// Wraps: `av_csp_approximate_eotf_gamma`
+    /// Wraps `fn::av_csp_approximate_eotf_gamma`
     ///
     /// The exponent `gamma` of the pure power EOTF approximating this
     /// characteristic, `EOTF(v) = (Lw - Lb) * v^gamma + Lb`: 2.2 for BT.709
     /// and sRGB. `None` for a characteristic C cannot reasonably match.
+    #[doc(alias = "av_csp_approximate_eotf_gamma")]
     #[must_use]
     pub fn approximate_eotf_gamma(self) -> Option<f64> {
         // SAFETY: as in `approximate_trc_gamma`.
         gamma(unsafe { ffi::av_csp_approximate_eotf_gamma(self.into_raw()) })
     }
 
-    /// Wraps: `av_csp_trc_func_from_id`
+    /// Wraps `fn::av_csp_trc_func_from_id`
     ///
     /// The function applying this characteristic to linear light: its OETF,
     /// or its inverse EOTF for SMPTE ST 2084 (PQ). `None` for the
@@ -1229,6 +1267,7 @@ impl ColorTransfer {
     /// assert_eq!(oetf.call(0.25), 0.25);
     /// assert!(ColorTransfer::UNSPECIFIED.trc_function().is_none());
     /// ```
+    #[doc(alias = "av_csp_trc_func_from_id")]
     #[must_use]
     pub fn trc_function(self) -> Option<TrcFunction> {
         // SAFETY: `av_csp_trc_func_from_id` takes the enum by value and
@@ -1237,24 +1276,26 @@ impl ColorTransfer {
         unsafe { ffi::av_csp_trc_func_from_id(self.into_raw()) }.map(TrcFunction)
     }
 
-    /// Wraps: `av_csp_trc_func_inv_from_id`
+    /// Wraps `fn::av_csp_trc_func_inv_from_id`
     ///
     /// The mathematical inverse of [`trc_function`](Self::trc_function),
     /// mapping gamma-encoded light back to linear; `None` exactly where that
     /// is.
+    #[doc(alias = "av_csp_trc_func_inv_from_id")]
     #[must_use]
     pub fn inverse_trc_function(self) -> Option<TrcFunction> {
         // SAFETY: as in `trc_function`, for the inverse table.
         unsafe { ffi::av_csp_trc_func_inv_from_id(self.into_raw()) }.map(TrcFunction)
     }
 
-    /// Wraps: `av_csp_itu_eotf`
+    /// Wraps `fn::av_csp_itu_eotf`
     ///
     /// The ITU EOTF of this characteristic, mapping a signal level in
     /// `[0, 1]` to display luminance in nits, per RGB channel (CIE XYZ for
     /// SMPTE ST 428). `None` where no EOTF is defined: the unspecified and
     /// reserved values, the logarithmic encodings, the extended range
     /// ([`V_LOG`](Self::V_LOG)) and any value C does not know.
+    #[doc(alias = "av_csp_itu_eotf")]
     #[must_use]
     pub fn eotf(self) -> Option<EotfFunction> {
         // SAFETY: `av_csp_itu_eotf` takes the enum by value and returns NULL
@@ -1263,10 +1304,11 @@ impl ColorTransfer {
         unsafe { ffi::av_csp_itu_eotf(self.into_raw()) }.map(EotfFunction)
     }
 
-    /// Wraps: `av_csp_itu_eotf_inv`
+    /// Wraps `fn::av_csp_itu_eotf_inv`
     ///
     /// The mathematical inverse of [`eotf`](Self::eotf), mapping display
     /// luminance back to a signal level; `None` exactly where that is.
+    #[doc(alias = "av_csp_itu_eotf_inv")]
     #[must_use]
     pub fn inverse_eotf(self) -> Option<EotfFunction> {
         // SAFETY: as in `eotf`, for the inverse table.
@@ -1275,7 +1317,7 @@ impl ColorTransfer {
 }
 
 impl ColorSpace {
-    /// Wraps: `av_csp_luma_coeffs_from_avcsp`
+    /// Wraps `fn::av_csp_luma_coeffs_from_avcsp`
     ///
     /// The luma coefficients of this colour space, borrowed from C's static,
     /// never-written table for the whole program: `0.2126`, `0.7152` and
@@ -1290,6 +1332,7 @@ impl ColorSpace {
     /// assert_eq!((bt709.cg().num(), bt709.cg().den()), (71520, 100000));
     /// assert!(ColorSpace::UNSPECIFIED.luma_coefficients().is_none());
     /// ```
+    #[doc(alias = "av_csp_luma_coeffs_from_avcsp")]
     #[must_use]
     pub fn luma_coefficients(self) -> Option<LumaCoefficientsRef<'static>> {
         // For the unsafe operations below: `av_csp_luma_coeffs_from_avcsp` takes the enum by value,
@@ -1306,7 +1349,7 @@ impl ColorSpace {
 }
 
 impl ColorPrimaries {
-    /// Wraps: `av_csp_primaries_desc_from_id`
+    /// Wraps `fn::av_csp_primaries_desc_from_id`
     ///
     /// The complete description of this gamut, its white point and the
     /// chromaticities of its primaries, borrowed from C's static,
@@ -1323,6 +1366,7 @@ impl ColorPrimaries {
     /// assert_eq!(bt709.identify(), Some(ColorPrimaries::BT709));
     /// assert!(ColorPrimaries::UNSPECIFIED.descriptor().is_none());
     /// ```
+    #[doc(alias = "av_csp_primaries_desc_from_id")]
     #[must_use]
     pub fn descriptor(self) -> Option<ColorPrimariesDescriptorRef<'static>> {
         // For the unsafe operations below: `av_csp_primaries_desc_from_id` takes the enum by value,
@@ -1340,7 +1384,7 @@ impl ColorPrimaries {
 }
 
 impl ColorPrimariesDescriptorRef<'_> {
-    /// Wraps: `av_csp_primaries_id_from_desc`
+    /// Wraps `fn::av_csp_primaries_id_from_desc`
     ///
     /// The primaries C describes within 1/1000 of this gamut: the first entry
     /// of C's table, in [`ColorPrimaries`] order, for which the sum of the
@@ -1381,6 +1425,7 @@ impl ColorPrimariesDescriptorRef<'_> {
     ///     None
     /// );
     /// ```
+    #[doc(alias = "av_csp_primaries_id_from_desc")]
     #[must_use]
     pub fn identify(&self) -> Option<ColorPrimaries> {
         let d = self.get().into_raw();
