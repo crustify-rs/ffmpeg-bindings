@@ -45,7 +45,7 @@ use ffibox::{CBox, CMutSeam, CRefSeam, define_ctype, impl_cdrop};
 use super::ffi;
 use super::opt::{AVERROR_BUG, ObjectRef};
 
-/// Wraps: `av_strtod`
+/// Wraps `fn::av_strtod`
 ///
 /// The number at the start of `numstr`, and the rest of `numstr` after it.
 ///
@@ -68,6 +68,7 @@ use super::opt::{AVERROR_BUG, ObjectRef};
 /// # Panics
 ///
 /// Only if C breaks the guarantee that the suffix keeps the NUL.
+#[doc(alias = "av_strtod")]
 #[must_use]
 pub fn parse_number(numstr: &CStr) -> (f64, &CStr) {
     let start = numstr.as_ptr();
@@ -88,7 +89,7 @@ pub fn parse_number(numstr: &CStr) -> (f64, &CStr) {
 const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
 define_ctype!(
-    /// Wraps: AVExpr
+    /// Wraps `ty::AVExpr`
     ///
     /// A parsed expression, owned as an [`ExprBox`]. Its layout is private
     /// to `eval.c`, so the handles have no field accessors; C routines read
@@ -98,6 +99,7 @@ define_ctype!(
     /// under the same guarantees: each user function it calls stays callable
     /// for the tree's lifetime and accepts any opaque pointer from any
     /// thread, as the safe `extern "C" fn`s [`Expr::parse`] takes do.
+    #[doc(alias = "AVExpr")]
     Expr,
     ExprRef,
     ExprMut,
@@ -119,8 +121,6 @@ unsafe impl Send for Expr {}
 // while it lives.
 unsafe impl Send for ExprMut<'_> {}
 
-/// Wraps: `av_expr_free`
-///
 /// The release policy of an owned [`Expr`]: `av_expr_free` frees every node
 /// of the tree, then the root's registers and random-number state.
 ///
@@ -131,7 +131,13 @@ pub struct ExprFree;
 
 // SAFETY (of the binding): `av_expr_free` releases a tree `av_expr_parse`
 // built, recursively and exactly once; it reads only the tree.
-impl_cdrop!(ExprFree, Expr, ffi::av_expr_free);
+impl_cdrop!(
+    /// Wraps `fn::av_expr_free`
+    #[doc(alias = "av_expr_free")]
+    ExprFree,
+    Expr,
+    ffi::av_expr_free
+);
 
 /// An owned parsed expression, released with its whole tree by
 /// `av_expr_free`.
@@ -178,7 +184,7 @@ fn terminated<T: Copy>(items: impl Iterator<Item = T>, end: T) -> Vec<T> {
 }
 
 impl Expr {
-    /// Wraps: `av_expr_parse`
+    /// Wraps `fn::av_expr_parse`
     ///
     /// Parses `s` (for example `"1+2^3+5*5+sin(2/3)"`, whitespace ignored)
     /// into an expression that may name the constants `const_names`, the
@@ -195,6 +201,7 @@ impl Expr {
     /// level C logs at, rejected before C runs). Fails with `AVERROR(ENOMEM)` when allocation
     /// fails, and also, as C reports it, for an expression whose tree would be more than 100 levels
     /// deep (a chain of more than 100 binary operators, for example).
+    #[doc(alias = "av_expr_parse")]
     pub fn parse(
         s: &CStr,
         const_names: &[&CStr],
@@ -205,7 +212,7 @@ impl Expr {
         Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
     }
 
-    /// Wraps: `av_expr_parse`
+    /// Wraps `fn::av_expr_parse`
     ///
     /// As [`parse`](Self::parse), logging a failure as a message of C's
     /// `Eval` context whose parent is `log_ctx`, which names it in the
@@ -215,6 +222,7 @@ impl Expr {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_expr_parse` returns when it fails.
+    #[doc(alias = "av_expr_parse")]
     pub fn parse_with_context(
         s: &CStr,
         const_names: &[&CStr],
@@ -285,7 +293,7 @@ pub enum Arity {
 }
 
 impl ExprRef<'_> {
-    /// Wraps: `av_expr_count_vars`
+    /// Wraps `fn::av_expr_count_vars`
     ///
     /// Adds to `counts[i]`, for each `i`, the number of places the expression
     /// reads the constant at position `i` of the names it was parsed with;
@@ -294,11 +302,12 @@ impl ExprRef<'_> {
     /// # Errors
     ///
     /// `AVERROR(EINVAL)` for an empty `counts`, as C.
+    #[doc(alias = "av_expr_count_vars")]
     pub fn count_constants(&self, counts: &mut [u32]) -> Result<(), i32> {
         self.count(counts, None)
     }
 
-    /// Wraps: `av_expr_count_func`
+    /// Wraps `fn::av_expr_count_func`
     ///
     /// Adds to `counts[i]`, for each `i`, the number of calls of the user
     /// function of `arity` at position `i` of the functions the expression
@@ -309,6 +318,7 @@ impl ExprRef<'_> {
     /// # Errors
     ///
     /// `AVERROR(EINVAL)` for an empty `counts`, as C.
+    #[doc(alias = "av_expr_count_func")]
     pub fn count_functions(&self, arity: Arity, counts: &mut [u32]) -> Result<(), i32> {
         self.count(counts, Some(arity))
     }
@@ -369,7 +379,7 @@ impl fmt::Debug for Expression {
 }
 
 impl Expression {
-    /// Wraps: `av_expr_parse`
+    /// Wraps `fn::av_expr_parse`
     ///
     /// Parses `s` as [`Expr::parse`] does, for evaluation with a value for
     /// each of `const_names`.
@@ -379,6 +389,7 @@ impl Expression {
     /// As [`Expr::parse`]; also `AVERROR(EINVAL)`, before C runs, for an
     /// expression [`parse_and_eval`] refuses: one that could reach an
     /// unchecked `double` to integer conversion of the evaluator.
+    #[doc(alias = "av_expr_parse")]
     pub fn parse(
         s: &CStr,
         const_names: &[&CStr],
@@ -389,7 +400,7 @@ impl Expression {
         Self::parse_with_context(s, const_names, unary, binary, log_offset, None)
     }
 
-    /// Wraps: `av_expr_parse`
+    /// Wraps `fn::av_expr_parse`
     ///
     /// As [`parse`](Self::parse), logging a failure under the parent
     /// context `log_ctx`, as [`Expr::parse_with_context`] does.
@@ -397,6 +408,7 @@ impl Expression {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_expr_parse` returns when it fails.
+    #[doc(alias = "av_expr_parse")]
     pub fn parse_with_context(
         s: &CStr,
         const_names: &[&CStr],
@@ -435,7 +447,7 @@ impl Expression {
         self.tree
     }
 
-    /// Wraps: `av_expr_eval`
+    /// Wraps `fn::av_expr_eval`
     ///
     /// The expression's value with `const_values[i]` for the constant at
     /// position `i`; each user function it calls receives a NULL opaque
@@ -446,11 +458,12 @@ impl Expression {
     ///
     /// If `const_values` holds fewer values than
     /// [`constant_count`](Self::constant_count).
+    #[doc(alias = "av_expr_eval")]
     pub fn eval(&mut self, const_values: &[f64]) -> f64 {
         self.eval_raw(const_values, ptr::null_mut())
     }
 
-    /// Wraps: `av_expr_eval`
+    /// Wraps `fn::av_expr_eval`
     ///
     /// As [`eval`](Self::eval), passing each user function `opaque`, as a
     /// pointer to the `T`, valid for the call; the functions run one at a
@@ -459,6 +472,7 @@ impl Expression {
     /// # Panics
     ///
     /// As [`eval`](Self::eval).
+    #[doc(alias = "av_expr_eval")]
     pub fn eval_with<T>(&mut self, const_values: &[f64], opaque: &mut T) -> f64 {
         self.eval_raw(const_values, ptr::from_mut(opaque).cast())
     }
@@ -505,7 +519,7 @@ pub type Func1<'f> = (&'f CStr, &'f dyn Fn(f64) -> f64);
 /// called by and the function.
 pub type Func2<'f> = (&'f CStr, &'f dyn Fn(f64, f64) -> f64);
 
-/// Wraps: `av_expr_parse_and_eval`
+/// Wraps `fn::av_expr_parse_and_eval`
 ///
 /// The value of `expr`, an arithmetic expression in FFmpeg's syntax, such as
 /// `"1+2^3+5*5+sin(2/3)"`. Whitespace is ignored. The expression may name
@@ -538,6 +552,7 @@ pub type Func2<'f> = (&'f CStr, &'f dyn Fn(f64, f64) -> f64);
 /// A function in `funcs1` or `funcs2` that panics makes the evaluation
 /// return NaN to C without calling Rust again, and the panic resumes once C
 /// has returned.
+#[doc(alias = "av_expr_parse_and_eval")]
 pub fn parse_and_eval(
     expr: &CStr,
     consts: &[(&CStr, f64)],
