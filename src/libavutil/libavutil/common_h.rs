@@ -31,10 +31,11 @@ use super::ffi;
 /// undefined in C beyond it.
 const MAX_POW2: u32 = 31;
 
-/// Wraps: `av_clip_c`
+/// Wraps `fn::av_clip_c`
 ///
 /// `a` clamped into `min..=max`: `min` when `a < min`, else `max` when
 /// `a > max`, else `a`. Never panics, even when `min > max`.
+#[doc(alias = "av_clip_c")]
 #[inline]
 #[must_use]
 pub fn clamp_i32(a: i32, min: i32, max: i32) -> i32 {
@@ -43,9 +44,10 @@ pub fn clamp_i32(a: i32, min: i32, max: i32) -> i32 {
     unsafe { ffi::av_clip_c(a, min, max) }
 }
 
-/// Wraps: `av_clip64_c`
+/// Wraps `fn::av_clip64_c`
 ///
 /// [`clamp_i32`] on 64-bit integers.
+#[doc(alias = "av_clip64_c")]
 #[inline]
 #[must_use]
 pub fn clamp_i64(a: i64, min: i64, max: i64) -> i64 {
@@ -54,9 +56,10 @@ pub fn clamp_i64(a: i64, min: i64, max: i64) -> i64 {
     unsafe { ffi::av_clip64_c(a, min, max) }
 }
 
-/// Wraps: `av_clip_uint8_c`
+/// Wraps `fn::av_clip_uint8_c`
 ///
 /// `a` saturated into `0..=255`.
+#[doc(alias = "av_clip_uint8_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_u8(a: i32) -> u8 {
@@ -65,9 +68,10 @@ pub fn clamp_to_u8(a: i32) -> u8 {
     unsafe { ffi::av_clip_uint8_c(a) }
 }
 
-/// Wraps: `av_clip_int8_c`
+/// Wraps `fn::av_clip_int8_c`
 ///
 /// `a` saturated into `-128..=127`.
+#[doc(alias = "av_clip_int8_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_i8(a: i32) -> i8 {
@@ -76,9 +80,10 @@ pub fn clamp_to_i8(a: i32) -> i8 {
     unsafe { ffi::av_clip_int8_c(a) }
 }
 
-/// Wraps: `av_clip_uint16_c`
+/// Wraps `fn::av_clip_uint16_c`
 ///
 /// `a` saturated into `0..=65535`.
+#[doc(alias = "av_clip_uint16_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_u16(a: i32) -> u16 {
@@ -87,9 +92,10 @@ pub fn clamp_to_u16(a: i32) -> u16 {
     unsafe { ffi::av_clip_uint16_c(a) }
 }
 
-/// Wraps: `av_clip_int16_c`
+/// Wraps `fn::av_clip_int16_c`
 ///
 /// `a` saturated into `-32768..=32767`.
+#[doc(alias = "av_clip_int16_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_i16(a: i32) -> i16 {
@@ -98,9 +104,10 @@ pub fn clamp_to_i16(a: i32) -> i16 {
     unsafe { ffi::av_clip_int16_c(a) }
 }
 
-/// Wraps: `av_clipl_int32_c`
+/// Wraps `fn::av_clipl_int32_c`
 ///
 /// `a` saturated into the `i32` range.
+#[doc(alias = "av_clipl_int32_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_i32(a: i64) -> i32 {
@@ -109,10 +116,11 @@ pub fn clamp_to_i32(a: i64) -> i32 {
     unsafe { ffi::av_clipl_int32_c(a) }
 }
 
-/// Wraps: `av_clip_intp2_c`
+/// Wraps `fn::av_clip_intp2_c`
 ///
 /// `a` saturated into `-(2^p)..=2^p - 1`, the range of a `p + 1`-bit signed
 /// integer. `None` when `p > 31`, for which C's shifts are undefined.
+#[doc(alias = "av_clip_intp2_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_signed_pow2(a: i32, p: u32) -> Option<i32> {
@@ -126,10 +134,11 @@ pub fn clamp_to_signed_pow2(a: i32, p: u32) -> Option<i32> {
     Some(unsafe { ffi::av_clip_intp2_c(a, p.cast_signed()) })
 }
 
-/// Wraps: `av_clip_uintp2_c`
+/// Wraps `fn::av_clip_uintp2_c`
 ///
 /// `a` saturated into `0..=2^p - 1`, the range of a `p`-bit unsigned integer.
 /// `None` when `p > 31`, for which C's shift is undefined.
+#[doc(alias = "av_clip_uintp2_c")]
 #[inline]
 #[must_use]
 pub fn clamp_to_unsigned_pow2(a: i32, p: u32) -> Option<u32> {
@@ -141,11 +150,12 @@ pub fn clamp_to_unsigned_pow2(a: i32, p: u32) -> Option<u32> {
     Some(unsafe { ffi::av_clip_uintp2_c(a, p.cast_signed()) })
 }
 
-/// Wraps: `av_zero_extend_c`
+/// Wraps `fn::av_zero_extend_c`
 ///
 /// `a` with every bit from position `p` up cleared, keeping its `p` low bits
 /// (`av_zero_extend`). `None` when `p > 31`, for which C's shift is
 /// undefined.
+#[doc(alias = "av_zero_extend_c")]
 #[inline]
 #[must_use]
 pub fn zero_extend(a: u32, p: u32) -> Option<u32> {
@@ -157,11 +167,12 @@ pub fn zero_extend(a: u32, p: u32) -> Option<u32> {
     Some(unsafe { ffi::av_zero_extend_c(a, p) })
 }
 
-/// Wraps: `av_clipf_c`
+/// Wraps `fn::av_clipf_c`
 ///
 /// `a` clamped into `min..=max` as C's `FFMIN(FFMAX(a, min), max)`: `min` for
 /// a NaN `a` or one below `min`, then `max` when that exceeds `max`. Never
 /// panics, even when `min > max` or a bound is NaN.
+#[doc(alias = "av_clipf_c")]
 #[inline]
 #[must_use]
 pub fn clamp_f32(a: f32, min: f32, max: f32) -> f32 {
@@ -170,9 +181,10 @@ pub fn clamp_f32(a: f32, min: f32, max: f32) -> f32 {
     unsafe { ffi::av_clipf_c(a, min, max) }
 }
 
-/// Wraps: `av_clipd_c`
+/// Wraps `fn::av_clipd_c`
 ///
 /// [`clamp_f32`] on `f64`.
+#[doc(alias = "av_clipd_c")]
 #[inline]
 #[must_use]
 pub fn clamp_f64(a: f64, min: f64, max: f64) -> f64 {
@@ -181,10 +193,11 @@ pub fn clamp_f64(a: f64, min: f64, max: f64) -> f64 {
     unsafe { ffi::av_clipd_c(a, min, max) }
 }
 
-/// Wraps: `av_ceil_log2_c`
+/// Wraps `fn::av_ceil_log2_c`
 ///
 /// `ceil(log2(x))` for `x >= 1`. C computes it as `av_log2((x - 1) << 1)` in
 /// unsigned arithmetic, so `x <= 0` wraps around and yields 31.
+#[doc(alias = "av_ceil_log2_c")]
 #[inline]
 #[must_use]
 pub fn ceil_log2(x: i32) -> i32 {
@@ -193,84 +206,93 @@ pub fn ceil_log2(x: i32) -> i32 {
     unsafe { ffi::av_ceil_log2_c(x) }
 }
 
-/// Replaces: `av_popcount_c`
+/// Replaces `fn::av_popcount_c`
 ///
 /// The number of bits set in `x`, as [`u32::count_ones`].
+#[doc(alias = "av_popcount_c")]
 #[inline]
 #[must_use]
 pub const fn count_ones(x: u32) -> u32 {
     x.count_ones()
 }
 
-/// Replaces: `av_popcount64_c`
+/// Replaces `fn::av_popcount64_c`
 ///
 /// The number of bits set in `x`, as [`u64::count_ones`].
+#[doc(alias = "av_popcount64_c")]
 #[inline]
 #[must_use]
 pub const fn count_ones64(x: u64) -> u32 {
     x.count_ones()
 }
 
-/// Replaces: `av_sat_add32_c`
+/// Replaces `fn::av_sat_add32_c`
 ///
 /// `a + b`, saturated to the `i32` range.
+#[doc(alias = "av_sat_add32_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_add32(a: i32, b: i32) -> i32 {
     a.saturating_add(b)
 }
 
-/// Replaces: `av_sat_sub32_c`
+/// Replaces `fn::av_sat_sub32_c`
 ///
 /// `a - b`, saturated to the `i32` range.
+#[doc(alias = "av_sat_sub32_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_sub32(a: i32, b: i32) -> i32 {
     a.saturating_sub(b)
 }
 
-/// Replaces: `av_sat_dadd32_c`
+/// Replaces `fn::av_sat_dadd32_c`
 ///
 /// `a + 2 * b`, saturating both the doubling and the sum to the `i32` range:
 /// `sat(a + sat(2 * b))`.
+#[doc(alias = "av_sat_dadd32_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_add_doubled32(a: i32, b: i32) -> i32 {
     a.saturating_add(b.saturating_add(b))
 }
 
-/// Replaces: `av_sat_dsub32_c`
+/// Replaces `fn::av_sat_dsub32_c`
 ///
 /// `a - 2 * b`, saturating both the doubling and the difference to the `i32`
 /// range: `sat(a - sat(2 * b))`.
+#[doc(alias = "av_sat_dsub32_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_sub_doubled32(a: i32, b: i32) -> i32 {
     a.saturating_sub(b.saturating_add(b))
 }
 
-/// Replaces: `av_sat_add64_c`
+/// Replaces `fn::av_sat_add64_c`
 ///
 /// `a + b`, saturated to the `i64` range.
+#[doc(alias = "av_sat_add64_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_add64(a: i64, b: i64) -> i64 {
     a.saturating_add(b)
 }
 
-/// Replaces: `av_sat_sub64_c`
+/// Replaces `fn::av_sat_sub64_c`
 ///
 /// `a - b`, saturated to the `i64` range.
+#[doc(alias = "av_sat_sub64_c")]
 #[inline]
 #[must_use]
 pub const fn saturating_sub64(a: i64, b: i64) -> i64 {
     a.saturating_sub(b)
 }
 
-/// Wraps: `av_parity_c`
+/// Wraps `fn::av_parity_c`
 ///
 /// Whether `v` has an odd number of set bits. `av_parity` aliases this C
 /// function on every target without an assembly version.
+#[doc(alias = "av_parity_c")]
 #[must_use]
 pub fn parity(v: u32) -> bool {
     // SAFETY: `av_parity_c` takes its argument by value and reads no memory.
