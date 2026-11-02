@@ -17,11 +17,12 @@ use core::ffi::{CStr, c_int, c_uint};
 
 use super::{eval, ffi};
 
-/// Wraps: `av_cpu_count`
+/// Wraps `fn::av_cpu_count`
 ///
 /// The number of logical CPU cores this process may run on (its scheduler
 /// affinity), or the count [`force_cpu_count`] set. The first call logs the
 /// detected count at `AV_LOG_DEBUG`.
+#[doc(alias = "av_cpu_count")]
 #[inline]
 #[must_use]
 pub fn cpu_count() -> i32 {
@@ -31,10 +32,11 @@ pub fn cpu_count() -> i32 {
     unsafe { ffi::av_cpu_count() }
 }
 
-/// Wraps: `av_cpu_force_count`
+/// Wraps `fn::av_cpu_force_count`
 ///
 /// Makes every later [`cpu_count`] in the process return `count` when it is
 /// at least 1, and restores detection when it is less.
+#[doc(alias = "av_cpu_force_count")]
 #[inline]
 pub fn force_cpu_count(count: i32) {
     // SAFETY: `av_cpu_force_count` takes an integer by value and stores it in
@@ -42,11 +44,12 @@ pub fn force_cpu_count(count: i32) {
     unsafe { ffi::av_cpu_force_count(count) }
 }
 
-/// Wraps: `av_cpu_max_align`
+/// Wraps `fn::av_cpu_max_align`
 ///
 /// The largest data alignment, in bytes, FFmpeg's code may require on this
 /// CPU: 8, 16, 32 or 64 on x86, by the SIMD extensions both the build and the
 /// current CPU flags mask enable.
+#[doc(alias = "av_cpu_max_align")]
 #[inline]
 #[must_use]
 pub fn cpu_max_align() -> usize {
@@ -55,7 +58,7 @@ pub fn cpu_max_align() -> usize {
     unsafe { ffi::av_cpu_max_align() }
 }
 
-/// Wraps: `av_get_cpu_flags`
+/// Wraps `fn::av_get_cpu_flags`
 ///
 /// The CPU extensions FFmpeg's optimized code may use, as `AV_CPU_FLAG_*`
 /// bits: those detected on the running CPU at the first call, or the set
@@ -63,6 +66,7 @@ pub fn cpu_max_align() -> usize {
 ///
 /// The set is one relaxed atomic, so concurrent calls are race-free; two
 /// first calls may both run detection and store the same value.
+#[doc(alias = "av_get_cpu_flags")]
 #[must_use]
 pub fn cpu_flags() -> c_int {
     // SAFETY: `av_get_cpu_flags` takes no arguments and accesses only its
@@ -70,7 +74,7 @@ pub fn cpu_flags() -> c_int {
     unsafe { ffi::av_get_cpu_flags() }
 }
 
-/// Wraps: `av_force_cpu_flags`
+/// Wraps `fn::av_force_cpu_flags`
 ///
 /// Replaces the CPU flags [`cpu_flags`] reports with `flags`, or, for `-1`, makes
 /// the next [`cpu_flags`] detect the running CPU again. On x86 a set naming an
@@ -87,6 +91,7 @@ pub fn cpu_flags() -> c_int {
 ///   ([`cpu_max_align`], e.g. 32 bytes for AVX) changes with the set, and code selected for a wider
 ///   extension assumes it. Force the flags before using any other FFmpeg facility, as FFmpeg's own
 ///   tools do.
+#[doc(alias = "av_force_cpu_flags")]
 pub unsafe fn force_cpu_flags(flags: c_int) {
     // SAFETY: `av_force_cpu_flags` takes its argument by value and stores it
     // into its atomic flag set; the caller upholds what the new set implies
@@ -104,7 +109,7 @@ const ERANGE: i32 = -34;
 /// 255 bytes (`buf[256]` in `set_string_number`).
 const TOKEN_MAX: usize = 255;
 
-/// Wraps: `av_parse_cpu_caps`
+/// Wraps `fn::av_parse_cpu_caps`
 ///
 /// Applies the flags string `s` to `flags`, token by token: a token names a
 /// set of `AV_CPU_FLAG_*` bits (a CPU feature such as `sse2` or `neon`, a
@@ -130,6 +135,7 @@ const TOKEN_MAX: usize = 255;
 /// combination is not a 32-bit flag set (`+0x100000000`, `+min`). C converts the value to an
 /// `int64_t` before combining it, which overflows for `max`, `inf` or `1e300`: the wrapper fails
 /// those with `AVERROR(ERANGE)` instead of reaching that undefined behaviour.
+#[doc(alias = "av_parse_cpu_caps")]
 pub fn parse_cpu_caps(flags: &mut u32, s: &CStr) -> Result<(), i32> {
     let mut rest = s.to_bytes();
     if rest.is_empty() {
