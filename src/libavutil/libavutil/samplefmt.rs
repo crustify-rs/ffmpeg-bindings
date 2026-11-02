@@ -25,7 +25,7 @@ use ffibox::CPlainElem;
 use super::ffi;
 use super::mem::HeapVec;
 
-/// Wraps: `AVSampleFormat`
+/// Wraps `ty::AVSampleFormat`
 /// Handwritten
 ///
 /// The format of an audio sample: its native-endian C type (`u8`, `i16`,
@@ -57,6 +57,7 @@ use super::mem::HeapVec;
 ///
 /// No ffibox primitive covers a C enum: it owns nothing, has no handles, and
 /// is `Send + Sync` as the integer it is.
+#[doc(alias = "AVSampleFormat")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SampleFormat(ffi::AVSampleFormat);
@@ -183,11 +184,12 @@ impl From<SampleFormat> for ffi::AVSampleFormat {
 unsafe impl CPlainElem for SampleFormat {}
 
 impl SampleFormat {
-    /// Wraps: `av_sample_fmt_is_planar`
+    /// Wraps `fn::av_sample_fmt_is_planar`
     ///
     /// Whether each channel has a plane of its own (the `P` constants);
     /// `false` for a packed format, and for [`NONE`](Self::NONE) and every
     /// value C does not name.
+    #[doc(alias = "av_sample_fmt_is_planar")]
     #[must_use]
     pub fn is_planar(self) -> bool {
         // SAFETY: C bounds-checks the value before indexing its format table;
@@ -231,7 +233,7 @@ pub struct BufferSize {
     pub linesize: usize,
 }
 
-/// Wraps: `av_samples_get_buffer_size`
+/// Wraps `fn::av_samples_get_buffer_size`
 ///
 /// The size of a buffer holding `samples` samples of each of `channels`
 /// channels in `format`, every plane padded to a multiple of `align` bytes.
@@ -242,6 +244,7 @@ pub struct BufferSize {
 ///
 /// Fails with `AVERROR(EINVAL)` for [`SampleFormat::NONE`] or any format C does not name, for no
 /// channels or no samples, and when the buffer would not fit in an `int`.
+#[doc(alias = "av_samples_get_buffer_size")]
 pub fn samples_buffer_size(
     channels: usize,
     samples: usize,
@@ -502,7 +505,7 @@ impl fmt::Debug for SamplesMut<'_> {
 }
 
 impl<'a> SamplesRef<'a> {
-    /// Wraps: `av_samples_fill_arrays`
+    /// Wraps `fn::av_samples_fill_arrays`
     ///
     /// Lays the planes of `samples` samples of `channels` channels in
     /// `format` over `buf`, as [`samples_buffer_size`] computes them with
@@ -512,6 +515,7 @@ impl<'a> SamplesRef<'a> {
     ///
     /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and when `buf` is shorter
     /// than the size it computes.
+    #[doc(alias = "av_samples_fill_arrays")]
     pub fn from_buffer(
         buf: &'a [u8],
         channels: usize,
@@ -581,13 +585,14 @@ impl<'a> SamplesRef<'a> {
 }
 
 impl<'a> SamplesMut<'a> {
-    /// Wraps: `av_samples_fill_arrays`
+    /// Wraps `fn::av_samples_fill_arrays`
     ///
     /// As [`SamplesRef::from_buffer`], for writing the samples in `buf`.
     ///
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_samples_fill_arrays` returns when it fails.
+    #[doc(alias = "av_samples_fill_arrays")]
     pub fn from_buffer(
         buf: &'a mut [u8],
         channels: usize,
@@ -647,7 +652,7 @@ impl<'a> SamplesMut<'a> {
             })
     }
 
-    /// Wraps: `av_samples_set_silence`
+    /// Wraps `fn::av_samples_set_silence`
     ///
     /// Sets samples `offset..offset + count` of every channel to silence:
     /// `0x80` bytes for [`SampleFormat::U8`] and [`SampleFormat::U8P`], zero
@@ -656,6 +661,7 @@ impl<'a> SamplesMut<'a> {
     /// # Errors
     ///
     /// Fails, writing nothing, when the samples run past the end.
+    #[doc(alias = "av_samples_set_silence")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
@@ -684,7 +690,7 @@ impl<'a> SamplesMut<'a> {
         Ok(())
     }
 
-    /// Wraps: `av_samples_copy`
+    /// Wraps `fn::av_samples_copy`
     ///
     /// Copies samples `src_offset..src_offset + count` of every channel of
     /// `src` to samples `dst_offset..` of this view.
@@ -693,6 +699,7 @@ impl<'a> SamplesMut<'a> {
     ///
     /// Fails, writing nothing, when `src` has another format or channel count, or when the samples
     /// run past the end of either.
+    #[doc(alias = "av_samples_copy")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
@@ -741,7 +748,7 @@ impl<'a> SamplesMut<'a> {
         Ok(())
     }
 
-    /// Wraps: `av_samples_copy`
+    /// Wraps `fn::av_samples_copy`
     ///
     /// Copies samples `src_offset..src_offset + count` of every channel to
     /// samples `dst_offset..` of the same channel, within this view; the two
@@ -750,6 +757,7 @@ impl<'a> SamplesMut<'a> {
     /// # Errors
     ///
     /// Fails, writing nothing, when either range runs past the end.
+    #[doc(alias = "av_samples_copy")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
@@ -802,7 +810,7 @@ pub struct SampleBuffer {
 }
 
 impl SampleBuffer {
-    /// Wraps: `av_samples_alloc`
+    /// Wraps `fn::av_samples_alloc`
     ///
     /// A buffer of `samples` samples of each of `channels` channels in
     /// `format`, laid out as [`samples_buffer_size`] computes it with
@@ -812,6 +820,7 @@ impl SampleBuffer {
     ///
     /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and with `AVERROR(ENOMEM)`
     /// when the buffer cannot be allocated.
+    #[doc(alias = "av_samples_alloc")]
     pub fn new(
         channels: usize,
         samples: usize,
@@ -909,7 +918,7 @@ unsafe impl Send for SampleBufferWithPointers {}
 unsafe impl Sync for SampleBufferWithPointers {}
 
 impl SampleBufferWithPointers {
-    /// Wraps: `av_samples_alloc_array_and_samples`
+    /// Wraps `fn::av_samples_alloc_array_and_samples`
     ///
     /// As [`SampleBuffer::new`], with C allocating the array of plane
     /// pointers too.
@@ -918,6 +927,7 @@ impl SampleBufferWithPointers {
     ///
     /// Fails with `AVERROR(EINVAL)` where [`samples_buffer_size`] does, and with `AVERROR(ENOMEM)`
     /// when either block cannot be allocated.
+    #[doc(alias = "av_samples_alloc_array_and_samples")]
     pub fn new(
         channels: usize,
         samples: usize,
@@ -1002,7 +1012,7 @@ impl fmt::Debug for SampleBufferWithPointers {
 }
 
 impl SampleFormat {
-    /// Wraps: `av_get_alt_sample_fmt`
+    /// Wraps `fn::av_get_alt_sample_fmt`
     ///
     /// This sample format in planar form when `planar` is set, or in packed
     /// form otherwise: itself when it already is, its counterpart with the
@@ -1015,6 +1025,7 @@ impl SampleFormat {
     /// assert_eq!(SampleFormat::S16.alt(false), Some(SampleFormat::S16));
     /// assert_eq!(SampleFormat::NONE.alt(true), None);
     /// ```
+    #[doc(alias = "av_get_alt_sample_fmt")]
     #[must_use]
     pub fn alt(self, planar: bool) -> Option<Self> {
         // SAFETY: `av_get_alt_sample_fmt` takes the format and flag by
@@ -1023,11 +1034,12 @@ impl SampleFormat {
         Some(Self(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: `av_get_packed_sample_fmt`
+    /// Wraps `fn::av_get_packed_sample_fmt`
     ///
     /// The packed form of this sample format, its channels interleaved in
     /// one plane: itself when it already is packed. `None` for
     /// [`NONE`](Self::NONE) and any value C does not know.
+    #[doc(alias = "av_get_packed_sample_fmt")]
     #[must_use]
     pub fn packed(self) -> Option<Self> {
         // SAFETY: `av_get_packed_sample_fmt` takes the format by value and
@@ -1036,11 +1048,12 @@ impl SampleFormat {
         Some(Self(raw)).filter(|&f| f != Self::NONE)
     }
 
-    /// Wraps: `av_get_bytes_per_sample`
+    /// Wraps `fn::av_get_bytes_per_sample`
     ///
     /// The size in bytes of one sample of one channel in this format: 1, 2,
     /// 4 or 8, the same for the packed and planar forms. 0 for
     /// [`NONE`](Self::NONE) and any value C does not know.
+    #[doc(alias = "av_get_bytes_per_sample")]
     #[must_use]
     pub fn bytes_per_sample(self) -> usize {
         // SAFETY: `av_get_bytes_per_sample` takes the format by value and
@@ -1052,7 +1065,7 @@ impl SampleFormat {
 }
 
 impl SampleFormat {
-    /// Wraps: `av_get_sample_fmt_name`
+    /// Wraps `fn::av_get_sample_fmt_name`
     ///
     /// The name C gives this sample format: `u8`, `s16`, `s32`, `flt`,
     /// `dbl`, `s64`, and the same with a `p` suffix for the planar forms;
@@ -1063,6 +1076,7 @@ impl SampleFormat {
     /// assert_eq!(SampleFormat::FLTP.name(), Some(c"fltp"));
     /// assert_eq!(SampleFormat::NONE.name(), None);
     /// ```
+    #[doc(alias = "av_get_sample_fmt_name")]
     #[must_use]
     pub fn name(self) -> Option<&'static CStr> {
         // SAFETY: `av_get_sample_fmt_name` takes the enum by value, checks
@@ -1073,7 +1087,7 @@ impl SampleFormat {
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Wraps: `av_get_sample_fmt`
+    /// Wraps `fn::av_get_sample_fmt`
     ///
     /// The sample format C names `name` (see [`name`](Self::name)), or
     /// `None` for any other string. Names are matched exactly, case
@@ -1084,6 +1098,7 @@ impl SampleFormat {
     /// assert_eq!(SampleFormat::from_name(c"s16p"), Some(SampleFormat::S16P));
     /// assert_eq!(SampleFormat::from_name(c"S16P"), None);
     /// ```
+    #[doc(alias = "av_get_sample_fmt")]
     #[must_use]
     pub fn from_name(name: &CStr) -> Option<Self> {
         // SAFETY: `name` is a live NUL-terminated string, which C only
@@ -1093,12 +1108,13 @@ impl SampleFormat {
         (found != Self::NONE).then_some(found)
     }
 
-    /// Wraps: `av_get_planar_sample_fmt`
+    /// Wraps `fn::av_get_planar_sample_fmt`
     ///
     /// The planar form of this sample format: itself when it is planar, its
     /// planar alternative when packed ([`S16`](Self::S16) gives
     /// [`S16P`](Self::S16P)); `None` for [`NONE`](Self::NONE) and any value
     /// C does not name.
+    #[doc(alias = "av_get_planar_sample_fmt")]
     #[must_use]
     pub fn planar(self) -> Option<Self> {
         // SAFETY: `av_get_planar_sample_fmt` takes the enum by value and
@@ -1108,7 +1124,7 @@ impl SampleFormat {
         (planar != Self::NONE).then_some(planar)
     }
 
-    /// Wraps: `av_get_sample_fmt_string`
+    /// Wraps `fn::av_get_sample_fmt_string`
     ///
     /// Writes a line describing this sample format into `buf` and returns
     /// it, borrowed from `buf`: the name left-aligned in 6 columns and the
@@ -1127,6 +1143,7 @@ impl SampleFormat {
     /// assert_eq!(SampleFormat::NONE.describe(&mut buf), Some(c"name   depth"));
     /// assert_eq!(SampleFormat::DBLP.describe(&mut buf[..4]), Some(c"dbl"));
     /// ```
+    #[doc(alias = "av_get_sample_fmt_string")]
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_possible_wrap,
