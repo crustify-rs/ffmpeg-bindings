@@ -41,7 +41,7 @@ use super::avstring::text_until_nul;
 use super::ffi;
 use super::opt::{ObjectRef, OptionDef};
 
-/// Wraps: `AVClassCategory`
+/// Wraps `ty::AVClassCategory`
 /// Handwritten
 ///
 /// The category an `AVClass` reports for visualization (the log colour).
@@ -51,6 +51,7 @@ use super::opt::{ObjectRef, OptionDef};
 /// value, and the associated constants name the known ones.
 /// `AV_CLASS_CATEGORY_NB` is not part of FFmpeg's ABI or API and has no
 /// constant. The default is [`ClassCategory::NA`], the zeroed C value.
+#[doc(alias = "AVClassCategory")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClassCategory(ffi::AVClassCategory);
@@ -137,24 +138,26 @@ impl ClassCategory {
             .map(|&(_, name)| name)
     }
 
-    /// Wraps: `AV_IS_INPUT_DEVICE`
+    /// Wraps `fn::AV_IS_INPUT_DEVICE`
     ///
     /// Whether this is one of the input device categories:
     /// [`DEVICE_VIDEO_INPUT`](Self::DEVICE_VIDEO_INPUT),
     /// [`DEVICE_AUDIO_INPUT`](Self::DEVICE_AUDIO_INPUT) or
     /// [`DEVICE_INPUT`](Self::DEVICE_INPUT).
+    #[doc(alias = "AV_IS_INPUT_DEVICE")]
     #[must_use]
     pub fn is_input_device(self) -> bool {
         // SAFETY: a plain value comparison; any category value is accepted.
         unsafe { ffi::crustify_AV_IS_INPUT_DEVICE(self.0) != 0 }
     }
 
-    /// Wraps: `AV_IS_OUTPUT_DEVICE`
+    /// Wraps `fn::AV_IS_OUTPUT_DEVICE`
     ///
     /// Whether this is one of the output device categories:
     /// [`DEVICE_VIDEO_OUTPUT`](Self::DEVICE_VIDEO_OUTPUT),
     /// [`DEVICE_AUDIO_OUTPUT`](Self::DEVICE_AUDIO_OUTPUT) or
     /// [`DEVICE_OUTPUT`](Self::DEVICE_OUTPUT).
+    #[doc(alias = "AV_IS_OUTPUT_DEVICE")]
     #[must_use]
     pub fn is_output_device(self) -> bool {
         // SAFETY: a plain value comparison; any category value is accepted.
@@ -192,7 +195,7 @@ impl From<ClassCategory> for ffi::AVClassCategory {
     }
 }
 
-/// Wraps: `AVClassStateFlags`
+/// Wraps `ty::AVClassStateFlags`
 /// Handwritten
 ///
 /// A set of `AVClassStateFlags` bits, the state an object exposes through its
@@ -203,6 +206,7 @@ impl From<ClassCategory> for ffi::AVClassCategory {
 /// keeps bits without a constant, and the set operations carry them along.
 ///
 /// [`from_bits_retain`]: ClassStateFlags::from_bits_retain
+#[doc(alias = "AVClassStateFlags")]
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClassStateFlags(ffi::AVClassStateFlags);
@@ -405,7 +409,7 @@ impl From<ClassStateFlags> for ffi::AVClassStateFlags {
 }
 
 define_ctype!(
-    /// Wraps: AVClass
+    /// Wraps `ty::AVClass`
     ///
     /// The class of an `AVClass`-enabled object: its name, log category and
     /// level offset, parent context, option table and children, which
@@ -425,6 +429,7 @@ define_ctype!(
     /// that is NULL or terminated by an entry with a NULL name, both live as
     /// long as the class, and callbacks honouring the contracts their
     /// callable handles document.
+    #[doc(alias = "AVClass")]
     Class,
     ClassRef,
     ClassMut,
@@ -504,10 +509,11 @@ impl Class {
 }
 
 impl<'a> ClassRef<'a> {
-    /// Field: `AVClass.class_name`
+    /// Wraps `fld::AVClass.class_name`
     ///
     /// The class's name, usually its context structure's (`"AVCodecContext"`);
     /// `None` when it has none.
+    #[doc(alias = "AVClass.class_name")]
     #[must_use]
     pub fn name(&self) -> Option<&'a CStr> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -520,10 +526,11 @@ impl<'a> ClassRef<'a> {
         (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
     }
 
-    /// Field: `AVClass.item_name`
+    /// Wraps `fld::AVClass.item_name`
     ///
     /// The callback naming an object of the class, which logging calls
     /// (falling back to `av_default_item_name` when it is `None`).
+    #[doc(alias = "AVClass.item_name")]
     pub fn item_name(&self) -> Option<ItemNameFn> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `item_name` field is in bounds; nothing is accessed here.
@@ -532,10 +539,11 @@ impl<'a> ClassRef<'a> {
         unsafe { item_name_ptr.read() }.map(ItemNameFn)
     }
 
-    /// Field: AVClass.option
+    /// Wraps `fld::AVClass.option`
     ///
     /// The class's options, the entries of its table before the terminating
     /// one; empty for a class without options.
+    #[doc(alias = "AVClass.option")]
     #[must_use]
     pub fn options(&self) -> CSlice<'a, OptionDef> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -565,12 +573,13 @@ impl<'a> ClassRef<'a> {
         unsafe { CSlice::from_raw_parts(first.cast(), len) }
     }
 
-    /// Field: AVClass.version
+    /// Wraps `fld::AVClass.version`
     ///
     /// The libavutil version the class was built against,
     /// `AV_VERSION_INT(major, minor, micro)`, which C compares before reading
     /// some members (the log level offset needs 50.15.2, the category
     /// callback 51.56.0).
+    #[doc(alias = "AVClass.version")]
     #[must_use]
     pub fn version(&self) -> i32 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -580,11 +589,12 @@ impl<'a> ClassRef<'a> {
         unsafe { version_ptr.read() }
     }
 
-    /// Field: `AVClass.log_level_offset_offset`
+    /// Wraps `fld::AVClass.log_level_offset_offset`
     ///
     /// The byte offset, in an object of the class, of the `int` added to the
     /// level of every message at or above `AV_LOG_FATAL` it logs; `None`
     /// when objects have none.
+    #[doc(alias = "AVClass.log_level_offset_offset")]
     #[must_use]
     pub fn log_level_offset_offset(&self) -> Option<NonZeroI32> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -596,11 +606,12 @@ impl<'a> ClassRef<'a> {
         NonZeroI32::new(unsafe { log_level_offset_offset_ptr.read() })
     }
 
-    /// Field: `AVClass.parent_log_context_offset`
+    /// Wraps `fld::AVClass.parent_log_context_offset`
     ///
     /// The byte offset, in an object of the class, of a pointer to the
     /// parent context the default log callback prints before it; `None`
     /// when objects have none.
+    #[doc(alias = "AVClass.parent_log_context_offset")]
     #[must_use]
     pub fn parent_log_context_offset(&self) -> Option<NonZeroI32> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -612,10 +623,11 @@ impl<'a> ClassRef<'a> {
         NonZeroI32::new(unsafe { parent_log_context_offset_ptr.read() })
     }
 
-    /// Field: AVClass.category
+    /// Wraps `fld::AVClass.category`
     ///
     /// The category of every object of the class, used when it has no
     /// [`get_category`](Self::get_category) callback.
+    #[doc(alias = "AVClass.category")]
     #[must_use]
     pub fn category(&self) -> ClassCategory {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -626,10 +638,11 @@ impl<'a> ClassRef<'a> {
         ClassCategory(unsafe { category_ptr.read() })
     }
 
-    /// Field: `AVClass.get_category`
+    /// Wraps `fld::AVClass.get_category`
     ///
     /// The callback returning an object's category, for a class whose objects
     /// differ.
+    #[doc(alias = "AVClass.get_category")]
     pub fn get_category(&self) -> Option<GetCategoryFn> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `get_category` field is in bounds; nothing is accessed here.
@@ -638,10 +651,11 @@ impl<'a> ClassRef<'a> {
         unsafe { get_category_ptr.read() }.map(GetCategoryFn)
     }
 
-    /// Field: `AVClass.query_ranges`
+    /// Wraps `fld::AVClass.query_ranges`
     ///
     /// The callback returning an option's allowed ranges, which
     /// `av_opt_query_ranges` prefers to the default query.
+    #[doc(alias = "AVClass.query_ranges")]
     pub fn query_ranges(&self) -> Option<QueryRangesFn> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `query_ranges` field is in bounds; nothing is accessed here.
@@ -650,9 +664,10 @@ impl<'a> ClassRef<'a> {
         unsafe { query_ranges_ptr.read() }.map(QueryRangesFn)
     }
 
-    /// Field: `AVClass.child_next`
+    /// Wraps `fld::AVClass.child_next`
     ///
     /// The callback iterating an object's `AVClass`-enabled children.
+    #[doc(alias = "AVClass.child_next")]
     pub fn child_next(&self) -> Option<ChildNextFn> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `child_next` field is in bounds; nothing is accessed here.
@@ -661,12 +676,13 @@ impl<'a> ClassRef<'a> {
         unsafe { child_next_ptr.read() }.map(ChildNextFn)
     }
 
-    /// Field: `AVClass.child_class_iterate`
+    /// Wraps `fld::AVClass.child_class_iterate`
     ///
     /// The classes of the children an object of this class may have, as
     /// `av_opt_child_class_iterate` yields them; empty for a class without
     /// a `child_class_iterate` callback. Unlike
     /// [`child_next`](Self::child_next), this needs no object.
+    #[doc(alias = "AVClass.child_class_iterate")]
     #[must_use]
     pub fn child_classes(&self) -> ChildClasses<'a> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -680,10 +696,11 @@ impl<'a> ClassRef<'a> {
         }
     }
 
-    /// Field: `AVClass.state_flags_offset`
+    /// Wraps `fld::AVClass.state_flags_offset`
     ///
     /// The byte offset, in an object of the class, of the `unsigned`
     /// [`ClassStateFlags`] the object updates; `None` when objects have none.
+    #[doc(alias = "AVClass.state_flags_offset")]
     #[must_use]
     pub fn state_flags_offset(&self) -> Option<NonZeroI32> {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1038,50 +1055,55 @@ impl BitAnd for Flags {
     }
 }
 
-/// Wraps: `av_log_get_level`
+/// Wraps `fn::av_log_get_level`
 ///
 /// The level above which the default callback drops messages, process-wide.
 /// C keeps it in a relaxed atomic.
+#[doc(alias = "av_log_get_level")]
 #[must_use]
 pub fn level() -> Level {
     // SAFETY: `av_log_get_level` takes nothing and loads an atomic.
     Level(unsafe { ffi::av_log_get_level() })
 }
 
-/// Wraps: `av_log_set_level`
+/// Wraps `fn::av_log_set_level`
 ///
 /// Sets the level above which the default callback drops messages,
 /// process-wide. Other callbacks receive every message whatever the level.
+#[doc(alias = "av_log_set_level")]
 pub fn set_level(level: Level) {
     // SAFETY: `av_log_set_level` takes its argument by value and stores it
     // atomically.
     unsafe { ffi::av_log_set_level(level.0) }
 }
 
-/// Wraps: `av_log_get_flags`
+/// Wraps `fn::av_log_get_flags`
 ///
 /// The flags shaping the default callback's output, process-wide.
+#[doc(alias = "av_log_get_flags")]
 #[must_use]
 pub fn flags() -> Flags {
     // SAFETY: `av_log_get_flags` takes nothing and loads an atomic.
     Flags(unsafe { ffi::av_log_get_flags() })
 }
 
-/// Wraps: `av_log_set_flags`
+/// Wraps `fn::av_log_set_flags`
 ///
 /// Sets the flags shaping the default callback's output, process-wide.
+#[doc(alias = "av_log_set_flags")]
 pub fn set_flags(flags: Flags) {
     // SAFETY: `av_log_set_flags` takes its argument by value and stores it
     // atomically.
     unsafe { ffi::av_log_set_flags(flags.0) }
 }
 
-/// Wraps: `av_vlog`
+/// Wraps `fn::av_vlog`
 ///
 /// Sends `message` to the general log, with no context, at `level`. It goes
 /// to the installed log callback; the default one prints it to stderr when
 /// `level` is within [`level()`]. `message` is logged verbatim: `%` in it is
 /// not a format directive.
+#[doc(alias = "av_vlog")]
 pub fn log(level: Level, message: &CStr) {
     // SAFETY: a NULL context selects the general log, which `av_vlog` and the
     // default callback accept from any thread, as `av_log_set_callback`
@@ -1090,7 +1112,7 @@ pub fn log(level: Level, message: &CStr) {
     unsafe { ffi::crustify_av_vlog(ptr::null_mut(), level.0, c"%s".as_ptr(), message.as_ptr()) }
 }
 
-/// Wraps: `av_vlog`
+/// Wraps `fn::av_vlog`
 ///
 /// Sends `message` to the log at `level` in the context of `obj`, as
 /// [`log`] does without one. When `obj`'s class is recent enough (version
@@ -1117,6 +1139,7 @@ pub fn log(level: Level, message: &CStr) {
 ///
 /// A message whose level C would shift past `INT_MAX` with the object's
 /// level offset is dropped: C's addition would overflow.
+#[doc(alias = "av_vlog")]
 pub fn log_with_context(obj: ObjectRef<'_>, level: Level, message: &CStr) {
     if shift_overflows(obj, level) {
         return;
@@ -1147,7 +1170,7 @@ fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
     level.0.checked_add(shift).is_none()
 }
 
-/// Wraps: `av_log`
+/// Wraps `fn::av_log`
 ///
 /// Sends the text `args` formats to the general log at `level`, as [`log`]
 /// sends a string: Rust formats the text, and C receives it with a `"%s"`
@@ -1157,6 +1180,7 @@ fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
 /// use ffmpeg_bindings::libavutil::libavutil::log::{self, Level};
 /// log::log_fmt(Level::DEBUG, format_args!("decoded {} frames\n", 42));
 /// ```
+#[doc(alias = "av_log")]
 pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
     let text = text_until_nul(args);
     // SAFETY: a NULL context is the general log, which every callback
@@ -1165,10 +1189,11 @@ pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
     unsafe { ffi::av_log(ptr::null_mut(), level.0, c"%s".as_ptr(), text.as_ptr()) }
 }
 
-/// Wraps: `av_log`
+/// Wraps `fn::av_log`
 ///
 /// [`log_fmt`] with a logging context, as [`log_with_context`] sends a
 /// string with one.
+#[doc(alias = "av_log")]
 pub fn log_fmt_with_context(obj: ObjectRef<'_>, level: Level, args: fmt::Arguments<'_>) {
     if shift_overflows(obj, level) {
         return;
@@ -1180,12 +1205,13 @@ pub fn log_fmt_with_context(obj: ObjectRef<'_>, level: Level, args: fmt::Argumen
     unsafe { ffi::av_log(obj.as_ptr(), level.0, c"%s".as_ptr(), text.as_ptr()) }
 }
 
-/// Wraps: `av_log_once`
+/// Wraps `fn::av_log_once`
 ///
 /// Sends `message` as [`log`] does, at `initial_level` while `state` is
 /// `false` and at `subsequent_level` once it is `true`, then sets `state`.
 /// Start every message's state at `false`; the exclusive borrow keeps two
 /// threads from sharing it, as C requires.
+#[doc(alias = "av_log_once")]
 pub fn log_once(initial_level: Level, subsequent_level: Level, state: &mut bool, message: &CStr) {
     let mut c_state = c_int::from(*state);
     // SAFETY: a NULL context is the general log; `c_state` is a writable
@@ -1204,11 +1230,12 @@ pub fn log_once(initial_level: Level, subsequent_level: Level, state: &mut bool,
     *state = c_state != 0;
 }
 
-/// Wraps: `av_log_once`
+/// Wraps `fn::av_log_once`
 ///
 /// [`log_once`] with a logging context, as [`log_with_context`], which
 /// drops the message, but still sets `state`, when its level would
 /// overflow.
+#[doc(alias = "av_log_once")]
 pub fn log_once_with_context(
     obj: ObjectRef<'_>,
     initial_level: Level,
@@ -1344,7 +1371,7 @@ impl Record<'_> {
         unsafe { self.args.read() }
     }
 
-    /// Wraps: `av_log_format_line2`
+    /// Wraps `fn::av_log_format_line2`
     ///
     /// Formats the message as the default callback prints it, with the
     /// context's prefix when `print_prefix` is set, into `line`, truncated to
@@ -1353,6 +1380,7 @@ impl Record<'_> {
     /// when C fails to format it. `print_prefix` is the state that carries
     /// across messages: start it at `true`; C sets it when a message ends a
     /// line. An empty `line` measures the line without writing it.
+    #[doc(alias = "av_log_format_line2")]
     pub fn format_line(&self, line: &mut [u8], print_prefix: &mut bool) -> Option<usize> {
         let mut args = self.args();
         let mut c_prefix = c_int::from(*print_prefix);
@@ -1377,11 +1405,12 @@ impl Record<'_> {
         usize::try_from(ret).ok()
     }
 
-    /// Wraps: `av_log_format_line`
+    /// Wraps `fn::av_log_format_line`
     ///
     /// Formats the message into `line` as [`format_line`](Self::format_line)
     /// does, and returns the possibly truncated line it wrote; an empty
     /// `line` yields an empty string.
+    #[doc(alias = "av_log_format_line")]
     pub fn write_line<'b>(&self, line: &'b mut [u8], print_prefix: &mut bool) -> &'b CStr {
         let mut args = self.args();
         let mut c_prefix = c_int::from(*print_prefix);
@@ -1423,11 +1452,12 @@ impl Record<'_> {
         CString::new(line).ok()
     }
 
-    /// Wraps: `av_log_default_callback`
+    /// Wraps `fn::av_log_default_callback`
     ///
     /// Hands the message to FFmpeg's default callback: printed to stderr when
     /// its level is at most [`level()`], prefixed, coloured and collapsed
     /// with repeats per [`flags()`].
+    #[doc(alias = "av_log_default_callback")]
     pub fn log_default(&self) {
         let mut args = self.args();
         // SAFETY: the record's context, format and arguments are those C
@@ -1501,40 +1531,44 @@ unsafe extern "C" fn trampoline<C: Callback>(
     });
 }
 
-/// Wraps: `av_log_set_callback`
+/// Wraps `fn::av_log_set_callback`
 ///
 /// Installs the [`Callback`] `C` as the process-wide log callback, in place
 /// of the current one. Messages being handled by the previous callback on
 /// other threads still finish there.
+#[doc(alias = "av_log_set_callback")]
 pub fn set_callback<C: Callback>() {
     // SAFETY: `trampoline::<C>` has the callback signature, lives for the
     // program, and accepts every call C makes through it from any thread.
     unsafe { ffi::av_log_set_callback(Some(trampoline::<C>)) }
 }
 
-/// Wraps: `av_log_set_callback`
+/// Wraps `fn::av_log_set_callback`
 ///
 /// Installs FFmpeg's default callback, which prints to stderr, as the
 /// process-wide log callback: the initial one.
+#[doc(alias = "av_log_set_callback")]
 pub fn set_default_callback() {
     // SAFETY: `av_log_default_callback` is C's own thread-safe callback.
     unsafe { ffi::av_log_set_callback(Some(ffi::av_log_default_callback)) }
 }
 
-/// Wraps: `av_log_set_callback`
+/// Wraps `fn::av_log_set_callback`
 ///
 /// Removes the log callback, process-wide: every message is dropped.
+#[doc(alias = "av_log_set_callback")]
 pub fn clear_callback() {
     // SAFETY: `av_vlog` checks for a NULL callback before calling it.
     unsafe { ffi::av_log_set_callback(None) }
 }
 
-/// Wraps: `av_default_item_name`
+/// Wraps `fn::av_default_item_name`
 ///
 /// The `class_name` of the class of the object `ctx`: the name `av_log`
 /// prints for an object whose class has no `item_name` callback. `None` when
 /// the class stores NULL there. It lives as long as the class, which
 /// outlives the borrow.
+#[doc(alias = "av_default_item_name")]
 #[must_use]
 pub fn default_item_name(ctx: ObjectRef<'_>) -> Option<&CStr> {
     // SAFETY: the handle's contract makes `ctx` a live object whose first
@@ -1546,11 +1580,12 @@ pub fn default_item_name(ctx: ObjectRef<'_>) -> Option<&CStr> {
     (!name.is_null()).then(|| unsafe { CStr::from_ptr(name) })
 }
 
-/// Wraps: `av_default_get_category`
+/// Wraps `fn::av_default_get_category`
 ///
 /// The `category` of the class of the object `ctx`: the category `av_log`
 /// colours a message by when the class has no `get_category` callback. Any
 /// value the class stores is returned, named or not.
+#[doc(alias = "av_default_get_category")]
 #[must_use]
 pub fn default_category(ctx: ObjectRef<'_>) -> ClassCategory {
     // SAFETY: as in `default_item_name`; `av_default_get_category` only
