@@ -9,7 +9,7 @@ use ffibox::{CBox, CMutSeam, CPlainElem, define_ctype, impl_cdrop};
 
 use super::ffi;
 
-/// Wraps: `AVHMACType`
+/// Wraps `ty::AVHMACType`
 /// Handwritten
 ///
 /// The hash algorithm selected by an HMAC context.
@@ -17,6 +17,7 @@ use super::ffi;
 /// This resource-free value preserves every C integer encoding, including
 /// unknown values (which `av_hmac_alloc` rejects with NULL). No ffibox
 /// ownership primitive is needed for an enum.
+#[doc(alias = "AVHMACType")]
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct HmacType(ffi::AVHMACType);
@@ -67,25 +68,30 @@ unsafe impl CPlainElem for HmacType {}
 // SAFETY: the generated handles name the opaque ffi::AVHMAC pointer type.
 // C alone allocates/accesses its body; no Rust inline value is constructed.
 define_ctype!(
-    /// Wraps: AVHMAC
+    /// Wraps `ty::AVHMAC`
     ///
     /// Opaque layout reached only through C. A safe constructor initializes
     /// both the algorithm callbacks and the hash state with a key.
     /// The body is private to `hmac.c`, so there are no field accessors,
     /// zeroed values, inline constructors, or byte-copy clone strategy.
+    #[doc(alias = "AVHMAC")]
     Hmac,
     HmacRef,
     HmacMut,
     ffi::AVHMAC
 );
 
-/// Wraps: `av_hmac_free`
-///
 /// Releases the private hash allocation, then the HMAC context.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HmacFree;
 
-impl_cdrop!(HmacFree, Hmac, ffi::av_hmac_free);
+impl_cdrop!(
+    /// Wraps `fn::av_hmac_free`
+    #[doc(alias = "av_hmac_free")]
+    HmacFree,
+    Hmac,
+    ffi::av_hmac_free
+);
 
 /// Sole ownership of a keyed HMAC context. Handles borrow the owner, and
 /// neither a handle nor its reborrow can outlive it.
@@ -102,7 +108,7 @@ impl_cdrop!(HmacFree, Hmac, ffi::av_hmac_free);
 pub type HmacBox = CBox<Hmac, HmacFree>;
 
 impl Hmac {
-    /// Wraps: `av_hmac_alloc`
+    /// Wraps `fn::av_hmac_alloc`
     ///
     /// Allocates and keys a context. Returns -12 on allocation failure (or
     /// an unknown algorithm value), and -22 if the key length exceeds C's
@@ -114,6 +120,7 @@ impl Hmac {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_hmac_alloc` returns when it fails.
+    #[doc(alias = "av_hmac_alloc")]
     pub fn new(algorithm: HmacType, key: &[u8]) -> Result<HmacBox, i32> {
         key_len(key.len())?;
         // SAFETY: C checks the algorithm value and returns either NULL or a
@@ -140,7 +147,7 @@ fn c_capacity(len: usize) -> u32 {
 }
 
 impl HmacMut<'_> {
-    /// Wraps: `av_hmac_init`
+    /// Wraps `fn::av_hmac_init`
     ///
     /// Restarts the hash with a copied authentication key. Long keys are
     /// hashed down to the selected digest size by C. Returns -22 before
@@ -149,6 +156,7 @@ impl HmacMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_hmac_init` returns when it fails.
+    #[doc(alias = "av_hmac_init")]
     pub fn init(&mut self, key: &[u8]) -> Result<(), i32> {
         let len = key_len(key.len())?;
         // Give memcpy a live pointer even for an empty key, not the dangling
@@ -168,7 +176,7 @@ impl HmacMut<'_> {
 }
 
 impl HmacMut<'_> {
-    /// Wraps: `av_hmac_update`
+    /// Wraps `fn::av_hmac_update`
     ///
     /// Append bytes, or return -22 without changing state if the input exceeds
     /// C's unsigned-int range. C reads input only during this call.
@@ -176,6 +184,7 @@ impl HmacMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_hmac_update` returns when it fails.
+    #[doc(alias = "av_hmac_update")]
     pub fn update(&mut self, data: &[u8]) -> Result<(), i32> {
         let len = key_len(data.len())?;
         if len == 0 {
@@ -187,7 +196,7 @@ impl HmacMut<'_> {
         Ok(())
     }
 
-    /// Wraps: `av_hmac_final`
+    /// Wraps `fn::av_hmac_final`
     ///
     /// Finalize into the output, returning the digest length or C's error.
     /// Too-small output returns -22 without changing state or output; trailing
@@ -196,6 +205,7 @@ impl HmacMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_hmac_final` returns when it fails.
+    #[doc(alias = "av_hmac_final")]
     pub fn finalize(&mut self, output: &mut [u8]) -> Result<usize, i32> {
         let len = c_capacity(output.len());
         // SAFETY: exclusive keyed context and len writable bytes. C checks
@@ -206,7 +216,7 @@ impl HmacMut<'_> {
         usize::try_from(result).map_err(|_| result)
     }
 
-    /// Wraps: `av_hmac_calc`
+    /// Wraps `fn::av_hmac_calc`
     ///
     /// Re-key, hash the complete input, and finalize into `output`. Data and
     /// key lengths outside C's unsigned-int range return -22 before mutation;
@@ -217,6 +227,7 @@ impl HmacMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_hmac_calc` returns when it fails.
+    #[doc(alias = "av_hmac_calc")]
     pub fn calculate(&mut self, data: &[u8], key: &[u8], output: &mut [u8]) -> Result<usize, i32> {
         let data_len = key_len(data.len())?;
         let key_size = key_len(key.len())?;
