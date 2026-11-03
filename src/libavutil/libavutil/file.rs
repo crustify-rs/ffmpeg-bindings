@@ -18,8 +18,6 @@ use super::opt::ObjectRef;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FileUnmap;
 
-/// Wraps: `av_file_unmap`
-///
 /// # Safety
 ///
 /// `ptr` and `byte_len` must be a buffer and its size exactly as
@@ -29,7 +27,12 @@ unsafe fn unmap(ptr: *mut u8, byte_len: usize) {
     // exact size, which `av_file_unmap` unmaps (or frees) once.
     unsafe { ffi::av_file_unmap(ptr, byte_len) }
 }
-impl_clendrop!(FileUnmap, unmap);
+impl_clendrop!(
+    /// Wraps `fn::av_file_unmap`
+    #[doc(alias = "av_file_unmap")]
+    FileUnmap,
+    unmap
+);
 
 /// A file's contents as `av_file_map` maps them: a private, writable copy-on
 /// write mapping (or a read copy where the platform has no `mmap`), released
@@ -40,7 +43,7 @@ pub type FileMap = CVec<u8, FileUnmap>;
 /// `AVERROR(EINVAL)`.
 const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 
-/// Wraps: `av_file_map`
+/// Wraps `fn::av_file_map`
 ///
 /// Maps the file `filename`; on failure, the `AVERROR` code C returns
 /// (`AVERROR(ENOENT)` for a missing file, say), after logging it at
@@ -63,6 +66,7 @@ const AVERROR_EINVAL: c_int = -(ffi::EINVAL.cast_signed());
 /// # Panics
 ///
 /// Only if C breaks the guarantee that `av_file_map` returns NULL only for an empty file.
+#[doc(alias = "av_file_map")]
 pub unsafe fn map(
     filename: &CStr,
     log_offset: c_int,
