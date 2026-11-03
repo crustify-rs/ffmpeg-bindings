@@ -324,7 +324,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 
 ### Batches — review
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
 
 | subsystem | wave | batch | types | +LoC | cov (C/Rust) | rv loc | rv $ | rv tokens | rv wall | rv $/type |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -352,11 +352,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`0`|`0`| `2` |`+0/-0`| `72.49`% / `99.70`% | `+15/-8` | `$2.28` | `4.71M` | `9m50s` | `$1.14` |
 |`libavutil/hwcontext`|`1`|`0`| `2` |`+19/-0`| `75.07`% / `99.68`% | `+40/-8` | `$6.88` | `20.45M` | `22m16s` | `$3.44` |
 |`libavutil/hwcontext`|`2`|`0`| `1` |`+291/-28`| `75.12`% / `99.69`% | `+460/-79` | `$24.69` | `55.21M` | `116m00s` | `$24.69` |
-| **Σ** |  |  | **`82`** | **`+3620/-244`** | **`75.12`% / `99.69`%** | **`+5136/-515`** | **`$333.05`** | **`486.07M`** | — | **`$4.06`** |
+|`libavutil/libavutil/opt.c`|`795`|`0`| `2` |`+0/-0`| `68.58`% / `99.25`% | `+0/-0` | — | — | — | — |
+| **Σ** |  |  | **`84`** | **`+3620/-244`** | **`68.58`% / `99.25`%** | **`+5136/-515`** | **`$333.05`** | **`486.07M`** | — | **`$4.06`** |
 
 ### Batches — review: tests
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
 
 | subsystem | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|---|
@@ -384,11 +385,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`0`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.02`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/hwcontext`|`1`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
 |`libavutil/hwcontext`|`2`|`0`|`+1` (`+0.00`/`+0.02` pp)|`-1` (`+0.02`/`+0.06` pp)|`+1` (`+0.00`/`+0.11` pp)|`+2` (`+0.05`/`+0.04` pp)|
+|`libavutil/libavutil/opt.c`|`795`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 | **Σ** |  |  | **`+21` (`+0.00`/`-0.62` pp)** | **`-1` (`+0.09`/`-0.62` pp)** | **`+27` (`+0.44`/`-0.22` pp)** | **`+29` (`+0.49`/`+0.90` pp)** |
 
 ### Batches — review: PoC + reports
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
 
 | subsystem | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -416,6 +418,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/hwcontext` | `0` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `libavutil/hwcontext` | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `libavutil/hwcontext` | `2` | `0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
+| `libavutil/libavutil/opt.c` | `795` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
 | **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+5`** | **`+25`** | **`43`** | **`0`** |
 
 ## Symbols
