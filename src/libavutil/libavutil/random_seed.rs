@@ -20,11 +20,12 @@ pub(crate) fn lock_seed_access() -> MutexGuard<'static, ()> {
 
 use super::ffi;
 
-/// Wraps: `av_get_random_seed`
+/// Wraps `fn::av_get_random_seed`
 ///
 /// A best-effort random 32-bit seed for a faster PRNG: from the system's
 /// entropy source, or, failing that, from timing jitter. It can be slow; call
 /// it again for more bits.
+#[doc(alias = "av_get_random_seed")]
 #[must_use]
 pub fn get() -> u32 {
     let _guard = lock_seed_access();
@@ -34,7 +35,7 @@ pub fn get() -> u32 {
     unsafe { ffi::av_get_random_seed() }
 }
 
-/// Wraps: `av_random_bytes`
+/// Wraps `fn::av_random_bytes`
 ///
 /// Fills `buf` with cryptographically secure random bytes, suitable for keys.
 ///
@@ -48,6 +49,7 @@ pub fn get() -> u32 {
 /// `Err` holds C's negative `AVERROR` code when no secure source could supply them
 /// (`AVERROR_UNKNOWN` when `/dev/urandom` cannot be read in full); `buf` may then be partly
 /// overwritten.
+#[doc(alias = "av_random_bytes")]
 pub fn random_bytes(buf: &mut [u8]) -> Result<(), i32> {
     // An empty slice's pointer is dangling, which C's `fread` may not receive
     // even for a zero length; a live byte stands in for it.
@@ -64,7 +66,7 @@ pub fn random_bytes(buf: &mut [u8]) -> Result<(), i32> {
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: `av_random_bytes`
+/// Wraps `fn::av_random_bytes`
 ///
 /// As [`random_bytes`], for a buffer that need not be initialised: on success
 /// the whole of `buf`, now initialised, as bytes.
@@ -72,6 +74,7 @@ pub fn random_bytes(buf: &mut [u8]) -> Result<(), i32> {
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_random_bytes` returns when it fails.
+#[doc(alias = "av_random_bytes")]
 pub fn random_bytes_uninit(buf: &mut [MaybeUninit<u8>]) -> Result<&mut [u8], i32> {
     let mut empty = 0u8;
     let dst = if buf.is_empty() {
