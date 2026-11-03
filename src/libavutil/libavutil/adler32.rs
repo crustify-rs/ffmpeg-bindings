@@ -2,9 +2,10 @@
 
 use super::ffi;
 
-/// Wraps: `av_adler32_update`
+/// Wraps `fn::av_adler32_update`
 ///
 /// Update an Adler-32 checksum. Start a new stream with `initial = 1`.
+#[doc(alias = "av_adler32_update")]
 #[must_use]
 pub fn update(initial: u32, input: &[u8]) -> u32 {
     // SAFETY: C reads only `input.len()` bytes and retains no pointer.
