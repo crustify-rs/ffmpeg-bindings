@@ -6,9 +6,10 @@
 
 use super::ffi;
 
-/// Wraps: `av_bswap16`
+/// Wraps `fn::av_bswap16`
 ///
 /// `x` with its two bytes swapped, as [`u16::swap_bytes`].
+#[doc(alias = "av_bswap16")]
 #[inline]
 #[must_use]
 pub fn swap16(x: u16) -> u16 {
@@ -17,9 +18,10 @@ pub fn swap16(x: u16) -> u16 {
     unsafe { ffi::av_bswap16(x) }
 }
 
-/// Wraps: `av_bswap32`
+/// Wraps `fn::av_bswap32`
 ///
 /// `x` with its byte order reversed, as [`u32::swap_bytes`].
+#[doc(alias = "av_bswap32")]
 #[inline]
 #[must_use]
 pub fn swap32(x: u32) -> u32 {
@@ -28,9 +30,10 @@ pub fn swap32(x: u32) -> u32 {
     unsafe { ffi::av_bswap32(x) }
 }
 
-/// Wraps: `av_bswap64`
+/// Wraps `fn::av_bswap64`
 ///
 /// `x` with its byte order reversed, as [`u64::swap_bytes`].
+#[doc(alias = "av_bswap64")]
 #[inline]
 #[must_use]
 pub fn swap64(x: u64) -> u64 {
