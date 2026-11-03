@@ -71,7 +71,7 @@ publish = false
 bindgen = { version = "=0.73.2", features = ["experimental"] }
 cc = "1.5"
 pkg-config = "0.3"
-ffibox = { git = "https://github.com/crustify-rs/ffibox", rev = "203b1a05269bdd549459a80d5d58d6c2f2689d01" }
+ffibox = { git = "https://github.com/crustify-rs/ffibox", rev = "40621a29bffaede7a212c67eeadf803df6f1be29" }
 serde_json = "1"
 trybuild = "1"
 libavutil-sys = { version = "0.1.0", path = "libavutil-sys" }
@@ -85,10 +85,10 @@ libavdevice-sys = { version = "0.1.0", path = "libavdevice-sys" }
 # (`wrapper.pin` in crustify/artifacts/dependencies.json), and patched below to its clone
 # beside this repository while the campaign extends it, by absolute path, which the batch
 # worktrees under crustify/.worktrees resolve too.
-glibc-bindings = { version = "0.1.0", git = "https://github.com/crustify-rs/glibc-bindings", rev = "d53dd7b662c912d58b35b8b94d32603b5145c287" }
+glibc-bindings = { version = "0.1.0", git = "https://github.com/crustify-rs/glibc-bindings", rev = "6180870f2ddbc30a43e5687395eb4f13908b3cbf" }
 
 [patch."https://github.com/crustify-rs/glibc-bindings"]
-glibc-bindings = { path = "/work/glibc-bindings" }
+glibc-bindings = { path = "/target/glibc-bindings" }
 
 # ffibox is pinned by Git so that this crate and the wrappers it takes by Git
 # resolve one copy of it; patched to the local checkout while the campaign runs.

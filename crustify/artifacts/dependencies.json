@@ -16,7 +16,7 @@
       "linked_from": "system",
       "wrapper": {
         "repository": "crustify-rs/glibc-bindings",
-        "pin": "d53dd7b662c912d58b35b8b94d32603b5145c287"
+        "pin": "6180870f2ddbc30a43e5687395eb4f13908b3cbf"
       },
       "rust_equivalent": {
         "ported": [],

@@ -20,7 +20,7 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **assistant parallelism** — `assistant's choice` from 2026-11-03; up to `32` concurrent batch processes in the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
 - **branch** — `crustify/main`, tip `<sha>`
 - **deps** — crustify `12b8cab` (`main`, plus an uncommitted `translator.md` edit), ffibox `196c5fb` (`main`)
-- **build version** — `3`
+- **build version** — `5` from 2026-11-03, when the FATE samples moved with the checkout to `/target`; `4` from the move of the C to `c/`; `3` before
 - **C test baseline** — `5437/5437, 0 skipped, and no disabled tests`
 
 ## Review pass
@@ -2185,3 +2185,9 @@ From 2026-11-03 the settings' `workload` answer leaves the parallelism to the as
 new `identity` answer makes Marius Momeu the author of the campaign's commits, with Crustify as
 co-author. `build.json`'s commands carry no job count, its `version` unchanged: the jobs are given
 through the environment of each run.
+
+On 2026-11-03 the campaign's checkout moved to `/target/ffmpeg-bindings`. Its variants configure
+FATE's samples from the checkout's own `crustify/fate-suite`, so `build.json`'s `version` is `5`, and
+every variant was rebuilt. The workspace pins ffibox at `40621a2`, whose policy macros forward the
+annotations its invocations pass, and `glibc-bindings` at `6180870`, which pins the same ffibox;
+the `[patch]` points at the wrapper's clone in `/target`.
