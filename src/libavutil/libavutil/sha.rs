@@ -36,10 +36,11 @@ impl Algorithm {
 }
 
 define_ctype!(
-    /// Wraps: AVSHA
+    /// Wraps `ty::AVSHA`
     ///
     /// An opaque, initialized C hash context. Construct through [`Self::new`]
     /// or [`ShaBox::new`], not by allocating the opaque layout's Rust size.
+    #[doc(alias = "AVSHA")]
     Sha,
     ShaRef,
     ShaMut,
@@ -87,10 +88,11 @@ pub type ShaBox = CBox<Sha, ShaFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ShaFree;
 
-/// Wraps: `av_free`
 // SAFETY: ShaBox adopts only `av_sha_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Sha> for ShaFree {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Sha>) {
         // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
         unsafe { <Heap as CDrop<Sha>>::c_drop(&Heap, ptr) }
@@ -98,8 +100,6 @@ unsafe impl CDrop<Sha> for ShaFree {
 }
 
 impl Sha {
-    /// Wraps: `av_sha_alloc`
-    ///
     /// Allocate and initialize a context for `algorithm`; `None` on allocation
     /// failure. Invalid digest sizes cannot be represented by [`Algorithm`].
     #[must_use]
@@ -143,17 +143,20 @@ impl fmt::Debug for ShaMut<'_> {
 // SAFETY: the typed constructor returns a uniquely owned, initialized context
 // in av_malloc-family storage, exactly the allocation ShaFree releases.
 unsafe impl CNew<Sha> for ShaFree {
+    /// Wraps `fn::av_sha_alloc`
+    #[doc(alias = "av_sha_alloc")]
     fn c_new(&self) -> Option<NonNull<Sha>> {
         Sha::new(Algorithm::Sha256).and_then(|owner| NonNull::new(owner.into_raw()))
     }
 }
 
 impl ShaMut<'_> {
-    /// Wraps: `av_sha_init`
+    /// Wraps `fn::av_sha_init`
     ///
     /// Start a new hash, discarding the previous state. The buffer need not be
     /// cleared: C resets the count and never reads stale bytes before filling
     /// the block. This may also change the digest variant.
+    #[doc(alias = "av_sha_init")]
     pub fn init(&mut self, algorithm: Algorithm) {
         // SAFETY: the handle grants exclusive access to a live full-sized
         // context, and the enum admits only sizes for which C returns zero.
@@ -162,9 +165,10 @@ impl ShaMut<'_> {
     }
 }
 
-/// Wraps: `av_sha_size`
+/// Wraps `var::av_sha_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_sha_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -173,9 +177,10 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl ShaMut<'_> {
-    /// Wraps: `av_sha_update`
+    /// Wraps `fn::av_sha_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
+    #[doc(alias = "av_sha_update")]
     pub fn update(&mut self, data: &[u8]) {
         // SAFETY: the handle exclusively borrows an initialized full C context;
         // nonempty data provides len readable bytes; empty input uses a real static
@@ -193,12 +198,13 @@ impl ShaMut<'_> {
         }
     }
 
-    /// Wraps: `av_sha_final`
+    /// Wraps `fn::av_sha_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.
     /// The maximum-size output remains safe even after changing the algorithm.
     /// Reinitialize the context before starting another message.
+    #[doc(alias = "av_sha_final")]
     pub fn finalize(&mut self) -> [u8; 32] {
         let mut digest = [0; 32];
         // SAFETY: exclusive initialized context; the output covers the largest
