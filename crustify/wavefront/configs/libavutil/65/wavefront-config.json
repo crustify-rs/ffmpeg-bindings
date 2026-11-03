@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/ambient_viewing_environment.c"
-  ],
-  "api_headers": [
-    "libavutil/ambient_viewing_environment.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/ambient_viewing_environment.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/ambient_viewing_environment.h"
+    ]
+  }
 }

@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/tea.c"
-  ],
-  "api_headers": [
-    "libavutil/tea.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/tea.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/tea.h"
+    ]
+  }
 }

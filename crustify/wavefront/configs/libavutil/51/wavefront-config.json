@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/audio_fifo.c"
-  ],
-  "api_headers": [
-    "libavutil/audio_fifo.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/audio_fifo.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/audio_fifo.h"
+    ]
+  }
 }

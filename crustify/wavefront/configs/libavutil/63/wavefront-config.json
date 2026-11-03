@@ -1,18 +1,23 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/utils.c"
-  ],
-  "api_headers": [
-    "libavutil/avassert.h",
-    "libavutil/avutil.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavutil/utils.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/avassert.h",
+      "libavutil/avutil.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "av_x_if_null",
-        "defined_in": "libavutil/avutil.h"
+        "defined_in": "libavutil/avutil.h",
+        "kind": "symbol"
       }
     ]
   }

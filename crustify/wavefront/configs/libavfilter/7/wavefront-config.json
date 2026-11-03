@@ -1,41 +1,52 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavfilter/graphparser.c"
-  ],
-  "api_headers": [
-    "libavfilter/avfilter.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavfilter/graphparser.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavfilter/avfilter.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVFilter",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterContext",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterFormatsConfig",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterGraph",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterLink",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "avfilter_action_func",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "symbol"
       },
       {
         "name": "avfilter_execute_func",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "symbol"
       }
     ]
   }

@@ -1,18 +1,23 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/tx.c",
-    "libavutil/tx_priv.h"
-  ],
-  "api_headers": [
-    "libavutil/tx.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavutil/tx.c",
+      "libavutil/tx_priv.h"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/tx.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "ff_tx_codelet_list_float_aarch64",
-        "defined_in": "libavutil/tx_priv.h"
+        "defined_in": "libavutil/tx_priv.h",
+        "kind": "symbol"
       }
     ]
   }

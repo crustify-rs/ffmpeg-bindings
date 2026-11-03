@@ -1,41 +1,52 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/side_data.c"
-  ],
-  "api_headers": [
-    "libavutil/frame.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavutil/side_data.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/frame.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVActiveFormatDescription",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVFrame",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVFrameSideData",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVFrameSideDataType",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVRegionOfInterest",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVSideDataDescriptor",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       },
       {
         "name": "AVSideDataProps",
-        "defined_in": "libavutil/frame.h"
+        "defined_in": "libavutil/frame.h",
+        "kind": "type"
       }
     ]
   }

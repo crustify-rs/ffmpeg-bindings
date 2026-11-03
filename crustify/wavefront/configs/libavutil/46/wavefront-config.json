@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/mathematics.c"
-  ],
-  "api_headers": [
-    "libavutil/mathematics.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/mathematics.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/mathematics.h"
+    ]
+  }
 }

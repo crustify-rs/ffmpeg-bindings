@@ -1,22 +1,28 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavcodec/bsf.c",
-    "libavcodec/bsf_internal.h"
-  ],
-  "api_headers": [
-    "libavcodec/bsf.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavcodec/bsf.c",
+      "libavcodec/bsf_internal.h"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavcodec/bsf.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVBitStreamFilterContext",
-        "defined_in": "libavcodec/bsf.h"
+        "defined_in": "libavcodec/bsf.h",
+        "kind": "type"
       },
       {
         "name": "AVBitStreamFilterGraph",
-        "defined_in": "libavcodec/bsf.h"
+        "defined_in": "libavcodec/bsf.h",
+        "kind": "type"
       }
     ]
   }

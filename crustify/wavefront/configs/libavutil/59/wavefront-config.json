@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/timestamp.c"
-  ],
-  "api_headers": [
-    "libavutil/timestamp.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/timestamp.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/timestamp.h"
+    ]
+  }
 }

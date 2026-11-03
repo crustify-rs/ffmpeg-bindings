@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/md5.c"
-  ],
-  "api_headers": [
-    "libavutil/md5.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/md5.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/md5.h"
+    ]
+  }
 }

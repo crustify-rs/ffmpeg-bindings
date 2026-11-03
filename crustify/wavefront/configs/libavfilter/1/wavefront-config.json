@@ -1,67 +1,84 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavfilter/avfilter.c",
-    "libavfilter/avfilter_internal.h",
-    "libavfilter/filters.h"
-  ],
-  "api_headers": [
-    "libavfilter/avfilter.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavfilter/avfilter.c",
+      "libavfilter/avfilter_internal.h",
+      "libavfilter/filters.h"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavfilter/avfilter.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVFilterChain",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterGraph",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterGraphSegment",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterInOut",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterPadParams",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "AVFilterParams",
-        "defined_in": "libavfilter/avfilter.h"
+        "defined_in": "libavfilter/avfilter.h",
+        "kind": "type"
       },
       {
         "name": "FFFilter",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "type"
       },
       {
         "name": "FilterFormatsState",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "type"
       },
       {
         "name": "FilterLink",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "type"
       },
       {
         "name": "ff_filter_link",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_outlink_set_status",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_slice_pos",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "symbol"
       },
       {
         "name": "fffilter",
-        "defined_in": "libavfilter/filters.h"
+        "defined_in": "libavfilter/filters.h",
+        "kind": "symbol"
       }
     ]
   }

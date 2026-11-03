@@ -1,93 +1,116 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavcodec/utils.c"
-  ],
-  "api_headers": [
-    "libavcodec/avcodec.h",
-    "libavcodec/codec.h",
-    "libavcodec/codec_id.h",
-    "libavcodec/codec_par.h",
-    "libavcodec/defs.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavcodec/utils.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavcodec/avcodec.h",
+      "libavcodec/codec.h",
+      "libavcodec/codec_id.h",
+      "libavcodec/codec_par.h",
+      "libavcodec/defs.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVCodecConfig",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecContext",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecParser",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecParserContext",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVHWAccel",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVPictureStructure",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitle",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitleRect",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitleType",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "RcOverride",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodec",
-        "defined_in": "libavcodec/codec.h"
+        "defined_in": "libavcodec/codec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecID",
-        "defined_in": "libavcodec/codec_id.h"
+        "defined_in": "libavcodec/codec_id.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecParameters",
-        "defined_in": "libavcodec/codec_par.h"
+        "defined_in": "libavcodec/codec_par.h",
+        "kind": "type"
       },
       {
         "name": "AVAudioServiceType",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       },
       {
         "name": "AVDiscard",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       },
       {
         "name": "AVFieldOrder",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       },
       {
         "name": "AVPanScan",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       },
       {
         "name": "AVProducerReferenceTime",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       },
       {
         "name": "AVRTCPSenderReport",
-        "defined_in": "libavcodec/defs.h"
+        "defined_in": "libavcodec/defs.h",
+        "kind": "type"
       }
     ]
   }

@@ -1,53 +1,67 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavcodec/imgconvert.c"
-  ],
-  "api_headers": [
-    "libavcodec/avcodec.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavcodec/imgconvert.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavcodec/avcodec.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVCodecConfig",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecContext",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecParser",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVCodecParserContext",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVHWAccel",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVPictureStructure",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitle",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitleRect",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "AVSubtitleType",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       },
       {
         "name": "RcOverride",
-        "defined_in": "libavcodec/avcodec.h"
+        "defined_in": "libavcodec/avcodec.h",
+        "kind": "type"
       }
     ]
   }

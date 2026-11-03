@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/des.c"
-  ],
-  "api_headers": [
-    "libavutil/des.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/des.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/des.h"
+    ]
+  }
 }

@@ -1,150 +1,188 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libswscale/swscale.c",
-    "libswscale/swscale_internal.h"
-  ],
-  "api_headers": [
-    "libswscale/swscale.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libswscale/swscale.c",
+      "libswscale/swscale_internal.h"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libswscale/swscale.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "SwsFilter",
-        "defined_in": "libswscale/swscale.h"
+        "defined_in": "libswscale/swscale.h",
+        "kind": "type"
       },
       {
         "name": "SwsVector",
-        "defined_in": "libswscale/swscale.h"
+        "defined_in": "libswscale/swscale.h",
+        "kind": "type"
       },
       {
         "name": "SwsColorFunc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "SwsFunc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_get_unscaled_swscale_aarch64",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_get_unscaled_swscale_arm",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_get_unscaled_swscale_ppc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_free_altivec_bufs",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_altivec_bufs",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_range_convert_aarch64",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_range_convert_loongarch",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_range_convert_riscv",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_aarch64",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_arm",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_loongarch",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_ppc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_riscv",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_swscale_vsx",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_sws_init_xyzdsp_aarch64",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_yuv2rgb_init_aarch64",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_yuv2rgb_init_loongarch",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_yuv2rgb_init_ppc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "ff_yuv2rgb_init_tables_ppc",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "planar1_YV12_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "planar2_YV12_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "planarX2_YV12_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "planarX_YV12_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2anyX_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2interleavedX_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2packed1_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2packed2_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2packedX_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2planar1_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       },
       {
         "name": "yuv2planarX_fn",
-        "defined_in": "libswscale/swscale_internal.h"
+        "defined_in": "libswscale/swscale_internal.h",
+        "kind": "symbol"
       }
     ]
   }

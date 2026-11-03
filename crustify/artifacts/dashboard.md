@@ -687,7 +687,8 @@ the corrections it made to what earlier runs committed.
 | 2 | — | — | `t3/chased_casts.csv`, `t3/type_generators.csv`, per-subsystem configurations | 9 | $9.46 | 21.8M | 34m11s |
 | 3 | 160 | 674 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (160 added, 22 per-subsystem removed) | 0 | $11.52 | 28.9M | 83m26s |
 | 4 | 29 | 17 | `configs/<link-unit>/<index>/wavefront-config.json` (14 changed) | 8 | $10.28 | 25.7M | 29m30s |
-| **Σ** | **189** | **691** | | **17** | **$32.19** | **77.4M** | **149m18s** |
+| 5 | 0 | 0 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (161 to the current schema, 1 corrected) | 2 | `$<n>` | `<n>M` | `<n>m<n>s` |
+| **Σ** | **189** | **691** | | **19** | **$32.19** | **77.4M** | **149m18s** |
 
 ## Notes
 

@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/video_hint.c"
-  ],
-  "api_headers": [
-    "libavutil/video_hint.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/video_hint.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/video_hint.h"
+    ]
+  }
 }

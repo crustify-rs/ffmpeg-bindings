@@ -1,133 +1,167 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavformat/allformats.c"
-  ],
-  "api_headers": [
-    "libavformat/avformat.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavformat/allformats.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavformat/avformat.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "ff_avisynth_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_chromaprint_muxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_dash_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_dvdvideo_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_imf_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_libgme_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_libmodplug_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_libopenmpt_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_vapoursynth_demuxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "ff_whip_muxer",
-        "defined_in": "libavformat/allformats.c"
+        "defined_in": "libavformat/allformats.c",
+        "kind": "symbol"
       },
       {
         "name": "AVChapter",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVDurationEstimationMethod",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVFormatCommandID",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVFormatContext",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVIndexEntry",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVInputFormat",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVOpenCallback",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "symbol"
       },
       {
         "name": "AVOutputFormat",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVProbeData",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVProgram",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVRTSPCommandRequest",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVRTSPResponse",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStream",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamGroup",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamGroupLayeredVideo",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamGroupParamsType",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamGroupTREF",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamGroupTileGrid",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "AVStreamParseType",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "type"
       },
       {
         "name": "av_format_control_message",
-        "defined_in": "libavformat/avformat.h"
+        "defined_in": "libavformat/avformat.h",
+        "kind": "symbol"
       }
     ]
   }

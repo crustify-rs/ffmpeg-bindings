@@ -1,25 +1,32 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/version.c"
-  ],
-  "api_headers": [
-    "libavutil/avutil.h"
-  ],
-  "out_of_scope": {
-    "items": [
+  "impl_files": {
+    "included": [
+      "libavutil/version.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/avutil.h"
+    ]
+  },
+  "items": {
+    "excluded": [
       {
         "name": "AVMediaType",
-        "defined_in": "libavutil/avutil.h"
+        "defined_in": "libavutil/avutil.h",
+        "kind": "type"
       },
       {
         "name": "AVPictureType",
-        "defined_in": "libavutil/avutil.h"
+        "defined_in": "libavutil/avutil.h",
+        "kind": "type"
       },
       {
         "name": "av_x_if_null",
-        "defined_in": "libavutil/avutil.h"
+        "defined_in": "libavutil/avutil.h",
+        "kind": "symbol"
       }
     ]
   }

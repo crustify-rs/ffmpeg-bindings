@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/cast5.c"
-  ],
-  "api_headers": [
-    "libavutil/cast5.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/cast5.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/cast5.h"
+    ]
+  }
 }

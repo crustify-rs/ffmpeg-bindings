@@ -1,10 +1,14 @@
 {
   "state_dir": "../crustify/wavefront",
   "t3_dir": "t3",
-  "impl_files": [
-    "libavutil/parseutils.c"
-  ],
-  "api_headers": [
-    "libavutil/parseutils.h"
-  ]
+  "impl_files": {
+    "included": [
+      "libavutil/parseutils.c"
+    ]
+  },
+  "api_headers": {
+    "included": [
+      "libavutil/parseutils.h"
+    ]
+  }
 }
