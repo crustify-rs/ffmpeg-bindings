@@ -7,7 +7,7 @@ use ffibox::CRefSeam;
 use super::ffi;
 use super::rational::{Rational, RationalRef};
 
-/// Wraps: `av_ts_make_string`
+/// Wraps `fn::av_ts_make_string`
 ///
 /// Writes `ts` into `buf` as decimal text, or `NOPTS` for `AV_NOPTS_VALUE`
 /// (`i64::MIN`), and returns that text, borrowed from `buf`.
@@ -19,6 +19,7 @@ use super::rational::{Rational, RationalRef};
 /// assert_eq!(make_string(&mut buf, -42), c"-42");
 /// assert_eq!(make_string(&mut buf, i64::MIN), c"NOPTS");
 /// ```
+#[doc(alias = "av_ts_make_string")]
 pub fn make_string(buf: &mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize], ts: i64) -> &CStr {
     // SAFETY: `buf` is `AV_TS_MAX_STRING_SIZE` writable bytes, the bound
     // `av_ts_make_string` gives `snprintf`; the returned pointer is `buf`.
@@ -27,7 +28,7 @@ pub fn make_string(buf: &mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize], ts: i64)
     CStr::from_bytes_until_nul(buf).unwrap_or_default()
 }
 
-/// Wraps: `av_ts_make_time_string2`
+/// Wraps `fn::av_ts_make_time_string2`
 ///
 /// Writes the time `ts` ticks of `time_base` stand for, in seconds, into
 /// `buf` and returns that text, borrowed from `buf`; `AV_NOPTS_VALUE`
@@ -58,6 +59,7 @@ pub fn make_string(buf: &mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize], ts: i64)
 ///     c"NOPTS"
 /// );
 /// ```
+#[doc(alias = "av_ts_make_time_string2")]
 pub fn make_time_string(
     buf: &mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize],
     ts: i64,
@@ -72,7 +74,7 @@ pub fn make_time_string(
     CStr::from_bytes_until_nul(buf).unwrap_or_default()
 }
 
-/// Wraps: `av_ts_make_time_string`
+/// Wraps `fn::av_ts_make_time_string`
 ///
 /// [`make_time_string`], with the time base read through a shared handle, as
 /// C reads it through a `const AVRational *`: a time base stored in another
@@ -95,6 +97,7 @@ pub fn make_time_string(
 ///     c"NOPTS"
 /// );
 /// ```
+#[doc(alias = "av_ts_make_time_string")]
 pub fn make_time_string_by_ref<'a>(
     buf: &'a mut [u8; ffi::AV_TS_MAX_STRING_SIZE as usize],
     ts: i64,
