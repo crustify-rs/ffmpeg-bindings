@@ -688,8 +688,9 @@ the corrections it made to what earlier runs committed.
 | 3 | 160 | 674 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (160 added, 22 per-subsystem removed) | 0 | $11.52 | 28.9M | 83m26s |
 | 4 | 29 | 17 | `configs/<link-unit>/<index>/wavefront-config.json` (14 changed) | 8 | $10.28 | 25.7M | 29m30s |
 | 5 | 0 | 0 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (161 to the current schema, 1 corrected) | 2 | $7.01 | 14.2M | 37m38s |
-| 7 | 0 | 0 | — | 0 | `$<n>` | `<n>M` | `<n>m<n>s` |
-| **Σ** | **189** | **691** | | **19** | **$39.20** | **91.6M** | **186m56s** |
+| 6 | — | — | — (stopped after its first requests: its instructions misstated the re-plan's first wave; run 7 replaced it) | 0 | $0.21 | 0.1M | 0m11s |
+| 7 | 0 | 0 | — | 0 | $3.74 | 9.1M | 13m05s |
+| **Σ** | **189** | **691** | | **19** | **$43.14** | **100.8M** | **200m12s** |
 
 ## Notes
 
