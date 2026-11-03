@@ -1,0 +1,100 @@
+{
+ "sessions": [
+  {
+   "source": "/work/.crustify/transcripts/01a19f24-9cca-79f2-8085-c859391d3200.jsonl",
+   "provider": "openrouter",
+   "model": "openai/gpt-6.1-sol",
+   "started_at": "2026-11-03T02:02:19+00:00",
+   "ended_at": "2026-11-03T02:03:27+00:00",
+   "duration_ms": 68572,
+   "request_count": 9,
+   "tokens": {
+    "input_tokens": 53567,
+    "output_tokens": 3289,
+    "cache_read_tokens": 353672,
+    "cache_write_tokens": 53540,
+    "cache_write_1h_tokens": 0
+   },
+   "cost_usd": 0.309241,
+   "requests": [
+    {
+     "input_tokens": 30952,
+     "output_tokens": 141,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 30949,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 226,
+     "output_tokens": 270,
+     "cache_read_tokens": 30949,
+     "cache_write_tokens": 223,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 10809,
+     "output_tokens": 374,
+     "cache_read_tokens": 31172,
+     "cache_write_tokens": 10806,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 3906,
+     "output_tokens": 875,
+     "cache_read_tokens": 41978,
+     "cache_write_tokens": 3903,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 2679,
+     "output_tokens": 283,
+     "cache_read_tokens": 45881,
+     "cache_write_tokens": 2676,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1565,
+     "output_tokens": 167,
+     "cache_read_tokens": 48557,
+     "cache_write_tokens": 1562,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 2133,
+     "output_tokens": 461,
+     "cache_read_tokens": 50119,
+     "cache_write_tokens": 2130,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 521,
+     "output_tokens": 679,
+     "cache_read_tokens": 52249,
+     "cache_write_tokens": 518,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 776,
+     "output_tokens": 39,
+     "cache_read_tokens": 52767,
+     "cache_write_tokens": 773,
+     "cache_write_1h_tokens": 0
+    }
+   ]
+  }
+ ],
+ "total": {
+  "sessions": 1,
+  "request_count": 9,
+  "tokens": {
+   "input_tokens": 53567,
+   "output_tokens": 3289,
+   "cache_read_tokens": 353672,
+   "cache_write_tokens": 53540,
+   "cache_write_1h_tokens": 0
+  },
+  "cost_usd": 0.309241,
+  "unpriced_sessions": 0,
+  "duration_ms": 68572
+ }
+}

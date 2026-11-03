@@ -1,0 +1,18 @@
+{
+  "objectives": [
+    "conventions",
+    "fix"
+  ],
+  "paths": [
+    "src/libavutil/libavutil/aes.rs"
+  ],
+  "wave": 671,
+  "batch": 22,
+  "link_unit": "libavutil",
+  "module": null,
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-671",
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "billing": "api",
+  "instructions": "instructions.md"
+}

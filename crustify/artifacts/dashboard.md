@@ -12,11 +12,12 @@ Copy this template into the campaign checkout, then fill it as work lands.
 - **agent backend** — `claude`; `codex` for `libavutil/crypto`
 - **model** — `openrouter/anthropic/claude-opus-5.5`; `openrouter/openai/gpt-6.1-sol` for `libavutil/crypto`
 - **billing** — `api`
+- **identity** — author `Marius Momeu <marius.momeu@berkeley.edu>`, co-author `crustify <crustify@berkeley.edu>`, from 2026-11-03; `crustify` as the author before
 - **`--max-types`** — `2`
 - **`--max-syms`** — `25`
 - **`--max-loc`** — `500`
 - **`--min-fields`** — `20`
-- **assistant parallelism** — up to `32` concurrent batch processes from the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
+- **assistant parallelism** — `assistant's choice` from 2026-11-03; up to `32` concurrent batch processes in the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
 - **branch** — `crustify/main`, tip `<sha>`
 - **deps** — crustify `12b8cab` (`main`, plus an uncommitted `translator.md` edit), ffibox `196c5fb` (`main`)
 - **build version** — `3`
@@ -33,7 +34,7 @@ Review batches run by `crustify spawn-reviewer`, LLM-as-a-Judge over each landed
 - **`--max-syms`** — `25` (wave 0); the wave's symbols from wave 1
 - **`--max-loc`** — `500` (wave 0); unbounded from wave 1
 - **`--min-fields`** — `20`
-- **assistant parallelism** — up to `32` concurrent batch processes from the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
+- **assistant parallelism** — `assistant's choice` from 2026-11-03; up to `32` concurrent batch processes in the annotation pass (wave `671`); `16` from `libavutil/options`; `10` before
 - **branch** — `crustify/reviews/libavutil/hwcontext/wave-2`, tip `2a1f7d6d5a`
 - **agents** — `51` (one stopped by the provider), over `23` wave(s)
 
@@ -2169,3 +2170,18 @@ and `fix` objectives, one per `.rs` file, on the `paths` route, filing no report
 remaining files in wave `671`. Neither wave has an entry in `schedule.json`, and their batches fill
 no dashboard rows. From wave `671` the settings' `workload` answer raises the parallelism to `32`
 agents.
+
+Wave `671` landed all 57 files, in `reviewer/run-52` to `run-88` and `run-109` to `run-128`, all
+under `openrouter/openai/gpt-6.1-sol`, for `$50.90`, a median run of 38 minutes. Its first 37
+batches landed by the push, rebase and retry of the prompts before the landing lock: 32 at once
+until their rebases overran the host, then the rest one at a time, each resumed while the others
+were suspended, with libgit2's wave `525` paused meanwhile. `run-89` to `run-108` were discarded
+after a minute or two, `$5.44`, so that their batches ran with trimmed instructions; their records
+are kept. The last 20 ran at once on the current prompts and landed one at a time under the landing
+lock, each rebasing once, in 18 minutes. The `/// Handwritten` markers, which ffibox's specs no
+longer ask for, were then removed from the tree, and the workspace's gates passed over the result.
+
+From 2026-11-03 the settings' `workload` answer leaves the parallelism to the assistant, and their
+new `identity` answer makes Marius Momeu the author of the campaign's commits, with Crustify as
+co-author. `build.json`'s commands carry no job count, its `version` unchanged: the jobs are given
+through the environment of each run.

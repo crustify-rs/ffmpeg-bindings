@@ -1,0 +1,79 @@
+{
+ "sessions": [
+  {
+   "source": "/work/.crustify/transcripts/01a19f25-2e20-7041-b0a5-6ed3e135b986.jsonl",
+   "provider": "openrouter",
+   "model": "openai/gpt-6.1-sol",
+   "started_at": "2026-11-03T02:02:56+00:00",
+   "ended_at": "2026-11-03T02:03:40+00:00",
+   "duration_ms": 43704,
+   "request_count": 6,
+   "tokens": {
+    "input_tokens": 52810,
+    "output_tokens": 2895,
+    "cache_read_tokens": 215180,
+    "cache_write_tokens": 52792,
+    "cache_write_1h_tokens": 0
+   },
+   "cost_usd": 0.288068,
+   "requests": [
+    {
+     "input_tokens": 30991,
+     "output_tokens": 289,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 30988,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 4641,
+     "output_tokens": 374,
+     "cache_read_tokens": 30988,
+     "cache_write_tokens": 4638,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 12003,
+     "output_tokens": 929,
+     "cache_read_tokens": 35626,
+     "cache_write_tokens": 12000,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 2482,
+     "output_tokens": 665,
+     "cache_read_tokens": 47626,
+     "cache_write_tokens": 2479,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 733,
+     "output_tokens": 579,
+     "cache_read_tokens": 50105,
+     "cache_write_tokens": 730,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1960,
+     "output_tokens": 59,
+     "cache_read_tokens": 50835,
+     "cache_write_tokens": 1957,
+     "cache_write_1h_tokens": 0
+    }
+   ]
+  }
+ ],
+ "total": {
+  "sessions": 1,
+  "request_count": 6,
+  "tokens": {
+   "input_tokens": 52810,
+   "output_tokens": 2895,
+   "cache_read_tokens": 215180,
+   "cache_write_tokens": 52792,
+   "cache_write_1h_tokens": 0
+  },
+  "cost_usd": 0.288068,
+  "unpriced_sessions": 0,
+  "duration_ms": 43704
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "sessions": [
+  {
+   "source": "/work/.crustify/transcripts/01a19f25-16a1-7c40-8558-4011ca295cb7.jsonl",
+   "provider": "openrouter",
+   "model": "openai/gpt-6.1-sol",
+   "started_at": "2026-11-03T02:02:50+00:00",
+   "ended_at": "2026-11-03T02:03:37+00:00",
+   "duration_ms": 46955,
+   "request_count": 5,
+   "tokens": {
+    "input_tokens": 46676,
+    "output_tokens": 2022,
+    "cache_read_tokens": 163016,
+    "cache_write_tokens": 46661,
+    "cache_write_1h_tokens": 0
+   },
+   "cost_usd": 0.246526,
+   "requests": [
+    {
+     "input_tokens": 30891,
+     "output_tokens": 161,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 30888,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 11830,
+     "output_tokens": 343,
+     "cache_read_tokens": 30888,
+     "cache_write_tokens": 11827,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1363,
+     "output_tokens": 1147,
+     "cache_read_tokens": 42715,
+     "cache_write_tokens": 1360,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1266,
+     "output_tokens": 274,
+     "cache_read_tokens": 44075,
+     "cache_write_tokens": 1263,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1326,
+     "output_tokens": 97,
+     "cache_read_tokens": 45338,
+     "cache_write_tokens": 1323,
+     "cache_write_1h_tokens": 0
+    }
+   ]
+  }
+ ],
+ "total": {
+  "sessions": 1,
+  "request_count": 5,
+  "tokens": {
+   "input_tokens": 46676,
+   "output_tokens": 2022,
+   "cache_read_tokens": 163016,
+   "cache_write_tokens": 46661,
+   "cache_write_1h_tokens": 0
+  },
+  "cost_usd": 0.246526,
+  "unpriced_sessions": 0,
+  "duration_ms": 46955
+ }
+}

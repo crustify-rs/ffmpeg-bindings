@@ -1,0 +1,86 @@
+{
+ "sessions": [
+  {
+   "source": "/work/.crustify/transcripts/01a19f25-0ec6-7f12-92ec-44fd15a57939.jsonl",
+   "provider": "openrouter",
+   "model": "openai/gpt-6.1-sol",
+   "started_at": "2026-11-03T02:02:48+00:00",
+   "ended_at": "2026-11-03T02:03:35+00:00",
+   "duration_ms": 46871,
+   "request_count": 7,
+   "tokens": {
+    "input_tokens": 57487,
+    "output_tokens": 2457,
+    "cache_read_tokens": 275444,
+    "cache_write_tokens": 57466,
+    "cache_write_1h_tokens": 0
+   },
+   "cost_usd": 0.310753,
+   "requests": [
+    {
+     "input_tokens": 30884,
+     "output_tokens": 289,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 30881,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 5348,
+     "output_tokens": 324,
+     "cache_read_tokens": 30881,
+     "cache_write_tokens": 5345,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 9964,
+     "output_tokens": 538,
+     "cache_read_tokens": 36226,
+     "cache_write_tokens": 9961,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 3659,
+     "output_tokens": 203,
+     "cache_read_tokens": 46187,
+     "cache_write_tokens": 3656,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 6020,
+     "output_tokens": 529,
+     "cache_read_tokens": 49843,
+     "cache_write_tokens": 6017,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 590,
+     "output_tokens": 519,
+     "cache_read_tokens": 55860,
+     "cache_write_tokens": 587,
+     "cache_write_1h_tokens": 0
+    },
+    {
+     "input_tokens": 1022,
+     "output_tokens": 55,
+     "cache_read_tokens": 56447,
+     "cache_write_tokens": 1019,
+     "cache_write_1h_tokens": 0
+    }
+   ]
+  }
+ ],
+ "total": {
+  "sessions": 1,
+  "request_count": 7,
+  "tokens": {
+   "input_tokens": 57487,
+   "output_tokens": 2457,
+   "cache_read_tokens": 275444,
+   "cache_write_tokens": 57466,
+   "cache_write_1h_tokens": 0
+  },
+  "cost_usd": 0.310753,
+  "unpriced_sessions": 0,
+  "duration_ms": 46871
+ }
+}
