@@ -136,8 +136,6 @@ unsafe impl Sync for BufferPoolRef<'_> {}
 // handle.
 unsafe impl Sync for BufferPoolMut<'_> {}
 
-/// Handwritten
-///
 /// Releases the caller's reference to a pool. `impl_cdrop!` would need a
 /// raw-pointer adapter only to pass the pool's slot; the trait method holds
 /// the slot itself.
@@ -452,8 +450,6 @@ unsafe impl Send for BufferReferenceMut<'_> {}
 // a shared handle; the setters need `&mut`.
 unsafe impl Sync for BufferReferenceMut<'_> {}
 
-/// Handwritten
-///
 /// Releases a [`BufferReferenceBox`]'s reference: C frees the struct and drops
 /// one count of its buffer, releasing the data with the last one. Its copy
 /// adds a reference to the same buffer (`av_buffer_ref`). `impl_cdrop!` and
@@ -1196,8 +1192,6 @@ pub fn assign(
     status(ret)
 }
 
-/// Handwritten
-///
 /// A reference to a buffer whose bytes may not be initialised yet: what
 /// [`BufferReference::alloc`] returns, and what a pool allocator hands over
 /// ([`BufferPool::with_allocator`]). It is the buffer's only reference, not

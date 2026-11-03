@@ -272,8 +272,6 @@ pub struct StringHeap;
 /// `av_free`.
 pub type HeapString = CStrBox<StringHeap>;
 
-/// Handwritten
-///
 /// `impl_cdrop_str!` would need a raw-pointer adapter only to pass the string
 /// to `av_free` as a `void *`; the trait method takes the `NonNull` directly.
 // SAFETY: `av_free` releases any `av_malloc`- or `av_realloc`-family block,
@@ -355,8 +353,6 @@ const REALLOC_ALIGN: usize = {
     if m > p { m } else { p }
 };
 
-/// Handwritten
-///
 /// A dynamic array grown in place by the `av_dynarray` family, released by
 /// `av_freep`.
 ///
@@ -605,8 +601,6 @@ impl<T: DynPtr> DynArray<T> {
     }
 }
 
-/// Handwritten
-///
 /// The release strategy of a [`DynArray`]: `av_freep` on the `tab` slot, as C
 /// releases one. Elements are `Copy` and have nothing to drop.
 impl<T> Drop for DynArray<T> {

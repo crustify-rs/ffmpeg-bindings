@@ -10,7 +10,6 @@ use super::ffi;
 use super::rational::Rational;
 
 /// Wraps `ty::AVMediaType`
-/// Handwritten
 ///
 /// The kind of data a stream, codec or filter pad carries.
 ///
@@ -127,7 +126,6 @@ impl From<MediaType> for ffi::AVMediaType {
 unsafe impl CPlainElem for MediaType {}
 
 /// Wraps `ty::AVPictureType`
-/// Handwritten
 ///
 /// The coding type of a video picture: intra, predicted, bidirectionally
 /// predicted, and the rarer MPEG-4 and H.264 kinds.

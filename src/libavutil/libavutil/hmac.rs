@@ -10,7 +10,6 @@ use ffibox::{CBox, CMutSeam, CPlainElem, define_ctype, impl_cdrop};
 use super::ffi;
 
 /// Wraps `ty::AVHMACType`
-/// Handwritten
 ///
 /// The hash algorithm selected by an HMAC context.
 ///

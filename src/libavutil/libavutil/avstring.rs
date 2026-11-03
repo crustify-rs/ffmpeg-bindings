@@ -24,7 +24,6 @@ use super::ffi;
 use super::mem::{HeapString, string_from_c_str};
 
 /// Wraps `ty::AVEscapeMode`
-/// Handwritten
 ///
 /// How `av_escape` escapes special characters.
 ///

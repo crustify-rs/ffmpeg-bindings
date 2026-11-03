@@ -45,7 +45,6 @@ use super::ffi;
 use super::mem::HeapVec;
 
 /// Wraps `ty::AVChannel`
-/// Handwritten
 ///
 /// The identity of one audio channel: a speaker position, an Ambisonic
 /// component, or a user-defined id.
@@ -345,7 +344,6 @@ impl From<Channel> for ffi::AVChannel {
 unsafe impl CPlainElem for Channel {}
 
 /// Wraps `ty::AVMatrixEncoding`
-/// Handwritten
 ///
 /// The matrixed-stereo encoding of a downmix: none, or one of the Dolby
 /// surround variants that fold extra channels into a stereo pair.
@@ -481,7 +479,6 @@ impl From<MatrixEncoding> for ffi::AVMatrixEncoding {
 unsafe impl CPlainElem for MatrixEncoding {}
 
 /// Wraps `ty::AVChannelOrder`
-/// Handwritten
 ///
 /// How a channel layout describes its channels: by count alone, as a bitmask
 /// of native channels, as an explicit map, or as ambisonic components.

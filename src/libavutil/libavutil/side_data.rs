@@ -87,8 +87,6 @@ impl SideDataType {
     }
 }
 
-/// Handwritten
-///
 /// An owned array of side data: C's `AVFrameSideData **sd` and `int nb_sd`
 /// pair, empty as NULL and 0, as `AVCodecContext` keeps its
 /// `decoded_side_data`. Dropping it frees every entry with its buffer
@@ -245,8 +243,6 @@ impl<'a> IntoIterator for &'a mut SideDataArray {
     }
 }
 
-/// Handwritten
-///
 /// Shared borrow of a side data array: a [`SideDataArray`], or a frame's
 /// list. `Copy`, like `&[T]`; it lends shared handles to the entries.
 #[derive(Clone, Copy)]
@@ -350,8 +346,6 @@ impl<'a> IntoIterator for SideDataArrayRef<'a> {
     }
 }
 
-/// Handwritten
-///
 /// Exclusive borrow of a side data array: a [`SideDataArray`], or a frame's
 /// list. It lends exclusive handles to the entries, and reaches the shared
 /// ones with [`as_ref`](Self::as_ref).

@@ -70,7 +70,6 @@ use super::utils::PictureType;
 use super::{ffi, imgutils, refstruct};
 
 /// Wraps `ty::AVFrameSideDataType`
-/// Handwritten
 ///
 /// The kind of side data attached to a frame, which decides how its payload
 /// is laid out: a C struct (`AVStereo3D`, `AVMasteringDisplayMetadata`, ...),
@@ -297,7 +296,6 @@ impl From<SideDataType> for ffi::AVFrameSideDataType {
 unsafe impl CPlainElem for SideDataType {}
 
 /// Wraps `ty::AVActiveFormatDescription`
-/// Handwritten
 ///
 /// An Active Format Description (ETSI TS 101 154): which part of a coded
 /// picture carries the image the producer means to be shown, and which part
@@ -444,7 +442,6 @@ impl From<u8> for ActiveFormatDescription {
 unsafe impl CPlainElem for ActiveFormatDescription {}
 
 /// Wraps `ty::AVSideDataProps`
-/// Handwritten
 ///
 /// A set of `AVSideDataProps` bits: what a side data type's payload depends
 /// on (the video dimensions, its color encoding, the channel layout), whether

@@ -63,7 +63,6 @@ use super::opt::impl_class_object;
 use super::pixdesc::{PixelFormat, PixelFormatFlags};
 
 /// Wraps `ty::AVHWDeviceType`
-/// Handwritten
 ///
 /// The hardware API behind a device context: VAAPI, CUDA, Vulkan and so on,
 /// or [`NONE`](Self::NONE) for no device.
@@ -214,7 +213,6 @@ impl From<DeviceType> for ffi::AVHWDeviceType {
 unsafe impl CPlainElem for DeviceType {}
 
 /// Wraps `ty::AVHWFrameTransferDirection`
-/// Handwritten
 ///
 /// Which side of a transfer between a hardware frame and a software frame a
 /// format query asks about: the formats data can be downloaded into
@@ -739,8 +737,6 @@ fn count_within_limit(count: c_int) -> bool {
     count.cast_unsigned() <= MAX_REFERENCES
 }
 
-/// Handwritten
-///
 /// Releases a hardware device or frames context reference
 /// ([`DeviceReferenceBox`], [`FramesReferenceBox`]): C frees the
 /// `AVBufferRef` and drops one count of the context's buffer. The last one
@@ -1139,8 +1135,6 @@ impl DeviceReferenceRef<'_> {
     }
 }
 
-/// Handwritten
-///
 /// A device context that is allocated but not yet initialised, from
 /// [`DeviceReference::alloc`]: the only reference to it. Fill in what its
 /// backend needs through [`context_mut`](Self::context_mut): `hwctx`, the
@@ -1265,8 +1259,6 @@ impl fmt::Debug for UninitDevice {
     }
 }
 
-/// Handwritten
-///
 /// A hardware configuration of a device's backend, from
 /// [`DeviceReferenceRef::alloc_hw_config`]: an `av_mallocz` block, freed
 /// with `av_free` on drop, laid out as the backend's `AV<API>HWConfig`
@@ -1551,8 +1543,6 @@ impl<'a> FramesReferenceRef<'a> {
     }
 }
 
-/// Handwritten
-///
 /// A frames context that is allocated but not yet initialised, from
 /// [`DeviceReferenceRef::alloc_frames`]: the only reference to it. Fill in
 /// its hardware and software formats, size and, optionally, initial pool
@@ -1665,8 +1655,6 @@ impl fmt::Debug for UninitFrames {
     }
 }
 
-/// Handwritten
-///
 /// A hardware frame: a frame whose data are surfaces of a hardware frames
 /// context, from [`FramesReferenceRef::get_buffer`] or a mapping
 /// ([`map_to`](Self::map_to)). It owns a reference to its frames context
@@ -2005,8 +1993,6 @@ impl fmt::Debug for HardwareFrame {
     }
 }
 
-/// Handwritten
-///
 /// A hardware frame mapped to normal memory, from [`HardwareFrame::map`]:
 /// a software frame whose planes show the surface, as the backend mapped
 /// it. It holds a reference to the hardware frame, and the mapping is
@@ -2646,8 +2632,6 @@ unsafe impl Send for FramesConstraintsRef<'_> {}
 // SAFETY: as above.
 unsafe impl Sync for FramesConstraintsRef<'_> {}
 
-/// Handwritten
-///
 /// Releases a [`FramesConstraintsBox`]: C frees both format lists, then the
 /// structure. Its constructor is C's own first step: a zero-filled structure
 /// with sizes unlimited. `impl_cdrop!` would need a raw-pointer adapter only

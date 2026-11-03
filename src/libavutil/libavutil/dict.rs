@@ -112,8 +112,6 @@ pub struct DictionaryFree;
 /// of memory, where `clone` aborts.
 pub type DictionaryBox = CBox<Dictionary, DictionaryFree>;
 
-/// Handwritten
-///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the
 /// dictionary's slot; the trait method holds the slot itself.
 // SAFETY: `av_dict_free` releases a dictionary `av_dict_set` (directly or
@@ -133,8 +131,6 @@ unsafe impl CDrop<Dictionary> for DictionaryFree {
     }
 }
 
-/// Handwritten
-///
 /// The copy needs a fresh destination slot, the `AV_DICT_MULTIKEY` flag (with
 /// no flags C overwrites a key equal to an earlier one, case-insensitively,
 /// and the copy loses entries) and the release of a partial copy on failure,

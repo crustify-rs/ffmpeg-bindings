@@ -42,7 +42,6 @@ use super::ffi;
 use super::opt::{ObjectRef, OptionDef};
 
 /// Wraps `ty::AVClassCategory`
-/// Handwritten
 ///
 /// The category an `AVClass` reports for visualization (the log colour).
 ///
@@ -196,7 +195,6 @@ impl From<ClassCategory> for ffi::AVClassCategory {
 }
 
 /// Wraps `ty::AVClassStateFlags`
-/// Handwritten
 ///
 /// A set of `AVClassStateFlags` bits, the state an object exposes through its
 /// `AVClass`'s `state_flags_offset`.

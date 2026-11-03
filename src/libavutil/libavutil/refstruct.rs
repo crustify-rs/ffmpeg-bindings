@@ -374,8 +374,6 @@ pub struct RefStructPoolUnref;
 /// `None`: see [`RefStructPool`].
 pub type RefStructPoolArc = CArc<RefStructPool, RefStructPoolUnref>;
 
-/// Handwritten
-///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the pool's
 /// slot; the trait method holds the slot itself.
 // SAFETY: `av_refstruct_pool_uninit` (`av_refstruct_unref` on the slot)
@@ -395,8 +393,6 @@ unsafe impl CDrop<RefStructPool> for RefStructPoolUnref {
     }
 }
 
-/// Handwritten
-///
 /// The up-ref returns its argument, which carries no status: it cannot
 /// fail, so `c_up_ref` always reports success. `c_is_sole_owner` keeps the
 /// default `false`: `av_refstruct_exclusive` does not count the entries that
@@ -594,8 +590,6 @@ mod sealed {
     impl Sealed for super::ConstRefStructUnref {}
 }
 
-/// Handwritten
-///
 /// A generic policy over every payload type, so no `impl_cdrop!`; C takes the
 /// reference's slot rather than the object. It covers the uninitialised
 /// storage of [`CAlloc`] too, whose release never reads the payload.
@@ -622,8 +616,6 @@ unsafe impl<T> CDrop<T> for RefStructUnref {
     }
 }
 
-/// Handwritten
-///
 /// A generic policy over every payload type, so no `impl_crefclone!`.
 // SAFETY: `av_refstruct_ref` increments the count of the live object and
 // cannot fail; it is used only where leaked references cannot wrap the
@@ -652,8 +644,6 @@ unsafe impl<T: CCell> CRefClone<T> for RefStructUnref {
     }
 }
 
-/// Handwritten
-///
 /// A generic allocator over every zeroable payload type. Payloads aligned
 /// beyond the 16 bytes C guarantees are rejected at compile time:
 ///
@@ -685,8 +675,6 @@ unsafe impl<T: CZeroable> CAllocZeroed<T> for RefStructUnref {
     }
 }
 
-/// Handwritten
-///
 /// A generic allocator of uninitialised storage for every payload type:
 /// `av_refstruct_alloc_ext_c` with `AV_REFSTRUCT_FLAG_NO_ZEROING` and no
 /// release callback, for a payload C initialises in place.
@@ -721,8 +709,6 @@ unsafe impl<T: CCell> CAlloc<T> for RefStructUnref {
     }
 }
 
-/// Handwritten
-///
 /// As for [`RefStructUnref`].
 // SAFETY: as for `CDrop for RefStructUnref`: a `ConstRefStructUnref`
 // reference comes only from a `RefStructUnref` one (`to_const`,
@@ -738,8 +724,6 @@ unsafe impl<T: CCell> CDrop<T> for ConstRefStructUnref {
     }
 }
 
-/// Handwritten
-///
 /// A generic policy over every payload type, so no `impl_crefclone!`. It
 /// keeps `c_is_sole_owner`'s default `false`: a `const` reference never
 /// writes, so it never hands out the exclusive handle.
@@ -1039,8 +1023,6 @@ struct PoolState<T: CCell + 'static, S> {
     zero_before_init: bool,
 }
 
-/// Handwritten
-///
 /// One counted reference to a [`RefStructPool`] whose entries hold a `T`:
 /// `get` hands them out as the only reference to a `RefStruct` object, which
 /// returns to the pool when its last reference is released.

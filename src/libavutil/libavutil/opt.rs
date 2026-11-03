@@ -377,7 +377,6 @@ impl<'a> OptionDefRef<'a> {
 }
 
 /// Wraps `ty::AVOptionType`
-/// Handwritten
 ///
 /// The type of an option (`enum AVOptionType`): the C type of the value it
 /// names in its object, and which `av_opt_get_*` / `av_opt_set_*` routines and
@@ -843,8 +842,6 @@ pub struct OptionRangesFree;
 /// ```
 pub type OptionRangesBox = CBox<OptionRanges, OptionRangesFree>;
 
-/// Handwritten
-///
 /// `impl_cdrop!` would need a raw-pointer adapter only to pass the list's
 /// slot; the trait method holds the slot itself.
 // SAFETY: `av_opt_freep_ranges` releases a list `av_opt_query_ranges` or
@@ -1399,8 +1396,6 @@ impl BitOr for SerializeFlags {
     }
 }
 
-/// Handwritten
-///
 /// A shared borrow of an `AVOptions`-enabled object, the `void *obj` of
 /// `opt.h`: a C struct whose first member is a non-NULL `const AVClass *`
 /// whose option table describes the struct's own fields. Its getters read
@@ -1452,8 +1447,6 @@ pub struct ObjectRef<'a> {
     _borrow: PhantomData<&'a c_void>,
 }
 
-/// Handwritten
-///
 /// An exclusive borrow of an `AVOptions`-enabled object: the getters of
 /// [`ObjectRef`] through [`as_ref`](Self::as_ref), and the setters, which
 /// parse, check and store option values, free them, and copy them from
@@ -1464,8 +1457,6 @@ pub struct ObjectMut<'a> {
     _borrow: PhantomData<&'a mut c_void>,
 }
 
-/// Handwritten
-///
 /// A wrapped C type that is an `AVClass`-enabled object: a struct whose
 /// first member is its `const AVClass *`, which C's allocator sets to the
 /// class whose option table and callbacks describe the struct. Its shared
@@ -2435,8 +2426,6 @@ impl ObjectMut<'_> {
     }
 }
 
-/// Handwritten
-///
 /// A Rust object that is only its class pointer: an `AVOptions`-enabled
 /// object of a class without options, children or offsets into the object,
 /// such as one [`Class::new`] builds. It is a log context, for

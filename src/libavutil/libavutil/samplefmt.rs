@@ -26,7 +26,6 @@ use super::ffi;
 use super::mem::HeapVec;
 
 /// Wraps `ty::AVSampleFormat`
-/// Handwritten
 ///
 /// The format of an audio sample: its native-endian C type (`u8`, `i16`,
 /// `i32`, `i64`, `f32` or `f64`) and whether the channels are interleaved in
@@ -460,8 +459,6 @@ impl fmt::Display for SamplesError {
 
 impl std::error::Error for SamplesError {}
 
-/// Handwritten
-///
 /// A shared view of the planes of a sample buffer, from
 /// [`SampleBuffer::as_ref`] or laid out over a caller's bytes by
 /// [`from_buffer`](Self::from_buffer). It reads the samples of each plane,
@@ -474,8 +471,6 @@ pub struct SamplesRef<'a> {
     layout: Layout,
 }
 
-/// Handwritten
-///
 /// An exclusive view of the planes of a sample buffer, from
 /// [`SampleBuffer::as_mut`] or laid out over a caller's bytes by
 /// [`from_buffer`](Self::from_buffer). It writes the samples of each plane,
@@ -794,8 +789,6 @@ impl<'a> SamplesMut<'a> {
     }
 }
 
-/// Handwritten
-///
 /// A sample buffer C allocated, whose planes are initialised to silence, and
 /// which is released by `av_free`. Its samples are read through
 /// [`as_ref`](Self::as_ref) and written through [`as_mut`](Self::as_mut).
@@ -896,8 +889,6 @@ impl fmt::Debug for SampleBuffer {
     }
 }
 
-/// Handwritten
-///
 /// A [`SampleBuffer`] together with the array of its plane pointers, both
 /// allocated by C and released by `av_free`, as C code taking a
 /// `uint8_t **` of planes (and freeing it with `av_freep`) expects them.

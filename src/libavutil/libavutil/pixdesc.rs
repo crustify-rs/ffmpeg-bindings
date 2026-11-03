@@ -48,7 +48,6 @@ use ffibox::{CMutSeam, CPlainElem, CRefSeam, CSlice, CSliceMut, CZeroable, defin
 use super::ffi;
 use super::imgutils::{Planes, PlanesMut};
 /// Wraps `ty::AVColorSpace`
-/// Handwritten
 ///
 /// The YUV colour space (matrix coefficients) of a picture, as numbered by
 /// ISO/IEC 23091-2:2019 subclause 8.3.
@@ -200,7 +199,6 @@ impl From<ColorSpace> for ffi::AVColorSpace {
 unsafe impl CPlainElem for ColorSpace {}
 
 /// Wraps `ty::AVColorTransferCharacteristic`
-/// Handwritten
 ///
 /// The colour transfer characteristic (opto-electronic transfer function) of
 /// a picture, as numbered by ISO/IEC 23091-2:2019 subclause 8.2, with
@@ -365,7 +363,6 @@ impl From<ColorTransfer> for ffi::AVColorTransferCharacteristic {
 unsafe impl CPlainElem for ColorTransfer {}
 
 /// Wraps `ty::AVAlphaMode`
-/// Handwritten
 ///
 /// How a picture's alpha channel relates to its colour values.
 ///
@@ -466,7 +463,6 @@ impl From<AlphaMode> for ffi::AVAlphaMode {
 unsafe impl CPlainElem for AlphaMode {}
 
 /// Wraps `ty::AVPixelFormat`
-/// Handwritten
 ///
 /// The layout of a picture's pixels in memory: its planes, the order and
 /// depth of their components, its chroma subsampling and byte order, or the
@@ -1587,7 +1583,6 @@ impl From<PixelFormat> for ffi::AVPixelFormat {
 unsafe impl CPlainElem for PixelFormat {}
 
 /// Wraps `ty::AVColorPrimaries`
-/// Handwritten
 ///
 /// The chromaticity coordinates of a picture's source primaries, as
 /// ISO/IEC 23091-2 subclause 8.1 and ITU-T H.273 number them, plus FFmpeg's
@@ -1736,7 +1731,6 @@ impl From<ColorPrimaries> for ffi::AVColorPrimaries {
 unsafe impl CPlainElem for ColorPrimaries {}
 
 /// Wraps `ty::AVColorRange`
-/// Handwritten
 ///
 /// The range of values a picture's samples take: limited ("MPEG", "TV")
 /// with head- and footroom, or full ("JPEG", "PC"), as ITU-R BT.709,
@@ -1845,7 +1839,6 @@ impl From<ColorRange> for ffi::AVColorRange {
 unsafe impl CPlainElem for ColorRange {}
 
 /// Wraps `ty::AVChromaLocation`
-/// Handwritten
 ///
 /// Where the first (top left) chroma sample of a subsampled picture sits
 /// relative to the luma samples:

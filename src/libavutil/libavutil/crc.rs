@@ -5,7 +5,6 @@ use core::fmt;
 use super::ffi;
 
 /// Wraps `ty::AVCRCId`
-/// Handwritten
 ///
 /// A standard CRC polynomial identifier, layout-compatible with C's enum.
 /// It owns no resources and needs no lifecycle or borrowed handles; ffibox
@@ -159,8 +158,6 @@ impl Table {
     }
 }
 
-/// Handwritten
-///
 /// A copyable, shared handle to C's immutable process-lifetime standard table.
 ///
 /// This stores its identifier rather than a fixed-size slice: accelerated C
