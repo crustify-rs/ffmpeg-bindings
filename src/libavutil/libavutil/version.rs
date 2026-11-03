@@ -4,20 +4,22 @@ use core::ffi::CStr;
 
 use super::ffi;
 
-/// Wraps: `avutil_version`
+/// Wraps `fn::avutil_version`
 ///
 /// The `LIBAVUTIL_VERSION_INT` the library was built as:
 /// `major << 16 | minor << 8 | micro`.
+#[doc(alias = "avutil_version")]
 #[must_use]
 pub fn version() -> u32 {
     // SAFETY: `avutil_version` takes no arguments and returns a constant.
     unsafe { ffi::avutil_version() }
 }
 
-/// Wraps: `av_version_info`
+/// Wraps `fn::av_version_info`
 ///
 /// An informative version string, usually the release number or a git
 /// commit description. It has no fixed format and must not be parsed.
+#[doc(alias = "av_version_info")]
 #[must_use]
 pub fn version_info() -> &'static CStr {
     // SAFETY: as the comment below states, for this part of the operation.
@@ -27,9 +29,10 @@ pub fn version_info() -> &'static CStr {
     unsafe { CStr::from_ptr(version_info) }
 }
 
-/// Wraps: `avutil_configuration`
+/// Wraps `fn::avutil_configuration`
 ///
 /// The `configure` command line libavutil was built with.
+#[doc(alias = "avutil_configuration")]
 #[must_use]
 pub fn configuration() -> &'static CStr {
     // SAFETY: as the comment below states, for this part of the operation.
@@ -39,10 +42,11 @@ pub fn configuration() -> &'static CStr {
     unsafe { CStr::from_ptr(avutil_configuration_2) }
 }
 
-/// Wraps: `avutil_license`
+/// Wraps `fn::avutil_license`
 ///
 /// The license libavutil was built under, such as `LGPL version 2.1 or
 /// later`.
+#[doc(alias = "avutil_license")]
 #[must_use]
 pub fn license() -> &'static CStr {
     // SAFETY: as the comment below states, for this part of the operation.
