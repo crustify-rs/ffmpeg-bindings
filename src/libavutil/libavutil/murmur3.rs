@@ -10,9 +10,10 @@ use ffibox::{CBox, CDrop, CMutSeam, CNew, define_ctype};
 use super::ffi;
 
 define_ctype!(
-    /// Wraps: AVMurMur3
+    /// Wraps `ty::AVMurMur3`
     ///
     /// Opaque MurmurHash3 context. No private fields are exposed by C's API.
+    #[doc(alias = "AVMurMur3")]
     Murmur3,
     Murmur3Ref,
     Murmur3Mut,
@@ -33,11 +34,12 @@ pub struct Murmur3Free;
 /// ```
 pub type Murmur3Box = CBox<Murmur3, Murmur3Free>;
 
-/// Wraps: `av_free`
 // SAFETY: the owner hands this policy one uniquely owned av_malloc-family
 // context allocation. The context has no child resources; av_free releases
 // the whole allocation without reading its state.
 unsafe impl CDrop<Murmur3> for Murmur3Free {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Murmur3>) {
         // SAFETY: the caller transfers the live context allocation to this
         // release policy exactly once. av_free accepts its erased pointer.
@@ -45,10 +47,11 @@ unsafe impl CDrop<Murmur3> for Murmur3Free {
     }
 }
 
-/// Wraps: `av_murmur3_alloc`
 // SAFETY: allocation uses C's full private size, init establishes all state
 // invariants, and the paired release policy calls av_free exactly once.
 unsafe impl CNew<Murmur3> for Murmur3Free {
+    /// Wraps `fn::av_murmur3_alloc`
+    #[doc(alias = "av_murmur3_alloc")]
     fn c_new(&self) -> Option<NonNull<Murmur3>> {
         // SAFETY: allocation has no preconditions and returns a fresh C context
         // or NULL, which is rejected before attempting initialization.
@@ -76,38 +79,42 @@ impl Murmur3 {
 }
 
 impl Murmur3Mut<'_> {
-    /// Wraps: `av_murmur3_init`
+    /// Wraps `fn::av_murmur3_init`
     ///
     /// Restart hashing with C's fixed seed, discarding all previous state.
+    #[doc(alias = "av_murmur3_init")]
     pub fn reset(&mut self) {
         // SAFETY: the exclusive handle keeps the full C context live; init
         // initializes in place and neither reads nor retains previous input.
         unsafe { ffi::av_murmur3_init(self.as_mut_ptr()) }
     }
 
-    /// Wraps: `av_murmur3_init_seeded`
+    /// Wraps `fn::av_murmur3_init_seeded`
     ///
     /// Restart hashing with the given seed, discarding all previous state.
+    #[doc(alias = "av_murmur3_init_seeded")]
     pub fn reset_seeded(&mut self, seed: u64) {
         // SAFETY: exclusive access to the full context allocation. Every u64
         // seed is accepted and init initializes all context fields in place.
         unsafe { ffi::av_murmur3_init_seeded(self.as_mut_ptr(), seed) }
     }
 
-    /// Wraps: `av_murmur3_update`
+    /// Wraps `fn::av_murmur3_update`
     ///
     /// Append bytes, borrowed only for the duration of the C call.
+    #[doc(alias = "av_murmur3_update")]
     pub fn update(&mut self, data: &[u8]) {
         // SAFETY: exclusive initialized context and len readable input bytes;
         // C does not mutate or retain the input and accepts empty slices.
         unsafe { ffi::av_murmur3_update(self.as_mut_ptr(), data.as_ptr(), data.len()) }
     }
 
-    /// Wraps: `av_murmur3_final`
+    /// Wraps `fn::av_murmur3_final`
     ///
     /// Output the 16 digest bytes in C's little-endian order. This zero-pads
     /// the partial block as C does; use [`Self::reset`] or [`Self::reset_seeded`]
     /// before starting a new message.
+    #[doc(alias = "av_murmur3_final")]
     pub fn finalize(&mut self) -> [u8; 16] {
         let mut digest = [0; 16];
         // SAFETY: exclusive initialized context and exactly 16 writable bytes;
