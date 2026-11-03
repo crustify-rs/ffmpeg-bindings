@@ -34,7 +34,7 @@ fn decode_capacity(output_len: usize, input_len: impl FnOnce() -> usize) -> Resu
     Ok(capacity)
 }
 
-/// Wraps: `av_base64_encode`
+/// Wraps `fn::av_base64_encode`
 ///
 /// Encode into `output`, including a terminating NUL. Return a view tied to
 /// its exclusive borrow. Insufficient space or an input too long for C's
@@ -48,6 +48,7 @@ fn decode_capacity(output_len: usize, input_len: impl FnOnce() -> usize) -> Resu
 /// # Panics
 ///
 /// Only if C's base64 encoder leaves the output without its NUL.
+#[doc(alias = "av_base64_encode")]
 pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
     let needed = encoded_size(input.len())?;
     // `needed` stays below `INT_MAX`, so a buffer of at least `needed` bytes
@@ -75,7 +76,7 @@ pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
     Ok(CStr::from_bytes_with_nul(&output[..needed]).expect("C base64 encoder terminates ASCII"))
 }
 
-/// Wraps: `av_base64_decode`
+/// Wraps `fn::av_base64_decode`
 ///
 /// Decode into `output`. Like the C implementation, a short destination
 /// truncates the decoded bytes but still checks the rest of the input.
@@ -90,6 +91,7 @@ pub fn encode<'a>(input: &[u8], output: &'a mut [u8]) -> Result<&'a CStr, i32> {
 /// Invalid data returns C's negative error; earlier bytes may be written. An output longer than
 /// `INT_MAX` bytes is offered to C as `INT_MAX` bytes; if the input could decode to more than that,
 /// `-EINVAL` is returned without writing anything, since C could not report such a length.
+#[doc(alias = "av_base64_decode")]
 pub fn decode(input: &CStr, output: &mut [u8]) -> Result<usize, i32> {
     let capacity = decode_capacity(output.len(), || input.count_bytes())?;
     let mut empty = 0u8;
@@ -106,13 +108,14 @@ pub fn decode(input: &CStr, output: &mut [u8]) -> Result<usize, i32> {
     usize::try_from(ret).map_err(|_| ret)
 }
 
-/// Wraps: `av_base64_decode`
+/// Wraps `fn::av_base64_decode`
 ///
 /// Check C's accepted base64 syntax without producing decoded data.
 ///
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_base64_decode` returns when it fails.
+#[doc(alias = "av_base64_decode")]
 pub fn validate(input: &CStr) -> Result<(), i32> {
     // SAFETY: a null output selects C's validity-only path; the readable
     // NUL-terminated input bounds every read and C retains no pointer.
