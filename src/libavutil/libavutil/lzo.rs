@@ -24,7 +24,7 @@ fn padded(bytes: &[u8], padding: usize) -> Result<Vec<u8>, i32> {
     Ok(buffer)
 }
 
-/// Wraps: `av_lzo1x_decode`
+/// Wraps `fn::av_lzo1x_decode`
 ///
 /// Decode `LZO1x` with C's required input/output padding hidden in private
 /// initialized scratch buffers. Both lengths must fit C's `int`.
@@ -35,6 +35,7 @@ fn padded(bytes: &[u8], padding: usize) -> Result<Vec<u8>, i32> {
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_lzo1x_decode` returns when it fails.
+#[doc(alias = "av_lzo1x_decode")]
 pub fn decode(input: &[u8], output: &mut [u8]) -> Result<DecodeStatus, i32> {
     let source = padded(input, ffi::AV_LZO_INPUT_PADDING as usize)?;
     let mut destination = padded(output, ffi::AV_LZO_OUTPUT_PADDING as usize)?;
