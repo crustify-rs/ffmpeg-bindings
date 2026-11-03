@@ -12856,7 +12856,7 @@
       "link_unit": "libavutil",
       "module": "libavutil/opt.c",
       "foundational": false,
-      "status": "todo",
+      "status": "done",
       "depends_on": {
         "scheduled": [
           791,
@@ -12874,7 +12874,7 @@
         {
           "index": 0,
           "kind": "wrap",
-          "status": "todo",
+          "status": "done",
           "items": [
             {
               "name": "AVOption",
@@ -12905,7 +12905,9 @@
               "home": "src/libavutil/libavutil/opt.rs"
             }
           ],
-          "commits": []
+          "commits": [
+            "2d3ce1afec5dacb7c3bd34cbb888b73d5e2fda53"
+          ]
         }
       ]
     },
