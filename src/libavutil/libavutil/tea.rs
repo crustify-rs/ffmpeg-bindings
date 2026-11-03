@@ -13,7 +13,7 @@ use super::ffi;
 use super::mem::Heap;
 
 define_ctype!(
-    /// Wraps: AVTEA
+    /// Wraps `ty::AVTEA`
     ///
     /// An initialized TEA context. Its private C fields are not exposed.
     /// No `Send`/`Sync` guarantee is added.
@@ -35,6 +35,7 @@ define_ctype!(
     /// first.init(&[1; 16], 64);
     /// second.init(&[2; 16], 64);
     /// ```
+    #[doc(alias = "AVTEA")]
     Tea,
     TeaRef,
     TeaMut,
@@ -57,10 +58,11 @@ pub type TeaBox = CBox<Tea, TeaFree>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TeaFree;
 
-/// Wraps: `av_free`
 // SAFETY: TeaBox adopts only `av_tea_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Tea> for TeaFree {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Tea>) {
         // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
         unsafe { <Heap as CDrop<Tea>>::c_drop(&Heap, ptr) }
@@ -68,11 +70,12 @@ unsafe impl CDrop<Tea> for TeaFree {
 }
 
 impl Tea {
-    /// Wraps: `av_tea_alloc`
+    /// Wraps `fn::av_tea_alloc`
     ///
     /// Allocate and initialize a context; `None` means allocation failed.
     /// `rounds` is passed unchanged (64 is the standard round count).
     /// The key is copied, so its borrow ends when this call returns.
+    #[doc(alias = "av_tea_alloc")]
     #[must_use]
     pub fn new(key: &[u8; 16], rounds: i32) -> Option<TeaBox> {
         // SAFETY: as the comment below states, for this part of the operation.
@@ -87,10 +90,11 @@ impl Tea {
 }
 
 impl TeaMut<'_> {
-    /// Wraps: `av_tea_init`
+    /// Wraps `fn::av_tea_init`
     ///
     /// Replace the key and round count. C copies the 16 key bytes and retains
     /// no pointer to the key. All signed round counts are accepted by C.
+    #[doc(alias = "av_tea_init")]
     pub fn init(&mut self, key: &[u8; 16], rounds: i32) {
         // SAFETY: the handle exclusively borrows a full C allocation. C writes
         // only that context and reads exactly the 16 live key bytes, retaining
@@ -99,9 +103,10 @@ impl TeaMut<'_> {
     }
 }
 
-/// Wraps: `av_tea_size`
+/// Wraps `var::av_tea_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_tea_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -120,7 +125,7 @@ fn crypt_count(input_len: usize, output_len: usize) -> Result<i32, CryptError> {
 }
 
 impl TeaRef<'_> {
-    /// Wraps: `av_tea_crypt`
+    /// Wraps `fn::av_tea_crypt`
     ///
     /// Encrypt or decrypt whole 8-byte blocks. A mutable
     /// IV selects CBC and is updated after each block; `None` selects ECB.
@@ -131,6 +136,7 @@ impl TeaRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_tea_crypt")]
     pub fn crypt(
         &self,
         dst: &mut [u8],
@@ -155,6 +161,8 @@ impl TeaRef<'_> {
         Ok(())
     }
 
+    /// Wraps `fn::av_tea_crypt`
+    ///
     /// The in-place form of `crypt`, with the same validation and IV semantics.
     ///
     /// The IV cannot overlap the data:
@@ -170,6 +178,7 @@ impl TeaRef<'_> {
     ///
     /// Returns a [`CryptError`] when it rejects the buffers, leaving the context, output and IV
     /// unchanged.
+    #[doc(alias = "av_tea_crypt")]
     pub fn crypt_in_place(
         &self,
         data: &mut [u8],
