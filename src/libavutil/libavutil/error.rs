@@ -8,7 +8,7 @@ use core::ffi::CStr;
 
 use super::ffi;
 
-/// Wraps: `av_strerror`
+/// Wraps `fn::av_strerror`
 ///
 /// - `Ok` with FFmpeg's own description, or the system's for an `AVERROR(errno)` code;
 /// - `Err` with the generic "Error number N occurred" when no description is found or the system's
@@ -23,6 +23,7 @@ use super::ffi;
 ///
 /// Writes a description of the `AVERROR` code `errnum` into `buf` and returns it, NUL-terminated
 /// and truncated to fit:
+#[doc(alias = "av_strerror")]
 pub fn describe(errnum: i32, buf: &mut [u8]) -> Result<&CStr, &CStr> {
     // An empty slice's pointer is dangling, which C's `strerror_r` may not
     // receive even for a zero size; a live byte stands in for it, unwritten.
@@ -46,13 +47,14 @@ pub fn describe(errnum: i32, buf: &mut [u8]) -> Result<&CStr, &CStr> {
 /// defines itself (`AV_ERROR_MAX_STRING_SIZE`).
 pub const MAX_STRING_SIZE: usize = ffi::AV_ERROR_MAX_STRING_SIZE as usize;
 
-/// Wraps: `av_make_error_string`
+/// Wraps `fn::av_make_error_string`
 ///
 /// Writes the description of the `AVERROR` code `errnum` into `buf`, and
 /// returns it, as [`describe`] does without the status: FFmpeg's own text for its codes, the
 /// system's for a negated `errno`, and `Error number <errnum> occurred` for anything else,
 /// truncated to fit with its NUL. An empty `buf` yields an empty string.
 /// [`MAX_STRING_SIZE`] bytes hold every FFmpeg description untruncated.
+#[doc(alias = "av_make_error_string")]
 pub fn make_error_string(errnum: i32, buf: &mut [u8]) -> &CStr {
     if buf.is_empty() {
         return Default::default();
