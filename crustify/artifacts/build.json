@@ -3,34 +3,34 @@
   "version": 4,
   "build_commands": {
     "configure": "./configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite",
-    "build": "make -j48",
-    "test": "LD_LIBRARY_PATH=$(printf '%s:' \"$PWD\"/lib*) make -k -j48 fate"
+    "build": "make",
+    "test": "LD_LIBRARY_PATH=$(printf '%s:' \"$PWD\"/lib*) make -k fate"
   },
   "variants": {
     "plain": {
       "dir": "crustify/builds/plain",
       "configure": "../../../c/configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite",
-      "build": "make -j48"
+      "build": "make"
     },
     "coverage": {
       "dir": "crustify/builds/coverage",
       "configure": "../../../c/configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite --toolchain=gcov",
-      "build": "make -j48"
+      "build": "make"
     },
     "asan-ubsan": {
       "dir": "crustify/builds/asan-ubsan",
       "configure": "../../../c/configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite --toolchain=clang-asan-ubsan",
-      "build": "make -j48"
+      "build": "make"
     },
     "tsan": {
       "dir": "crustify/builds/tsan",
       "configure": "../../../c/configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite --toolchain=clang-tsan",
-      "build": "make -j48"
+      "build": "make"
     },
     "bsan": {
       "dir": "crustify/builds/bsan",
       "configure": "../../../c/configure --enable-shared --disable-static --disable-autodetect --enable-pthreads --enable-zlib --disable-doc --disable-stripping --samples=/work/ffmpeg-bindings/crustify/fate-suite --cc=/root/.rustup/toolchains/bsan/bin/clang --cxx=/root/.rustup/toolchains/bsan/bin/clang++ --extra-cflags='-fpass-plugin=/root/.rustup/toolchains/bsan/lib/libbsan_plugin.so -fno-omit-frame-pointer' --extra-ldexeflags='-rdynamic -Wl,--whole-archive /root/.rustup/toolchains/bsan/lib/libclang_rt.bsan-x86_64.a -Wl,--no-whole-archive' --extra-libs='/root/.rustup/toolchains/bsan/lib/libbsan_rt.a -lgcc_s -lm -lpthread -ldl'",
-      "build": "make -j48"
+      "build": "make"
     }
   }
 }
