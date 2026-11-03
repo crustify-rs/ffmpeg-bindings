@@ -2365,7 +2365,10 @@ mod device_class_object {
     impl Callback for Seen {
         fn log(record: Record<'_>) {
             let line = record.to_line(&mut true).unwrap_or_default();
-            let entry = (record.context() as usize, line.into_bytes());
+            let entry = (
+                record.context().map_or(0, log::LogContext::addr),
+                line.into_bytes(),
+            );
             SEEN.with(|s| s.borrow_mut().push(entry));
         }
     }

@@ -252,7 +252,11 @@ impl Callback for FormatAll {
             let _ = record.format_line(&mut buf, &mut true);
             let _ = record.write_line(&mut buf, &mut false);
         }
-        let entry = (record.level(), record.context() as usize, line);
+        let entry = (
+            record.level(),
+            record.context().map_or(0, log::LogContext::addr),
+            line,
+        );
         LINES.with(|l| l.borrow_mut().as_mut().unwrap().push(entry));
     }
 }
@@ -1472,5 +1476,116 @@ mod default_category {
                 });
             }
         });
+    }
+}
+
+/// UB tests of `LogContext::as_object`, which adopts the context a log
+/// callback receives as an `ObjectRef` within that handle's contract: objects
+/// whose options describe their fields, parents and children, read through
+/// their options from inside the callback, on several threads at once.
+mod context_as_object {
+    use core::ffi::c_void;
+    use std::cell::RefCell;
+    use std::thread;
+
+    use ffmpeg_bindings::libavutil::libavutil::log::{self, Callback, Level, Record};
+    use ffmpeg_bindings::libavutil::libavutil::opt::{ObjectRef, SearchFlags};
+
+    use super::LogState;
+    use crate::opt::fixture::Owned;
+
+    thread_local! {
+        /// The address and `int` option of each context adopted, while set.
+        static ADOPTED: RefCell<Option<Vec<(usize, i64, i64)>>> = const { RefCell::new(None) };
+    }
+
+    /// Adopts each record's context as an object of the options fixture's
+    /// class, and reads its `int` option, and the child's through it.
+    struct Adopt;
+
+    impl Callback for Adopt {
+        fn log(record: Record<'_>) {
+            if ADOPTED.with(|a| a.borrow().is_none()) {
+                return;
+            }
+            let Some(ctx) = record.context() else {
+                return;
+            };
+            // SAFETY: the tests below log only in objects of the fixture's
+            // class, whose options describe their fields, built and given
+            // their defaults by `Owned` and unwritten while they log.
+            let obj = unsafe { ctx.as_object() };
+            assert!(obj.class().ptr_eq(ctx.class()));
+            assert_eq!(obj.item_name(), ctx.item_name());
+            assert_eq!(obj.category(), ctx.category());
+            let own = obj.get_int(c"int", SearchFlags::NONE).unwrap();
+            // The child's `int`, found through the parent; the parent's own
+            // when it has none.
+            let child = obj.get_int(c"int", SearchFlags::CHILDREN).unwrap();
+            let entry = (ctx.addr(), own, child);
+            ADOPTED.with(|a| a.borrow_mut().as_mut().unwrap().push(entry));
+        }
+    }
+
+    /// Logs in `obj`.
+    ///
+    /// # Safety
+    ///
+    /// `obj` satisfies `ObjectRef`'s contract for the call.
+    unsafe fn log_in(obj: *mut c_void, level: Level) {
+        // SAFETY: the caller's contract.
+        let obj = unsafe { ObjectRef::from_ptr(obj) }.unwrap();
+        log::log_with_context(obj, level, c"adopted\n");
+    }
+
+    /// Writes `value` to the `int` field of the fixture object `obj`.
+    fn set_int(obj: &Owned, value: i32) {
+        // SAFETY: `obj` is live and nothing else reaches it.
+        unsafe { (*obj.ptr()).int = value };
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn adopted_contexts_read_their_options() {
+        let _s = LogState::lock();
+        log::set_callback::<Adopt>();
+        thread::scope(|s| {
+            for t in 0..4 {
+                s.spawn(move || {
+                    let parent = Owned::with_child();
+                    let alone = Owned::new();
+                    set_int(&parent, 10 + t);
+                    set_int(&alone, -t);
+                    // SAFETY: the child `with_child` made, live while
+                    // `parent` is, of the same class.
+                    unsafe { (*parent.child()).int = 99 };
+                    ADOPTED.with(|a| *a.borrow_mut() = Some(Vec::new()));
+                    for level in [Level::PANIC, Level::ERROR, Level::TRACE] {
+                        // SAFETY: fixture objects, each with its defaults,
+                        // unwritten while they log; the child belongs to
+                        // `parent`, which outlives the call.
+                        unsafe { log_in(parent.as_obj(), level) };
+                        // SAFETY: as above, for the child.
+                        unsafe { log_in(parent.child().cast(), level) };
+                        // SAFETY: as above, for `alone`.
+                        unsafe { log_in(alone.as_obj(), level) };
+                        log::log(level, c"general\n");
+                    }
+                    let seen = ADOPTED.with(|a| a.borrow_mut().take().unwrap());
+                    let (p, c, a) = (
+                        parent.as_obj().addr(),
+                        parent.child().addr(),
+                        alone.as_obj().addr(),
+                    );
+                    let want = [
+                        (p, i64::from(10 + t), 99),
+                        (c, 99, 99),
+                        (a, i64::from(-t), i64::from(-t)),
+                    ];
+                    assert_eq!(seen, [want, want, want].concat());
+                });
+            }
+        });
+        log::set_default_callback();
     }
 }

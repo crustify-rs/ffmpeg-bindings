@@ -969,7 +969,7 @@ impl Callback for RustCapture {
         assert_eq!(p, prefix_after);
         capture_push(Line {
             level: record.level().raw(),
-            context: record.context() as usize,
+            context: record.context().map_or(0, log::LogContext::addr),
             measured,
             written,
             prefix_after,
@@ -1973,5 +1973,149 @@ mod default_category {
             theirs.category = raw;
             assert_eq!(mine(&ours), ClassCategory::from(c_category(&theirs)));
         }
+    }
+}
+
+/// The context a Rust log callback receives, `Record::context`, against the
+/// raw context C hands a callback: the same object, named and categorised as
+/// C names and categorises it, through the class's callbacks or its defaults.
+mod record_context {
+    use core::ffi::{CStr, c_char, c_void};
+    use std::cell::RefCell;
+
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::{
+        self, Callback, Level, Record, default_category, default_item_name,
+    };
+    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
+
+    use super::LogState;
+
+    /// An object that names and categorises itself through its fields.
+    #[repr(C)]
+    struct Obj {
+        class: *const ffi::AVClass,
+        name: *const c_char,
+        category: ffi::AVClassCategory,
+    }
+
+    unsafe extern "C" fn own_name(ctx: *mut c_void) -> *const c_char {
+        // SAFETY: C passes the live `Obj` the class belongs to.
+        unsafe { (*ctx.cast::<Obj>()).name }
+    }
+
+    unsafe extern "C" fn own_category(ctx: *mut c_void) -> ffi::AVClassCategory {
+        // SAFETY: as in `own_name`.
+        unsafe { (*ctx.cast::<Obj>()).category }
+    }
+
+    /// What one side read of a context: its address, name, category, and
+    /// the default name and category of its class.
+    type Read = (usize, Option<Vec<u8>>, u32, Option<Vec<u8>>, u32);
+
+    thread_local! {
+        static READ: RefCell<Vec<Option<Read>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Reads each record's context through the safe API.
+    struct Rust;
+
+    impl Callback for Rust {
+        fn log(record: Record<'_>) {
+            let read = record.context().map(|ctx| {
+                (
+                    ctx.addr(),
+                    ctx.item_name().map(|n| n.to_bytes().to_vec()),
+                    ctx.category().value(),
+                    default_item_name(ctx).map(|n| n.to_bytes().to_vec()),
+                    default_category(ctx).value(),
+                )
+            });
+            READ.with(|r| r.borrow_mut().push(read));
+        }
+    }
+
+    /// The bytes of a C string, `None` for NULL.
+    fn bytes(s: *const c_char) -> Option<Vec<u8>> {
+        // SAFETY: the strings below are NULL or literals.
+        (!s.is_null()).then(|| unsafe { CStr::from_ptr(s) }.to_bytes().to_vec())
+    }
+
+    /// The same reads as C's default callback makes them, on `obj`.
+    fn c_read(obj: *mut Obj) -> Option<Read> {
+        // SAFETY: `obj` is a live `Obj`.
+        let class = unsafe { (*obj).class };
+        if class.is_null() {
+            return None;
+        }
+        let ctx = obj.cast::<c_void>();
+        // SAFETY: a live class, unwritten.
+        let class = unsafe { class.read() };
+        let (item_name, get_category) = (class.item_name, class.get_category);
+        // SAFETY: the class's callback, or the default, accepts `obj`.
+        let name = unsafe { item_name.unwrap_or(ffi::av_default_item_name)(ctx) };
+        // SAFETY: as above.
+        let category = unsafe { get_category.unwrap_or(ffi::av_default_get_category)(ctx) };
+        // SAFETY: the defaults read only the live class pointer and class.
+        let default_name = unsafe { ffi::av_default_item_name(ctx) };
+        // SAFETY: as above.
+        let default_category = unsafe { ffi::av_default_get_category(ctx) };
+        Some((
+            ctx.addr(),
+            bytes(name),
+            category,
+            bytes(default_name),
+            default_category,
+        ))
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn contexts_read_as_c_reads_them() {
+        let _s = LogState::lock();
+        let plain = ffi::AVClass {
+            class_name: c"crustify-plain".as_ptr(),
+            category: ffi::AV_CLASS_CATEGORY_MUXER,
+            ..Default::default()
+        };
+        let unnamed = ffi::AVClass {
+            category: 4242,
+            ..Default::default()
+        };
+        let own = ffi::AVClass {
+            class_name: c"crustify-own-class".as_ptr(),
+            item_name: Some(own_name),
+            get_category: Some(own_category),
+            category: ffi::AV_CLASS_CATEGORY_NA,
+            ..Default::default()
+        };
+        let mut objs = [
+            (&raw const plain, c"unused".as_ptr(), 0),
+            (&raw const unnamed, c"unused".as_ptr(), 0),
+            (
+                &raw const own,
+                c"crustify-own-name".as_ptr(),
+                ffi::AV_CLASS_CATEGORY_FILTER,
+            ),
+            (&raw const own, core::ptr::null(), 46),
+        ]
+        .map(|(class, name, category)| Obj {
+            class,
+            name,
+            category,
+        });
+        log::set_callback::<Rust>();
+        log::log(Level::INFO, c"general\n");
+        for obj in &mut objs {
+            // SAFETY: a live object whose class's callbacks accept it, with
+            // no options or offsets; nothing writes it while it logs.
+            let o = unsafe { ObjectRef::from_ptr((&raw mut *obj).cast()) }.unwrap();
+            log::log_with_context(o, Level::INFO, c"context\n");
+        }
+        log::set_default_callback();
+        let rust = READ.with(|r| r.take());
+        let mut c = vec![None];
+        c.extend(objs.iter_mut().map(|o| c_read(o)));
+        assert_eq!(rust, c);
     }
 }

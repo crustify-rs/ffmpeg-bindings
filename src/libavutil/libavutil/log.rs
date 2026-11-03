@@ -21,11 +21,11 @@
 //! object's own class can be a local or `static` built by [`Class::new`];
 //! [`Record::class`] reads the class of a message's context.
 //!
-//! A logging context, an `AVClass`-enabled object, stays a raw `void *` until
-//! the types that carry an `AVClass` are wrapped by a later batch:
+//! A logging context, an `AVClass`-enabled object, is a [`LogContext`]:
 //! [`log_with_context`], [`log_fmt_with_context`], [`log_once_with_context`],
-//! [`default_item_name`] and [`default_category`] take it, [`Record::context`]
-//! returns it, and the class callbacks' handles take it.
+//! [`default_item_name`] and [`default_category`] take one, or an
+//! [`ObjectRef`], which converts into one, and [`Record::context`] returns
+//! the one a message was logged in.
 
 use core::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use core::fmt;
@@ -1095,6 +1095,167 @@ pub fn set_flags(flags: Flags) {
     unsafe { ffi::av_log_set_flags(flags.0) }
 }
 
+/// The context a message is logged in: an `AVClass`-enabled object, a C
+/// struct whose first member is a non-NULL `const AVClass *`, as `av_log`
+/// takes it.
+///
+/// It is what C needs of a logging context and no more: the object names
+/// and categorises itself through its class, and the level offset and parent
+/// its class points to are what C reads of it. An object whose options also
+/// describe its fields is an [`ObjectRef`], which converts into a
+/// `LogContext` with `From`, so every function taking a context takes either.
+/// A [`Record`] hands out the context its message was logged in, borrowed for
+/// the callback, and [`as_object`](Self::as_object) adopts it as an
+/// [`ObjectRef`] when its options describe it.
+///
+/// For its lifetime, every handle addresses an object that is live, whose
+/// first member is a non-NULL pointer to a class valid for [`ClassRef`] that
+/// outlives the borrow, whose class's `item_name` and `get_category`
+/// callbacks accept the object and do not log, whose non-zero
+/// `log_level_offset_offset` (in a class of version 50.15.2 or later)
+/// addresses an aligned `int` of the object, and whose non-zero
+/// `parent_log_context_offset` addresses a pointer of the object that is
+/// NULL or addresses a parent whose first member is NULL or a class those
+/// callbacks accept the parent for; nothing writes the class pointer or the
+/// level offset during the borrow. That is `av_log`'s own requirement of a
+/// context, which C relies on whenever it logs one, and [`ObjectRef`]'s
+/// contract includes it.
+///
+/// Not `Send` or `Sync`: whether an object may move between threads is its
+/// concrete type's to say, and a record's context stays with the record.
+#[derive(Clone, Copy)]
+pub struct LogContext<'a> {
+    obj: NonNull<c_void>,
+    _borrow: PhantomData<&'a c_void>,
+}
+
+impl<'a> LogContext<'a> {
+    /// The context at `obj`; `None` when `obj` or its class pointer is NULL,
+    /// as C reads no class from either.
+    ///
+    /// # Safety
+    ///
+    /// `obj` is NULL or addresses an object whose first member is an aligned
+    /// `const AVClass *`, and that meets [`LogContext`]'s requirements for
+    /// `'a` when that pointer is not NULL.
+    unsafe fn from_ptr(obj: *mut c_void) -> Option<Self> {
+        let obj = NonNull::new(obj)?;
+        // SAFETY: a non-NULL `obj` starts with an aligned class pointer,
+        // which nothing writes during the borrow, per the caller.
+        let class = unsafe { obj.cast::<*const ffi::AVClass>().read() };
+        (!class.is_null()).then_some(Self {
+            obj,
+            _borrow: PhantomData,
+        })
+    }
+
+    /// The object as the `void *` `av_log` takes.
+    fn as_ptr(self) -> *mut c_void {
+        self.obj.as_ptr()
+    }
+
+    /// The object's class.
+    ///
+    /// # Panics
+    ///
+    /// Only if C breaks the guarantee that a context's class is not NULL.
+    #[must_use]
+    pub fn class(&self) -> ClassRef<'a> {
+        // SAFETY: the handle's contract makes the first member a non-NULL
+        // class pointer, aligned, which nothing writes during the borrow.
+        let class = unsafe { self.obj.cast::<*mut ffi::AVClass>().read() };
+        // SAFETY: the contract makes it a well-formed class that outlives
+        // the borrow.
+        let class = unsafe { ClassRef::from_ptr(class) };
+        class.expect("a logging context's class is not NULL")
+    }
+
+    /// The object's name, as the default log callback prints it: what its
+    /// class's `item_name` callback returns for it, or, for a class without
+    /// one, the class name (`av_default_item_name`); `None` when that is
+    /// NULL. It lives as long as the borrow.
+    #[must_use]
+    pub fn item_name(&self) -> Option<&'a CStr> {
+        let class = self.class();
+        match class.item_name() {
+            // SAFETY: the handle's contract makes the class's `item_name`
+            // callback accept the object, as the default log callback calls
+            // it, returning NULL or a string alive and unwritten while the
+            // object is, past `'a`.
+            Some(f) => unsafe { f.call(self.as_ptr()) },
+            None => class.name(),
+        }
+    }
+
+    /// The object's log category: what its class's `get_category` callback
+    /// returns for it, or, for a class without one, the class's `category`
+    /// (`av_default_get_category`).
+    #[must_use]
+    pub fn category(&self) -> ClassCategory {
+        let class = self.class();
+        match class.get_category() {
+            // SAFETY: the handle's contract makes the class's `get_category`
+            // callback accept the object, as the default log callback calls
+            // it.
+            Some(f) => unsafe { f.call(self.as_ptr()) },
+            None => class.category(),
+        }
+    }
+
+    /// The object's address, which the default log callback prints after
+    /// its name (`[name @ 0x...]`): an integer, to compare or print, never to
+    /// reach the object through.
+    #[must_use]
+    pub fn addr(self) -> usize {
+        self.obj.as_ptr().addr()
+    }
+
+    /// Whether `self` and `other` are the same object, as C tells contexts
+    /// apart: by address.
+    #[must_use]
+    pub fn ptr_eq(self, other: LogContext<'_>) -> bool {
+        self.obj == other.obj
+    }
+
+    /// The context as an `AVOptions`-enabled object, whose option routines
+    /// read and its class callbacks walk.
+    ///
+    /// # Safety
+    ///
+    /// The object satisfies [`ObjectRef`]'s contract for a shared borrow of
+    /// `'a`: beyond a logging context, its class's options describe its own
+    /// fields, holding valid values, and nothing writes it during the borrow.
+    /// FFmpeg's own contexts do (their wrappers hand out an [`ObjectRef`]
+    /// safely), but C may log in a context whose class's options describe
+    /// another struct, such as a bare class pointer standing in for an
+    /// object.
+    #[must_use]
+    pub unsafe fn as_object(self) -> ObjectRef<'a> {
+        // SAFETY: the caller vouches for `ObjectRef`'s contract, and the
+        // handle's own makes the object and its class pointer non-NULL.
+        unsafe { ObjectRef::from_class_object(self.as_ptr()) }
+    }
+}
+
+impl<'a> From<ObjectRef<'a>> for LogContext<'a> {
+    fn from(obj: ObjectRef<'a>) -> Self {
+        // SAFETY: `ObjectRef`'s contract makes the object live for `'a`, with
+        // a non-NULL, aligned class pointer as its first member, and includes
+        // every requirement of a logging context.
+        let ctx = unsafe { Self::from_ptr(obj.as_ptr()) };
+        ctx.expect("an object's class is not NULL")
+    }
+}
+
+impl fmt::Debug for LogContext<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LogContext")
+            .field("name", &self.class().name())
+            .field("addr", &format_args!("{:#x}", self.addr()))
+            .finish()
+    }
+}
+
 /// Wraps `fn::av_vlog`
 ///
 /// Sends `message` to the general log, with no context, at `level`. It goes
@@ -1119,13 +1280,14 @@ pub fn log(level: Level, message: &CStr) {
 /// default callback prefixes the line with the object's name and address,
 /// and its parent's, and colours it by category.
 ///
-/// The context is an `AVClass`-enabled object: a wrapped one through `From`
-/// its handle (a [`ClassObject`](super::opt::ClassObject)), a
-/// [`BareObject`](super::opt::BareObject), or a raw one adopted with
-/// [`ObjectRef::from_ptr`], whose contract makes it a logging context. The
-/// installed callback receives the object as is: the default and Rust
-/// callbacks only read it as `av_vlog` does, and a raw C callback installed
-/// through `ffi` must accept it.
+/// The context is a [`LogContext`], or an `AVClass`-enabled object that
+/// converts into one: a wrapped one through `From` its handle (a
+/// [`ClassObject`](super::opt::ClassObject)), a
+/// [`BareObject`](super::opt::BareObject), a raw one adopted with
+/// [`ObjectRef::from_ptr`], whose contract makes it a logging context, or the
+/// context of a [`Record`] being handled. The installed callback receives the
+/// object as is: the default and Rust callbacks only read it as `av_vlog`
+/// does, and a raw C callback installed through `ffi` must accept it.
 ///
 /// ```
 /// use ffmpeg_bindings::libavutil::libavutil::log::{self, Class, ClassCategory, Level};
@@ -1138,7 +1300,8 @@ pub fn log(level: Level, message: &CStr) {
 /// A message whose level C would shift past `INT_MAX` with the object's
 /// level offset is dropped: C's addition would overflow.
 #[doc(alias = "av_vlog")]
-pub fn log_with_context(obj: ObjectRef<'_>, level: Level, message: &CStr) {
+pub fn log_with_context<'a>(obj: impl Into<LogContext<'a>>, level: Level, message: &CStr) {
+    let obj = obj.into();
     if shift_overflows(obj, level) {
         return;
     }
@@ -1152,7 +1315,7 @@ pub fn log_with_context(obj: ObjectRef<'_>, level: Level, message: &CStr) {
 /// Whether `av_vlog` would overflow an `int` adding `obj`'s level offset to
 /// `level`, as it does from [`Level::FATAL`] up for a class of version
 /// 50.15.2 or later with a `log_level_offset_offset`.
-fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
+fn shift_overflows(obj: LogContext<'_>, level: Level) -> bool {
     let class = obj.class();
     let Some(offset) = class.log_level_offset_offset() else {
         return false;
@@ -1160,11 +1323,12 @@ fn shift_overflows(obj: ObjectRef<'_>, level: Level) -> bool {
     if class.version() < (50 << 16 | 15 << 8 | 2) || level < Level::FATAL {
         return false;
     }
-    // SAFETY: as the comment below states, for this part of the operation.
-    let obj_2 = unsafe { obj.as_ptr().byte_offset(offset.get() as isize) };
-    // SAFETY: the handle's contract makes the offset address an aligned
-    // `int` of the live object, which nothing writes during the borrow.
-    let shift = unsafe { obj_2.cast::<c_int>().read() };
+    // SAFETY: the handle's contract makes a non-zero offset, in a class of
+    // this version, address an `int` of the live object, so the offset stays
+    // inside the object's allocation.
+    let shift_ptr = unsafe { obj.as_ptr().byte_offset(offset.get() as isize) };
+    // SAFETY: that `int` is aligned, and nothing writes it during the borrow.
+    let shift = unsafe { shift_ptr.cast::<c_int>().read() };
     level.0.checked_add(shift).is_none()
 }
 
@@ -1192,7 +1356,12 @@ pub fn log_fmt(level: Level, args: fmt::Arguments<'_>) {
 /// [`log_fmt`] with a logging context, as [`log_with_context`] sends a
 /// string with one.
 #[doc(alias = "av_log")]
-pub fn log_fmt_with_context(obj: ObjectRef<'_>, level: Level, args: fmt::Arguments<'_>) {
+pub fn log_fmt_with_context<'a>(
+    obj: impl Into<LogContext<'a>>,
+    level: Level,
+    args: fmt::Arguments<'_>,
+) {
+    let obj = obj.into();
     if shift_overflows(obj, level) {
         return;
     }
@@ -1234,13 +1403,14 @@ pub fn log_once(initial_level: Level, subsequent_level: Level, state: &mut bool,
 /// drops the message, but still sets `state`, when its level would
 /// overflow.
 #[doc(alias = "av_log_once")]
-pub fn log_once_with_context(
-    obj: ObjectRef<'_>,
+pub fn log_once_with_context<'a>(
+    obj: impl Into<LogContext<'a>>,
     initial_level: Level,
     subsequent_level: Level,
     state: &mut bool,
     message: &CStr,
 ) {
+    let obj = obj.into();
     if shift_overflows(
         obj,
         if *state {
@@ -1349,14 +1519,6 @@ impl Record<'_> {
     #[must_use]
     pub fn level(&self) -> Level {
         Level(self.level)
-    }
-
-    /// The `AVClass`-enabled object the message was logged with, or NULL for
-    /// the general log. Raw until the types that carry an `AVClass` are
-    /// wrapped; it is live while the callback runs.
-    #[must_use]
-    pub fn context(&self) -> *mut c_void {
-        self.context
     }
 
     /// A private copy of the arguments for one C call: on x86-64 `SysV`,
@@ -1468,22 +1630,27 @@ impl Record<'_> {
 }
 
 impl<'a> Record<'a> {
-    /// The class of the message's context: the `const AVClass *` the
-    /// context's first member holds; `None` for the general log, or a
-    /// context whose class pointer is NULL. Borrowed for the callback.
+    /// The `AVClass`-enabled object the message was logged in, borrowed for
+    /// the callback; `None` for the general log, or a context whose class
+    /// pointer is NULL, which C logs as the general log too.
+    #[must_use]
+    pub fn context(&self) -> Option<LogContext<'a>> {
+        // SAFETY: the context C passed the callback is NULL or an
+        // `AVClass`-enabled object, as `av_log` requires of every caller: its
+        // first member is an aligned `const AVClass *`, which `av_vlog`
+        // itself reads, and a non-NULL class makes it a logging context,
+        // live and its class pointer unwritten while the message is logged
+        // (`'a`).
+        unsafe { LogContext::from_ptr(self.context) }
+    }
+
+    /// The class of the message's context, as
+    /// [`context`](Self::context)`()?.`[`class`](LogContext::class)`()`;
+    /// `None` for the general log, or a context whose class pointer is NULL.
+    /// Borrowed for the callback.
     #[must_use]
     pub fn class(&self) -> Option<ClassRef<'a>> {
-        if self.context.is_null() {
-            return None;
-        }
-        // SAFETY: a non-NULL context is an `AVClass`-enabled object, as
-        // `av_log` requires of every caller: its first member is an aligned
-        // `const AVClass *`, which `av_vlog` itself reads, and no thread
-        // writes it while the message is logged.
-        let class = unsafe { self.context.cast::<*const ffi::AVClass>().read() };
-        // SAFETY: the pointer is NULL or a well-formed class live for the
-        // logging call (`'a`), as `av_log`'s contract requires.
-        unsafe { ClassRef::from_ptr(class.cast_mut()) }
+        self.context().map(|ctx| ctx.class())
     }
 }
 
@@ -1491,7 +1658,7 @@ impl fmt::Debug for Record<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Record")
             .field("level", &self.level())
-            .field("context", &self.context)
+            .field("context", &self.context())
             .finish_non_exhaustive()
     }
 }
@@ -1512,7 +1679,7 @@ fn line_buffer(line: &mut [u8]) -> (*mut c_char, c_int) {
 /// # Safety
 ///
 /// The arguments are those of a log callback call: `context` is NULL or a
-/// context valid as [`log_with_context`] requires, `format` a printf format
+/// [`LogContext`] for the call, `format` a printf format
 /// matching the arguments `args` addresses, all live for the call.
 unsafe extern "C" fn trampoline<C: Callback>(
     context: *mut c_void,
@@ -1562,13 +1729,15 @@ pub fn clear_callback() {
 
 /// Wraps `fn::av_default_item_name`
 ///
-/// The `class_name` of the class of the object `ctx`: the name `av_log`
+/// The `class_name` of the class of the logging context `ctx`, a
+/// [`LogContext`] or an object that converts into one: the name `av_log`
 /// prints for an object whose class has no `item_name` callback. `None` when
 /// the class stores NULL there. It lives as long as the class, which
 /// outlives the borrow.
 #[doc(alias = "av_default_item_name")]
 #[must_use]
-pub fn default_item_name(ctx: ObjectRef<'_>) -> Option<&CStr> {
+pub fn default_item_name<'a>(ctx: impl Into<LogContext<'a>>) -> Option<&'a CStr> {
+    let ctx = ctx.into();
     // SAFETY: the handle's contract makes `ctx` a live object whose first
     // member is an aligned, non-NULL pointer to a live class, neither written
     // during the borrow; `av_default_item_name` only reads both.
@@ -1580,12 +1749,14 @@ pub fn default_item_name(ctx: ObjectRef<'_>) -> Option<&CStr> {
 
 /// Wraps `fn::av_default_get_category`
 ///
-/// The `category` of the class of the object `ctx`: the category `av_log`
+/// The `category` of the class of the logging context `ctx`, a
+/// [`LogContext`] or an object that converts into one: the category `av_log`
 /// colours a message by when the class has no `get_category` callback. Any
 /// value the class stores is returned, named or not.
 #[doc(alias = "av_default_get_category")]
 #[must_use]
-pub fn default_category(ctx: ObjectRef<'_>) -> ClassCategory {
+pub fn default_category<'a>(ctx: impl Into<LogContext<'a>>) -> ClassCategory {
+    let ctx = ctx.into();
     // SAFETY: as in `default_item_name`; `av_default_get_category` only
     // reads the class pointer and the class's `category`, and returns the
     // enum by value.
@@ -1921,7 +2092,7 @@ mod unit_tests {
     #[derive(Debug)]
     struct Seen {
         level: Level,
-        context: *mut c_void,
+        context: Option<usize>,
         line: CString,
         measured: Option<usize>,
         short: CString,
@@ -1952,7 +2123,7 @@ mod unit_tests {
             assert!(format!("{record:?}").starts_with("Record { level: "));
             let seen = Seen {
                 level: record.level(),
-                context: record.context(),
+                context: record.context().map(LogContext::addr),
                 line,
                 measured,
                 short,
@@ -1982,7 +2153,7 @@ mod unit_tests {
         });
         assert_eq!(seen.len(), 2);
         assert_eq!(seen[0].level, Level::WARNING);
-        assert!(seen[0].context.is_null());
+        assert_eq!(seen[0].context, None);
         assert_eq!(seen[0].line.as_bytes(), b"50% done\n");
         assert_eq!(seen[0].measured, Some(9));
         assert_eq!(seen[0].short.as_bytes(), b"50%");
@@ -2044,7 +2215,7 @@ mod unit_tests {
         let obj = unsafe { ObjectRef::from_ptr(ctx_ptr) }.unwrap();
         let seen = capture(|| log_with_context(obj, Level::ERROR, c"m\n"));
         assert_eq!(seen.len(), 1);
-        assert_eq!(seen[0].context, ctx_ptr);
+        assert_eq!(seen[0].context, Some(ctx_ptr.addr()));
         let line = seen[0].line.to_str().unwrap();
         // The measuring pass may name the context either way; the line is
         // whatever the writing pass produced, never padded.
@@ -2233,14 +2404,30 @@ mod unit_tests {
             args: ptr::null_mut(),
             _call: PhantomData,
         };
+        assert!(record(ptr::null_mut()).context().is_none());
         assert!(record(ptr::null_mut()).class().is_none());
 
+        // A context whose class is NULL is logged as the general log.
         let mut classless: *const ffi::AVClass = ptr::null();
+        assert!(record((&raw mut classless).cast()).context().is_none());
         assert!(record((&raw mut classless).cast()).class().is_none());
 
-        static OWN: Class = Class::new(c"unit-record", ClassCategory::NA);
+        static OWN: Class = Class::new(c"unit-record", ClassCategory::FILTER);
         let mut obj = OWN.as_c_ptr();
-        let class = record((&raw mut obj).cast()).class().unwrap();
+        let obj_ptr = (&raw mut obj).cast::<c_void>();
+        let ctx = record(obj_ptr).context().unwrap();
+        assert_eq!(ctx.addr(), obj_ptr.addr());
+        assert!(ctx.class().ptr_eq(OWN.as_ref()));
+        // No callbacks: the class's name and category.
+        assert_eq!(ctx.item_name(), Some(c"unit-record"));
+        assert_eq!(ctx.category(), ClassCategory::FILTER);
+        assert!(ctx.ptr_eq(record(obj_ptr).context().unwrap()));
+        let debug = format!("{ctx:?}");
+        assert!(
+            debug.starts_with("LogContext { name: Some(\"unit-record\"), addr: 0x"),
+            "{debug}"
+        );
+        let class = record(obj_ptr).class().unwrap();
         assert!(class.ptr_eq(OWN.as_ref()));
         assert_eq!(class.name(), Some(c"unit-record"));
     }

@@ -1,15 +1,21 @@
-error[E0308]: mismatched types
+error[E0277]: the trait bound `LogContext<'_>: std::convert::From<*mut c_void>` is not satisfied
  --> tests/ub_safe/compile_fail/log_context_is_no_raw_pointer.rs
   |
   |     ffmpeg_bindings::libavutil::libavutil::log::log_with_context(ctx, ffmpeg_bindings::libavutil::libavutil::log::Level::INFO, c"x...
-  |     ------------------------------------------------------------ ^^^ expected `ObjectRef<'_>`, found `*mut c_void`
+  |     ------------------------------------------------------------ ^^^ the trait `std::convert::From<*mut c_void>` is not implemented for `LogContext<'_>`
   |     |
-  |     arguments to this function are incorrect
+  |     required by a bound introduced by this call
   |
-  = note:   expected struct `ObjectRef<'_>`
-          found raw pointer `*mut c_void`
-note: function defined here
+help: the trait `From<*mut c_void>` is not implemented for `LogContext<'_>`
+      but trait `From<ObjectRef<'_>>` is implemented for it
  --> src/libavutil/libavutil/log.rs
   |
-  | pub fn log_with_context(obj: ObjectRef<'_>, level: Level, message: &CStr) {
-  |        ^^^^^^^^^^^^^^^^
+  | impl<'a> From<ObjectRef<'a>> for LogContext<'a> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: for that trait implementation, expected `ObjectRef<'_>`, found `*mut c_void`
+  = note: required for `*mut c_void` to implement `Into<LogContext<'_>>`
+note: required by a bound in `log_with_context`
+ --> src/libavutil/libavutil/log.rs
+  |
+  | pub fn log_with_context<'a>(obj: impl Into<LogContext<'a>>, level: Level, message: &CStr) {
+  |                                       ^^^^^^^^^^^^^^^^^^^^ required by this bound in `log_with_context`

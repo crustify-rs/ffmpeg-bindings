@@ -774,7 +774,7 @@ mod object_context {
             let line = record.to_line(&mut true).unwrap_or_default();
             let entry = (
                 record.level().raw(),
-                record.context() as usize,
+                record.context().map_or(0, log::LogContext::addr),
                 line.into_string().unwrap(),
             );
             SEEN.with(|s| s.borrow_mut().push(entry));
@@ -856,6 +856,84 @@ mod object_context {
             handle.item_name().unwrap()
         };
         assert_eq!(name, c"ub-safe-object");
+    }
+
+    thread_local! {
+        /// What [`Inspect`] read of each context, while set.
+        static INSPECTED: RefCell<Option<Vec<(usize, String, ClassCategory)>>> =
+            const { RefCell::new(None) };
+        /// Whether [`Inspect`] is logging into a record's context itself.
+        static REENTERED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    }
+
+    /// Reads every getter of each record's context, through the context and
+    /// the default routines, and logs into it again, once, from inside the
+    /// callback, at an overflowing level too.
+    struct Inspect;
+
+    impl Callback for Inspect {
+        fn log(record: Record<'_>) {
+            if INSPECTED.with(|i| i.borrow().is_none()) {
+                return;
+            }
+            let Some(ctx) = record.context() else {
+                assert!(record.class().is_none());
+                return;
+            };
+            assert!(ctx.class().ptr_eq(record.class().unwrap()));
+            assert!(ctx.ptr_eq(ctx));
+            let name = ctx.item_name().unwrap();
+            assert_eq!(default_item_name(ctx), Some(name));
+            assert_eq!(default_category(ctx), ctx.category());
+            assert!(format!("{ctx:?}").starts_with("LogContext { name: Some("));
+            let entry = (
+                ctx.addr(),
+                name.to_str().unwrap().to_owned(),
+                ctx.category(),
+            );
+            INSPECTED.with(|i| i.borrow_mut().as_mut().unwrap().push(entry));
+            if !REENTERED.replace(true) {
+                log::log_with_context(ctx, Level::from_raw(c_int::MAX), c"again\n");
+                log::log_fmt_with_context(ctx, Level::TRACE, format_args!("again {}\n", 1));
+                let mut state = false;
+                log::log_once_with_context(ctx, Level::TRACE, Level::TRACE, &mut state, c"x\n");
+                assert!(state);
+                REENTERED.set(false);
+            }
+        }
+    }
+
+    /// The context a record hands out is the object logged in, which names
+    /// and categorises itself as the object does, reads alike through the
+    /// default routines, and takes messages again from inside the callback,
+    /// on several threads at once; the general log has none.
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn record_contexts_read_back_and_take_messages_again() {
+        let _s = LogState::lock();
+        log::set_callback::<Inspect>();
+        thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    let obj = BareObject::new(CLASS.as_ref()).unwrap();
+                    let addr = &raw const obj as usize;
+                    INSPECTED.with(|i| *i.borrow_mut() = Some(Vec::new()));
+                    for _ in 0..50 {
+                        log::log_with_context(obj.as_object(), Level::ERROR, c"first\n");
+                        log::log(Level::ERROR, c"general\n");
+                    }
+                    let seen = INSPECTED.with(|i| i.borrow_mut().take().unwrap());
+                    // Each first message, and the three it logs again.
+                    assert_eq!(seen.len(), 50 * 4);
+                    for (a, name, category) in seen {
+                        assert_eq!(a, addr);
+                        assert_eq!(name, "ub-safe-object");
+                        assert_eq!(category, ClassCategory::ENCODER);
+                    }
+                });
+            }
+        });
+        log::set_default_callback();
     }
 
     #[test]

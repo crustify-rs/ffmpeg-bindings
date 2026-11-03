@@ -1,0 +1,11 @@
+error[E0597]: `obj` does not live long enough
+ --> tests/ub_safe/compile_fail/log_context_name_outlives_object.rs
+  |
+  |     let name = {
+  |         ---- borrow later stored here
+  |         let obj = BareObject::new(CLASS.as_ref()).unwrap();
+  |             --- binding `obj` declared here
+  |         LogContext::from(obj.as_object()).item_name()
+  |                          ^^^ borrowed value does not live long enough
+  |     };
+  |     - `obj` dropped here while still borrowed

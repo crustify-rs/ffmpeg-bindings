@@ -463,7 +463,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`1`| wrap | `14` | `2390` |`+2390/-5`| `74.92`% / `99.68`% | `$16.16` | `47.13M` | `60m11s` | `$1.15` | `$0.007` |
 |`libavutil/hwcontext`|`1`|`2`| wrap | `2` | `1858` |`+1858/-14`| `72.96`% / `99.71`% | `$9.31` | `24.09M` | `39m54s` | `$4.66` | `$0.005` |
 |`libavutil/hwcontext`|`2`|`1`| wrap | `2` | `0` |`+0/-0`| `75.07`% / `99.69`% | `$1.88` | `4.44M` | `12m41s` | `$0.94` | `—` |
-| **Σ** |  |  |  | **`516`** | **`54511`** | **`+54511/-828`** | **`75.07`% / `99.69`%** | **`$429.96`** | **`1186.68M`** | — | **`$0.83`** | **`$0.008`** |
+|`libavutil/libavutil/log.c`|`800`|`0`| wrap | `8` | `636` |`+636/-64`| `69.30`% / `99.19`% | — | — | — | — | — |
+| **Σ** |  |  |  | **`524`** | **`55147`** | **`+55147/-892`** | **`69.30`% / `99.19`%** | **`$429.96`** | **`1186.68M`** | — | **`$0.83`** | **`$0.008`** |
 
 ### Batches: tests
 
@@ -505,7 +506,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`1`|`+6` (`+0.26`/`-1.77` pp)|`+0` (`+0.00`/`-0.75` pp)|`+10` (`+1.94`/`-0.18` pp)|`+19` (`+2.02`/`+0.40` pp)|
 |`libavutil/hwcontext`|`1`|`2`|`+2` (`+0.00`/`-0.83` pp)|`+17` (`+0.29`/`+1.82` pp)|`+10` (`+0.47`/`+0.07` pp)|`+17` (`+0.18`/`+0.14` pp)|
 |`libavutil/hwcontext`|`2`|`1`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+377` (`+42.81`/`+10.87` pp)** | **`+86` (`+21.80`/`+15.49` pp)** | **`+381` (`+39.76`/`+21.58` pp)** | **`+434` (`+27.11`/`-17.35` pp)** |
+|`libavutil/libavutil/log.c`|`800`|`0`|`+1` (`+0.00`/`+0.05` pp)|`+1` (`+0.00`/`+0.22` pp)|`+1` (`+0.00`/`+0.02` pp)|`+0` (`+0.00`/`-0.01` pp)|
+| **Σ** |  |  | **`+378` (`+42.81`/`+10.92` pp)** | **`+87` (`+21.80`/`+15.71` pp)** | **`+382` (`+39.76`/`+21.60` pp)** | **`+434` (`+27.11`/`-17.36` pp)** |
 
 ### Batches — review
 
@@ -2219,3 +2221,37 @@ copy (14,151 lines). The unit and `ub_unsafe` workloads are byte-identical to th
 once. The unsafe surface did not move: scanned on its base and landing at ffimap `8cb4031`, only the
 `code.tests.*` counters changed. The recorded `crustify/artifacts/ffimap.json` is from `c7f7116`, which
 counts `ty.ffibox.wrapper.fields` differently (372 rather than 420 on the same tree).
+
+### `libavutil/libavutil/log.c` wave 800, batch 0: the logging symbols again
+
+Planner run 5's re-plan scheduled `av_vlog`, `av_log`, `av_log_once`, `av_log_format_line`,
+`av_log_format_line2`, `av_log_default_callback`, `av_default_item_name` and `av_default_get_category`
+again, to bring their wave-4 and wave-6 wrappers to the current specs and replace the raw references
+to `AVClass`-enabled contexts that the `AVClass` wrapper made obsolete. Most of that was already done:
+the context-taking functions took an `ObjectRef`. One raw reference was left, `Record::context`, which
+returned the `void *` a log callback receives. A log context is less than an `ObjectRef`: `av_log`
+asks only that its first member be a class pointer, not that its class's options describe it. So the
+batch adds `LogContext<'a>`, the handle for what `av_log` asks of a context. `Record::context` now
+returns `Option<LogContext<'a>>`, `None` for the general log and for a context whose class pointer is
+NULL. The handle reads `class`, `item_name`, `category` and `addr`, and compares by address. An
+`ObjectRef` converts into it with `From`. The five functions that took an `ObjectRef` (`log_with_context`,
+`log_fmt_with_context`, `log_once_with_context`, `default_item_name` and `default_category`) now take
+`impl Into<LogContext<'a>>`, so existing callers still compile, and a callback can log in, or name, the
+record's context. `LogContext::as_object` is the one new `unsafe fn`: it adopts a context whose options
+describe it as an `ObjectRef`, which no type can check. `Record::format_line`, `write_line` and
+`log_default`, and `log`, `log_fmt` and `log_once`, keep their API.
+
+The coverage cells were measured the same way on the wave base (`a1d9327`) and on the landing tree.
+C comes from the `coverage` prebuild through gcov, with `.gcda` files redirected by `GCOV_PREFIX`: the
+union of the executable lines of every `libavutil/` file the link unit's TUs compile, headers included,
+which is 13,844 lines. Rust comes from `-C instrument-coverage` on `nightly-2026-10-08`, with test items
+`#[coverage(off)]` in a scratch copy, over `src/`: 14,352 lines on the base and 14,405 on the landing
+tree. Both denominators differ from wave 794's (12,576 and 14,151), whose script did not survive, so
+the absolute cells are not comparable with its row; the deltas are. The C figures did not move. Every
+Rust line the batch added is covered, and the 116 uncovered lines are the base's.
+
+The unsafe surface, scanned on the base and on the landing tree at ffimap `8cb4031`: raw pointers on
+the safe public interface went from 20 to 19 (`raw_ptr.fn_sig_ret.safe.pub` 13 → 12, all of them
+`void`), and public `unsafe fn`s went from 66 to 67 (`LogContext::as_object`). `log.rs` keeps one raw
+pointer on the safe interface, `Class::as_c_ptr`, which belongs to the `AVClass` type rather than to
+this batch.

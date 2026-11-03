@@ -1405,9 +1405,10 @@ impl BitOr for SerializeFlags {
 /// A raw object is adopted with [`from_ptr`](Self::from_ptr), the seam whose
 /// contract every handle upholds for its lifetime. It is for the objects no
 /// wrapper hands out: those of link units not wrapped yet (codec, format,
-/// filter and scaler contexts, until their types are `ClassObject`s), those
-/// foreign C code builds, and the context a log callback receives
-/// ([`Record::context`](super::log::Record::context)). The contract:
+/// filter and scaler contexts, until their types are `ClassObject`s) and
+/// those foreign C code builds; the context a log callback receives is
+/// adopted with [`LogContext::as_object`](super::log::LogContext::as_object),
+/// under the same contract. The contract:
 ///
 /// - the object is live, and its first member a non-NULL pointer to a class valid for [`ClassRef`]
 ///   that outlives the borrow and has a name;
