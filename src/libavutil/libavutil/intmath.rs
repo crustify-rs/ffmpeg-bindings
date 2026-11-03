@@ -10,22 +10,24 @@ fn bit_index(r: c_int) -> u32 {
     r.unsigned_abs()
 }
 
-/// Wraps: `av_log2`
+/// Wraps `fn::av_log2`
 ///
 /// The index of the highest set bit of `v`, `floor(log2(v))`, with 0 for an
 /// argument of 0 as for 1 (C's `v | 1`).
+#[doc(alias = "av_log2")]
 #[must_use]
 pub fn log2(v: u32) -> u32 {
     // SAFETY: `av_log2` takes its argument by value and reads no memory.
     bit_index(unsafe { ffi::av_log2(v) })
 }
 
-/// Wraps: `av_log2_16bit`
+/// Wraps `fn::av_log2_16bit`
 ///
 /// [`log2`] of a 16-bit value. C declares an `unsigned` argument but defines
 /// the result only below 2^16: its portable fallback indexes a 256-entry
 /// table with the high byte, which wider values overrun, so the argument is a
 /// `u16` here.
+#[doc(alias = "av_log2_16bit")]
 #[must_use]
 pub fn log2_16bit(v: u16) -> u32 {
     // SAFETY: `av_log2_16bit` takes its argument by value; a value below 2^16
