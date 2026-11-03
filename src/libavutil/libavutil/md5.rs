@@ -11,10 +11,11 @@ use ffibox::{CBox, CDrop, CMutSeam, CNew, define_ctype};
 use super::ffi;
 
 define_ctype!(
-    /// Wraps: AVMD5
+    /// Wraps `ty::AVMD5`
     ///
     /// Opaque MD5 context, owned by [`Md5Box`] and accessed through handles.
     /// The private fields are not part of the public C API.
+    #[doc(alias = "AVMD5")]
     Md5,
     Md5Ref,
     Md5Mut,
@@ -35,11 +36,12 @@ pub struct Md5Free;
 /// ```
 pub type Md5Box = CBox<Md5, Md5Free>;
 
-/// Wraps: `av_free`
 // SAFETY: the owner hands this policy one uniquely owned av_malloc-family
 // context allocation. The context has no child resources; av_free releases
 // the whole allocation without reading its state.
 unsafe impl CDrop<Md5> for Md5Free {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Md5>) {
         // SAFETY: the caller transfers the live context allocation to this
         // release policy exactly once. av_free accepts its erased pointer.
@@ -47,10 +49,11 @@ unsafe impl CDrop<Md5> for Md5Free {
     }
 }
 
-/// Wraps: `av_md5_alloc`
 // SAFETY: allocation uses C's actual private size, and init establishes every
 // state invariant used by update/final. The paired policy releases via av_free.
 unsafe impl CNew<Md5> for Md5Free {
+    /// Wraps `fn::av_md5_alloc`
+    #[doc(alias = "av_md5_alloc")]
     fn c_new(&self) -> Option<NonNull<Md5>> {
         // SAFETY: allocation has no preconditions and returns a fresh zeroed
         // context or NULL. NonNull rejects failure before initialization.
@@ -70,18 +73,20 @@ impl Md5 {
 }
 
 impl Md5Mut<'_> {
-    /// Wraps: `av_md5_init`
+    /// Wraps `fn::av_md5_init`
     ///
     /// Restart hashing, discarding the previous state.
+    #[doc(alias = "av_md5_init")]
     pub fn reset(&mut self) {
         // SAFETY: the exclusive handle keeps a full C context live and prevents
         // overlapping accesses. Init reads none of the old state or input data.
         unsafe { ffi::av_md5_init(self.as_mut_ptr()) }
     }
 
-    /// Wraps: `av_md5_update`
+    /// Wraps `fn::av_md5_update`
     ///
     /// Append bytes. C reads them only during the call and retains no pointer.
+    #[doc(alias = "av_md5_update")]
     pub fn update(&mut self, data: &[u8]) {
         // A zero-length C update is a no-op. Avoid C's src + 0 arithmetic
         // on an empty Rust slice's potentially dangling sentinel pointer.
@@ -94,11 +99,12 @@ impl Md5Mut<'_> {
         unsafe { ffi::av_md5_update(self.as_mut_ptr(), data.as_ptr(), data.len()) }
     }
 
-    /// Wraps: `av_md5_final`
+    /// Wraps `fn::av_md5_final`
     ///
     /// Output the digest, mutating the context as C does. Call [`Self::reset`]
     /// before starting a new message. Repeated finalization is memory-safe but
     /// hashes the padding added by the preceding finalization.
+    #[doc(alias = "av_md5_final")]
     pub fn finalize(&mut self) -> [u8; 16] {
         let mut digest = [0; 16];
         // SAFETY: exclusive initialized state and exactly 16 writable output
@@ -108,9 +114,10 @@ impl Md5Mut<'_> {
     }
 }
 
-/// Wraps: `av_md5_size`
+/// Wraps `var::av_md5_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_md5_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -118,9 +125,10 @@ pub fn context_size() -> &'static i32 {
     unsafe { &ffi::av_md5_size }
 }
 
-/// Wraps: `av_md5_sum`
+/// Wraps `fn::av_md5_sum`
 ///
 /// Compute the 16-byte MD5 digest (not suitable for cryptographic security).
+#[doc(alias = "av_md5_sum")]
 #[must_use]
 pub fn sum(input: &[u8]) -> [u8; 16] {
     let mut digest = [0; 16];
