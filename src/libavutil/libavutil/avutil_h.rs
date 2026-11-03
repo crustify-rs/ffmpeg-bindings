@@ -5,9 +5,10 @@ use core::ptr;
 
 use super::ffi;
 
-/// Wraps: `av_x_if_null`
+/// Wraps `fn::av_x_if_null`
 ///
 /// `p`, or `x` when `p` is `None`: C's `p ? p : x`, over shared borrows.
+#[doc(alias = "av_x_if_null")]
 #[must_use]
 pub fn x_if_null<'a, T>(p: Option<&'a T>, x: Option<&'a T>) -> Option<&'a T> {
     let p: *const c_void = p.map_or(ptr::null(), |r| ptr::from_ref(r).cast());
@@ -20,10 +21,11 @@ pub fn x_if_null<'a, T>(p: Option<&'a T>, x: Option<&'a T>) -> Option<&'a T> {
     unsafe { chosen.cast_const().cast::<T>().as_ref() }
 }
 
-/// Wraps: `av_x_if_null`
+/// Wraps `fn::av_x_if_null`
 ///
 /// `p`, or `x` when `p` is `None`, as [`x_if_null`], over exclusive borrows:
 /// the one not returned is given up with the call.
+#[doc(alias = "av_x_if_null")]
 #[must_use]
 pub fn x_if_null_mut<'a, T>(p: Option<&'a mut T>, x: Option<&'a mut T>) -> Option<&'a mut T> {
     let p: *mut c_void = p.map_or(ptr::null_mut(), |r| ptr::from_mut(r).cast());
