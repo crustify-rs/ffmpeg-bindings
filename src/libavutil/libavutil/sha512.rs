@@ -38,10 +38,11 @@ impl Algorithm {
 }
 
 define_ctype!(
-    /// Wraps: AVSHA512
+    /// Wraps `ty::AVSHA512`
     ///
     /// An opaque, initialized C hash context. Construct through [`Self::new`]
     /// or [`Sha512Box::new`], not by allocating the opaque layout's Rust size.
+    #[doc(alias = "AVSHA512")]
     Sha512,
     Sha512Ref,
     Sha512Mut,
@@ -89,10 +90,11 @@ pub type Sha512Box = CBox<Sha512, Sha512Free>;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Sha512Free;
 
-/// Wraps: `av_free`
 // SAFETY: Sha512Box adopts only `av_sha512_alloc` storage, which owns no sub-allocations;
 // Heap's av_free releases that av_malloc-family block once without reading it.
 unsafe impl CDrop<Sha512> for Sha512Free {
+    /// Wraps `fn::av_free`
+    #[doc(alias = "av_free")]
     unsafe fn c_drop(&self, ptr: NonNull<Sha512>) {
         // SAFETY: CDrop's caller transfers the unique av_malloc-family claim.
         unsafe { <Heap as CDrop<Sha512>>::c_drop(&Heap, ptr) }
@@ -100,8 +102,6 @@ unsafe impl CDrop<Sha512> for Sha512Free {
 }
 
 impl Sha512 {
-    /// Wraps: `av_sha512_alloc`
-    ///
     /// Allocate and initialize a context for `algorithm`; `None` on allocation
     /// failure. Invalid digest sizes cannot be represented by [`Algorithm`].
     #[must_use]
@@ -145,17 +145,20 @@ impl fmt::Debug for Sha512Mut<'_> {
 // SAFETY: the typed constructor returns a uniquely owned, initialized context
 // in av_malloc-family storage, exactly the allocation Sha512Free releases.
 unsafe impl CNew<Sha512> for Sha512Free {
+    /// Wraps `fn::av_sha512_alloc`
+    #[doc(alias = "av_sha512_alloc")]
     fn c_new(&self) -> Option<NonNull<Sha512>> {
         Sha512::new(Algorithm::Sha512).and_then(|owner| NonNull::new(owner.into_raw()))
     }
 }
 
 impl Sha512Mut<'_> {
-    /// Wraps: `av_sha512_init`
+    /// Wraps `fn::av_sha512_init`
     ///
     /// Start a new hash, discarding the previous state. The buffer need not be
     /// cleared: C resets the count and never reads stale bytes before filling
     /// the block. This may also change the digest variant.
+    #[doc(alias = "av_sha512_init")]
     pub fn init(&mut self, algorithm: Algorithm) {
         // SAFETY: the handle grants exclusive access to a live full-sized
         // context, and the enum admits only sizes for which C returns zero.
@@ -164,9 +167,10 @@ impl Sha512Mut<'_> {
     }
 }
 
-/// Wraps: `av_sha512_size`
+/// Wraps `var::av_sha512_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_sha512_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -175,9 +179,10 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl Sha512Mut<'_> {
-    /// Wraps: `av_sha512_update`
+    /// Wraps `fn::av_sha512_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
+    #[doc(alias = "av_sha512_update")]
     pub fn update(&mut self, data: &[u8]) {
         // SAFETY: the handle exclusively borrows an initialized full C context;
         // nonempty data provides len readable bytes; empty input uses a real static
@@ -195,12 +200,13 @@ impl Sha512Mut<'_> {
         }
     }
 
-    /// Wraps: `av_sha512_final`
+    /// Wraps `fn::av_sha512_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.
     /// The maximum-size output remains safe even after changing the algorithm.
     /// Reinitialize the context before starting another message.
+    #[doc(alias = "av_sha512_final")]
     pub fn finalize(&mut self) -> [u8; 64] {
         let mut digest = [0; 64];
         // SAFETY: exclusive initialized context; the output covers the largest
