@@ -1,0 +1,70 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "av_default_get_category",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_default_item_name",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_log",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_log_default_callback",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_log_format_line",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_log_format_line2",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_log_once",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    },
+    {
+      "name": "av_vlog",
+      "defined_in": "libavutil/log.c",
+      "kind": "symbol",
+      "field_anchors": [],
+      "home": "src/libavutil/libavutil/log.rs"
+    }
+  ],
+  "wave": 800,
+  "batch": 0,
+  "link_unit": "libavutil",
+  "module": "libavutil/log.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-800",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api",
+  "instructions": "instructions.md"
+}

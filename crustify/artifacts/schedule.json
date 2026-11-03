@@ -13126,7 +13126,7 @@
       "link_unit": "libavutil",
       "module": "libavutil/log.c",
       "foundational": false,
-      "status": "todo",
+      "status": "done",
       "depends_on": {
         "scheduled": [
           799
@@ -13143,7 +13143,7 @@
         {
           "index": 0,
           "kind": "wrap",
-          "status": "todo",
+          "status": "done",
           "items": [
             {
               "name": "av_default_get_category",
@@ -13202,7 +13202,9 @@
               "home": "src/libavutil/libavutil/log.rs"
             }
           ],
-          "commits": []
+          "commits": [
+            "c0f53d14a81ee56931c6d8e40244d87abe5f4642"
+          ]
         }
       ]
     },
