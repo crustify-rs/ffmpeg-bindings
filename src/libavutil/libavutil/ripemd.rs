@@ -11,9 +11,10 @@ use super::ffi;
 use super::mem::Heap;
 
 define_ctype!(
-    /// Wraps: AVRIPEMD
+    /// Wraps `ty::AVRIPEMD`
     ///
     /// An opaque, initialized C hashing context, held behind an [`RipemdBox`].
+    #[doc(alias = "AVRIPEMD")]
     Ripemd,
     RipemdRef,
     RipemdMut,
@@ -91,10 +92,11 @@ impl TryFrom<i32> for DigestBits {
 }
 
 impl Ripemd {
-    /// Wraps: `av_ripemd_alloc`
+    /// Wraps `fn::av_ripemd_alloc`
     ///
     /// Allocate through C and initialize for the chosen digest size before
     /// publishing the owner. None means C allocation failed.
+    #[doc(alias = "av_ripemd_alloc")]
     #[must_use]
     pub fn new(bits: DigestBits) -> Option<RipemdBox> {
         // SAFETY: C's allocator has no arguments or preconditions and returns
@@ -119,7 +121,7 @@ impl Ripemd {
 }
 
 impl RipemdMut<'_> {
-    /// Wraps: `av_ripemd_init`
+    /// Wraps `fn::av_ripemd_init`
     ///
     /// Reset the context for a supported digest size. C retains no pointer
     /// to caller-owned data. Returns C's status (zero for these four sizes).
@@ -127,6 +129,7 @@ impl RipemdMut<'_> {
     /// # Errors
     ///
     /// Returns the negative `AVERROR` code `av_ripemd_init` returns when it fails.
+    #[doc(alias = "av_ripemd_init")]
     pub fn init(&mut self, bits: DigestBits) -> Result<(), i32> {
         // SAFETY: this handle exclusively borrows a full initialized C
         // context; bits admits only sizes C accepts. C retains no pointer.
@@ -135,9 +138,10 @@ impl RipemdMut<'_> {
     }
 }
 
-/// Wraps: `av_ripemd_size`
+/// Wraps `var::av_ripemd_size`
 ///
 /// The C context's size in bytes, borrowed from immutable C static storage.
+#[doc(alias = "av_ripemd_size")]
 #[must_use]
 pub fn context_size() -> &'static i32 {
     // SAFETY: C defines this global as `const int = sizeof(context)`; it has
@@ -146,9 +150,10 @@ pub fn context_size() -> &'static i32 {
 }
 
 impl RipemdMut<'_> {
-    /// Wraps: `av_ripemd_update`
+    /// Wraps `fn::av_ripemd_update`
     ///
     /// Append input bytes. C copies them and retains no input pointer.
+    #[doc(alias = "av_ripemd_update")]
     pub fn update(&mut self, data: &[u8]) {
         // SAFETY: the handle exclusively borrows an initialized full C context;
         // nonempty data provides len readable bytes; empty input uses a real static
@@ -166,12 +171,13 @@ impl RipemdMut<'_> {
         }
     }
 
-    /// Wraps: `av_ripemd_final`
+    /// Wraps `fn::av_ripemd_final`
     ///
     /// Finish the current message. The digest occupies the prefix of the returned
     /// array; bytes beyond the selected algorithm's digest length are zero.
     /// The maximum-size output remains safe even after changing the algorithm.
     /// Reinitialize the context before starting another message.
+    #[doc(alias = "av_ripemd_final")]
     pub fn finalize(&mut self) -> [u8; 40] {
         let mut digest = [0; 40];
         // SAFETY: exclusive initialized context; the output covers the largest
