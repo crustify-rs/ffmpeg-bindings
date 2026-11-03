@@ -2,7 +2,7 @@
 
 use super::ffi;
 
-/// Wraps: `av_usleep`
+/// Wraps `fn::av_usleep`
 ///
 /// Sleeps for at least `usec` microseconds, rounded to the system timer's
 /// precision, resuming after signal interruptions. Fails with the C error
@@ -11,6 +11,7 @@ use super::ffi;
 /// # Errors
 ///
 /// Fails with the C error code on platforms without a sleep primitive.
+#[doc(alias = "av_usleep")]
 pub fn usleep(usec: u32) -> Result<(), i32> {
     // SAFETY: `av_usleep` takes a duration by value and touches no caller
     // memory.
@@ -18,21 +19,23 @@ pub fn usleep(usec: u32) -> Result<(), i32> {
     if ret < 0 { Err(ret) } else { Ok(()) }
 }
 
-/// Wraps: `av_gettime`
+/// Wraps `fn::av_gettime`
 ///
 /// The wall-clock time in microseconds since the Unix epoch, or `-1` where
 /// the platform has no clock.
+#[doc(alias = "av_gettime")]
 #[must_use]
 pub fn now() -> i64 {
     // SAFETY: `av_gettime` takes no arguments and has no preconditions.
     unsafe { ffi::av_gettime() }
 }
 
-/// Wraps: `av_gettime_relative`
+/// Wraps `fn::av_gettime_relative`
 ///
 /// A time in microseconds since an arbitrary point, monotonic when
 /// [`relative_is_monotonic`] says so; otherwise the wall clock shifted by 42
 /// hours.
+#[doc(alias = "av_gettime_relative")]
 #[must_use]
 pub fn now_relative() -> i64 {
     // SAFETY: `av_gettime_relative` takes no arguments and has no
@@ -40,9 +43,10 @@ pub fn now_relative() -> i64 {
     unsafe { ffi::av_gettime_relative() }
 }
 
-/// Wraps: `av_gettime_relative_is_monotonic`
+/// Wraps `fn::av_gettime_relative_is_monotonic`
 ///
 /// Whether [`now_relative`] reads a monotonic clock.
+#[doc(alias = "av_gettime_relative_is_monotonic")]
 #[must_use]
 pub fn relative_is_monotonic() -> bool {
     // SAFETY: `av_gettime_relative_is_monotonic` takes no arguments and has
