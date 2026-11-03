@@ -4859,3 +4859,313 @@ mod lookups {
         drop(unsafe { Box::from_raw(o) });
     }
 }
+
+/// Wave 794, batch 0: an option's fields (`AVOption`) as the getters of
+/// [`OptionDefRef`] read them, against C on the shared test classes: every
+/// entry of each table, through the union member C's `av_opt_set_defaults`
+/// selects for its type; the default each getter reports, stored on a fresh
+/// object through C's own setter for that type, serializes as the default C
+/// stores; and a named constant's value is what C stores when an option of its
+/// unit is set to the constant's name.
+///
+/// [`OptionDefRef`]: ffmpeg_bindings::libavutil::libavutil::opt::OptionDefRef
+mod option_def {
+    use core::ffi::{CStr, c_char, c_int, c_void};
+    use core::ptr;
+
+    use ffibox::CRefSeam;
+    use ffmpeg_bindings::libavutil::libavutil::ffi;
+    use ffmpeg_bindings::libavutil::libavutil::log::ClassRef;
+    use ffmpeg_bindings::libavutil::libavutil::opt::{OptionDefRef, OptionDefault, OptionType};
+
+    use super::fixture::{
+        ARR_CLASS, ARR_OPTIONS, ArrOwned, CLASS, Class, OBJ_CLASS, OBJ_OPTIONS, OPTIONS, Owned,
+        Table,
+    };
+
+    /// The types whose default C reads from `default_val.i64`.
+    const INT_TYPES: [ffi::AVOptionType; 10] = [
+        ffi::AV_OPT_TYPE_BOOL,
+        ffi::AV_OPT_TYPE_FLAGS,
+        ffi::AV_OPT_TYPE_INT,
+        ffi::AV_OPT_TYPE_UINT,
+        ffi::AV_OPT_TYPE_INT64,
+        ffi::AV_OPT_TYPE_UINT64,
+        ffi::AV_OPT_TYPE_DURATION,
+        ffi::AV_OPT_TYPE_PIXEL_FMT,
+        ffi::AV_OPT_TYPE_SAMPLE_FMT,
+        ffi::AV_OPT_TYPE_CONST,
+    ];
+
+    /// The types whose default C reads from `default_val.dbl`.
+    const DBL_TYPES: [ffi::AVOptionType; 3] = [
+        ffi::AV_OPT_TYPE_DOUBLE,
+        ffi::AV_OPT_TYPE_FLOAT,
+        ffi::AV_OPT_TYPE_RATIONAL,
+    ];
+
+    /// The types whose default C reads from `default_val.str`.
+    const STR_TYPES: [ffi::AVOptionType; 7] = [
+        ffi::AV_OPT_TYPE_STRING,
+        ffi::AV_OPT_TYPE_COLOR,
+        ffi::AV_OPT_TYPE_IMAGE_SIZE,
+        ffi::AV_OPT_TYPE_VIDEO_RATE,
+        ffi::AV_OPT_TYPE_BINARY,
+        ffi::AV_OPT_TYPE_CHLAYOUT,
+        ffi::AV_OPT_TYPE_DICT,
+    ];
+
+    const READONLY: c_int = ffi::AV_OPT_FLAG_READONLY as c_int;
+
+    /// The handle of `class`.
+    fn class_ref(class: &'static Class) -> ClassRef<'static> {
+        // SAFETY: a well-formed static class, never written.
+        unsafe { ClassRef::from_ptr((&raw const class.0).cast_mut()) }.unwrap()
+    }
+
+    /// Every entry of `class`'s table before the terminator, as the walk of
+    /// [`ClassRef::options`] yields it, paired with the entry it addresses.
+    fn entries<const N: usize>(
+        class: &'static Class,
+        table: &'static Table<N>,
+    ) -> Vec<(OptionDefRef<'static>, &'static ffi::AVOption)> {
+        let walk: Vec<_> = class_ref(class).options().iter().collect();
+        let raw = &table.0[..N - 1];
+        assert_eq!(walk.len(), raw.len());
+        for (r, c) in walk.iter().zip(raw) {
+            assert!(ptr::eq(r.as_ptr(), c));
+        }
+        walk.into_iter().zip(raw).collect()
+    }
+
+    /// The pointer `s` addresses, NULL for `None`.
+    fn ptr_of(s: Option<&CStr>) -> *const c_char {
+        s.map_or(ptr::null(), CStr::as_ptr)
+    }
+
+    /// Checks that `r` reads `c`'s fields, its default through the member
+    /// `av_opt_set_defaults` reads for the type.
+    fn reads_as_stored(r: OptionDefRef<'_>, c: &ffi::AVOption) {
+        let what = format!("{:?}", r.name());
+        assert_eq!(ptr_of(r.name()), c.name, "{what}");
+        assert_eq!(r.min().to_bits(), c.min.to_bits(), "{what}");
+        assert_eq!(r.max().to_bits(), c.max.to_bits(), "{what}");
+        let ty = c.type_;
+        let base = ty & !ffi::AV_OPT_TYPE_FLAG_ARRAY;
+        let array = ty != base;
+        assert_eq!(r.option_type().value(), ty, "{what}");
+        // Each union read below is of the member the test table initialised
+        // for the option's type, which the assertion before it checks, as C's
+        // `av_opt_set_defaults` reads it; `def` is a Rust copy of the union.
+        let def = c.default_val;
+        match r.default_value() {
+            OptionDefault::Array(a) => {
+                assert!(array, "{what}");
+                // SAFETY: an array option's entry initialises `arr`, as above.
+                let raw = unsafe { def.arr };
+                assert_eq!(a.map_or(ptr::null(), |a| a.as_ptr()), raw, "{what}");
+            }
+            OptionDefault::Int(v) => {
+                assert!(!array && INT_TYPES.contains(&ty), "{what}");
+                // SAFETY: an integer option's entry initialises `i64`, as above.
+                let raw = unsafe { def.i64_ };
+                assert_eq!(v, raw, "{what}");
+            }
+            OptionDefault::Double(d) => {
+                assert!(!array && DBL_TYPES.contains(&ty), "{what}");
+                // SAFETY: a floating option's entry initialises `dbl`, as above.
+                let raw = unsafe { def.dbl };
+                assert_eq!(d.to_bits(), raw.to_bits(), "{what}");
+            }
+            OptionDefault::Str(s) => {
+                assert!(!array && STR_TYPES.contains(&ty), "{what}");
+                // SAFETY: a string option's entry initialises `str`, as above.
+                let raw = unsafe { def.str_ };
+                assert_eq!(ptr_of(s), raw, "{what}");
+            }
+            OptionDefault::Unsupported => {
+                let known = [&INT_TYPES[..], &DBL_TYPES, &STR_TYPES].concat();
+                assert!(!array && !known.contains(&ty), "{what}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_entry_reads_as_c_stores_it() {
+        let mut seen = 0;
+        for (r, c) in entries(&OBJ_CLASS, &OBJ_OPTIONS)
+            .into_iter()
+            .chain(entries(&ARR_CLASS, &ARR_OPTIONS))
+            .chain(entries(&CLASS, &OPTIONS))
+        {
+            reads_as_stored(r, c);
+            seen += 1;
+        }
+        assert_eq!(seen, 39 + 18 + 22);
+    }
+
+    /// What C's `av_opt_get` serializes of option `name` of `obj`, NULL
+    /// strings kept apart from empty ones.
+    fn c_get(obj: *mut c_void, name: &CStr) -> (c_int, Option<Vec<u8>>) {
+        let mut out = ptr::null_mut();
+        let flags = ffi::AV_OPT_ALLOW_NULL as c_int;
+        // SAFETY: a live object of a well-formed class, a live name and a
+        // writable slot.
+        let ret = unsafe { ffi::av_opt_get(obj, name.as_ptr(), flags, &raw mut out) };
+        if out.is_null() {
+            return (ret, None);
+        }
+        // SAFETY: C's fresh NUL-terminated string, which the caller owns.
+        let bytes = unsafe { CStr::from_ptr(out.cast()) }.to_bytes().to_vec();
+        // SAFETY: as above, freed once.
+        unsafe { ffi::av_free(out.cast()) };
+        (ret, Some(bytes))
+    }
+
+    /// Stores `default`, the default of option `name` of type `ty`, on
+    /// `fresh` through C's setter for that type, converting a rational's
+    /// `double` as `av_opt_set_defaults` does; `None` when there is nothing
+    /// to store, `fresh` already holding C's empty value.
+    fn store(
+        fresh: *mut c_void,
+        name: &CStr,
+        ty: OptionType,
+        default: OptionDefault<'_>,
+    ) -> Option<c_int> {
+        // Each setter below is called on `fresh`, a live object of a
+        // well-formed class, with live strings.
+        let n = name.as_ptr();
+        Some(match default {
+            // SAFETY: as the comment above this statement states.
+            OptionDefault::Int(v) => unsafe { ffi::av_opt_set_int(fresh, n, v, 0) },
+            OptionDefault::Double(d) if ty == OptionType::RATIONAL => {
+                // SAFETY: a pure conversion.
+                let q = unsafe { ffi::av_d2q(d, c_int::MAX) };
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_opt_set_q(fresh, n, q, 0) }
+            }
+            // SAFETY: as the comment above this statement states.
+            OptionDefault::Double(d) => unsafe { ffi::av_opt_set_double(fresh, n, d, 0) },
+            // SAFETY: as the comment above this statement states.
+            OptionDefault::Str(Some(s)) => unsafe { ffi::av_opt_set(fresh, n, s.as_ptr(), 0) },
+            OptionDefault::Array(Some(a)) => {
+                let def = a.def()?;
+                // SAFETY: as the comment above this statement states.
+                unsafe { ffi::av_opt_set(fresh, n, def.as_ptr(), 0) }
+            }
+            OptionDefault::Str(None) | OptionDefault::Array(None) => return None,
+            OptionDefault::Unsupported => panic!("{name:?} has no default C reads"),
+        })
+    }
+
+    /// For every option of `entries` but the named constants: the default
+    /// the getters report, stored on `fresh()` through C's setter for its
+    /// type, serializes as C's `av_opt_set_defaults` left it on `defaulted`.
+    /// Returns how many defaults were stored.
+    fn defaults_agree(
+        entries: &[(OptionDefRef<'static>, &'static ffi::AVOption)],
+        defaulted: *mut c_void,
+        mut fresh: impl FnMut() -> (*mut c_void, Box<dyn FnOnce()>),
+    ) -> usize {
+        let mut stored = 0;
+        for &(r, _) in entries {
+            let ty = r.option_type();
+            if ty == OptionType::CONST {
+                continue;
+            }
+            let name = r.name().unwrap();
+            let default = r.default_value();
+            if r.flags() & READONLY != 0 {
+                // C refuses to set a read-only option; its getter still
+                // reads the default.
+                let OptionDefault::Int(v) = default else {
+                    panic!("{name:?}")
+                };
+                let mut got = 0;
+                // SAFETY: as for `c_get`.
+                let ret = unsafe { ffi::av_opt_get_int(defaulted, name.as_ptr(), 0, &raw mut got) };
+                assert_eq!((ret, got), (0, v), "{name:?}");
+                continue;
+            }
+            let (obj, free) = fresh();
+            if let Some(ret) = store(obj, name, ty, default) {
+                assert_eq!(ret, 0, "{name:?}");
+                stored += 1;
+            }
+            assert_eq!(c_get(obj, name), c_get(defaulted, name), "{name:?}");
+            free();
+        }
+        stored
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn defaults_store_as_c_stores_them() {
+        let obj = Owned::new();
+        let stored = defaults_agree(&entries(&OBJ_CLASS, &OBJ_OPTIONS), obj.as_obj(), || {
+            let o = Owned::zeroed();
+            (o.as_obj(), Box::new(move || drop(o)))
+        });
+        // Every option but the named constants, `ro` (read-only), `nostr`
+        // and `empty` (no default).
+        assert_eq!(stored, 27);
+
+        let arr = ArrOwned::new();
+        let stored = defaults_agree(&entries(&ARR_CLASS, &ARR_OPTIONS), arr.as_obj(), || {
+            // Each array is stored over C's own default: storing it again
+            // must succeed and change nothing C serializes.
+            let o = ArrOwned::new();
+            (o.as_obj(), Box::new(move || drop(o)))
+        });
+        // Every array but `bins`, which has no definition.
+        assert_eq!(stored, 17);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn constants_set_their_value_as_c_sets_it() {
+        let entries = entries(&OBJ_CLASS, &OBJ_OPTIONS);
+        let mut set = 0;
+        for &(r, _) in &entries {
+            if r.option_type() != OptionType::CONST {
+                continue;
+            }
+            let name = r.name().unwrap();
+            let unit = r.unit().unwrap();
+            let OptionDefault::Int(v) = r.default_value() else {
+                panic!("{name:?}")
+            };
+            // The first option of the constant's unit that is no constant,
+            // as `av_opt_set` finds the constant from it.
+            let target = entries
+                .iter()
+                .map(|&(o, _)| o)
+                .find(|o| o.option_type() != OptionType::CONST && o.unit() == Some(unit))
+                .unwrap();
+            let t = target.name().unwrap().as_ptr();
+            let o = Owned::new();
+            // SAFETY: as for `c_get`.
+            let ret = unsafe { ffi::av_opt_set(o.as_obj(), t, name.as_ptr(), 0) };
+            if name == c"huge" {
+                // `INT64_MAX` is outside the bounds of the 32-bit flags.
+                assert!(ret < 0);
+                continue;
+            }
+            assert_eq!(ret, 0, "{name:?}");
+            if target.option_type() == OptionType::DOUBLE {
+                let mut got = 0.0;
+                // SAFETY: as for `c_get`.
+                let ret = unsafe { ffi::av_opt_get_double(o.as_obj(), t, 0, &raw mut got) };
+                assert_eq!((ret, got.to_bits()), (0, (v as f64).to_bits()), "{name:?}");
+            } else {
+                let mut got = 0;
+                // SAFETY: as for `c_get`.
+                let ret = unsafe { ffi::av_opt_get_int(o.as_obj(), t, 0, &raw mut got) };
+                assert_eq!((ret, got), (0, v), "{name:?}");
+            }
+            set += 1;
+        }
+        // `seven`, `one`, `bit`, `eight`, `low`, `high`, `mixed`, `dflag`.
+        assert_eq!(set, 8);
+    }
+}

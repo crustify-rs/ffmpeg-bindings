@@ -244,7 +244,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`0`|`0`| `2` | `0` |`+548/-0`| `72.49`% / `99.70`% | `$2.84` | `6.64M` | `12m09s` | `$1.42` | `—` |
 |`libavutil/hwcontext`|`1`|`0`| `2` | `11` |`+2151/-10`| `75.07`% / `99.68`% | `$25.46` | `84.94M` | `85m00s` | `$12.73` | `$2.31` |
 |`libavutil/hwcontext`|`2`|`0`| `1` | `12` |`+1844/-170`| `75.08`% / `99.69`% | `$11.06` | `33.26M` | `41m54s` | `$11.06` | `$0.92` |
-| **Σ** |  |  | **`82`** | **`174`** | **`+44100/-599`** | **`75.08`% / `99.69`%** | **`$291.09`** | **`827.23M`** | — | **`$3.55`** | **`$1.67`** |
+|`libavutil/libavutil/opt.c`|`794`|`0`| `2` | `12` |`+300/-1`| `68.58`% / `99.25`% | — | — | — | — | — |
+| **Σ** |  |  | **`84`** | **`186`** | **`+44400/-600`** | **`68.58`% / `99.25`%** | **`$291.09`** | **`827.23M`** | — | **`$3.55`** | **`$1.67`** |
 
 ### Batches — wrap: tests
 
@@ -300,7 +301,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`0`|`0`|`+6` (`+0.00`/`-0.03` pp)|`+0` (`-0.02`/`-0.10` pp)|`+6` (`+0.10`/`+0.05` pp)|`+9` (`+0.00`/`+0.06` pp)|
 |`libavutil/hwcontext`|`1`|`0`|`+4` (`+0.05`/`-0.86` pp)|`+14` (`+0.23`/`+0.90` pp)|`+7` (`+0.15`/`+0.14` pp)|`+18` (`+0.15`/`+0.31` pp)|
 |`libavutil/hwcontext`|`2`|`0`|`+0` (`+0.00`/`-1.43` pp)|`+10` (`+0.77`/`+1.36` pp)|`+5` (`+0.02`/`-0.14` pp)|`+13` (`+0.01`/`+0.26` pp)|
-| **Σ** |  |  | **`+377` (`+15.55`/`+3.62` pp)** | **`+87` (`+7.40`/`+12.15` pp)** | **`+271` (`+32.63`/`-36.14` pp)** | **`+461` (`+18.83`/`+0.80` pp)** |
+|`libavutil/libavutil/opt.c`|`794`|`0`|`+0` (`+0.00`/`+0.06` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+0.00`/`+0.03` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+377` (`+15.55`/`+3.68` pp)** | **`+87` (`+7.40`/`+12.15` pp)** | **`+274` (`+32.63`/`-36.11` pp)** | **`+461` (`+18.83`/`+0.80` pp)** |
 
 ### Batches — port
 
@@ -2194,3 +2196,23 @@ FATE's samples from the checkout's own `crustify/fate-suite`, so `build.json`'s 
 every variant was rebuilt. The workspace pins ffibox at `40621a2`, whose policy macros forward the
 annotations its invocations pass, and `glibc-bindings` at `6180870`, which pins the same ffibox;
 the `[patch]` points at the wrapper's clone in `/target`.
+
+### `libavutil/libavutil/opt.c` wave 794, batch 0: `AVOption` and `AVOptionRanges` again
+
+Planner run 5's re-plan scheduled both types again, so that their wave-4 wrappers would be brought to
+the current specs, with the raw references to `AVRational`, `AVOptionArrayDef` and `AVOptionRange`
+that the later wrappers made obsolete replaced. Later batches had already done that work: the default
+reads an array definition as `OptionArrayDefRef`, and a range list hands out `OptionRangeRef`s. The
+public API is unchanged. Two raw references remain on purpose. `default_val.q`, the only `AVRational`,
+is marked unused in `opt.h`, no C path reads or writes it, and C takes a `RATIONAL` default from
+`dbl`, so it gets no stand-in. The list's private `range` view stays `*const ffi::AVOptionRange`,
+because the handle seams take the C pointer type and ffibox has no view over a run of nullable
+handles. The batch added tests only: `default_value`, `min` and `max` had none that ran.
+
+The row's coverage follows the method above: `coverage` prebuild through gcov (12,576 executable
+lines; the `-sys` shims' gcov instrumentation needs `-C link-arg=-lgcov` at the final link), and Rust
+from `-C instrument-coverage` on `nightly-2026-10-08` with test items `#[coverage(off)]` in a scratch
+copy (14,151 lines). The unit and `ub_unsafe` workloads are byte-identical to the base and were run
+once. The unsafe surface did not move: scanned on its base and landing at ffimap `8cb4031`, only the
+`code.tests.*` counters changed. The recorded `crustify/artifacts/ffimap.json` is from `c7f7116`, which
+counts `ty.ffibox.wrapper.fields` differently (372 rather than 420 on the same tree).

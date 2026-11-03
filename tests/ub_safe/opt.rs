@@ -613,20 +613,24 @@ mod typed_setters {
 /// against, which a log callback reaches through `Record::class` while C's
 /// failed parse logs in that class's context: its lookups, range queries
 /// and evaluators run inside the callback, which their own failures
-/// re-enter, and the flags agree with `cpu::parse_cpu_caps`.
+/// re-enter, and the flags agree with `cpu::parse_cpu_caps`. Wave 794, batch
+/// 0: every field of each of the class's options reads, on the callback's
+/// thread and on several at once, as `cpu.c` defines it, each constant's
+/// default being the flags `cpu::parse_cpu_caps` parses its name to.
 ///
 /// [`BareObject`]: ffmpeg_bindings::libavutil::libavutil::opt::BareObject
 /// [`Class::new`]: ffmpeg_bindings::libavutil::libavutil::log::Class::new
 mod lookups {
     use core::ffi::CStr;
     use std::cell::{Cell, RefCell};
+    use std::ffi::CString;
 
     use ffmpeg_bindings::libavutil::libavutil::cpu;
     use ffmpeg_bindings::libavutil::libavutil::log::{
         self, Callback, Class, ClassCategory, ClassRef, Record,
     };
     use ffmpeg_bindings::libavutil::libavutil::opt::{
-        BareObject, EvalContext, RangeFlags, SearchFlags,
+        BareObject, EvalContext, OptionDefRef, OptionDefault, OptionType, RangeFlags, SearchFlags,
     };
 
     use crate::log::{LogState, isolated};
@@ -695,14 +699,51 @@ mod lookups {
         c"pentium2-cmov",
     ];
 
-    /// What the probe saw in the `cpuflags` class: its lookups, ranges and
-    /// each token's evaluation from 0.
+    /// What the probe saw in the `cpuflags` class: its lookups, ranges,
+    /// each token's evaluation from 0 and its options' fields.
     #[derive(Debug, Default)]
     struct Seen {
         found: Vec<bool>,
         ranges: Vec<Option<i32>>,
         flags: Vec<(Option<i32>, i32)>,
         others: Vec<Option<i32>>,
+        options: Vec<Fields>,
+    }
+
+    /// Every field of one option, copied out of C's table.
+    #[derive(Debug, PartialEq)]
+    struct Fields {
+        name: CString,
+        help: Option<CString>,
+        unit: Option<CString>,
+        offset: i32,
+        ty: OptionType,
+        default: Option<i64>,
+        min: u64,
+        max: u64,
+        flags: i32,
+    }
+
+    impl Fields {
+        /// Reads every getter of `o`; an integer default is kept, any other
+        /// fails the probe.
+        fn read(o: OptionDefRef<'_>) -> Self {
+            let default = match o.default_value() {
+                OptionDefault::Int(v) => Some(v),
+                _ => None,
+            };
+            Self {
+                name: o.name().expect("a walked option has a name").to_owned(),
+                help: o.help().map(CStr::to_owned),
+                unit: o.unit().map(CStr::to_owned),
+                offset: o.offset(),
+                ty: o.option_type(),
+                default,
+                min: o.min().to_bits(),
+                max: o.max().to_bits(),
+                flags: o.flags(),
+            }
+        }
     }
 
     thread_local! {
@@ -758,6 +799,18 @@ mod lookups {
             seen.others.push(flags.eval_int(ctx, token).err());
             seen.others.push(flags.eval_rational(ctx, token).err());
         }
+        let read = |class: ClassRef<'_>| -> Vec<Fields> {
+            class.options().iter().map(Fields::read).collect()
+        };
+        seen.options = read(class);
+        // The table is shared with every thread C may read it from: handles
+        // to it cross threads and read the same fields concurrently.
+        std::thread::scope(|s| {
+            let readers: Vec<_> = (0..4).map(|_| s.spawn(move || read(class))).collect();
+            for r in readers {
+                assert_eq!(r.join().unwrap(), seen.options);
+            }
+        });
         seen
     }
 
@@ -790,6 +843,36 @@ mod lookups {
             let mut caps = 0u32;
             let c = cpu::parse_cpu_caps(&mut caps, token).err();
             assert_eq!((r, flags as u32), (c, caps), "{token:?}");
+        }
+        // `cpu.c`: one `flags` option over all of `int64_t`, then the named
+        // constants of its unit, neither with help text or an offset.
+        let (first, constants) = seen.options.split_first().expect("cpuflags has options");
+        let flags = Fields {
+            name: c"flags".to_owned(),
+            help: None,
+            unit: Some(c"flags".to_owned()),
+            offset: 0,
+            ty: OptionType::FLAGS,
+            default: Some(0),
+            // `INT64_MIN` and `INT64_MAX` as C stores them, in a `double`.
+            min: (-(2f64.powi(63))).to_bits(),
+            max: 2f64.powi(63).to_bits(),
+            flags: 0,
+        };
+        assert_eq!(*first, flags);
+        assert!(constants.len() > 1);
+        for c in constants {
+            let what = &c.name;
+            assert_eq!(c.ty, OptionType::CONST, "{what:?}");
+            assert_eq!(
+                (&c.help, c.unit.as_deref()),
+                (&None, Some(c"flags")),
+                "{what:?}"
+            );
+            assert_eq!((c.offset, c.min, c.max, c.flags), (0, 0, 0, 0), "{what:?}");
+            let mut caps = 0u32;
+            cpu::parse_cpu_caps(&mut caps, &c.name).unwrap();
+            assert_eq!(c.default, Some(i64::from(caps)), "{what:?}");
         }
     }
 }
