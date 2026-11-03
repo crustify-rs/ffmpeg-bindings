@@ -5,30 +5,33 @@ use core::ffi::CStr;
 
 use super::ffi;
 
-/// Replaces: `av_uuid_copy`
+/// Wraps `fn::av_uuid_copy`
 ///
 /// Copy the complete UUID. This is equivalent to C's inline memcpy, with
 /// Rust borrows excluding overlap; there is no foreign lifetime to preserve.
+#[doc(alias = "av_uuid_copy")]
 pub fn copy(destination: &mut [u8; 16], source: &[u8; 16]) {
     *destination = *source;
 }
 
-/// Replaces: `av_uuid_equal`
+/// Wraps `fn::av_uuid_equal`
 ///
 /// Compare all sixteen bytes (equivalent to C's inline memcmp).
 #[must_use]
+#[doc(alias = "av_uuid_equal")]
 pub fn equal(left: &[u8; 16], right: &[u8; 16]) -> bool {
     left == right
 }
 
-/// Replaces: `av_uuid_nil`
+/// Wraps `fn::av_uuid_nil`
 ///
 /// Set every byte to zero (equivalent to C's inline memset).
+#[doc(alias = "av_uuid_nil")]
 pub fn nil(uuid: &mut [u8; 16]) {
     *uuid = [0; 16];
 }
 
-/// Wraps: `av_uuid_parse`
+/// Wraps `fn::av_uuid_parse`
 ///
 /// Parse C's 36-byte, case-insensitive UUID representation. On failure,
 /// return C's error rather than exposing a partially initialized value.
@@ -36,6 +39,7 @@ pub fn nil(uuid: &mut [u8; 16]) {
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_uuid_parse` returns when it fails.
+#[doc(alias = "av_uuid_parse")]
 pub fn parse(input: &CStr) -> Result<[u8; 16], i32> {
     let mut uuid = [0; 16];
     // SAFETY: input is NUL-terminated, output is exclusive 16-byte storage.
@@ -44,7 +48,7 @@ pub fn parse(input: &CStr) -> Result<[u8; 16], i32> {
     if ret < 0 { Err(ret) } else { Ok(uuid) }
 }
 
-/// Wraps: `av_uuid_parse_range`
+/// Wraps `fn::av_uuid_parse_range`
 ///
 /// Parse a byte range without requiring a terminating NUL. As in C, the
 /// four separator positions are skipped, not validated as hyphens.
@@ -52,6 +56,7 @@ pub fn parse(input: &CStr) -> Result<[u8; 16], i32> {
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_uuid_parse_range` returns when it fails.
+#[doc(alias = "av_uuid_parse_range")]
 pub fn parse_range(input: &[u8]) -> Result<[u8; 16], i32> {
     if input.len() != 36 {
         return Err(-(ffi::EINVAL.cast_signed()));
@@ -68,13 +73,14 @@ pub fn parse_range(input: &[u8]) -> Result<[u8; 16], i32> {
     if ret < 0 { Err(ret) } else { Ok(uuid) }
 }
 
-/// Wraps: `av_uuid_unparse`
+/// Wraps `fn::av_uuid_unparse`
 ///
 /// Serialize lowercase text plus its NUL into an exact-size destination.
 ///
 /// # Panics
 ///
 /// Only if C's UUID formatter leaves the output without its NUL.
+#[doc(alias = "av_uuid_unparse")]
 pub fn unparse<'a>(uuid: &[u8; 16], output: &'a mut [u8; 37]) -> &'a CStr {
     // SAFETY: C reads exactly 16 bytes, writes exactly 37 including NUL,
     // retains no pointers, and Rust borrows exclude overlap.
@@ -82,13 +88,14 @@ pub fn unparse<'a>(uuid: &[u8; 16], output: &'a mut [u8; 37]) -> &'a CStr {
     CStr::from_bytes_with_nul(output).expect("C UUID formatter terminates ASCII")
 }
 
-/// Wraps: `av_uuid_urn_parse`
+/// Wraps `fn::av_uuid_urn_parse`
 ///
 /// Parse a UUID prefixed by `urn:uuid:` (case-insensitive), as C does.
 ///
 /// # Errors
 ///
 /// Returns the negative `AVERROR` code `av_uuid_urn_parse` returns when it fails.
+#[doc(alias = "av_uuid_urn_parse")]
 pub fn urn_parse(input: &CStr) -> Result<[u8; 16], i32> {
     let mut uuid = [0; 16];
     // SAFETY: input is NUL-terminated, output is exclusive 16-byte storage.
