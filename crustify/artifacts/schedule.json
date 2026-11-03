@@ -12917,7 +12917,7 @@
       "module": "libavutil/opt.c",
       "foundational": false,
       "reviews": 794,
-      "status": "todo",
+      "status": "done",
       "depends_on": {
         "scheduled": [
           794
@@ -12934,11 +12934,14 @@
         {
           "index": 0,
           "kind": "review",
-          "status": "todo",
+          "status": "done",
           "reviews": [
             0
           ],
-          "commits": []
+          "commits": [
+            "29ed6ebeeef4af137f051d0f1e7271288ce5cc43",
+            "3c99aba7dd7c8fc4635b43c485737ab476559b0b"
+          ]
         }
       ]
     },
