@@ -13214,7 +13214,7 @@
       "module": "libavutil/log.c",
       "foundational": false,
       "reviews": 800,
-      "status": "todo",
+      "status": "done",
       "depends_on": {
         "scheduled": [
           800
@@ -13231,11 +13231,14 @@
         {
           "index": 0,
           "kind": "review",
-          "status": "todo",
+          "status": "done",
           "reviews": [
             0
           ],
-          "commits": []
+          "commits": [
+            "b2618772fbddcf351c0b8069724782f0c32db555",
+            "5731fd8b6c17e1cf005889602440c31773a74d83"
+          ]
         }
       ]
     },
