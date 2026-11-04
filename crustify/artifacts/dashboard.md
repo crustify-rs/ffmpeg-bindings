@@ -138,11 +138,11 @@ in Notes.
 
 - **Rust LoC, non-test** — `<n>`
 - **Rust LoC, tests** — `<n>`
-- **UB safe tests** — `815` (`58.82`% C LoC coverage, `80.92`% Rust LoC coverage)
-- **UB unsafe tests** — `181` (`29.83`% C LoC coverage, `30.02`% Rust LoC coverage)
-- **Equiv tests** — `718` (`74.02`% C LoC coverage, `86.39`% Rust LoC coverage)
-- **Unit tests** — `967` (`47.65`% C LoC coverage, `84.81`% Rust LoC coverage)
-- **Total tests** — `2681` (`75.12`% C LoC coverage, `99.68`% Rust LoC coverage)
+- **UB safe tests** — `821` (`53.10`% C LoC coverage, `75.04`% Rust LoC coverage)
+- **UB unsafe tests** — `182` (`26.64`% C LoC coverage, `28.16`% Rust LoC coverage)
+- **Equiv tests** — `723` (`66.67`% C LoC coverage, `80.38`% Rust LoC coverage)
+- **Unit tests** — `968` (`41.20`% C LoC coverage, `84.45`% Rust LoC coverage)
+- **Total tests** — `2694` (`67.20`% C LoC coverage, `99.07`% Rust LoC coverage)
 - **C LoC** — `<n>`
 - **total types** — `290`
 - **total symbols** — `1126`
@@ -755,6 +755,44 @@ reused the translation batches or the oracle re-batched it under distinct caps;
 which units a review schedule dropped and why; which sub-campaigns the Overview
 lists but no table details, and the cost that leaves unaccounted; and any column
 a campaign could not fill, said once rather than left as a field of em-dashes.
+
+### Overview test coverage
+
+The Overview's five test lines were measured again on 2026-11-04, at `crustify/devel`
+`d7652675f5e`, with the testing spec's Coverage method, which replaces the gcov one the
+earlier figures used. Those figures are not comparable with these. Each count is the
+number of tests its compiled test binary registers (`-- --list`): `--lib` for the unit
+tests, and the `ub_safe`, `ub_unsafe` and `equiv` integration crates. The two `ub_safe`
+compile-fail runners count, and were skipped in the coverage run since they run no code.
+Doctests are not counted in those lines.
+
+The `coverage` variant, `build.json` version 6, compiles the C with clang 23,
+`-fprofile-instr-generate -fcoverage-mapping`. The Rust is a scratch copy under
+`crustify/tmp/coverage/` with `#[coverage(off)]` on every test item, compiled on
+`nightly-2026-10-08` (LLVM 23) with `-C instrument-coverage`. Each suite ran alone into
+its own profile, and `Total tests` is the merge of the four suites' profiles, their union.
+Every figure is the `TOTAL` line of the nightly's `llvm-cov report`, with `libavutil.so`
+and every test binary as objects for every suite.
+
+- C is line coverage over the 18,477 lines `libavutil.so` maps to `libavutil/`. The tests
+  load no other FFmpeg library, since no other link unit has landed work yet. The copies of
+  other libraries' header inlines that `libavutil.so` compiles, such as
+  `libavcodec/get_bits.h`, count toward none. The total covers `66.16`% of functions and
+  `71.67`% of regions.
+- Rust is line coverage over the 15,502 lines of the crate's 73 files under `src/`, with
+  `tests/`, the `-sys` crates and dependencies left out by path. The total covers `99.31`%
+  of functions and `98.06`% of regions.
+- Doctests, run as a suite of their own: 226, merged and standalone, of which 215 pass
+  under the nightly. Eleven compile-fail doctests expect the error codes stable reports,
+  which the nightly's differ from; they pass on plain. They reach `15.78`% of C lines and
+  `19.66`% of Rust lines, and add no line to the four suites' union.
+
+`crustify/scripts/coverage/` holds the scripts that measured them:
+`run.sh "$PWD" ffmpeg-bindings "$PWD/crustify/tmp/coverage"`, then, with `b` the variant's
+absolute dir, `report.py crustify/tmp/coverage "C=$b/src/libavutil@$b,Rust=$PWD/crustify/tmp/coverage/tree/src" --c $b/libavutil/libavutil.so.61`.
+
+The UB suites also run under ASan+UBSan, TSan, Miri and BorrowSanitizer in the agents'
+gates. Those runs share one test set and are not counted again.
 
 ### Sanitizer variants
 
