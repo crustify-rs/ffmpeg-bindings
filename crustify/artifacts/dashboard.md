@@ -138,11 +138,11 @@ in Notes.
 
 - **Rust LoC, non-test** — `<n>`
 - **Rust LoC, tests** — `<n>`
-- **UB safe tests** — `821` (`53.10`% C LoC coverage, `75.04`% Rust LoC coverage)
-- **UB unsafe tests** — `182` (`26.64`% C LoC coverage, `28.16`% Rust LoC coverage)
-- **Equiv tests** — `723` (`66.67`% C LoC coverage, `80.38`% Rust LoC coverage)
-- **Unit tests** — `968` (`41.20`% C LoC coverage, `84.45`% Rust LoC coverage)
-- **Total tests** — `2694` (`67.20`% C LoC coverage, `99.07`% Rust LoC coverage)
+- **UB safe tests** — `821` (`53.15`% C LoC coverage, `75.00`% Rust LoC coverage)
+- **UB unsafe tests** — `187` (`26.58`% C LoC coverage, `28.26`% Rust LoC coverage)
+- **Equiv tests** — `723` (`66.65`% C LoC coverage, `80.39`% Rust LoC coverage)
+- **Unit tests** — `968` (`41.20`% C LoC coverage, `84.44`% Rust LoC coverage)
+- **Total tests** — `2699` (`67.19`% C LoC coverage, `99.07`% Rust LoC coverage)
 - **C LoC** — `<n>`
 - **total types** — `290`
 - **total symbols** — `1126`
@@ -246,7 +246,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`2`|`0`| `1` | `12` |`+1844/-170`| `75.08`% / `99.69`% | `$11.06` | `33.26M` | `41m54s` | `$11.06` | `$0.92` |
 |`libavutil/libavutil/opt.c`|`794`|`0`| `2` | `12` |`+300/-1`| `68.58`% / `99.25`% | `$8.39` | `25.43M` | `24m16s` | `$4.19` | `$0.70` |
 |`libavutil/libavutil/frame.c`|`902`|`1`| `1` | `6` |`+912/-85`| `69.30`% / `99.20`% | `$6.05` | `16.51M` | `28m54s` | `$6.05` | `$1.01` |
-| **Σ** |  |  | **`85`** | **`192`** | **`+45312/-685`** | **`69.30`% / `99.20`%** | **`$305.53`** | **`869.17M`** | — | **`$3.59`** | **`$1.59`** |
+|`libavutil/libavutil/hwcontext.c`|`952`|`0`| `2` | `11` |`+597/-240`| `67.19`% / `99.07`% | — | — | — | — | — |
+| **Σ** |  |  | **`87`** | **`203`** | **`+45909/-925`** | **`67.19`% / `99.07`%** | **`$305.53`** | **`869.17M`** | — | **`$3.59`** | **`$1.59`** |
 
 ### Batches — wrap: tests
 
@@ -304,7 +305,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`2`|`0`|`+0` (`+0.00`/`-1.43` pp)|`+10` (`+0.77`/`+1.36` pp)|`+5` (`+0.02`/`-0.14` pp)|`+13` (`+0.01`/`+0.26` pp)|
 |`libavutil/libavutil/opt.c`|`794`|`0`|`+0` (`+0.00`/`+0.06` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+0.00`/`+0.03` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/libavutil/frame.c`|`902`|`1`|`+4` (`+0.00`/`+0.14` pp)|`+0` (`+0.00`/`-0.27` pp)|`+1` (`+0.00`/`+0.02` pp)|`+4` (`+0.00`/`-0.23` pp)|
-| **Σ** |  |  | **`+381` (`+15.55`/`+3.82` pp)** | **`+87` (`+7.40`/`+11.88` pp)** | **`+275` (`+32.63`/`-36.09` pp)** | **`+465` (`+18.83`/`+0.57` pp)** |
+|`libavutil/libavutil/hwcontext.c`|`952`|`0`|`+0` (`+0.05`/`-0.04` pp)|`+5` (`+0.08`/`+0.09` pp)|`+0` (`-0.04`/`+0.02` pp)|`+0` (`+0.00`/`-0.00` pp)|
+| **Σ** |  |  | **`+381` (`+15.60`/`+3.78` pp)** | **`+92` (`+7.48`/`+11.97` pp)** | **`+275` (`+32.59`/`-36.07` pp)** | **`+465` (`+18.83`/`+0.57` pp)** |
 
 ### Batches — port
 
@@ -2370,3 +2372,53 @@ follows. The batch's tests pass under ASan/UBSan and TSan. The coverage cells co
 wave-800 scripts, on the wave tip and the landed tree, which are identical at 69.30% / 99.20%
 (13,844 C lines and 14,533 Rust lines). The `ub_safe` suite's Rust lines read 11,632 instead of
 11,633, a thread-timing difference in a suite the review did not touch.
+
+### `libavutil/libavutil/hwcontext.c` wave 952, batch 0: `AVHWDeviceContext` and `AVHWFramesConstraints` again
+
+The re-plan scheduled `AVHWDeviceContext` (wave 42) and `AVHWFramesConstraints` again, to bring
+them to the current specs. Their layouts, handles, owners, lifecycle, eleven field accessors and
+anchors already met the specs and keep their API. What was left was the hardware context casts:
+`DeviceContextRef::hwctx`, `DeviceContextMut::into_hwctx`, `FramesContextRef::hwctx` and
+`FramesContextMut::into_hwctx` were `pub unsafe fn`s over any `T: CCell`, which passed on to the
+caller the obligation that `T::C` be the backend struct of the context's device type. C allocates
+`hwctx` from the backend of the type that `AVHWDeviceContext.type` records, and never changes either,
+so the binding now checks that type instead. The frames accessors, `AVHWFramesContext`'s (wave 954's
+item), are included at the user's instruction. The batch adds three public unsafe traits:
+
+- `BackendDeviceContext: CCell`, with `const DEVICE_TYPE: DeviceType`. A backend's wrapper implements
+  it for its device struct. `hwctx` and `into_hwctx` are now safe, and return `None` when the
+  context's type is not `T::DEVICE_TYPE` or the backend allocated no struct. An implementation
+  asserts the layout, that the backend writes nothing the shared handle reads once the context is
+  initialised, and that `T::Mut`'s safe setters write only what `device_init` and `device_uninit`
+  accept. Setters for foreign handles stay `unsafe` in the backend's wrapper.
+- `BackendFramesContext: CCell`, likewise for frames structs, keyed on the type of the frames
+  context's device. It types `FramesContextMut::into_hwctx`, the pre-init exclusive path.
+- `StableBackendFramesContext: BackendFramesContext`, which `FramesContextRef::hwctx` requires: the
+  backend leaves the struct unwritten after `av_hwframe_ctx_init`. D3D11VA appends the textures it
+  allocates to `texture_infos` through any reference, so a struct like its would implement only
+  `BackendFramesContext`. It is filled and read through the exclusive handle before init.
+
+No backend implements the traits yet, since no backend header is in the campaign. The test fixtures'
+fake backends do (`tests/common/hwdevice.rs`, `hwbackend.rs`): one struct per device type,
+`FakeHw` (VAAPI) and `FakeDrmHw` (DRM), and `FramesHw` (kind A, VAAPI) and `FramesHwB` (kind B, DRM),
+because the frames fixture serves two device types. The fake's `set_events`, which stores a pointer
+its callbacks dereference, became `unsafe`, as the trait asks of such setters. The landed tests and
+helpers that named the casts drop their `unsafe` blocks. Five `ub_unsafe` tests cover a struct of
+another device type (refused through both accessors, in the free callback too), a VAAPI context
+without a hardware context, and an exclusive-only frames struct filled and read before init. Three
+compile-fail doctests cover a type that implements no trait, for both kinds, and the shared frames
+getter on a struct that is not `StableBackendFramesContext`. The `AVHWFramesConstraints` setters'
+`# Errors` sections now say `AVERROR(ENOMEM)`, which is all they return. `UninitDevice::init` stays
+`unsafe`: the traits say what the struct is, not that it holds what `device_init` dereferences
+(D3D11VA calls through its `device`).
+
+The unsafe surface was scanned on the base (`41593ef`) and on the landing tree at ffimap `8cb4031`,
+with the ten seams the ffimap spec names. Public `unsafe fn`s go from 67 to 63, the four casts, and
+raw pointers on the safe public interface stay 3 + 7 + 0. The other hwcontext `--sites` are seams
+(`UninitDevice::from_c`, `into_c`, `HwConfig`), ffibox trait impls, `UninitDevice::init`, and the
+frames items `pool`, `set_pool` and `transfer_data_from`, none of them this changeset's to replace.
+The coverage cells come from `crustify/scripts/coverage/`, run on the base (67.20% / 99.07%) and on
+the landing tree, over 18,477 C lines on both and 15,502 and 15,511 Rust lines. Every Rust line the
+batch added is covered: 144 lines stay uncovered, as on the base. The C figures of the suites the
+batch did not touch move by a few lines, which is thread timing. The Overview's five test lines are
+this landing's.

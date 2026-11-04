@@ -35,7 +35,13 @@
 //! frames are a [`FramesConstraintsBox`]
 //! ([`DeviceReferenceRef::frames_constraints`]). A frames context's own
 //! fields are [`FramesContext`]'s, reached likewise through
-//! [`FramesReferenceRef::context`] and [`UninitFrames::context_mut`].
+//! [`FramesReferenceRef::context`] and [`UninitFrames::context_mut`]. The
+//! backend structs a device or frames context's `hwctx` holds, as each
+//! backend's `hwcontext_<api>.h` declares them, are typed through
+//! [`BackendDeviceContext`] and [`BackendFramesContext`], which a backend's
+//! wrapper implements with the device type its struct belongs to: the
+//! accessors check it against the context's type, and hand out nothing for
+//! another.
 
 use core::any::Any;
 use core::ffi::{CStr, c_int, c_void};
@@ -2078,9 +2084,9 @@ define_ctype!(
     ///   setter);
     /// - `hwctx`, the device type's own hardware context (an `AVVAAPIDeviceContext` for VAAPI, an
     ///   `AVCUDADeviceContext` for CUDA, and so on), allocated and freed with the context, which
-    ///   the caller fills before initialisation: typed by the caller
-    ///   ([`hwctx`](DeviceContextRef::hwctx), [`into_hwctx`](DeviceContextMut::into_hwctx), both
-    ///   `unsafe`);
+    ///   the caller fills before initialisation: typed by the backend struct the context's type
+    ///   names, a [`BackendDeviceContext`] ([`hwctx`](DeviceContextRef::hwctx),
+    ///   [`into_hwctx`](DeviceContextMut::into_hwctx), `None` for another type's);
     /// - `free` and `user_opaque`, a callback C runs at the last release and the data it is meant
     ///   for, which Rust fills with a closure
     ///   ([`set_free_callback`](DeviceContextMut::set_free_callback)) and any `Send + Sync` value
@@ -2175,6 +2181,55 @@ unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
     }
 }
 
+/// A backend's public device hardware context: the struct
+/// `hwcontext_<api>.h` declares for one [`DeviceType`]
+/// (`AVVAAPIDeviceContext` for [`DeviceType::VAAPI`], `AVCUDADeviceContext`
+/// for [`DeviceType::CUDA`], ...), wrapped as a layout type, which
+/// [`DeviceContextRef::hwctx`] and [`DeviceContextMut::into_hwctx`] hand out
+/// for a context of that type.
+///
+/// C types a device context's `hwctx` by the context's device type alone:
+/// `av_hwdevice_ctx_alloc` sizes it from the backend of the type it is
+/// given, stores the type in `AVHWDeviceContext.type`, and nothing changes
+/// either afterwards. So the accessors compare the context's type with
+/// [`DEVICE_TYPE`](Self::DEVICE_TYPE), and hand out `Self`'s handles only
+/// when they are equal. No backend header is wrapped yet; a backend module
+/// implements this trait for its struct.
+///
+/// # Safety
+///
+/// An implementation asserts that:
+///
+/// - `Self::C` is the public device context struct of the backend of
+///   [`DEVICE_TYPE`](Self::DEVICE_TYPE), as that backend's `hwcontext_<api>.h` declares it at the C
+///   revision the crate is built against: the struct C allocates `hwctx` for (alone, or at the
+///   start of the backend's private one) in every context of that type;
+/// - the backend writes none of its fields once the context is initialised (`av_hwdevice_ctx_init`,
+///   or the routines that create initialised devices), except fields `Self::Ref`'s getters do not
+///   read, or reads through interior-mutable means the backend synchronizes with: initialised
+///   contexts lend shared handles to it; and
+/// - `Self::Mut`'s safe methods write only what the backend's `device_init` and `device_uninit`
+///   accept as the header allows, leaving any foreign handle or callback the backend dereferences
+///   to setters that are `unsafe` and carry what it needs: `device_uninit` runs on whatever is
+///   there when the last reference goes, initialised or not.
+///
+/// A struct whose layout or meaning differs between builds or C revisions
+/// must not implement it for a build it does not match.
+///
+/// A type that does not implement it is no device hardware context:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceContextRef, FramesConstraints};
+/// fn read(ctx: DeviceContextRef<'_>) {
+///     let _ = ctx.hwctx::<FramesConstraints>();
+/// }
+/// ```
+pub unsafe trait BackendDeviceContext: CCell {
+    /// The device type whose backend allocates `Self::C` as its contexts'
+    /// `hwctx`.
+    const DEVICE_TYPE: DeviceType;
+}
+
 impl<'a> DeviceContextRef<'a> {
     /// Wraps `fld::AVHWDeviceContext.type`
     ///
@@ -2211,20 +2266,16 @@ impl<'a> DeviceContextRef<'a> {
 
     /// Wraps `fld::AVHWDeviceContext.hwctx`
     ///
-    /// The device type's hardware context, as a `T`; `None` when the device
-    /// type has none.
-    ///
-    /// # Safety
-    ///
-    /// `T::C` must be the public hardware context type of the context's
-    /// [`device_type`](Self::device_type), as its `hwcontext_<type>.h`
-    /// declares it (`AVVAAPIDeviceContext` for [`DeviceType::VAAPI`], ...):
-    /// C allocates the backend's size, and nothing records the type. Nothing
-    /// may write the fields read through the result while it lives, which
-    /// the backends do not after initialisation.
+    /// The device type's hardware context, as the backend struct `T`:
+    /// `None` when the context's [`device_type`](Self::device_type) is not
+    /// `T`'s [`DEVICE_TYPE`](BackendDeviceContext::DEVICE_TYPE), or its
+    /// backend has no hardware context.
     #[doc(alias = "AVHWDeviceContext.hwctx")]
     #[must_use]
-    pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+    pub fn hwctx<T: BackendDeviceContext + 'a>(&self) -> Option<T::Ref<'a>> {
+        if self.device_type() != T::DEVICE_TYPE {
+            return None;
+        }
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `hwctx` field is in bounds; nothing is accessed here.
         let hwctx_ptr = unsafe { addr_of!((*self.as_ptr()).hwctx) };
@@ -2232,7 +2283,12 @@ impl<'a> DeviceContextRef<'a> {
         // replaces.
         let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's hardware context, live as long as
-        // the context; the caller vouches for its type and for writers.
+        // the context. C allocated it for the backend of the context's type,
+        // which is `T::DEVICE_TYPE`, so it is a `T::C` by `T`'s
+        // implementation. Nothing writes what the handle reads while it
+        // lives: before initialisation the shared borrow of the context
+        // excludes its exclusive handle, and after it `T`'s implementation
+        // asserts its backend writes none of it.
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
@@ -2304,21 +2360,19 @@ impl fmt::Debug for DeviceContextRef<'_> {
 impl<'a> DeviceContextMut<'a> {
     /// Wraps `fld::AVHWDeviceContext.hwctx`
     ///
-    /// The device type's hardware context, as a `T`, to fill before
-    /// [`UninitDevice::init`], borrowed for as long as this handle
-    /// (reborrow with `as_mut()` to keep it); `None` when the device type
-    /// has none.
-    ///
-    /// # Safety
-    ///
-    /// `T::C` must be the context's hardware context type, as for
-    /// [`DeviceContextRef::hwctx`]. Whatever is written must be what the
-    /// device type's header allows: the backend's `device_init` reads it,
-    /// and its `device_uninit` releases what it finds there whether the
-    /// context was initialised or not.
+    /// The device type's hardware context, as the backend struct `T`, to
+    /// fill before [`UninitDevice::init`], borrowed for as long as this
+    /// handle (reborrow with `as_mut()` to keep it): `None` when the
+    /// context's device type is not `T`'s
+    /// [`DEVICE_TYPE`](BackendDeviceContext::DEVICE_TYPE), or its backend has
+    /// no hardware context. What `T`'s handle lets safe code write, the
+    /// backend accepts, as `T`'s implementation asserts.
     #[doc(alias = "AVHWDeviceContext.hwctx")]
     #[must_use]
-    pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+    pub fn into_hwctx<T: BackendDeviceContext + 'a>(mut self) -> Option<T::Mut<'a>> {
+        if self.as_ref().device_type() != T::DEVICE_TYPE {
+            return None;
+        }
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `hwctx` field is in bounds; nothing is accessed here.
         let hwctx_ptr = unsafe { addr_of!((*self.as_mut_ptr()).hwctx) };
@@ -2326,8 +2380,9 @@ impl<'a> DeviceContextMut<'a> {
         // exclusive handle's pointer to a live context.
         let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's hardware context, which this
-        // exclusive borrow, consumed here, reaches alone for `'a`; the
-        // caller vouches for its type.
+        // exclusive borrow, consumed here, reaches alone for `'a`; C
+        // allocated it for the backend of `T::DEVICE_TYPE`, the context's
+        // type, so it is a `T::C` by `T`'s implementation.
         unsafe { T::mut_from_void_ptr(hwctx) }
     }
 
@@ -2916,12 +2971,12 @@ impl FramesConstraintsMut<'_> {
     ///
     /// Makes a copy of `formats` the hardware formats, up to the first
     /// [`PixelFormat::NONE`] it holds, and frees the old list; `None` lists
-    /// none. `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot
-    /// allocate the copy.
+    /// none.
     ///
     /// # Errors
     ///
-    /// `Err(AVERROR(ENOMEM))`, with the old list kept, when C cannot allocate the copy.
+    /// `AVERROR(ENOMEM)`, with the old list kept, when C cannot allocate the
+    /// copy.
     #[doc(alias = "AVHWFramesConstraints.valid_hw_formats")]
     pub fn set_valid_hw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Hardware, formats)
@@ -2945,7 +3000,8 @@ impl FramesConstraintsMut<'_> {
     ///
     /// # Errors
     ///
-    /// Returns C's negative `AVERROR` code when it fails.
+    /// `AVERROR(ENOMEM)`, with the old list kept, when C cannot allocate the
+    /// copy.
     #[doc(alias = "AVHWFramesConstraints.valid_sw_formats")]
     pub fn set_valid_sw_formats(&mut self, formats: Option<&[PixelFormat]>) -> Result<(), c_int> {
         self.set_list(FormatList::Software, formats)
@@ -3052,8 +3108,10 @@ define_ctype!(
     ///   is an owned reference);
     /// - `hwctx`, the device type's own frames context (an `AVVAAPIFramesContext` for VAAPI, and
     ///   so on), allocated and freed with the context, which the caller may fill before
-    ///   initialisation: typed by the caller ([`hwctx`](FramesContextRef::hwctx),
-    ///   [`into_hwctx`](FramesContextMut::into_hwctx), both `unsafe`);
+    ///   initialisation: typed by the backend struct its device's type names, a
+    ///   [`BackendFramesContext`] ([`into_hwctx`](FramesContextMut::into_hwctx), and
+    ///   [`hwctx`](FramesContextRef::hwctx) for one the backend leaves unwritten after
+    ///   initialisation, a [`StableBackendFramesContext`]; `None` for another type's);
     /// - `free` and `user_opaque`, a callback C runs at the last release and the data it is meant
     ///   for, which Rust fills with a closure
     ///   ([`set_free_callback`](FramesContextMut::set_free_callback)) and any `Send + Sync` value
@@ -3186,6 +3244,92 @@ unsafe extern "C" fn release_frames_hooks(ctx: *mut ffi::AVHWFramesContext) {
     }
 }
 
+/// A backend's public frames hardware context: the struct
+/// `hwcontext_<api>.h` declares for the frames contexts of one
+/// [`DeviceType`] (`AVVAAPIFramesContext` for [`DeviceType::VAAPI`],
+/// `AVD3D11VAFramesContext` for [`DeviceType::D3D11VA`], ...), wrapped as a
+/// layout type, which [`FramesContextMut::into_hwctx`] hands out for a
+/// frames context on a device of that type, to fill before
+/// [`UninitFrames::init`].
+///
+/// C types a frames context's `hwctx` by its device's type alone:
+/// `av_hwframe_ctx_alloc` sizes it from the backend of the device it is
+/// given, which the context keeps (`device_ctx`) and whose type never
+/// changes. So the accessors compare that type with
+/// [`DEVICE_TYPE`](Self::DEVICE_TYPE), and hand out `Self`'s handles only
+/// when they are equal. Shared reads ([`FramesContextRef::hwctx`]) need
+/// [`StableBackendFramesContext`] besides: some backends write the struct
+/// after initialisation. No backend header is wrapped yet; a backend module
+/// implements this trait for its struct.
+///
+/// # Safety
+///
+/// An implementation asserts that:
+///
+/// - `Self::C` is the public frames context struct of the backend of
+///   [`DEVICE_TYPE`](Self::DEVICE_TYPE), as that backend's `hwcontext_<api>.h` declares it at the C
+///   revision the crate is built against: the struct C allocates `hwctx` for (alone, or at the
+///   start of the backend's private one) in every frames context on a device of that type; and
+/// - `Self::Mut`'s safe methods write only what the backend's `frames_init` and `frames_uninit`
+///   accept as the header allows, leaving any foreign surface, texture or callback the backend uses
+///   to setters that are `unsafe` and carry what it needs: `frames_uninit` runs on whatever is
+///   there when the last reference goes, initialised or not.
+///
+/// A struct whose layout or meaning differs between builds or C revisions
+/// must not implement it for a build it does not match.
+///
+/// A type that does not implement it is no frames hardware context:
+///
+/// ```compile_fail,E0277
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::{FramesConstraints, FramesContextMut};
+/// fn fill(ctx: FramesContextMut<'_>) {
+///     let _ = ctx.into_hwctx::<FramesConstraints>();
+/// }
+/// ```
+pub unsafe trait BackendFramesContext: CCell {
+    /// The device type whose backend allocates `Self::C` as its frames
+    /// contexts' `hwctx`.
+    const DEVICE_TYPE: DeviceType;
+}
+
+/// A [`BackendFramesContext`] its backend leaves unwritten once the frames
+/// context is initialised, so that any reference to the context may read it
+/// ([`FramesContextRef::hwctx`]).
+///
+/// Not every backend does: an initialised frames context allocates frames
+/// through any of its references, and some backends record what they
+/// allocate in the struct then (D3D11VA, without a caller's texture,
+/// appends each texture it makes to its `texture_infos`). Such a struct
+/// implements [`BackendFramesContext`] alone, and is reached only through
+/// the exclusive handle, before initialisation:
+///
+/// ```compile_fail,E0277
+/// use ffibox::define_ctype;
+/// use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+///     BackendFramesContext, DeviceType, FramesContextRef,
+/// };
+/// #[repr(C)]
+/// pub struct Raw(i32);
+/// define_ctype!(Recorded, RecordedRef, RecordedMut, Raw);
+/// // SAFETY: (for the example) the struct of a backend that writes it as it
+/// // allocates frames.
+/// unsafe impl BackendFramesContext for Recorded {
+///     const DEVICE_TYPE: DeviceType = DeviceType::D3D11VA;
+/// }
+/// fn read(ctx: FramesContextRef<'_>) {
+///     let _ = ctx.hwctx::<Recorded>();
+/// }
+/// ```
+///
+/// # Safety
+///
+/// An implementation asserts that the backend writes none of the struct's
+/// fields once the frames context is initialised (`av_hwframe_ctx_init`,
+/// or the routines that create initialised frames contexts), except fields
+/// `Self::Ref`'s getters do not read, or reads through interior-mutable
+/// means the backend synchronizes with.
+pub unsafe trait StableBackendFramesContext: BackendFramesContext {}
+
 impl<'a> FramesContextRef<'a> {
     /// Wraps `fld::AVHWFramesContext.av_class`
     ///
@@ -3258,22 +3402,18 @@ impl<'a> FramesContextRef<'a> {
 
     /// Wraps `fld::AVHWFramesContext.hwctx`
     ///
-    /// The device type's frames context, as a `T`; `None` when the device
-    /// type has none.
-    ///
-    /// # Safety
-    ///
-    /// `T::C` must be the public frames context type of the device's
-    /// [`device_type`](DeviceContextRef::device_type), as its
-    /// `hwcontext_<type>.h` declares it (`AVVAAPIFramesContext` for
-    /// [`DeviceType::VAAPI`], ...): C allocates the backend's size, and
-    /// nothing records the type. Nothing may write the fields read through
-    /// the result while it lives: some backends do so as they allocate
-    /// frames (D3D11VA records its textures), which an initialised context
-    /// does through any reference.
+    /// The device type's frames context, as the backend struct `T`: `None`
+    /// when the type of the context's [device](Self::device_context) is not
+    /// `T`'s [`DEVICE_TYPE`](BackendFramesContext::DEVICE_TYPE), or its
+    /// backend has no frames context. Only for a struct its backend leaves
+    /// unwritten after initialisation ([`StableBackendFramesContext`]); any
+    /// other is read through [`FramesContextMut::into_hwctx`] before it.
     #[doc(alias = "AVHWFramesContext.hwctx")]
     #[must_use]
-    pub unsafe fn hwctx<T: CCell + 'a>(&self) -> Option<T::Ref<'a>> {
+    pub fn hwctx<T: StableBackendFramesContext + 'a>(&self) -> Option<T::Ref<'a>> {
+        if self.device_context().device_type() != T::DEVICE_TYPE {
+            return None;
+        }
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `hwctx` field is in bounds; nothing is accessed here.
         let hwctx_ptr = unsafe { addr_of!((*self.as_ptr()).hwctx) };
@@ -3281,7 +3421,12 @@ impl<'a> FramesContextRef<'a> {
         // replaces.
         let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's frames struct, live as long as the
-        // context; the caller vouches for its type and for writers.
+        // context. C allocated it for the backend of the device's type, which
+        // is `T::DEVICE_TYPE`, so it is a `T::C` by `T`'s implementation.
+        // Nothing writes what the handle reads while it lives: before
+        // initialisation the shared borrow of the context excludes its
+        // exclusive handle, and after it `T`'s `StableBackendFramesContext`
+        // implementation asserts its backend writes none of it.
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
@@ -3476,21 +3621,19 @@ impl fmt::Debug for FramesContextRef<'_> {
 impl<'a> FramesContextMut<'a> {
     /// Wraps `fld::AVHWFramesContext.hwctx`
     ///
-    /// The device type's frames context, as a `T`, to fill before
-    /// [`UninitFrames::init`], borrowed for as long as this handle (reborrow
-    /// with `as_mut()` to keep it); `None` when the device type has none.
-    ///
-    /// # Safety
-    ///
-    /// `T::C` must be the context's frames context type, as for
-    /// [`FramesContextRef::hwctx`]. Whatever is written must be what the
-    /// device type's header allows: the backend's `frames_init` uses the
-    /// surfaces or textures a caller provides there, and its
-    /// `frames_uninit` releases what it finds whether the context was
-    /// initialised or not.
+    /// The device type's frames context, as the backend struct `T`, to fill
+    /// before [`UninitFrames::init`], borrowed for as long as this handle
+    /// (reborrow with `as_mut()` to keep it; read it with `as_ref()`):
+    /// `None` when the type of the context's device is not `T`'s
+    /// [`DEVICE_TYPE`](BackendFramesContext::DEVICE_TYPE), or its backend has
+    /// no frames context. What `T`'s handle lets safe code write, the backend
+    /// accepts, as `T`'s implementation asserts.
     #[doc(alias = "AVHWFramesContext.hwctx")]
     #[must_use]
-    pub unsafe fn into_hwctx<T: CCell + 'a>(mut self) -> Option<T::Mut<'a>> {
+    pub fn into_hwctx<T: BackendFramesContext + 'a>(mut self) -> Option<T::Mut<'a>> {
+        if self.as_ref().device_context().device_type() != T::DEVICE_TYPE {
+            return None;
+        }
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `hwctx` field is in bounds; nothing is accessed here.
         let hwctx_ptr = unsafe { addr_of!((*self.as_mut_ptr()).hwctx) };
@@ -3498,8 +3641,9 @@ impl<'a> FramesContextMut<'a> {
         // exclusive handle's pointer to a live context.
         let hwctx = unsafe { hwctx_ptr.read() };
         // SAFETY: NULL, or the context's frames struct, which this exclusive
-        // borrow, consumed here, reaches alone for `'a`; the caller vouches
-        // for its type.
+        // borrow, consumed here, reaches alone for `'a`; C allocated it for
+        // the backend of `T::DEVICE_TYPE`, the device's type, so it is a
+        // `T::C` by `T`'s implementation.
         unsafe { T::mut_from_void_ptr(hwctx) }
     }
 
@@ -4651,7 +4795,7 @@ mod unit_tests {
         use crate::libavutil::libavutil::buffer::MAX_REFERENCES;
         use crate::libavutil::libavutil::dict::Dict;
         use crate::libavutil::libavutil::hwcontext::backend::{
-            self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
+            self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror,
         };
 
         const ENOSYS: c_int = averror(ffi::ENOSYS);
@@ -4721,11 +4865,7 @@ mod unit_tests {
         ) -> Result<FramesReferenceBox, c_int> {
             let mut frames = device.as_ref().alloc_frames().unwrap();
             fill(frames.context_mut(), kind, 64, 32, pool);
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
-            // any of whose results they take.
-            unsafe { frames.context_mut().into_hwctx::<FramesHw>() }
-                .unwrap()
-                .set(hwctx);
+            fx::set_hw(frames.context_mut(), hwctx);
             frames.init()
         }
 
@@ -5745,7 +5885,7 @@ mod unit_tests {
         use std::sync::{Arc, Mutex};
 
         use super::super::hwdevice::{
-            self, BARE_TYPE, Events, FakeConfig, FakeHw, HW_FORMAT, SIZES, SW_FORMATS,
+            self, BARE_TYPE, Events, FakeConfig, FakeDrmHw, FakeHw, HW_FORMAT, SIZES, SW_FORMATS,
         };
         use super::*;
 
@@ -5754,10 +5894,9 @@ mod unit_tests {
             // SAFETY: `fake_device` returns NULL or the only reference to an
             // uninitialised fake context with no hooks.
             let mut b = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
-                .unwrap()
-                .set_events(Arc::as_ptr(events));
+            let mut hw = b.context_mut().into_hwctx::<FakeHw>().unwrap();
+            // SAFETY: each test keeps `events` alive past the context.
+            unsafe { hw.set_events(Arc::as_ptr(events)) };
             b
         }
 
@@ -5794,8 +5933,7 @@ mod unit_tests {
             assert_eq!(ctx.device_type(), DeviceType::VAAPI);
             let class = ctx.class().unwrap();
             assert_eq!(class.name(), Some(c"AVHWDeviceContext"));
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            let hw = unsafe { ctx.hwctx::<FakeHw>() }.unwrap();
+            let hw = ctx.hwctx::<FakeHw>().unwrap();
             assert_eq!(hw.value(), 0);
             assert!(!hw.initialised());
             assert!(!ctx.has_free_callback());
@@ -5816,10 +5954,8 @@ mod unit_tests {
             // SAFETY: the only reference to an uninitialised fake context.
             let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert_eq!(b.context().device_type(), DeviceType::DRM);
-            // SAFETY: a bare context has no hardware context to mistype.
-            assert!(unsafe { b.context().hwctx::<FakeHw>() }.is_none());
-            // SAFETY: as above.
-            assert!(unsafe { b.context_mut().into_hwctx::<FakeHw>() }.is_none());
+            assert!(b.context().hwctx::<FakeHw>().is_none());
+            assert!(b.context_mut().into_hwctx::<FakeHw>().is_none());
             // SAFETY: the bare backend has no `device_init` to feed.
             let arc = unsafe { b.init() }.unwrap();
             assert!(arc.as_ref().frames_constraints().is_none());
@@ -6099,8 +6235,8 @@ mod unit_tests {
         fn init_reports_failure_and_releases_the_context() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+            b.context_mut()
+                .into_hwctx::<FakeHw>()
                 .unwrap()
                 .set_init_ret(-22);
             let called = Arc::new(AtomicUsize::new(0));
@@ -6122,14 +6258,13 @@ mod unit_tests {
         fn arcs_share_one_context_and_hand_it_back_to_c() {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+            b.context_mut()
+                .into_hwctx::<FakeHw>()
                 .unwrap()
                 .set_value(41);
             // SAFETY: the fake backend's `device_init` accepts any payload.
             let arc = unsafe { b.init() }.unwrap();
-            // SAFETY: as above.
-            let hw = unsafe { arc.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            let hw = arc.as_ref().context().hwctx::<FakeHw>().unwrap();
             assert!(hw.initialised());
             assert_eq!(hw.value(), 41);
             let copy = arc.as_ref().try_clone().unwrap();
@@ -6162,8 +6297,8 @@ mod unit_tests {
             let events = Arc::new(Events::default());
             for nb_sw in [-1, 0, 2, 4] {
                 let mut b = builder(&events);
-                // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-                unsafe { b.context_mut().into_hwctx::<FakeHw>() }
+                b.context_mut()
+                    .into_hwctx::<FakeHw>()
                     .unwrap()
                     .set_nb_sw(nb_sw);
                 // SAFETY: the fake backend's `device_init` accepts any payload.
@@ -6213,10 +6348,12 @@ mod unit_tests {
             // SAFETY: the only reference to a fresh, uninitialised fake
             // context.
             let mut drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            unsafe { drm.context_mut().into_hwctx::<FakeHw>() }
-                .unwrap()
-                .set_events(Arc::as_ptr(&events));
+            // The same struct, typed as another device type's.
+            assert!(drm.context_mut().into_hwctx::<FakeHw>().is_none());
+            assert!(drm.context().hwctx::<FakeHw>().is_none());
+            let mut hw = drm.context_mut().into_hwctx::<FakeDrmHw>().unwrap();
+            // SAFETY: `events` outlives the context, released in this test.
+            unsafe { hw.set_events(Arc::as_ptr(&events)) };
             // SAFETY: as above.
             let drm = unsafe { drm.init() }.unwrap();
             assert!(
@@ -6240,8 +6377,7 @@ mod unit_tests {
             let events = Arc::new(Events::default());
             let mut b = builder(&events);
             {
-                // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-                let mut hw = unsafe { b.context_mut().into_hwctx::<FakeHw>() }.unwrap();
+                let mut hw = b.context_mut().into_hwctx::<FakeHw>().unwrap();
                 hw.set_nb_sw(3);
                 hw.set_constraints_ret(-12);
             }
@@ -6467,8 +6603,7 @@ mod unit_tests {
             // SAFETY: the context has no pool to read.
             assert!(unsafe { ctx.pool() }.is_none());
             assert!(ctx.user_data::<u8>().is_none());
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`.
-            let hw = unsafe { ctx.hwctx::<FramesHw>() }.unwrap().get();
+            let hw = ctx.hwctx::<FramesHw>().unwrap().get();
             assert_eq!(hw.init_ret, 0);
             assert_eq!(
                 format!("{ctx:?}"),
@@ -6805,8 +6940,8 @@ mod unit_tests {
                         ..FramesHwctx::default()
                     }
                 };
-                // SAFETY: the test backends' frames struct is a `FramesHwctx`.
-                unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+                u.context_mut()
+                    .into_hwctx::<FramesHw>()
                     .unwrap()
                     .set(failing);
                 let c = calls.clone();

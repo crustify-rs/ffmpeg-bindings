@@ -1,6 +1,6 @@
 //! A test hardware backend for the `hwcontext` suites: the crate's unit tests
 //! and the `equiv` integration tests include it with `#[path]`, after bringing
-//! the `-sys` crate into scope as `ffi`.
+//! the `-sys` crate into scope as `ffi`, and the items below.
 //!
 //! The campaign builds compile no hwcontext backend, so `av_hwdevice_ctx_alloc`
 //! fails for every device type and no device or frames context can be made
@@ -26,6 +26,11 @@
 //! (`frames_derive_to`), and transfers nothing. A surface is a
 //! [`SURFACE_SIZE`]-byte pool buffer, zeroed, which `data[3]` points at, as
 //! VA-API's surface IDs sit there.
+//!
+//! The includer brings the crate's `hwcontext` traits `BackendFramesContext`
+//! and `StableBackendFramesContext`, its `DeviceType` and its frames context
+//! handles into scope beside `ffi`: the backends' frames struct implements them, once per kind
+//! ([`FramesHw`], [`FramesHwB`]).
 #![expect(
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
@@ -45,7 +50,10 @@ use core::ptr::{self, null_mut};
 
 use ffibox::{CMutSeam, CRefSeam, define_ctype};
 
-use super::ffi;
+use super::{
+    BackendFramesContext, DeviceType, FramesContextMut, FramesContextRef,
+    StableBackendFramesContext, ffi,
+};
 
 type DeviceCtx = ffi::AVHWDeviceContext;
 type FramesCtx = ffi::AVHWFramesContext;
@@ -178,29 +186,81 @@ pub struct FramesHwctx {
     pub(crate) transfer_ret: c_int,
 }
 
-define_ctype!(
-    /// [`FramesHwctx`], the test backends' frames context, as the frames
-    /// context wrappers type `hwctx`.
+/// Defines a layout type over [`FramesHwctx`] as the frames context of one
+/// test backend, with its getter and setter, implementing the crate's
+/// frames context traits for the device type of that backend.
+macro_rules! frames_hw {
+    ($(#[$attr:meta])* $name:ident, $rf:ident, $mt:ident, $device_type:expr) => {
+        define_ctype!($(#[$attr])* $name, $rf, $mt, FramesHwctx);
+
+        // SAFETY: `alloc_device` makes contexts of this device type over the
+        // test backend whose `frames_hwctx_size` is `FramesHwctx`'s, and C
+        // allocates every frames context's `hwctx` from its device's
+        // backend; any value of its plain `int`s is one the backend's
+        // callbacks accept, before initialisation or after.
+        unsafe impl BackendFramesContext for $name {
+            const DEVICE_TYPE: DeviceType = $device_type;
+        }
+
+        // SAFETY: the test backends only read the struct (`frames_hwctx`).
+        unsafe impl StableBackendFramesContext for $name {}
+
+        impl $rf<'_> {
+            /// The backend results the frames context holds.
+            pub(crate) fn get(&self) -> FramesHwctx {
+                // SAFETY: the live frames struct the handle borrows.
+                unsafe { self.as_ptr().read() }
+            }
+        }
+
+        impl $mt<'_> {
+            /// Sets the backend results of the frames context.
+            pub(crate) fn set(&mut self, hwctx: FramesHwctx) {
+                // SAFETY: the live frames struct the handle borrows
+                // exclusively.
+                unsafe { self.as_mut_ptr().write(hwctx) }
+            }
+        }
+    };
+}
+
+frames_hw!(
+    /// [`FramesHwctx`] as the frames context of kind A's device type,
+    /// `VAAPI`, as the frames context wrappers type `hwctx`.
     FramesHw,
     FramesHwRef,
     FramesHwMut,
-    FramesHwctx
+    DeviceType::VAAPI
 );
 
-impl FramesHwRef<'_> {
-    /// The backend results the frames context holds.
-    pub(crate) fn get(&self) -> FramesHwctx {
-        // SAFETY: the live frames struct the handle borrows.
-        unsafe { self.as_ptr().read() }
+frames_hw!(
+    /// [`FramesHwctx`] as the frames context of kind B's device type, `DRM`.
+    FramesHwB,
+    FramesHwBRef,
+    FramesHwBMut,
+    DeviceType::DRM
+);
+
+/// Sets the backend results of `ctx`, a frames context on a device of
+/// either kind, through the frames struct type of its device's type.
+pub(crate) fn set_hw(ctx: FramesContextMut<'_>, hwctx: FramesHwctx) {
+    if ctx.as_ref().device_context().device_type() == FramesHwB::DEVICE_TYPE {
+        ctx.into_hwctx::<FramesHwB>()
+            .expect("kind B allocates a frames struct")
+            .set(hwctx);
+    } else {
+        ctx.into_hwctx::<FramesHw>()
+            .expect("kind A allocates a frames struct")
+            .set(hwctx);
     }
 }
 
-impl FramesHwMut<'_> {
-    /// Sets the backend results of the frames context.
-    pub(crate) fn set(&mut self, hwctx: FramesHwctx) {
-        // SAFETY: the live frames struct the handle borrows exclusively.
-        unsafe { self.as_mut_ptr().write(hwctx) }
-    }
+/// The backend results `ctx`, a frames context on a device of either kind,
+/// holds; `None` for a context on another device.
+pub(crate) fn get_hw(ctx: FramesContextRef<'_>) -> Option<FramesHwctx> {
+    ctx.hwctx::<FramesHw>()
+        .map(|h| h.get())
+        .or_else(|| ctx.hwctx::<FramesHwB>().map(|h| h.get()))
 }
 
 /// The bytes of a surface.

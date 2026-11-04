@@ -22,6 +22,10 @@
 )]
 
 use ffmpeg_bindings::libavutil::libavutil::ffi;
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+    BackendDeviceContext, BackendFramesContext, DeviceType, FramesContextMut, FramesContextRef,
+    StableBackendFramesContext,
+};
 
 #[expect(
     dead_code,
@@ -544,8 +548,11 @@ mod frame_mut_transfer_data_from {
 mod hwdevice;
 
 /// UB tests for the unsafe public API the `AVHWDeviceContext` wrapper adds or
-/// makes unsafe, each called within its `# Safety` contract (hwcontext wave
-/// 1, batch 0): [`UninitDevice::from_c`], [`UninitDevice::init`],
+/// makes unsafe, each called or implemented within its `# Safety` contract
+/// (hwcontext wave 1, batch 0; the trait, wave 952, batch 0):
+/// [`UninitDevice::from_c`], [`UninitDevice::init`], and
+/// [`BackendDeviceContext`], which the fake backend's hardware context
+/// implements, through the safe accessors it types,
 /// [`DeviceContextRef::hwctx`] and [`DeviceContextMut::into_hwctx`].
 ///
 /// The campaign builds compile no hardware backend, so every context comes
@@ -558,6 +565,7 @@ mod hwdevice;
 /// [`UninitDevice::init`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::UninitDevice::init
 /// [`DeviceContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextRef::hwctx
 /// [`DeviceContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextMut::into_hwctx
+/// [`BackendDeviceContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::BackendDeviceContext
 mod device_context {
     use core::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
@@ -569,26 +577,24 @@ mod device_context {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::hwdevice::{self, BARE_TYPE, Events, FakeConfig, FakeHw};
+    use super::hwdevice::{self, BARE_TYPE, Events, FAKE_TYPE, FakeConfig, FakeDrmHw, FakeHw};
 
     /// A fresh fake context under construction, counting into `events`.
     fn uninit(events: &Arc<Events>) -> UninitDevice {
         // SAFETY: the only reference to a fresh, uninitialised fake context
         // with no hooks.
         let mut u = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
-        // SAFETY: the fake context's hardware context is a `FakeHwctx`; the
-        // events outlive the context, as each test keeps them.
-        unsafe { u.context_mut().into_hwctx::<FakeHw>() }
-            .unwrap()
-            .set_events(Arc::as_ptr(events));
+        let mut hw = u.context_mut().into_hwctx::<FakeHw>().unwrap();
+        // SAFETY: the events outlive the context, as each test keeps them.
+        unsafe { hw.set_events(Arc::as_ptr(events)) };
         u
     }
 
     /// An initialised fake context holding `value`.
     fn device(events: &Arc<Events>, value: i64) -> DeviceReferenceBox {
         let mut u = uninit(events);
-        // SAFETY: as in `uninit`; any payload is valid for the fake backend.
-        unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+        u.context_mut()
+            .into_hwctx::<FakeHw>()
             .unwrap()
             .set_value(value);
         // SAFETY: the fake backend's `device_init` reads nothing it cannot
@@ -685,8 +691,7 @@ mod device_context {
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let mut u = unsafe { UninitDevice::from_c(raw) }.unwrap();
             assert_eq!(u.context().device_type(), DeviceType::CUDA);
-            // SAFETY: there is no hardware context to mistype.
-            assert!(unsafe { u.context_mut().into_hwctx::<FakeHw>() }.is_none());
+            assert!(u.context_mut().into_hwctx::<FakeHw>().is_none());
             u.context_mut().set_user_data(String::from("bare")).unwrap();
             let data = u.context().user_data::<String>().map(String::as_str);
             assert_eq!(data, Some("bare"));
@@ -703,9 +708,7 @@ mod device_context {
         fn success_shares_the_filled_context() {
             let events = Arc::new(Events::default());
             let device = device(&events, 9);
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`,
-            // which nothing writes after initialisation.
-            let hw = unsafe { device.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            let hw = device.as_ref().context().hwctx::<FakeHw>().unwrap();
             assert!(hw.initialised());
             assert_eq!(hw.value(), 9);
             drop(device);
@@ -718,8 +721,8 @@ mod device_context {
             let events = Arc::new(Events::default());
             let drops = Arc::new(AtomicUsize::new(0));
             let mut u = uninit(&events);
-            // SAFETY: as in `uninit`; the fake backend fails as told.
-            unsafe { u.context_mut().into_hwctx::<FakeHw>() }
+            u.context_mut()
+                .into_hwctx::<FakeHw>()
                 .unwrap()
                 .set_init_ret(-38);
             u.context_mut()
@@ -817,9 +820,12 @@ mod device_context {
         }
     }
 
-    /// [`DeviceContextRef::hwctx`]: typed shared reads from uninitialised
-    /// and initialised contexts, through several handles at once.
+    /// [`BackendDeviceContext`] through [`DeviceContextRef::hwctx`]: typed
+    /// shared reads from uninitialised and initialised contexts, through
+    /// several handles at once, and none for another device type's struct
+    /// or a backend without one.
     ///
+    /// [`BackendDeviceContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::BackendDeviceContext
     /// [`DeviceContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextRef::hwctx
     mod ref_hwctx {
         use super::*;
@@ -829,33 +835,52 @@ mod device_context {
         fn reads_follow_the_owner() {
             let events = Arc::new(Events::default());
             let u = uninit(&events);
-            // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-            let hw = unsafe { u.context().hwctx::<FakeHw>() }.unwrap();
+            let hw = u.context().hwctx::<FakeHw>().unwrap();
             assert_eq!((hw.value(), hw.initialised()), (0, false));
             let device = device(&events, -5);
             let copy = device.clone();
             let (a, b) = (device.as_ref().context(), copy.as_ref().context());
-            // SAFETY: as above, unwritten after initialisation.
-            let ha = unsafe { a.hwctx::<FakeHw>() }.unwrap();
-            // SAFETY: as above.
-            let hb = unsafe { b.hwctx::<FakeHw>() }.unwrap();
+            let ha = a.hwctx::<FakeHw>().unwrap();
+            let hb = b.hwctx::<FakeHw>().unwrap();
             assert_eq!((ha.value(), hb.value()), (-5, -5));
         }
 
         #[test]
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_read_none() {
-            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_QSV);
+            // The fake struct's own device type, without a hardware context.
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI);
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
-            // SAFETY: there is no hardware context to mistype.
-            assert!(unsafe { u.context().hwctx::<FakeHw>() }.is_none());
+            assert_eq!(u.context().device_type(), DeviceType::VAAPI);
+            assert!(u.context().hwctx::<FakeHw>().is_none());
+        }
+
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn another_device_types_struct_reads_none() {
+            let events = Arc::new(Events::default());
+            let u = uninit(&events);
+            assert!(u.context().hwctx::<FakeDrmHw>().is_none());
+            let device = device(&events, 4);
+            let ctx = device.as_ref().context();
+            assert!(ctx.hwctx::<FakeDrmHw>().is_none());
+            assert_eq!(ctx.hwctx::<FakeHw>().unwrap().value(), 4);
+            // The same backend under the other type: only its struct reads.
+            let raw = hwdevice::fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
+            // SAFETY: the only reference to a fresh, uninitialised fake
+            // context, whose events stay unset.
+            let drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(drm.context().hwctx::<FakeHw>().is_none());
+            assert!(drm.context().hwctx::<FakeDrmHw>().is_some());
         }
     }
 
-    /// [`DeviceContextMut::into_hwctx`]: writes before initialisation that C
-    /// reads, through reborrows, and inside the free callback.
+    /// [`BackendDeviceContext`] through [`DeviceContextMut::into_hwctx`]:
+    /// writes before initialisation that C reads, through reborrows, and
+    /// inside the free callback, and none for another device type's struct.
     ///
+    /// [`BackendDeviceContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::BackendDeviceContext
     /// [`DeviceContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::DeviceContextMut::into_hwctx
     mod mut_into_hwctx {
         use super::*;
@@ -867,18 +892,13 @@ mod device_context {
             let mut u = uninit(&events);
             let mut ctx = u.context_mut();
             for v in [1, i64::MIN, i64::MAX] {
-                // SAFETY: as in `uninit`; a reborrow keeps `ctx`.
-                unsafe { ctx.as_mut().into_hwctx::<FakeHw>() }
-                    .unwrap()
-                    .set_value(v);
-                // SAFETY: as above.
-                let hw = unsafe { ctx.as_ref().hwctx::<FakeHw>() }.unwrap();
+                ctx.as_mut().into_hwctx::<FakeHw>().unwrap().set_value(v);
+                let hw = ctx.as_ref().hwctx::<FakeHw>().unwrap();
                 assert_eq!(hw.value(), v);
             }
             // SAFETY: as in `device`.
             let device = unsafe { u.init() }.unwrap();
-            // SAFETY: as in `ref_hwctx`.
-            let hw = unsafe { device.as_ref().context().hwctx::<FakeHw>() }.unwrap();
+            let hw = device.as_ref().context().hwctx::<FakeHw>().unwrap();
             assert_eq!(hw.value(), i64::MAX);
             assert!(hw.initialised());
         }
@@ -893,23 +913,38 @@ mod device_context {
             let ev = events.clone();
             u.context_mut()
                 .set_free_callback(move |ctx: DeviceContextMut<'_>| {
-                    // SAFETY: the fake context's hardware context, still
-                    // allocated while the callback runs; resetting the
-                    // payload is within the fake backend's rules.
-                    let mut hw = unsafe { ctx.into_hwctx::<FakeHw>() }.unwrap();
+                    let mut hw = ctx.into_hwctx::<FakeHw>().unwrap();
                     *s.lock().unwrap() = Some((hw.as_ref().value(), ev.get()));
                     hw.set_value(0);
                 })
                 .ok()
                 .unwrap();
-            // SAFETY: as in `uninit`.
-            unsafe { u.context_mut().into_hwctx::<FakeHw>() }
-                .unwrap()
-                .set_value(3);
+            u.context_mut().into_hwctx::<FakeHw>().unwrap().set_value(3);
             // SAFETY: as in `device`.
             let device = unsafe { u.init() }.unwrap();
             drop(device);
             assert_eq!(*seen.lock().unwrap(), Some((3, (1, 1, 0))));
+        }
+
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn another_device_types_struct_is_not_lent() {
+            let events = Arc::new(Events::default());
+            let mut u = uninit(&events);
+            assert!(u.context_mut().into_hwctx::<FakeDrmHw>().is_none());
+            u.context_mut().into_hwctx::<FakeHw>().unwrap().set_value(8);
+            u.context_mut()
+                .set_free_callback(|ctx: DeviceContextMut<'_>| {
+                    assert!(ctx.into_hwctx::<FakeDrmHw>().is_none());
+                })
+                .ok()
+                .unwrap();
+            // SAFETY: as in `device`.
+            let device = unsafe { u.init() }.unwrap();
+            let hw = device.as_ref().context().hwctx::<FakeHw>().unwrap();
+            assert_eq!(hw.value(), 8);
+            drop(device);
+            assert_eq!(events.get(), (1, 1, 0));
         }
     }
 }
@@ -922,9 +957,12 @@ mod device_context {
 mod hwbackend;
 
 /// UB tests for the unsafe public API the `AVHWFramesContext` wrapper adds
-/// (hwcontext wave 2, batch 0), each called within its `# Safety` contract:
-/// [`FramesContextRef::hwctx`], [`FramesContextMut::into_hwctx`],
-/// [`FramesContextRef::pool`] and [`FramesContextMut::set_pool`], next to
+/// (hwcontext wave 2, batch 0; the traits, wave 952, batch 0), each called or
+/// implemented within its `# Safety` contract: [`FramesContextRef::pool`],
+/// [`FramesContextMut::set_pool`], and [`BackendFramesContext`] and
+/// [`StableBackendFramesContext`], which the test backends' frames struct
+/// implements once per kind, through the safe accessors they type,
+/// [`FramesContextRef::hwctx`] and [`FramesContextMut::into_hwctx`]; next to
 /// the safe hooks they share a context with.
 ///
 /// The campaign builds compile no hardware backend, so every device comes
@@ -938,6 +976,8 @@ mod hwbackend;
 /// [`FramesContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::into_hwctx
 /// [`FramesContextRef::pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::pool
 /// [`FramesContextMut::set_pool`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::set_pool
+/// [`BackendFramesContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::BackendFramesContext
+/// [`StableBackendFramesContext`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::StableBackendFramesContext
 mod frames_context {
     use core::ffi::c_int;
     use core::sync::atomic::{AtomicUsize, Ordering};
@@ -953,7 +993,7 @@ mod frames_context {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::hwbackend::{self as fx, FramesHw, FramesHwctx, Kind, SURFACE_SIZE};
+    use super::hwbackend::{self as fx, FramesHw, FramesHwB, FramesHwctx, Kind, SURFACE_SIZE};
 
     /// The one unsafe fixture: an initialised test device of `kind`,
     /// adopted.
@@ -1019,8 +1059,10 @@ mod frames_context {
             .collect()
     }
 
-    /// [`FramesContextRef::hwctx`]: typed shared reads from uninitialised
-    /// and initialised contexts, through several handles at once.
+    /// [`StableBackendFramesContext`] through [`FramesContextRef::hwctx`]:
+    /// typed shared reads from uninitialised and initialised contexts,
+    /// through several handles at once, and none for the other kind's
+    /// device type.
     ///
     /// [`FramesContextRef::hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextRef::hwctx
     mod ref_hwctx {
@@ -1031,22 +1073,17 @@ mod frames_context {
         fn reads_follow_the_owner_and_outlive_no_reference() {
             let a = device(Kind::A);
             let u = uninit(&a, Kind::A, 0);
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
-            // written by no one meanwhile.
-            let hw = unsafe { u.context().hwctx::<FramesHw>() }.unwrap();
+            let hw = u.context().hwctx::<FramesHw>().unwrap();
             assert_eq!(hw.get().init_ret, 0);
             let frames = u.init().unwrap();
             let copy = frames.clone();
             let (x, y) = (frames.as_ref().context(), copy.as_ref().context());
-            // SAFETY: as above; the test backends never write it.
-            let hx = unsafe { x.hwctx::<FramesHw>() }.unwrap();
-            // SAFETY: as above.
-            let hy = unsafe { y.hwctx::<FramesHw>() }.unwrap();
+            let hx = x.hwctx::<FramesHw>().unwrap();
+            let hy = y.hwctx::<FramesHw>().unwrap();
             assert_eq!(hx.get().no_pool, hy.get().no_pool);
             let frame = frames.as_ref().get_buffer().unwrap();
             drop((frames, copy));
-            // SAFETY: as above, through the frame's own reference.
-            let hw = unsafe { frame.frames().context().hwctx::<FramesHw>() }.unwrap();
+            let hw = frame.frames().context().hwctx::<FramesHw>().unwrap();
             assert_eq!(hw.get().get_buffer_ret, 0);
             drop(frame);
             drop(a);
@@ -1062,15 +1099,13 @@ mod frames_context {
             let s = seen.clone();
             u.context_mut()
                 .set_free_callback(move |ctx: FramesContextMut<'_>| {
-                    // SAFETY: the frames struct, still allocated while the
-                    // callback runs.
-                    let hw = unsafe { ctx.as_ref().hwctx::<FramesHw>() }.unwrap();
+                    let hw = ctx.as_ref().hwctx::<FramesHwB>().unwrap();
                     *s.lock().unwrap() = Some(hw.get().derive_ret);
                 })
                 .ok()
                 .unwrap();
-            // SAFETY: as in `reads_follow_the_owner_and_outlive_no_reference`.
-            unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+            u.context_mut()
+                .into_hwctx::<FramesHwB>()
                 .unwrap()
                 .set(FramesHwctx {
                     derive_ret: -2,
@@ -1081,10 +1116,28 @@ mod frames_context {
             drop(a);
             fx::take_events();
         }
+
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn the_other_kinds_struct_reads_none() {
+            for (kind, own_a) in [(Kind::A, true), (Kind::B, false)] {
+                let d = device(kind);
+                let u = uninit(&d, kind, 0);
+                let ctx = u.context();
+                assert_eq!(ctx.hwctx::<FramesHw>().is_some(), own_a);
+                assert_eq!(ctx.hwctx::<FramesHwB>().is_some(), !own_a);
+                drop(u);
+                drop(d);
+                fx::take_events();
+            }
+        }
     }
 
-    /// [`FramesContextMut::into_hwctx`]: writes before initialisation that
-    /// the backend obeys, through reborrows, and inside the free callback.
+    /// [`BackendFramesContext`] through [`FramesContextMut::into_hwctx`]:
+    /// writes before initialisation that the backend obeys, through
+    /// reborrows, and inside the free callback; none for the other kind's
+    /// device type; and a struct its backend may write after initialisation,
+    /// reached through this path alone.
     ///
     /// [`FramesContextMut::into_hwctx`]: ffmpeg_bindings::libavutil::libavutil::hwcontext::FramesContextMut::into_hwctx
     mod mut_into_hwctx {
@@ -1098,17 +1151,14 @@ mod frames_context {
                 let mut u = uninit(&a, Kind::A, 0);
                 let mut ctx = u.context_mut();
                 for v in [5, ret] {
-                    // SAFETY: the test backends' frames struct is a
-                    // `FramesHwctx`, any of whose results they take; a
-                    // reborrow keeps `ctx`.
-                    unsafe { ctx.as_mut().into_hwctx::<FramesHw>() }
+                    ctx.as_mut()
+                        .into_hwctx::<FramesHw>()
                         .unwrap()
                         .set(FramesHwctx {
                             init_ret: v,
                             ..FramesHwctx::default()
                         });
-                    // SAFETY: as above.
-                    let hw = unsafe { ctx.as_ref().hwctx::<FramesHw>() }.unwrap();
+                    let hw = ctx.as_ref().hwctx::<FramesHw>().unwrap();
                     assert_eq!(hw.get().init_ret, v);
                 }
                 assert_eq!(u.init().err(), (ret < 0).then_some(ret));
@@ -1126,9 +1176,7 @@ mod frames_context {
             let c = calls.clone();
             u.context_mut()
                 .set_free_callback(move |ctx: FramesContextMut<'_>| {
-                    // SAFETY: the frames struct, still allocated and the
-                    // callback's alone while it runs.
-                    let mut hw = unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap();
+                    let mut hw = ctx.into_hwctx::<FramesHw>().unwrap();
                     hw.set(FramesHwctx {
                         map_ret: -1,
                         ..hw.as_ref().get()
@@ -1146,6 +1194,83 @@ mod frames_context {
                 }
             });
             assert_eq!(calls.load(Ordering::SeqCst), 1);
+            drop(a);
+            fx::take_events();
+        }
+
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn the_other_kinds_struct_is_not_lent() {
+            let b = device(Kind::B);
+            let mut u = uninit(&b, Kind::B, 0);
+            assert!(u.context_mut().into_hwctx::<FramesHw>().is_none());
+            u.context_mut()
+                .into_hwctx::<FramesHwB>()
+                .unwrap()
+                .set(FramesHwctx {
+                    init_ret: -5,
+                    ..FramesHwctx::default()
+                });
+            assert_eq!(u.init().err(), Some(-5));
+            drop(b);
+            fx::take_events();
+        }
+
+        /// The test backends' frames struct, as one its backend writes after
+        /// initialisation would be declared: [`BackendFramesContext`]
+        /// alone.
+        mod recorded {
+            use ffibox::{CMutSeam, CRefSeam, define_ctype};
+            use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+                BackendFramesContext, DeviceType,
+            };
+
+            use super::FramesHwctx;
+
+            define_ctype!(
+                /// [`FramesHwctx`] for kind A's device type, without
+                /// `StableBackendFramesContext`.
+                Recorded,
+                RecordedRef,
+                RecordedMut,
+                FramesHwctx
+            );
+
+            // SAFETY: as for the fixture's `FramesHw`: the struct kind A
+            // allocates, whose plain `int`s any value of fits.
+            unsafe impl BackendFramesContext for Recorded {
+                const DEVICE_TYPE: DeviceType = DeviceType::VAAPI;
+            }
+
+            impl RecordedRef<'_> {
+                pub(super) fn get(&self) -> FramesHwctx {
+                    // SAFETY: the live frames struct the handle borrows.
+                    unsafe { self.as_ptr().read() }
+                }
+            }
+
+            impl RecordedMut<'_> {
+                pub(super) fn set(&mut self, hwctx: FramesHwctx) {
+                    // SAFETY: the live frames struct the handle borrows
+                    // exclusively.
+                    unsafe { self.as_mut_ptr().write(hwctx) }
+                }
+            }
+        }
+
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn exclusive_only_structs_are_filled_and_read_before_init() {
+            let a = device(Kind::A);
+            let mut u = uninit(&a, Kind::A, 0);
+            let mut hw = u.context_mut().into_hwctx::<recorded::Recorded>().unwrap();
+            hw.set(FramesHwctx {
+                no_pool: 1,
+                init_ret: -7,
+                ..FramesHwctx::default()
+            });
+            assert_eq!(hw.as_ref().get().init_ret, -7);
+            assert_eq!(u.init().err(), Some(-7));
             drop(a);
             fx::take_events();
         }
@@ -1315,8 +1440,8 @@ mod frames_context {
             // SAFETY: there is no pool to misread.
             assert!(unsafe { u.context().pool() }.is_none());
             let mut u = u;
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`.
-            unsafe { u.context_mut().into_hwctx::<FramesHw>() }
+            u.context_mut()
+                .into_hwctx::<FramesHw>()
                 .unwrap()
                 .set(FramesHwctx {
                     no_pool: 1,

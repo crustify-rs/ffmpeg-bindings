@@ -11,6 +11,10 @@
 //! `hwdevice_ctx_free`. C's routines that only consult the backend table
 //! (`av_hwdevice_ctx_init`, `av_hwdevice_get_hwframe_constraints`) run on it
 //! unchanged.
+//!
+//! The includer also brings the crate's `hwcontext::BackendDeviceContext`
+//! and `DeviceType` into scope: the fake backend's hardware context
+//! ([`FakeHw`]) implements it, for the device type `VAAPI`.
 #![expect(
     clippy::cast_possible_wrap,
     clippy::cast_ptr_alignment,
@@ -24,7 +28,7 @@ use core::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 
 use ffibox::{CMutSeam, CRefSeam, define_ctype};
 
-use super::ffi;
+use super::{BackendDeviceContext, DeviceType, ffi};
 
 /// `hwcontext_internal.h`'s private `HWContextType`, field for field; the
 /// slots no test fills are untyped.
@@ -122,6 +126,17 @@ define_ctype!(
     FakeHwctx
 );
 
+// SAFETY: `fake_device` makes contexts of this device type over
+// `FAKE_TYPE`, whose `device_hwctx_size` is `FakeHwctx`'s, and C allocates
+// `hwctx` from it; `fake_device_init` writes `initialised` during
+// initialisation only, and its other callbacks write only the atomic
+// `seen_sizes`, which the getter reads atomically. The setters write plain
+// values its callbacks accept; `set_events`, which stores a pointer they
+// dereference, is `unsafe`.
+unsafe impl BackendDeviceContext for FakeHw {
+    const DEVICE_TYPE: DeviceType = DeviceType::VAAPI;
+}
+
 impl FakeHwRef<'_> {
     pub(crate) fn value(&self) -> i64 {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -180,13 +195,49 @@ impl FakeHwMut<'_> {
         unsafe { nb_sw_ptr.write(n) }
     }
 
-    /// Points the callbacks' counters at `events`, which must outlive the
-    /// context.
-    pub(crate) fn set_events(&mut self, events: *const Events) {
+    /// Points the callbacks' counters at `events`.
+    ///
+    /// # Safety
+    ///
+    /// `events` must be NULL or point at `Events` that outlive the context:
+    /// the callbacks dereference it, `device_uninit` included.
+    pub(crate) unsafe fn set_events(&mut self, events: *const Events) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
         // so the place of its `events` field is in bounds; nothing is accessed here.
         let events_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).events) };
         // SAFETY: as in `set_value`.
+        unsafe { events_ptr.write(events) }
+    }
+}
+
+define_ctype!(
+    /// [`FakeHwctx`] as the hardware context of a fake context of type `DRM`
+    /// ([`fake_device_of`] over [`FAKE_TYPE`]): the struct of a device type
+    /// other than [`FakeHw`]'s, which the accessors tell apart by the type.
+    FakeDrmHw,
+    FakeDrmHwRef,
+    FakeDrmHwMut,
+    FakeHwctx
+);
+
+// SAFETY: as for `FakeHw`, for the contexts `fake_device_of` makes of this
+// type over `FAKE_TYPE`.
+unsafe impl BackendDeviceContext for FakeDrmHw {
+    const DEVICE_TYPE: DeviceType = DeviceType::DRM;
+}
+
+impl FakeDrmHwMut<'_> {
+    /// As [`FakeHwMut::set_events`].
+    ///
+    /// # Safety
+    ///
+    /// As [`FakeHwMut::set_events`].
+    pub(crate) unsafe fn set_events(&mut self, events: *const Events) {
+        // SAFETY: the handle's pointer is to a live object, as the access below relies on,
+        // so the place of its `events` field is in bounds; nothing is accessed here.
+        let events_ptr = unsafe { addr_of_mut!((*self.as_mut_ptr()).events) };
+        // SAFETY: a field of the live hardware context the handle borrows
+        // exclusively; the caller keeps `events` alive.
         unsafe { events_ptr.write(events) }
     }
 }

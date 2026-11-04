@@ -39,7 +39,10 @@ use core::mem::size_of;
 
 use ffi::AVHWDeviceType as C;
 use ffmpeg_bindings::libavutil::libavutil::ffi;
-use ffmpeg_bindings::libavutil::libavutil::hwcontext::{DeviceType, TransferDirection};
+use ffmpeg_bindings::libavutil::libavutil::hwcontext::{
+    BackendDeviceContext, BackendFramesContext, DeviceType, FramesContextMut, FramesContextRef,
+    StableBackendFramesContext, TransferDirection,
+};
 use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_array_zeroed};
 
 /// Every named constant beside its C enumerator and the name C gives it.
@@ -870,7 +873,7 @@ mod contexts {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
+    use super::backend::{self as fx, Event, FramesHwctx, HWCONFIG_SIZE, Kind, averror};
     use super::{NAMED, UNNAMED, c_find, c_name, c_next};
 
     const ENOSYS: c_int = averror(ffi::ENOSYS);
@@ -951,9 +954,7 @@ mod contexts {
         ctx.set_width(size.0);
         ctx.set_height(size.1);
         ctx.set_initial_pool_size(pool);
-        // SAFETY: the test backends' frames struct is a `FramesHwctx`, any
-        // of whose results they take.
-        unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap().set(hwctx);
+        fx::set_hw(ctx, hwctx);
         frames.init()
     }
 
@@ -1254,8 +1255,7 @@ mod contexts {
             (rc.width(), rc.height(), rc.initial_pool_size())
         );
         assert!(cc.pool.is_null() && !rc.has_pool());
-        // SAFETY: the test backends' frames struct is a `FramesHwctx`.
-        let rust_hw = unsafe { rc.hwctx::<FramesHw>() }.map(|h| h.get());
+        let rust_hw = fx::get_hw(rc);
         assert!(!cc.hwctx.is_null() && rust_hw.is_some());
         assert_eq!(data(cc.device_ref), data(c_dev));
         assert!(rc.device().ptr_eq(r_dev.as_ref()));
@@ -1667,7 +1667,7 @@ mod hardware_frame_transfers {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind, averror};
+    use super::backend::{self as fx, Event, FramesHwctx, Kind, averror};
 
     const W: c_int = 64;
     const H: c_int = 32;
@@ -1711,9 +1711,7 @@ mod hardware_frame_transfers {
             ctx.set_sw_format(PixelFormat::NV12);
             ctx.set_width(W);
             ctx.set_height(H);
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`,
-            // any of whose results they take.
-            unsafe { ctx.into_hwctx::<FramesHw>() }.unwrap().set(hwctx);
+            fx::set_hw(ctx, hwctx);
             let r = r.init().unwrap();
             let events = fx::take_events();
             assert_eq!(events, [Event::FramesInit(kind), Event::FramesInit(kind)]);
@@ -2105,10 +2103,9 @@ mod device_context {
     fn rust_device(events: &Arc<Events>, value: i64, init_ret: c_int) -> UninitDevice {
         // SAFETY: the only reference to a fresh, uninitialised fake context.
         let mut b = unsafe { UninitDevice::from_c(hwdevice::fake_device()) }.unwrap();
-        // SAFETY: the fake context's hardware context is a `FakeHwctx`; the
-        // events outlive it.
-        let mut hw = unsafe { b.context_mut().into_hwctx::<FakeHw>() }.unwrap();
-        hw.set_events(Arc::as_ptr(events));
+        let mut hw = b.context_mut().into_hwctx::<FakeHw>().unwrap();
+        // SAFETY: the caller keeps `events` alive past the context.
+        unsafe { hw.set_events(Arc::as_ptr(events)) };
         hw.set_value(value);
         hw.set_init_ret(init_ret);
         b
@@ -2126,8 +2123,7 @@ mod device_context {
     }
 
     fn rust_state(ctx: DeviceContextRef<'_>) -> (i64, c_int) {
-        // SAFETY: the fake context's hardware context is a `FakeHwctx`.
-        let hw = unsafe { ctx.hwctx::<FakeHw>() }.unwrap();
+        let hw = ctx.hwctx::<FakeHw>().unwrap();
         (hw.value(), c_int::from(hw.initialised()))
     }
 
@@ -2209,8 +2205,7 @@ mod device_context {
             let ctx = b.context();
             assert_eq!(ctx.device_type().into_raw(), c_type);
             assert_eq!(ctx.class().unwrap().name(), Some(c_class));
-            // SAFETY: the fake backend's hardware context type, or none.
-            let hw = unsafe { ctx.hwctx::<FakeHw>() };
+            let hw = ctx.hwctx::<FakeHw>();
             assert_eq!(hw.is_some(), !c_hwctx.is_null());
             if let Some(hw) = hw {
                 // SAFETY: C's own pointer to the same hardware context.
@@ -2521,9 +2516,9 @@ mod frames_constraints {
         let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VAAPI);
         // SAFETY: the only reference to a fresh, uninitialised fake context.
         let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
-        // SAFETY: the fake backend's hardware context type, or none.
-        if let Some(mut hw) = unsafe { b.context_mut().into_hwctx::<FakeHw>() } {
-            hw.set_events(Arc::as_ptr(events));
+        if let Some(mut hw) = b.context_mut().into_hwctx::<FakeHw>() {
+            // SAFETY: the caller keeps `events` alive past the device.
+            unsafe { hw.set_events(Arc::as_ptr(events)) };
             hw.set_nb_sw(q.nb_sw);
             hw.set_constraints_ret(q.ret);
         }
@@ -2784,8 +2779,7 @@ mod frames_constraints {
                     })
                 }
             };
-            // SAFETY: the fake backend's hardware context type, or none.
-            let rust_hw = unsafe { rust_dev.as_ref().context().hwctx::<FakeHw>() };
+            let rust_hw = rust_dev.as_ref().context().hwctx::<FakeHw>();
             assert_eq!(seen(c_dev), rust_hw.map(|h| h.seen_sizes()));
             if let Some(mut rust) = rust {
                 assert_eq!(rust_view(&rust), c_view(c), "{q:?}");
@@ -2969,9 +2963,7 @@ mod frames_constraints {
                 let c_seen = unsafe { &(*hwctx_2).seen_sizes }
                     .each_ref()
                     .map(|a| a.load(Ordering::SeqCst));
-                // SAFETY: the fake backend's hardware context type, whose
-                // sizes are atomics.
-                let rust_hw = unsafe { rust_dev.as_ref().context().hwctx::<FakeHw>() };
+                let rust_hw = rust_dev.as_ref().context().hwctx::<FakeHw>();
                 assert_eq!(Some(c_seen), rust_hw.map(|h| h.seen_sizes()));
                 if let Some(rust) = rust {
                     c_results.push(c);
@@ -3042,7 +3034,7 @@ mod frames_context {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::backend::{self as fx, Event, FramesHw, FramesHwctx, Kind};
+    use super::backend::{self as fx, Event, FramesHwctx, Kind};
 
     /// The public fields both sides compare: formats, size, pool size,
     /// whether a pool, a `free` and a frames struct are set.
@@ -3066,8 +3058,7 @@ mod frames_context {
     }
 
     fn rust_fields(ctx: FramesContextRef<'_>) -> Fields {
-        // SAFETY: the test backends' frames struct is a `FramesHwctx`.
-        let hw = unsafe { ctx.hwctx::<FramesHw>() };
+        let hw = fx::get_hw(ctx);
         (
             ctx.format().into_raw(),
             ctx.sw_format().into_raw(),
@@ -3131,11 +3122,7 @@ mod frames_context {
             ctx.set_width(self.width);
             ctx.set_height(self.height);
             ctx.set_initial_pool_size(self.pool);
-            // SAFETY: the test backends' frames struct is a `FramesHwctx`, any
-            // of whose results they take.
-            unsafe { ctx.into_hwctx::<FramesHw>() }
-                .unwrap()
-                .set(self.hwctx);
+            fx::set_hw(ctx, self.hwctx);
         }
     }
 
@@ -3263,8 +3250,7 @@ mod frames_context {
             if let (Ok(c), Ok(r)) = (c, r) {
                 let ctx = r.as_ref().context();
                 assert_eq!(c_fields(c), rust_fields(ctx), "{fill:?}");
-                // SAFETY: both test backends' frames structs.
-                let rust_hw = unsafe { ctx.hwctx::<FramesHw>() }.unwrap().get();
+                let rust_hw = fx::get_hw(ctx).unwrap();
                 // SAFETY: as the comment below states, for this part of the operation.
                 let frames_ctx_2 = unsafe { fx::frames_ctx(c) };
                 // SAFETY: as the comment below states, for this part of the operation.
