@@ -1,0 +1,18 @@
+[package]
+name = "fixture-device-impls-claim-every-vaapi-context"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+ffmpeg-bindings = { path = "../../../../../.." }
+libavutil-sys = { path = "../../../../../../libavutil-sys", features = ["bindgen"] }
+ffibox = { path = "/opt/venv/share/ffibox" }
+
+[patch."https://github.com/crustify-rs/glibc-bindings"]
+glibc-bindings = { path = "/target/glibc-bindings" }
+
+[patch."https://github.com/crustify-rs/ffibox"]
+ffibox = { path = "/opt/venv/share/ffibox" }
