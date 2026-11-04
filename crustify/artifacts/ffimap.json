@@ -6,21 +6,22 @@
     "libavfilter_sys",
     "libavformat_sys",
     "libavutil_sys",
-    "libc_sys",
     "libswresample_sys",
     "libswscale_sys"
   ],
   "scanner": {
-    "ffimap": "8cb4031e36ee40d4e4dba269aa9547688d9d5d05",
+    "ffimap": "a15f6f38de609c5cea252cdd8eb0a5a16ba45fd8",
     "toolchain": "nightly-2026-10-07",
     "ffibox": true,
     "seams": [
       "as_c_ptr",
       "as_mut_ptr",
+      "as_object",
       "as_ptr",
       "as_void_ptr",
       "from_c",
       "from_ptr",
+      "from_raw",
       "from_raw_parts",
       "from_void_ptr",
       "into_c",
@@ -755,7 +756,7 @@
           }
         },
         "sys": {
-          "total": 204,
+          "total": 203,
           "of_which": {
             "raw_ptr_in_sys": {
               "total": 99,
@@ -893,8 +894,8 @@
         }
       },
       "unsafe": {
-        "total": 111,
-        "pub": 67,
+        "total": 107,
+        "pub": 63,
         "priv": 44,
         "of_which": {
           "in_trait_impl": {
@@ -921,25 +922,25 @@
             }
           },
           "seam": {
-            "total": 7,
-            "pub": 4,
+            "total": 10,
+            "pub": 7,
             "priv": 3
           },
           "other": {
-            "total": 47,
-            "pub": 18,
+            "total": 40,
+            "pub": 11,
             "priv": 29
           }
         }
       },
       "safe": {
-        "total": 2943,
-        "pub": 2570,
+        "total": 2947,
+        "pub": 2574,
         "priv": 373,
         "of_which": {
           "with_unsafe": {
-            "total": 1125,
-            "pub": 1033,
+            "total": 1129,
+            "pub": 1037,
             "priv": 92
           }
         }
@@ -1079,7 +1080,7 @@
           }
         },
         "sys": {
-          "total": 535,
+          "total": 529,
           "of_which": {
             "used": 492
           }
@@ -1088,7 +1089,7 @@
     },
     "code": {
       "loc": {
-        "total": 18664,
+        "total": 18681,
         "unsafe": 3102
       },
       "unsafe_block": {
@@ -1105,11 +1106,11 @@
       },
       "tests": {
         "loc": {
-          "total": 87783,
-          "unsafe": 7155
+          "total": 88010,
+          "unsafe": 7141
         },
-        "unsafe_block": 6754,
-        "fn": 5000
+        "unsafe_block": 6740,
+        "fn": 5058
       }
     }
   },
