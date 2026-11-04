@@ -1,0 +1,39 @@
+{
+ "ptr_args": {
+  "ptr": {
+   "ptr": {
+    "scalar": {
+     "by_ref": {
+      "owned": false,
+      "borrowed": {
+       "lifetime": "other"
+      }
+     }
+    },
+    "array": null,
+    "string": false,
+    "owned": false,
+    "borrowed": {
+     "lifetime": "arg:ptr"
+    },
+    "nullable": false,
+    "mutable": false,
+    "note": "An AVClass-enabled object: dereferenced as `AVClass **` (the struct's first member is its `const AVClass *`), read only. The inner AVClass is borrowed from whoever built it, not from the object, and outlives it: static in most in-tree classes, but a stack descriptor in libavfilter/vidstabutils.c:63 (vs2av_log). Must be non-NULL, as must the class pointer it holds."
+   }
+  }
+ },
+ "ptr_ret": {
+  "ptr": {
+   "scalar": null,
+   "array": null,
+   "string": true,
+   "owned": false,
+   "borrowed": {
+    "lifetime": "arg:ptr"
+   },
+   "nullable": true,
+   "mutable": false,
+   "note": "The class's `class_name`, returned as stored: it lives as long as the AVClass that `ptr` points to, not necessarily for the program: vs2av_log (libavfilter/vidstabutils.c:63) builds a stack AVClass whose class_name is its caller's `tag`. NULL only for a class that stores NULL there (none in tree)."
+  }
+ }
+}
