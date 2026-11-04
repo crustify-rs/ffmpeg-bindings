@@ -1,0 +1,146 @@
+{
+ "wrapped_types": 85,
+ "unwrapped_api_fns": 607,
+ "positions": {
+  "ptr_arg": 74,
+  "val_ret": 14,
+  "val_arg": 35,
+  "ptr_ret": 17
+ },
+ "fields": {
+  "ptr_fld": 55,
+  "val_fld": 137
+ },
+ "distinct_fns": {
+  "ptr_arg": 65,
+  "val_ret": 14,
+  "val_arg": 30,
+  "ptr_ret": 17
+ },
+ "distinct_structs": {
+  "ptr_fld": 39,
+  "val_fld": 36
+ },
+ "per_type": {
+  "AVRational": {
+   "val_ret": 6,
+   "val_arg": 10,
+   "val_fld": 88,
+   "ptr_fld": 2
+  },
+  "AVFrame": {
+   "ptr_arg": 42,
+   "ptr_fld": 2
+  },
+  "AVClass": {
+   "ptr_ret": 14,
+   "ptr_fld": 30
+  },
+  "AVDictionary": {
+   "ptr_arg": 18,
+   "ptr_fld": 10
+  },
+  "AVPixelFormat": {
+   "ptr_arg": 2,
+   "val_ret": 2,
+   "val_arg": 14,
+   "val_fld": 6,
+   "ptr_fld": 1
+  },
+  "AVMediaType": {
+   "val_arg": 2,
+   "val_ret": 3,
+   "ptr_fld": 1,
+   "val_fld": 6
+  },
+  "AVBufferRef": {
+   "ptr_arg": 3,
+   "ptr_ret": 2,
+   "ptr_fld": 6
+  },
+  "AVChannelLayout": {
+   "ptr_arg": 5,
+   "val_fld": 6
+  },
+  "AVColorSpace": {
+   "val_arg": 1,
+   "val_ret": 1,
+   "val_fld": 6
+  },
+  "AVSampleFormat": {
+   "val_arg": 5,
+   "val_fld": 2
+  },
+  "AVColorRange": {
+   "val_ret": 1,
+   "val_fld": 6
+  },
+  "AVFrameSideData": {
+   "ptr_arg": 2,
+   "ptr_ret": 1,
+   "ptr_fld": 3
+  },
+  "AVColorTransferCharacteristic": {
+   "val_arg": 1,
+   "val_fld": 4
+  },
+  "AVColorPrimaries": {
+   "val_arg": 1,
+   "val_fld": 4
+  },
+  "AVAlphaMode": {
+   "val_ret": 1,
+   "val_fld": 4
+  },
+  "AVBPrint": {
+   "ptr_arg": 2
+  },
+  "AVChromaLocation": {
+   "val_fld": 2
+  },
+  "AVColorPrimariesDesc": {
+   "val_fld": 2
+  },
+  "AVMatrixEncoding": {
+   "val_arg": 1
+  },
+  "AVHWDeviceType": {
+   "val_fld": 1
+  }
+ },
+ "signature_positions": {
+  "enum_ptr_arg": 2,
+  "enum_val_arg": 25,
+  "enum_val_ret": 8,
+  "struct_ptr_arg": 72,
+  "struct_ptr_ret": 17,
+  "struct_val_arg": 10,
+  "struct_val_ret": 6
+ },
+ "field_positions_direct": {
+  "enum_cb": 1,
+  "enum_ptr": 1,
+  "enum_val": 41,
+  "struct_cb": 3,
+  "struct_ptr": 50,
+  "struct_val": 96
+ },
+ "field_positions_nested": {
+  "struct_ptr_nested": 2,
+  "struct_val_nested": 54
+ },
+ "nested_examples": {
+  "struct_ptr_nested": [
+   "AVStream.attached_pic.buf: AVBufferRef",
+   "AVStream.attached_pic.opaque_ref: AVBufferRef"
+  ],
+  "struct_val_nested": [
+   "AVStream.attached_pic.time_base: AVRational",
+   "AVRawColorParams.codec.prores_raw.color_matrix: AVRational",
+   "AVRawColorParams.codec.prores_raw.gain: AVRational",
+   "AVRawColorParams.codec.prores_raw.wb_blue: AVRational",
+   "AVRawColorParams.codec.prores_raw.wb_red: AVRational",
+   "AVHDRVividColorToneMappingParams.three_spline.enable_strength: AVRational"
+  ]
+ }
+}
