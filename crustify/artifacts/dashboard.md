@@ -245,7 +245,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`0`| `2` | `11` |`+2151/-10`| `75.07`% / `99.68`% | `$25.46` | `84.94M` | `85m00s` | `$12.73` | `$2.31` |
 |`libavutil/hwcontext`|`2`|`0`| `1` | `12` |`+1844/-170`| `75.08`% / `99.69`% | `$11.06` | `33.26M` | `41m54s` | `$11.06` | `$0.92` |
 |`libavutil/libavutil/opt.c`|`794`|`0`| `2` | `12` |`+300/-1`| `68.58`% / `99.25`% | `$8.39` | `25.43M` | `24m16s` | `$4.19` | `$0.70` |
-| **Σ** |  |  | **`84`** | **`186`** | **`+44400/-600`** | **`68.58`% / `99.25`%** | **`$299.48`** | **`852.66M`** | — | **`$3.57`** | **`$1.61`** |
+|`libavutil/libavutil/frame.c`|`902`|`1`| `1` | `6` |`+912/-85`| `69.30`% / `99.20`% | — | — | — | — | — |
+| **Σ** |  |  | **`85`** | **`192`** | **`+45312/-685`** | **`69.30`% / `99.20`%** | **`$299.48`** | **`852.66M`** | — | **`$3.57`** | **`$1.61`** |
 
 ### Batches — wrap: tests
 
@@ -302,7 +303,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`0`|`+4` (`+0.05`/`-0.86` pp)|`+14` (`+0.23`/`+0.90` pp)|`+7` (`+0.15`/`+0.14` pp)|`+18` (`+0.15`/`+0.31` pp)|
 |`libavutil/hwcontext`|`2`|`0`|`+0` (`+0.00`/`-1.43` pp)|`+10` (`+0.77`/`+1.36` pp)|`+5` (`+0.02`/`-0.14` pp)|`+13` (`+0.01`/`+0.26` pp)|
 |`libavutil/libavutil/opt.c`|`794`|`0`|`+0` (`+0.00`/`+0.06` pp)|`+0` (`+0.00`/`+0.00` pp)|`+3` (`+0.00`/`+0.03` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+377` (`+15.55`/`+3.68` pp)** | **`+87` (`+7.40`/`+12.15` pp)** | **`+274` (`+32.63`/`-36.11` pp)** | **`+461` (`+18.83`/`+0.80` pp)** |
+|`libavutil/libavutil/frame.c`|`902`|`1`|`+4` (`+0.00`/`+0.14` pp)|`+0` (`+0.00`/`-0.27` pp)|`+1` (`+0.00`/`+0.02` pp)|`+4` (`+0.00`/`-0.23` pp)|
+| **Σ** |  |  | **`+381` (`+15.55`/`+3.82` pp)** | **`+87` (`+7.40`/`+11.88` pp)** | **`+275` (`+32.63`/`-36.09` pp)** | **`+465` (`+18.83`/`+0.57` pp)** |
 
 ### Batches — port
 
@@ -2274,3 +2276,36 @@ as a raw `void *`. Neither contract finding has a reproducer: no safe path reach
 behaviour. The coverage cells come from the wave-800 scripts, run on the wave tip (`3df5deb`) and on
 the landed tree: unchanged at 69.30% / 99.19%. The `ub_safe` suite's Rust lines read 11,509 instead
 of 11,510, a thread-timing difference in a test the review did not touch.
+
+### `libavutil/libavutil/frame.c` wave 902, batch 1: `AVRegionOfInterest` again
+
+Planner run 5's re-plan scheduled `AVRegionOfInterest` again. Wave 32 wrapped it before wave 34
+wrapped `AVFrameSideData`, and this batch brings that wrapper to the current specs. The value type,
+its handles, its six field accessors and their anchors already met the specs and are unchanged. One
+reference to raw side data had been left: a `REGIONS_OF_INTEREST` payload could only be read and
+written as bytes, through `data()` and `alloc_side_data_from_slice` with `into_raw`, and the type's
+docs left the `self_size` check to whoever stored one. The batch adds three things:
+
+- `SideDataRef::regions_of_interest`, which returns a `CSlice<'a, RegionOfInterest>` of handles over
+  the payload. It returns `None` unless the entry has that kind, the payload is a nonzero whole number
+  of regions aligned for one, and the first `self_size` is `SELF_SIZE`, so that the view's stride is
+  the one C's readers take.
+- `FrameMut::add_regions_of_interest` and `SideDataArray(Mut)::add_regions_of_interest`, which store
+  regions with every `self_size` set to `SELF_SIZE`. They refuse an empty payload, whose first
+  `self_size` C's readers read past its end, and a quantisation offset with a zero denominator or
+  outside `[-1, 1]`, which some encoders scale unchecked.
+- `RegionsOfInterestError`, which says why a store failed.
+
+The byte-level side data API still stores bytes unchecked, as the type's docs now say. The unsafe
+surface, scanned on the base (`16a141c`) and the landing tree at ffimap `8cb4031`: no public
+`unsafe fn` and no raw pointer on the safe public interface was added (still 28, and 3 + 7 + 0). The
+`unsafe` blocks went from 2,163 to 2,165: the view's `CSlice::from_raw_parts`, and an `assume_init` in a
+unit test's closure, which ffimap counts outside `code.tests`. None of the `--sites` the safe
+boundary lists in `frame.rs` and `side_data.rs` is the batch's. The equivalence test that wrote and
+read side data through raw `AVFrameSideData` pointers on the Rust side now stores and reads through
+the safe API, and C reads and writes the same payloads as its readers and `vf_addroi` do.
+
+The coverage cells come from the wave-800 scripts, run on the base (`16a141c`, 69.30% / 99.19%) and
+on the landing tree. They count 13,844 C lines on both trees, and 14,405 and 14,533 Rust lines. The C
+figures did not move. Every Rust line the batch added is covered: 116 lines stay uncovered, as on the
+base. The `ub_unsafe` and unit percentages fall only because the denominator grew.

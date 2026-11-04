@@ -499,17 +499,24 @@ mod side_data_descriptor {
 /// `RegionOfInterest`: inline values and `av_malloc`-family arrays of them
 /// (the shape of `REGIONS_OF_INTEREST` side data), every field at its edges,
 /// the offset's handles and their reborrows, copies outliving their source,
-/// and the asserted `Send` / `Sync`. Tests without `heap` in their name make
-/// no C call and also run under Miri (buffer-frame wave 1, batch 0).
+/// and the asserted `Send` / `Sync` (buffer-frame wave 1, batch 0). Regions
+/// stored as side data of frames and arrays and read back as views over the
+/// payload, malformed payloads of exact size (short, misaligned, with a
+/// small or zero first `self_size`) refused rather than read past, and
+/// views shared across threads (wave 902, batch 1). Tests without `heap` or
+/// `side_data` in their name make no C call and also run under Miri.
 mod region_of_interest {
     use std::thread;
 
+    use ffmpeg_bindings::libavutil::libavutil::buffer::BufferReference;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
     use ffmpeg_bindings::libavutil::libavutil::frame::{
-        RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef,
+        Frame, RegionOfInterest, RegionOfInterestMut, RegionOfInterestRef, RegionsOfInterestError,
+        SideDataType,
     };
     use ffmpeg_bindings::libavutil::libavutil::mem::{HeapVec, alloc_cell_array_zeroed};
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
 
     const EDGES: [i32; 5] = [i32::MIN, -1, 0, 1, i32::MAX];
 
@@ -645,6 +652,221 @@ mod region_of_interest {
                 assert_eq!(snapshot(r.as_ref()), expected(k));
             }
         }
+    }
+
+    /// Regions whose offsets C's encoders accept, every other field at its
+    /// edges, and a `self_size` the stores replace.
+    fn storable(n: usize) -> Vec<RegionOfInterest> {
+        const OFFSETS: [(i32, i32); 6] = [
+            (0, 1),
+            (-1, 10),
+            (i32::MAX, i32::MIN),
+            (i32::MIN, i32::MIN),
+            (1, -1),
+            (i32::MIN + 1, i32::MAX),
+        ];
+        (0..n)
+            .map(|k| {
+                let e = |i: usize| EDGES[(k + i) % EDGES.len()];
+                let (num, den) = OFFSETS[k % OFFSETS.len()];
+                let mut r = RegionOfInterest::new(e(1), e(2), e(3), e(4), q(num, den));
+                r.as_mut().set_self_size(e(0) as u32);
+                r
+            })
+            .collect()
+    }
+
+    /// What the view must read for `r`: its fields, with `self_size` as
+    /// stored.
+    fn stored(r: &RegionOfInterest) -> (u32, [i32; 6]) {
+        (RegionOfInterest::SELF_SIZE, snapshot(r.as_ref()).1)
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn side_data_regions_store_and_read_back_through_frames_and_arrays() {
+        for n in [1, 2, 7, 64] {
+            let regions = storable(n);
+            let mut frame = Frame::new().unwrap();
+            let mut m = frame.as_mut();
+            let entry = m.add_regions_of_interest(&regions).unwrap();
+            assert_eq!(entry.as_ref().len(), n * 28);
+            let view = entry.as_ref().regions_of_interest().unwrap();
+            assert_eq!(view.len(), n);
+            for (r, v) in regions.iter().zip(view.iter()) {
+                assert_eq!(snapshot(v), stored(r));
+            }
+            assert!(view.get(n).is_none());
+
+            let mut array = SideDataArray::new();
+            array
+                .add_regions_of_interest(&regions, SideDataFlags::NONE)
+                .unwrap();
+            let entries = array.as_ref();
+            let view = entries
+                .find(SideDataType::REGIONS_OF_INTEREST)
+                .unwrap()
+                .regions_of_interest()
+                .unwrap();
+            let copies: Vec<RegionOfInterest> = view.iter().map(|v| v.get()).collect();
+            drop(array);
+            for (r, c) in regions.iter().zip(&copies) {
+                assert_eq!(snapshot(c.as_ref()), stored(r));
+            }
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn side_data_stores_refuse_what_c_readers_mishandle() {
+        let mut frame = Frame::new().unwrap();
+        let mut m = frame.as_mut();
+        let ok = RegionOfInterest::default();
+        assert_eq!(
+            m.add_regions_of_interest(&[]).unwrap_err(),
+            RegionsOfInterestError::Empty
+        );
+        for (num, den) in [
+            (0, 0),
+            (1, 0),
+            (3, 2),
+            (-2, 1),
+            (i32::MIN, i32::MAX),
+            (i32::MIN, 1),
+        ] {
+            let bad = RegionOfInterest::new(0, 1, 0, 1, q(num, den));
+            assert_eq!(
+                m.add_regions_of_interest(&[ok, ok, bad]).unwrap_err(),
+                RegionsOfInterestError::InvalidQoffset(2),
+                "{num}/{den}"
+            );
+        }
+        assert!(
+            RegionsOfInterestError::Empty
+                .to_string()
+                .contains("no region")
+        );
+        assert_eq!(frame.as_ref().side_data().len(), 0);
+
+        let mut array = SideDataArray::new();
+        let mut entries = array.as_mut();
+        entries
+            .add_regions_of_interest(&[ok], SideDataFlags::NONE)
+            .unwrap();
+        assert_eq!(
+            entries
+                .add_regions_of_interest(&[ok, ok], SideDataFlags::NONE)
+                .unwrap_err(),
+            RegionsOfInterestError::NotAdded
+        );
+        let e = entries
+            .add_regions_of_interest(&[ok, ok], SideDataFlags::REPLACE)
+            .unwrap();
+        assert_eq!(e.as_ref().regions_of_interest().unwrap().len(), 2);
+        assert_eq!(array.len(), 1);
+    }
+
+    /// Payloads of exactly their size, so that a read past one is an `ASan`
+    /// report.
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn side_data_malformed_payloads_give_no_view() {
+        let one = |self_size: u32| {
+            let mut b = [0u8; 28];
+            b[..4].copy_from_slice(&self_size.to_ne_bytes());
+            b
+        };
+        let two = [one(28), one(4)].concat();
+        let cases: [(&[u8], Option<usize>); 9] = [
+            (&[], None),
+            (&[28, 0, 0], None),
+            (&one(28)[..27], None),
+            (&one(4), None),
+            (&one(0), None),
+            (&one(56), None),
+            (&[one(28).as_slice(), &[0, 0]].concat(), None),
+            (&one(28), Some(1)),
+            // C's stride is the first element's; the others are read as
+            // they are.
+            (&two, Some(2)),
+        ];
+        for (bytes, expect) in cases {
+            let mut frame = Frame::new().unwrap();
+            frame
+                .as_mut()
+                .alloc_side_data_from_slice(SideDataType::REGIONS_OF_INTEREST, bytes)
+                .unwrap();
+            let f = frame.as_ref();
+            let entry = f.find_side_data(SideDataType::REGIONS_OF_INTEREST).unwrap();
+            let view = entry.regions_of_interest();
+            assert_eq!(view.map(|v| v.len()), expect, "{bytes:?}");
+            if let Some(v) = view {
+                assert_eq!(
+                    v.iter().last().unwrap().self_size(),
+                    if expect == Some(2) { 4 } else { 28 }
+                );
+            }
+        }
+        // A valid payload under another kind.
+        let mut frame = Frame::new().unwrap();
+        frame
+            .as_mut()
+            .alloc_side_data_from_slice(SideDataType::VIDEO_HINT, &one(28))
+            .unwrap();
+        let f = frame.as_ref();
+        assert!(
+            f.side_data()
+                .get(0)
+                .unwrap()
+                .regions_of_interest()
+                .is_none()
+        );
+        // A valid payload one byte off alignment.
+        let mut frame = Frame::new().unwrap();
+        let mut buf = BufferReference::alloc(29)
+            .unwrap()
+            .copy_from_slice(&[[0].as_slice(), &one(28)].concat());
+        buf.as_mut().advance(1);
+        let mut m = frame.as_mut();
+        m.alloc_side_data_zeroed(SideDataType::REGIONS_OF_INTEREST, 0)
+            .unwrap()
+            .set_buffer(buf);
+        let f = frame.as_ref();
+        let entry = f.find_side_data(SideDataType::REGIONS_OF_INTEREST).unwrap();
+        assert_eq!(entry.data(), one(28));
+        assert!(entry.regions_of_interest().is_none());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn side_data_views_cross_threads() {
+        let regions = storable(16);
+        let mut frame = Frame::new().unwrap();
+        frame.as_mut().add_regions_of_interest(&regions).unwrap();
+        let f = frame.as_ref();
+        let view = f
+            .find_side_data(SideDataType::REGIONS_OF_INTEREST)
+            .unwrap()
+            .regions_of_interest()
+            .unwrap();
+        thread::scope(|s| {
+            for (k, r) in regions.iter().enumerate() {
+                s.spawn(move || assert_eq!(snapshot(view.get(k).unwrap()), stored(r)));
+            }
+        });
+        let frame = thread::spawn(move || {
+            let f = frame.as_ref();
+            let v = f
+                .find_side_data(SideDataType::REGIONS_OF_INTEREST)
+                .unwrap()
+                .regions_of_interest()
+                .unwrap();
+            assert_eq!(v.len(), 16);
+            frame
+        })
+        .join()
+        .unwrap();
+        drop(frame);
     }
 }
 

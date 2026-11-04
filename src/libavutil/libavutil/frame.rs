@@ -13,7 +13,10 @@
 //! encoder quality to give it. Nothing allocates one on its own, so it is a
 //! value type, reached as a [`RegionOfInterestRef`] or
 //! [`RegionOfInterestMut`], its quantisation offset as a [`RationalRef`] or
-//! [`RationalMut`] over its own.
+//! [`RationalMut`] over its own. A side data entry's regions are read as
+//! handles over its payload ([`SideDataRef::regions_of_interest`]), and
+//! stored, checked, by [`FrameMut::add_regions_of_interest`] and
+//! [`SideDataArrayMut::add_regions_of_interest`].
 //!
 //! [`SideData`] is `AVFrameSideData`, one piece of side data: a payload of
 //! some [`SideDataType`], held by a buffer reference, and a metadata
@@ -53,7 +56,9 @@ use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 use core::ptr::{self, NonNull, addr_of, addr_of_mut};
 use core::{fmt, slice};
 
-use ffibox::{CBox, CMutSeam, CNew, CPlainElem, CRefSeam, CZeroable, define_ctype, impl_cdrop};
+use ffibox::{
+    CBox, CMutSeam, CNew, CPlainElem, CRefSeam, CSlice, CZeroable, define_ctype, impl_cdrop,
+};
 
 use super::buffer::{BufferReferenceBox, BufferReferenceRef, ENOMEM, may_add_reference};
 use super::channel_layout::{ChannelLayout, ChannelLayoutMut, ChannelLayoutRef, ChannelLayoutVal};
@@ -947,13 +952,26 @@ define_ctype!(
     /// misleads them. A smaller one passes their check and makes them read
     /// past the payload's end (`vf_showinfo`, `vf_addroi`, and the encoders'
     /// ROI readers), and 0 is an error to most of them but aborts the process
-    /// in `vf_addroi` (`av_assert0`). Nothing here stores regions in side
-    /// data, so a wrapper that hands such a payload to C must check every
-    /// element's `self_size` first.
+    /// in `vf_addroi` (`av_assert0`).
     ///
-    /// No other field is checked, by libavutil or here: encoders reject
-    /// regions they cannot use, such as a quantisation offset with a zero
-    /// denominator.
+    /// So regions reach side data through
+    /// [`FrameMut::add_regions_of_interest`] and
+    /// [`SideDataArrayMut::add_regions_of_interest`], which store every
+    /// element with [`SELF_SIZE`](Self::SELF_SIZE) whatever its own, and
+    /// refuse an empty payload, whose first `self_size` C's readers would
+    /// read past its end. They also refuse a quantisation offset with a zero
+    /// denominator or outside `[-1, 1]`: libavutil checks none, and some
+    /// encoders scale it unchecked in `int` arithmetic (`d3d12va_encode`,
+    /// `libvpxenc`). Within that range, an offset whose terms are large
+    /// still overflows `d3d12va_encode`'s `num * qp_range`; a wrapper of that
+    /// encoder must check it. [`SideDataRef::regions_of_interest`] reads an
+    /// entry's regions only when its first `self_size` is `SELF_SIZE`.
+    /// Raw bytes stored through the byte-level side data API
+    /// ([`FrameMut::alloc_side_data_from_slice`],
+    /// [`SideDataMut::data_mut`]) are not checked.
+    ///
+    /// The value itself checks no field: a region outside the frame, or with
+    /// any offset, is a valid value.
     ///
     /// The offset's exclusive handle freezes the region's while it lives:
     ///
@@ -975,9 +993,9 @@ define_ctype!(
 
 // SAFETY: all-zero is an empty region with a `0/0` offset and a `self_size`
 // of 0, all plain integers every accessor reads as they are, and the type has
-// no teardown to reject it. No safe wrapper hands a region to C: a zero
-// `self_size` is a C error, or an abort in vf_addroi, once side data carries
-// it, as the type's docs say.
+// no teardown to reject it. The typed side data stores replace its
+// `self_size` and refuse its `0/0` offset, so it never reaches C's readers
+// through them, as the type's docs say.
 unsafe impl CZeroable for RegionOfInterest {}
 
 // SAFETY: an `AVRegionOfInterest` is 28 bytes of plain data, a `uint32_t`
@@ -1035,7 +1053,8 @@ impl RegionOfInterest {
         Self(raw, PhantomData)
     }
 
-    /// The C encoding of this region, for storing it in side data.
+    /// The C encoding of this region, as it stands: its `self_size`
+    /// unchecked.
     #[inline]
     #[must_use]
     pub const fn into_raw(self) -> ffi::AVRegionOfInterest {
@@ -1224,6 +1243,7 @@ impl RegionOfInterestMut<'_> {
     /// Sets the size this element claims; C requires
     /// [`RegionOfInterest::SELF_SIZE`], and its readers read past the side
     /// data payload for a smaller nonzero size (see [`RegionOfInterest`]).
+    /// The typed side data stores write `SELF_SIZE` whatever this is.
     #[doc(alias = "AVRegionOfInterest.self_size")]
     pub fn set_self_size(&mut self, self_size: u32) {
         // SAFETY: the handle's pointer is to a live object, as the access below relies on,
@@ -1324,6 +1344,189 @@ impl RegionOfInterestMut<'_> {
         // exclusive handle's pointer to a live one; the old value owns
         // nothing to leak.
         unsafe { self.as_mut_ptr().write(roi.into_raw()) }
+    }
+}
+
+/// The size of one `AVRegionOfInterest`, the stride of a region array.
+const ROI_SIZE: usize = size_of::<ffi::AVRegionOfInterest>();
+
+// The struct is a `uint32_t` and six `int`s with no padding, so writing its
+// seven fields writes every byte of an element.
+const _: () = assert!(ROI_SIZE == 7 * size_of::<i32>());
+
+impl RegionOfInterest {
+    /// Whether a payload may carry this region to C's encoders: the
+    /// quantisation offset has a nonzero denominator and lies in `[-1, 1]`,
+    /// the range `frame.h` documents and the encoders scale by.
+    fn qoffset_is_storable(&self) -> bool {
+        let q = self.0.qoffset;
+        let (num, den) = (i64::from(q.num), i64::from(q.den));
+        den != 0 && num.abs() <= den.abs()
+    }
+
+    /// The bytes C's readers read for this region, its `self_size` set to
+    /// [`SELF_SIZE`](Self::SELF_SIZE), in the native encoding.
+    fn payload_bytes(&self) -> [u8; ROI_SIZE] {
+        let raw = self.0;
+        let fields = [
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, self_size),
+                Self::SELF_SIZE.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, top),
+                raw.top.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, bottom),
+                raw.bottom.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, left),
+                raw.left.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, right),
+                raw.right.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, qoffset)
+                    + core::mem::offset_of!(ffi::AVRational, num),
+                raw.qoffset.num.to_ne_bytes(),
+            ),
+            (
+                core::mem::offset_of!(ffi::AVRegionOfInterest, qoffset)
+                    + core::mem::offset_of!(ffi::AVRational, den),
+                raw.qoffset.den.to_ne_bytes(),
+            ),
+        ];
+        let mut out = [0; ROI_SIZE];
+        for (at, bytes) in fields {
+            out[at..at + bytes.len()].copy_from_slice(&bytes);
+        }
+        out
+    }
+}
+
+/// Why regions were not stored as `REGIONS_OF_INTEREST` side data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RegionsOfInterestError {
+    /// No region was given. C's readers read the first element's
+    /// `self_size` before they check the payload's size, so an empty payload
+    /// would make them read past its end.
+    Empty,
+    /// The region at this index has a quantisation offset with a zero
+    /// denominator or outside `[-1, 1]`, which C's encoders do not check
+    /// before they scale it.
+    InvalidQoffset(usize),
+    /// The regions' size in bytes overflows `usize`.
+    TooLarge,
+    /// C added no entry: it could not allocate one, or, in a side data
+    /// array, an entry of the kind was present and was not to be replaced.
+    NotAdded,
+}
+
+impl fmt::Display for RegionsOfInterestError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => f.write_str("no region of interest to store"),
+            Self::InvalidQoffset(i) => {
+                write!(
+                    f,
+                    "region of interest {i} has a quantisation offset outside [-1, 1]"
+                )
+            }
+            Self::TooLarge => f.write_str("too many regions of interest for one payload"),
+            Self::NotAdded => f.write_str("no side data entry was added"),
+        }
+    }
+}
+
+impl std::error::Error for RegionsOfInterestError {}
+
+/// The size of the `REGIONS_OF_INTEREST` payload holding `regions`, once each
+/// is checked storable.
+pub(super) fn regions_payload_len(
+    regions: &[RegionOfInterest],
+) -> Result<usize, RegionsOfInterestError> {
+    if regions.is_empty() {
+        return Err(RegionsOfInterestError::Empty);
+    }
+    if let Some(i) = regions.iter().position(|r| !r.qoffset_is_storable()) {
+        return Err(RegionsOfInterestError::InvalidQoffset(i));
+    }
+    regions
+        .len()
+        .checked_mul(ROI_SIZE)
+        .ok_or(RegionsOfInterestError::TooLarge)
+}
+
+/// Writes every byte of a new `REGIONS_OF_INTEREST` payload, `dst`, sized by
+/// [`regions_payload_len`]: `regions` at stride [`RegionOfInterest::SELF_SIZE`],
+/// each with that `self_size`, so that C's readers count and read them as
+/// stored.
+pub(super) fn write_regions(dst: &mut [MaybeUninit<u8>], regions: &[RegionOfInterest]) {
+    assert_eq!(
+        dst.len(),
+        regions.len() * ROI_SIZE,
+        "payload length differs from the regions'"
+    );
+    for (run, region) in dst.as_chunks_mut::<ROI_SIZE>().0.iter_mut().zip(regions) {
+        copy_into(run, &region.payload_bytes());
+    }
+}
+
+impl<'a> SideDataRef<'a> {
+    /// The regions of a `REGIONS_OF_INTEREST` entry, as handles over its
+    /// payload ([`RegionOfInterestRef`]), borrowed for as long as the entry
+    /// is.
+    ///
+    /// C's readers take the first element's `self_size` as the stride and
+    /// read a whole region at every stride. This view reads them only where
+    /// that is in bounds and matches `frame.h`'s layout: `None` unless the
+    /// entry is of [`SideDataType::REGIONS_OF_INTEREST`], its payload is a
+    /// nonzero whole number of regions, aligned for one, and its first
+    /// region's `self_size` is [`RegionOfInterest::SELF_SIZE`]. The other
+    /// regions' `self_size` is read as it is.
+    ///
+    /// ```
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{Frame, RegionOfInterest};
+    /// use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    /// let mut frame = Frame::new().unwrap();
+    /// let roi = RegionOfInterest::new(0, 16, 0, 16, Rational::new(-1, 10));
+    /// frame.as_mut().add_regions_of_interest(&[roi, roi]).unwrap();
+    /// let frame = frame.as_ref();
+    /// let entry = frame
+    ///     .find_side_data(
+    ///         ffmpeg_bindings::libavutil::libavutil::frame::SideDataType::REGIONS_OF_INTEREST,
+    ///     )
+    ///     .unwrap();
+    /// let regions = entry.regions_of_interest().unwrap();
+    /// assert_eq!(regions.len(), 2);
+    /// assert_eq!(regions.get(1).unwrap().bottom(), 16);
+    /// ```
+    #[must_use]
+    pub fn regions_of_interest(&self) -> Option<CSlice<'a, RegionOfInterest>> {
+        if self.kind() != SideDataType::REGIONS_OF_INTEREST {
+            return None;
+        }
+        let (data, len) = self.parts();
+        let first = self
+            .data()
+            .first_chunk::<4>()
+            .copied()
+            .map(u32::from_ne_bytes);
+        let aligned = data.cast::<ffi::AVRegionOfInterest>().as_ptr().is_aligned();
+        if len % ROI_SIZE != 0 || !aligned || first != Some(RegionOfInterest::SELF_SIZE) {
+            return None;
+        }
+        // SAFETY: by `SideData`'s invariant, `data` addresses `len`
+        // initialised bytes of the buffer the entry's reference keeps alive
+        // for `'a`, written only through a sole reference, which the entry's,
+        // held for `'a`, rules out. They are `len / ROI_SIZE` whole regions,
+        // aligned for one, and every byte pattern is a valid region: seven
+        // plain integers.
+        Some(unsafe { CSlice::from_raw_parts(data.cast::<RegionOfInterest>(), len / ROI_SIZE) })
     }
 }
 
@@ -5740,6 +5943,35 @@ impl FrameMut<'_> {
         self.new_side_data(kind, bytes.len(), |run| copy_into(run, bytes))
     }
 
+    /// Appends `REGIONS_OF_INTEREST` side data holding `regions`, in order,
+    /// and returns the entry holding it, as
+    /// [`alloc_side_data_from_slice`](Self::alloc_side_data_from_slice)
+    /// does with their bytes (`av_frame_new_side_data`).
+    ///
+    /// Each region is stored with the `self_size` C requires,
+    /// [`RegionOfInterest::SELF_SIZE`], whatever its own, so that C's readers
+    /// count and read the regions as stored; read them back with
+    /// [`SideDataRef::regions_of_interest`].
+    ///
+    /// # Errors
+    ///
+    /// [`Empty`](RegionsOfInterestError::Empty) for no region,
+    /// [`InvalidQoffset`](RegionsOfInterestError::InvalidQoffset) for a
+    /// quantisation offset with a zero denominator or outside `[-1, 1]`,
+    /// [`TooLarge`](RegionsOfInterestError::TooLarge) when their size
+    /// overflows, and [`NotAdded`](RegionsOfInterestError::NotAdded) when C
+    /// cannot allocate; the frame is then unchanged.
+    pub fn add_regions_of_interest(
+        &mut self,
+        regions: &[RegionOfInterest],
+    ) -> Result<SideDataMut<'_>, RegionsOfInterestError> {
+        let size = regions_payload_len(regions)?;
+        self.new_side_data(SideDataType::REGIONS_OF_INTEREST, size, |run| {
+            write_regions(run, regions);
+        })
+        .ok_or(RegionsOfInterestError::NotAdded)
+    }
+
     /// `av_frame_new_side_data` of `size` bytes, with `init` writing every
     /// byte of the new payload before anything can read it.
     fn new_side_data(
@@ -6427,6 +6659,114 @@ mod unit_tests {
             format!("{:?}", RegionOfInterest::new(1, 2, 3, 4, q(-1, 10))),
             "RegionOfInterest { self_size: 28, top: 1, bottom: 2, left: 3, right: 4, \
              qoffset: Rational { num: -1, den: 10 } }"
+        );
+    }
+
+    /// Wave 902, batch 1: the encoding the typed side data stores write,
+    /// and their checks. No C call, so these also run under Miri.
+    #[test]
+    fn region_of_interest_payload_bytes_follow_the_c_layout() {
+        type C = ffi::AVRegionOfInterest;
+        let word = |b: &[u8; 28], at: usize| {
+            i32::from_ne_bytes(b[at..at + 4].try_into().expect("four bytes"))
+        };
+        for r in [
+            RegionOfInterest::new(1, -2, i32::MIN, i32::MAX, q(-1, 10)),
+            RegionOfInterest::zeroed(),
+        ] {
+            let mut odd = r;
+            odd.as_mut().set_self_size(4);
+            let b = odd.payload_bytes();
+            assert_eq!(
+                u32::from_ne_bytes(b[..4].try_into().expect("four bytes")),
+                RegionOfInterest::SELF_SIZE
+            );
+            let raw = r.into_raw();
+            assert_eq!(
+                [
+                    word(&b, offset_of!(C, top)),
+                    word(&b, offset_of!(C, bottom)),
+                    word(&b, offset_of!(C, left)),
+                    word(&b, offset_of!(C, right)),
+                    word(&b, offset_of!(C, qoffset)),
+                    word(&b, offset_of!(C, qoffset) + 4),
+                ],
+                [
+                    raw.top,
+                    raw.bottom,
+                    raw.left,
+                    raw.right,
+                    raw.qoffset.num,
+                    raw.qoffset.den
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn region_of_interest_storable_offsets() {
+        for (num, den, ok) in [
+            (0, 1, true),
+            (1, 1, true),
+            (-1, 1, true),
+            (1, -1, true),
+            (i32::MIN, i32::MIN, true),
+            (i32::MAX, i32::MIN, true),
+            (i32::MIN + 1, i32::MAX, true),
+            (0, 0, false),
+            (1, 0, false),
+            (2, 1, false),
+            (i32::MIN, i32::MAX, false),
+            (i32::MIN, -1, false),
+        ] {
+            let r = RegionOfInterest::new(0, 0, 0, 0, q(num, den));
+            assert_eq!(r.qoffset_is_storable(), ok, "{num}/{den}");
+        }
+    }
+
+    #[test]
+    fn regions_payload_checks_and_writes_every_byte() {
+        let ok = RegionOfInterest::default();
+        let bad = RegionOfInterest::new(0, 0, 0, 0, q(2, 1));
+        assert_eq!(regions_payload_len(&[]), Err(RegionsOfInterestError::Empty));
+        assert_eq!(
+            regions_payload_len(&[ok, bad, bad]),
+            Err(RegionsOfInterestError::InvalidQoffset(1))
+        );
+        assert_eq!(regions_payload_len(&[ok; 3]), Ok(84));
+        let regions = [
+            RegionOfInterest::new(1, 2, 3, 4, q(-1, 2)),
+            RegionOfInterest::zeroed(),
+            ok,
+        ];
+        let mut run = [MaybeUninit::new(0xAA_u8); 84];
+        write_regions(&mut run, &regions);
+        for (chunk, r) in run.chunks(28).zip(&regions) {
+            // SAFETY: `run` was initialised in full above.
+            let bytes: Vec<u8> = chunk.iter().map(|b| unsafe { b.assume_init() }).collect();
+            assert_eq!(bytes, r.payload_bytes());
+        }
+        for e in [
+            RegionsOfInterestError::Empty,
+            RegionsOfInterestError::InvalidQoffset(3),
+            RegionsOfInterestError::TooLarge,
+            RegionsOfInterestError::NotAdded,
+        ] {
+            assert_ne!(e.to_string(), "");
+        }
+        assert!(
+            RegionsOfInterestError::InvalidQoffset(3)
+                .to_string()
+                .contains('3')
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "payload length differs")]
+    fn write_regions_rejects_a_mismatched_run() {
+        write_regions(
+            &mut [MaybeUninit::new(0); 27],
+            &[RegionOfInterest::default()],
         );
     }
 

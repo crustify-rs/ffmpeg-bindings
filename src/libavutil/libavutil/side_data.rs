@@ -20,7 +20,8 @@ use super::buffer::{BufferReference, BufferReferenceBox, ENOMEM, may_add_referen
 use super::dict::{Dict, DictionaryBox};
 use super::ffi;
 use super::frame::{
-    SideData, SideDataDescriptorRef, SideDataMut, SideDataProps, SideDataRef, SideDataType,
+    RegionOfInterest, RegionsOfInterestError, SideData, SideDataDescriptorRef, SideDataMut,
+    SideDataProps, SideDataRef, SideDataType, regions_payload_len, write_regions,
 };
 
 impl SideDataType {
@@ -985,9 +986,76 @@ impl SideDataArrayMut<'_> {
         self.as_mut()
             .into_new_entry(kind, bytes.len(), flags, |run| copy_into(run, bytes))
     }
+
+    /// Adds `REGIONS_OF_INTEREST` side data holding `regions`, in order,
+    /// under `flags`, and returns the entry holding it, as
+    /// [`alloc_from_slice`](Self::alloc_from_slice) does with their bytes
+    /// (`av_frame_side_data_new`).
+    ///
+    /// Each region is stored with the `self_size` C requires,
+    /// [`RegionOfInterest::SELF_SIZE`], whatever its own, so that C's
+    /// readers count and read the regions as stored; read them back with
+    /// [`SideDataRef::regions_of_interest`].
+    ///
+    /// ```
+    /// use ffmpeg_bindings::libavutil::libavutil::frame::{RegionOfInterest, RegionsOfInterestError};
+    /// use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    /// use ffmpeg_bindings::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
+    /// let mut array = SideDataArray::new();
+    /// let roi = RegionOfInterest::new(0, 8, 0, 8, Rational::new(1, 2));
+    /// let mut entries = array.as_mut();
+    /// entries
+    ///     .add_regions_of_interest(&[roi], SideDataFlags::NONE)
+    ///     .unwrap();
+    /// // Not `MULTI`: a second entry needs `REPLACE`.
+    /// assert_eq!(
+    ///     entries
+    ///         .add_regions_of_interest(&[roi], SideDataFlags::NONE)
+    ///         .unwrap_err(),
+    ///     RegionsOfInterestError::NotAdded
+    /// );
+    /// let bad = RegionOfInterest::new(0, 8, 0, 8, Rational::new(3, 2));
+    /// assert_eq!(
+    ///     entries
+    ///         .add_regions_of_interest(&[roi, bad], SideDataFlags::REPLACE)
+    ///         .unwrap_err(),
+    ///     RegionsOfInterestError::InvalidQoffset(1)
+    /// );
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`Empty`](RegionsOfInterestError::Empty) for no region,
+    /// [`InvalidQoffset`](RegionsOfInterestError::InvalidQoffset) for a
+    /// quantisation offset with a zero denominator or outside `[-1, 1]`, and
+    /// [`TooLarge`](RegionsOfInterestError::TooLarge) when their size
+    /// overflows, the array then unchanged; and
+    /// [`NotAdded`](RegionsOfInterestError::NotAdded) when C adds nothing, as
+    /// for [`alloc_zeroed`](Self::alloc_zeroed).
+    pub fn add_regions_of_interest(
+        &mut self,
+        regions: &[RegionOfInterest],
+        flags: SideDataFlags,
+    ) -> Result<SideDataMut<'_>, RegionsOfInterestError> {
+        self.as_mut().into_new_regions(regions, flags)
+    }
 }
 
 impl<'a> SideDataArrayMut<'a> {
+    /// [`add_regions_of_interest`](Self::add_regions_of_interest), lending the
+    /// entry for the array's whole borrow.
+    fn into_new_regions(
+        self,
+        regions: &[RegionOfInterest],
+        flags: SideDataFlags,
+    ) -> Result<SideDataMut<'a>, RegionsOfInterestError> {
+        let size = regions_payload_len(regions)?;
+        self.into_new_entry(SideDataType::REGIONS_OF_INTEREST, size, flags, |run| {
+            write_regions(run, regions);
+        })
+        .ok_or(RegionsOfInterestError::NotAdded)
+    }
+
     /// [`find_mut`](Self::find_mut), lending the entry for the array's
     /// whole borrow.
     fn into_found(self, kind: SideDataType) -> Option<SideDataMut<'a>> {
@@ -1121,6 +1189,21 @@ impl SideDataArray {
     ) -> Option<SideDataMut<'_>> {
         self.as_mut()
             .into_new_entry(kind, bytes.len(), flags, |run| copy_into(run, bytes))
+    }
+
+    /// Adds `REGIONS_OF_INTEREST` side data holding `regions`, and returns
+    /// the entry holding it, as [`SideDataArrayMut::add_regions_of_interest`]
+    /// does, borrowing the array.
+    ///
+    /// # Errors
+    ///
+    /// As [`SideDataArrayMut::add_regions_of_interest`].
+    pub fn add_regions_of_interest(
+        &mut self,
+        regions: &[RegionOfInterest],
+        flags: SideDataFlags,
+    ) -> Result<SideDataMut<'_>, RegionsOfInterestError> {
+        self.as_mut().into_new_regions(regions, flags)
     }
 }
 

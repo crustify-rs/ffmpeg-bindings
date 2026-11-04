@@ -1,0 +1,10 @@
+error[E0502]: cannot borrow `m` as mutable because it is also borrowed as immutable
+ --> tests/ub_safe/compile_fail/frame_regions_of_interest_view_across_removal.rs
+  |
+  |     let view = m
+  |                - immutable borrow occurs here
+...
+  |     m.remove_side_data(SideDataType::REGIONS_OF_INTEREST);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+  |     assert_eq!(view.len(), 1);
+  |                ---- immutable borrow later used here

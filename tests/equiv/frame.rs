@@ -796,18 +796,24 @@ mod side_data_descriptor {
 
 /// `RegionOfInterest` against C's `AVRegionOfInterest` as C code builds and
 /// reads it: `new` encodes as the designated initializer `vf_addroi` writes,
-/// regions stored into `REGIONS_OF_INTEREST` side data from
-/// `av_frame_side_data_new` are counted and read back as C's readers do
-/// (payload size over the first `self_size`, stride `self_size`), setter
-/// sequences match direct field writes after every step, and equality agrees
-/// with `av_cmp_q` on the offsets (buffer-frame wave 1, batch 0).
+/// setter sequences match direct field writes after every step, and equality
+/// agrees with `av_cmp_q` on the offsets (buffer-frame wave 1, batch 0).
+/// Regions stored as `REGIONS_OF_INTEREST` side data of frames and arrays
+/// through the safe API are counted and read back as C's readers do
+/// (payload size over the first `self_size`, stride `self_size`), byte for
+/// byte as C stores them; regions C stores read back through the Rust view,
+/// which refuses the payloads C's readers misread (wave 902, batch 1).
 mod region_of_interest {
     use core::mem::size_of;
     use core::ptr;
 
+    use ffibox::CRefSeam;
     use ffmpeg_bindings::libavutil::libavutil::ffi;
-    use ffmpeg_bindings::libavutil::libavutil::frame::{RegionOfInterest, RegionOfInterestRef};
+    use ffmpeg_bindings::libavutil::libavutil::frame::{
+        Frame, RegionOfInterest, RegionOfInterestRef, SideDataType,
+    };
     use ffmpeg_bindings::libavutil::libavutil::rational::Rational;
+    use ffmpeg_bindings::libavutil::libavutil::side_data::{SideDataArray, SideDataFlags};
 
     const EDGES: [i32; 7] = [i32::MIN, -100, -1, 0, 1, 1920, i32::MAX];
 
@@ -897,83 +903,195 @@ mod region_of_interest {
         );
     }
 
-    /// A side data array C built, freed with it.
-    struct Array {
-        sd: *mut *mut ffi::AVFrameSideData,
-        nb: core::ffi::c_int,
-    }
-
-    impl Drop for Array {
-        fn drop(&mut self) {
-            // SAFETY: frees the array and every entry, as C built them.
-            unsafe { ffi::av_frame_side_data_free(&raw mut self.sd, &raw mut self.nb) }
+    /// What C's readers (`vf_showinfo.c`'s `dump_roi`, `libx264.c`) compute
+    /// from a `REGIONS_OF_INTEREST` entry: the payload size over the first
+    /// element's `self_size`, and an element at every such stride; `None`
+    /// where they refuse it.
+    ///
+    /// # Safety
+    ///
+    /// `entry` is a live entry whose payload holds at least one element.
+    unsafe fn c_read(entry: *const ffi::AVFrameSideData) -> Option<Vec<ffi::AVRegionOfInterest>> {
+        // SAFETY: a live entry, per the caller.
+        let data = unsafe { (*entry).data };
+        // SAFETY: as above.
+        let size = unsafe { (*entry).size };
+        // SAFETY: the entry's payload, `size` initialised bytes its buffer
+        // keeps alive, which nothing writes while it is read here.
+        let payload = unsafe { core::slice::from_raw_parts(data, size) };
+        let read = |at: usize| {
+            let element = &payload[at..at + size_of::<ffi::AVRegionOfInterest>()];
+            // SAFETY: 28 bytes in bounds of the payload, read unaligned as
+            // C's readers may be handed them; every byte pattern is a valid
+            // region.
+            unsafe { ptr::read_unaligned(element.as_ptr().cast::<ffi::AVRegionOfInterest>()) }
+        };
+        let stride = read(0).self_size as usize;
+        if stride == 0 || size % stride != 0 {
+            return None;
         }
+        Some((0..size / stride).map(|i| read(i * stride)).collect())
     }
 
+    /// Regions with offsets C's encoders accept, the other fields drawn from
+    /// `x`, and a random `self_size` the stores must replace.
+    fn storable(x: &mut u64, n: usize) -> Vec<RegionOfInterest> {
+        (0..n)
+            .map(|_| {
+                let f: [i32; 5] = core::array::from_fn(|_| edge(x));
+                let (num, den) = (f[4].max(-i32::MAX), edge(x));
+                let (num, den) = if den != 0 && i64::from(num).abs() <= i64::from(den).abs() {
+                    (num, den)
+                } else {
+                    (den.max(-i32::MAX).signum(), i32::MAX)
+                };
+                let mut r = RegionOfInterest::new(f[0], f[1], f[2], f[3], q(num, den));
+                r.as_mut().set_self_size(xorshift(x) as u32);
+                r
+            })
+            .collect()
+    }
+
+    /// `r` as C's stores write it: its fields, `self_size` the struct's.
+    fn as_stored(r: &RegionOfInterest) -> ffi::AVRegionOfInterest {
+        let mut c = r.into_raw();
+        c.self_size = size_of::<ffi::AVRegionOfInterest>() as u32;
+        c
+    }
+
+    /// Regions Rust stores into frames and side data arrays read back as C's
+    /// readers read them, byte for byte as C writes them, after each store
+    /// and each replacement; regions C stores read back through the Rust
+    /// view.
     #[test]
     #[cfg_attr(miri, ignore = "calls C")]
-    fn side_data_arrays_count_and_read_as_c_readers_do() {
+    fn side_data_stores_count_and_read_as_c_readers_do() {
         let mut x = 0xA11CE_u64;
+        let mut frame = Frame::new().unwrap();
+        let mut array = SideDataArray::new();
         for n in [1usize, 2, 7, 33] {
-            let mut array = Array {
-                sd: ptr::null_mut(),
-                nb: 0,
-            };
-            let size = n * RegionOfInterest::SELF_SIZE as usize;
-            // SAFETY: an empty array; C appends a fresh `size`-byte entry.
-            let entry = unsafe {
-                ffi::av_frame_side_data_new(
-                    &raw mut array.sd,
-                    &raw mut array.nb,
+            let regions = storable(&mut x, n);
+            let expected: Vec<[u8; 28]> = regions.iter().map(|r| bytes(&as_stored(r))).collect();
+
+            // A frame, as `vf_addroi` stores them with `av_frame_new_side_data`.
+            frame
+                .as_mut()
+                .remove_side_data(SideDataType::REGIONS_OF_INTEREST);
+            let mut m = frame.as_mut();
+            let entry_ptr = m
+                .add_regions_of_interest(&regions)
+                .unwrap()
+                .as_ref()
+                .as_ptr();
+            // SAFETY: a live frame, which C only reads.
+            let found = unsafe {
+                ffi::av_frame_get_side_data(
+                    frame.as_ref().as_ptr(),
                     ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST,
-                    size,
+                )
+            };
+            assert_eq!(found.cast_const(), entry_ptr);
+            // SAFETY: the frame's live entry, holding `n >= 1` regions.
+            let c = unsafe { c_read(found) }.unwrap();
+            assert_eq!(c.iter().map(bytes).collect::<Vec<_>>(), expected);
+
+            // An array, replaced in place at every size.
+            let flags = if array.is_empty() {
+                SideDataFlags::NONE
+            } else {
+                SideDataFlags::REPLACE
+            };
+            array.add_regions_of_interest(&regions, flags).unwrap();
+            assert_eq!(array.len(), 1);
+            let (sd, nb) = array.into_raw_parts();
+            // SAFETY: the array Rust gave up, which C only reads.
+            let found = unsafe {
+                ffi::av_frame_side_data_get_c(sd.cast(), nb, ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST)
+            };
+            // SAFETY: the array's live entry, holding `n >= 1` regions.
+            let c = unsafe { c_read(found) }.unwrap();
+            assert_eq!(c.iter().map(bytes).collect::<Vec<_>>(), expected);
+            // SAFETY: the parts `into_raw_parts` returned, unchanged.
+            array = unsafe { SideDataArray::from_raw_parts(sd, nb) };
+
+            // C stores the same regions; the Rust view reads both alike.
+            let mut c_sd: *mut *mut ffi::AVFrameSideData = ptr::null_mut();
+            let mut c_nb = 0;
+            // SAFETY: an empty array; C appends a fresh `n * 28`-byte entry.
+            let c_entry = unsafe {
+                ffi::av_frame_side_data_new(
+                    &raw mut c_sd,
+                    &raw mut c_nb,
+                    ffi::AV_FRAME_DATA_REGIONS_OF_INTEREST,
+                    n * 28,
                     0,
                 )
             };
-            assert!(!entry.is_null());
-            let regions: Vec<RegionOfInterest> = (0..n)
-                .map(|_| {
-                    let f: [i32; 6] = core::array::from_fn(|_| edge(&mut x));
-                    RegionOfInterest::new(f[0], f[1], f[2], f[3], q(f[4], f[5]))
-                })
-                .collect();
-            // For the unsafe operations below: the entry's payload holds `size` bytes, room for `n`
-            // elements at stride `SELF_SIZE`, written unaligned as C's
-            // readers read them.
-            {
-                // SAFETY: as the comment above this block states.
-                let data = unsafe { (*entry).data };
-                // SAFETY: as the comment above this block states.
-                unsafe { assert_eq!((*entry).size, size) };
-                for (i, r) in regions.iter().enumerate() {
-                    // SAFETY: as the comment above this block states: element `i < n` at
-                    // stride `SELF_SIZE` is within the payload.
-                    let at = unsafe { data.add(i * RegionOfInterest::SELF_SIZE as usize) };
-                    // SAFETY: as above, written unaligned.
-                    unsafe {
-                        at.cast::<ffi::AVRegionOfInterest>()
-                            .write_unaligned(r.into_raw());
-                    };
+            assert!(!c_entry.is_null());
+            // SAFETY: the new entry C returned.
+            let data = unsafe { (*c_entry).data };
+            // SAFETY: the new entry's `n * 28` bytes, which only this test
+            // reaches until the array is adopted below.
+            let payload = unsafe { core::slice::from_raw_parts_mut(data, n * 28) };
+            // As `vf_addroi` fills it, element by element.
+            for (at, r) in payload.as_chunks_mut::<28>().0.iter_mut().zip(&regions) {
+                at.copy_from_slice(&bytes(&as_stored(r)));
+            }
+            // SAFETY: the array C built, its one payload written in full,
+            // used by nothing else.
+            let c_array = unsafe { SideDataArray::from_raw_parts(c_sd, c_nb) };
+            let rust_entry = array.as_ref().get(0).unwrap();
+            let c_entry = c_array.as_ref().get(0).unwrap();
+            assert_eq!(rust_entry.data(), c_entry.data());
+            let view = c_entry.regions_of_interest().unwrap();
+            assert_eq!(view.len(), n);
+            for (v, r) in view.iter().zip(&regions) {
+                assert_eq!(rust_fields(v), c_fields(&as_stored(r)));
+            }
+        }
+    }
+
+    /// Payloads C's readers misread or refuse get no Rust view, and the
+    /// payloads they accept at the struct's stride read alike.
+    #[test]
+    #[cfg_attr(miri, ignore = "calls C")]
+    fn views_agree_with_c_readers_on_the_payloads_they_accept() {
+        let one = |self_size: u32| {
+            let mut c = RegionOfInterest::new(5, 6, 7, 8, q(1, 4)).into_raw();
+            c.self_size = self_size;
+            bytes(&c)
+        };
+        for (payload, c_reads) in [
+            (one(28).to_vec(), Some(1)),
+            ([one(28), one(0)].concat(), Some(2)),
+            // C reads 7 strided elements, 6 of them past the payload, or
+            // refuses; Rust refuses both.
+            (one(4).to_vec(), Some(7)),
+            (one(0).to_vec(), None),
+            (one(14).to_vec(), Some(2)),
+        ] {
+            let mut frame = Frame::new().unwrap();
+            frame
+                .as_mut()
+                .alloc_side_data_from_slice(SideDataType::REGIONS_OF_INTEREST, &payload)
+                .unwrap();
+            let f = frame.as_ref();
+            let entry = f.find_side_data(SideDataType::REGIONS_OF_INTEREST).unwrap();
+            // What C's readers count, without reading the elements.
+            let first = u32::from_ne_bytes(payload[..4].try_into().unwrap()) as usize;
+            let c_count = (first != 0 && payload.len() % first == 0).then(|| payload.len() / first);
+            assert_eq!(c_count, c_reads);
+            let view = entry.regions_of_interest();
+            if first == 28 {
+                let view = view.unwrap();
+                assert_eq!(Some(view.len()), c_count);
+                // SAFETY: the frame's live entry; its stride is in bounds.
+                let c = unsafe { c_read(entry.as_ptr()) }.unwrap();
+                for (v, c) in view.iter().zip(&c) {
+                    assert_eq!(rust_fields(v), c_fields(c));
                 }
-                // What `libx264.c` and `vf_showinfo.c` compute.
-                // SAFETY: as the comment above this block states.
-                let first = unsafe { data.cast::<ffi::AVRegionOfInterest>().read_unaligned() };
-                let stride = first.self_size as usize;
-                // SAFETY: as the comment above this block states.
-                unsafe { assert_eq!((*entry).size / stride, n) };
-                for (i, r) in regions.iter().enumerate() {
-                    // SAFETY: as the comment above this block states, at C's stride.
-                    let at = unsafe { data.add(i * stride) };
-                    // SAFETY: as above; the element was written above.
-                    let c = unsafe { at.cast::<ffi::AVRegionOfInterest>().read_unaligned() };
-                    assert_eq!(c_fields(&c), rust_fields(r.as_ref()));
-                    // C-written fields read back through the Rust getters.
-                    let mut c = c;
-                    c.top = c.top.wrapping_add(1);
-                    c.qoffset.den = c.qoffset.num.wrapping_neg();
-                    let back = RegionOfInterest::from_raw(c);
-                    assert_eq!(rust_fields(back.as_ref()), c_fields(&c));
-                }
+            } else {
+                assert!(view.is_none());
             }
         }
     }
