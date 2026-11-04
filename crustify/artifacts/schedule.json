@@ -21136,7 +21136,7 @@
       "link_unit": "libavutil",
       "module": "libavutil/hwcontext.c",
       "foundational": false,
-      "status": "todo",
+      "status": "wip",
       "depends_on": {
         "scheduled": [
           713,
@@ -21157,7 +21157,7 @@
         {
           "index": 0,
           "kind": "wrap",
-          "status": "todo",
+          "status": "done",
           "items": [
             {
               "name": "AVHWDeviceContext",
@@ -21187,7 +21187,9 @@
               "home": "src/libavutil/libavutil/hwcontext.rs"
             }
           ],
-          "commits": []
+          "commits": [
+            "1b7312582ee5c7db7f0a122f40c8d7f41f6d56dc"
+          ]
         },
         {
           "index": 1,
