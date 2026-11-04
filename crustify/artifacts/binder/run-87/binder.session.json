@@ -1,0 +1,13 @@
+{
+ "cli": "claude",
+ "provider": "openrouter",
+ "model": "anthropic/claude-opus-5.5",
+ "session_id": "97707334-0502-4624-bdf9-b35c8112a71a",
+ "transcript": "/work/.claude/projects/-target-ffmpeg-bindings-crustify--worktrees-crustify-batches-wave-902-batch-1/97707334-0502-4624-bdf9-b35c8112a71a.jsonl",
+ "exit_code": 0,
+ "resumed": false,
+ "agent": "binder",
+ "started_at": "2026-11-04T00:08:18+00:00",
+ "ended_at": "2026-11-04T00:37:13+00:00",
+ "duration_ms": 1735587
+}

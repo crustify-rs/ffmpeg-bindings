@@ -18489,7 +18489,7 @@
       "link_unit": "libavutil",
       "module": "libavutil/frame.c",
       "foundational": false,
-      "status": "todo",
+      "status": "wip",
       "depends_on": {
         "scheduled": [
           713,
@@ -18566,7 +18566,7 @@
         {
           "index": 1,
           "kind": "wrap",
-          "status": "todo",
+          "status": "done",
           "items": [
             {
               "name": "AVRegionOfInterest",
@@ -18583,7 +18583,9 @@
               "home": "src/libavutil/libavutil/frame.rs"
             }
           ],
-          "commits": []
+          "commits": [
+            "3ad703496108d7a83c5025b926a6ed20c5602963"
+          ]
         }
       ]
     },

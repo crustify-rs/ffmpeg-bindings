@@ -1,0 +1,28 @@
+{
+  "objective": "wrap",
+  "items": [
+    {
+      "name": "AVRegionOfInterest",
+      "defined_in": "libavutil/frame.h",
+      "kind": "type",
+      "field_anchors": [
+        "qoffset",
+        "right",
+        "left",
+        "bottom",
+        "top",
+        "self_size"
+      ],
+      "home": "src/libavutil/libavutil/frame.rs"
+    }
+  ],
+  "wave": 902,
+  "batch": 1,
+  "link_unit": "libavutil",
+  "module": "libavutil/frame.c",
+  "foundational": false,
+  "base_branch": "crustify/waves/wave-902",
+  "model": "openrouter/anthropic/claude-opus-5.5",
+  "billing": "api",
+  "instructions": "instructions.md"
+}
