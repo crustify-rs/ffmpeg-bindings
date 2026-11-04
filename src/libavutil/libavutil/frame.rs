@@ -954,21 +954,29 @@ define_ctype!(
     /// ROI readers), and 0 is an error to most of them but aborts the process
     /// in `vf_addroi` (`av_assert0`).
     ///
-    /// So regions reach side data through
-    /// [`FrameMut::add_regions_of_interest`] and
-    /// [`SideDataArrayMut::add_regions_of_interest`], which store every
-    /// element with [`SELF_SIZE`](Self::SELF_SIZE) whatever its own, and
-    /// refuse an empty payload, whose first `self_size` C's readers would
-    /// read past its end. They also refuse a quantisation offset with a zero
-    /// denominator or outside `[-1, 1]`: libavutil checks none, and some
-    /// encoders scale it unchecked in `int` arithmetic (`d3d12va_encode`,
-    /// `libvpxenc`). Within that range, an offset whose terms are large
-    /// still overflows `d3d12va_encode`'s `num * qp_range`; a wrapper of that
-    /// encoder must check it. [`SideDataRef::regions_of_interest`] reads an
-    /// entry's regions only when its first `self_size` is `SELF_SIZE`.
-    /// Raw bytes stored through the byte-level side data API
-    /// ([`FrameMut::alloc_side_data_from_slice`],
-    /// [`SideDataMut::data_mut`]) are not checked.
+    /// So regions reach side data through [`FrameMut::add_regions_of_interest`]
+    /// and [`SideDataArrayMut::add_regions_of_interest`], which store every
+    /// element with [`SELF_SIZE`](Self::SELF_SIZE) whatever its own, and refuse
+    /// an empty payload, whose first `self_size` C's readers would read past its
+    /// end. They also refuse a quantisation offset with a zero denominator or
+    /// outside `[-1, 1]`: libavutil checks none, and some encoders scale it
+    /// unchecked in `int` arithmetic (`d3d12va_encode`, `libvpxenc`). Within that
+    /// range, an offset whose terms are large still overflows the `int` product
+    /// of its numerator and a quantiser range in `d3d12va_encode`, `vaapi_encode`
+    /// and `qsvenc`; a wrapper of those encoders must check it. The stores do not
+    /// check the rectangle, which libavutil does not either, and C's encoders
+    /// trust it: `libx264`, `libx265`, `libvpxenc` and `d3d12va_encode` add their
+    /// block size less one to `bottom` and `right` in `int`, which overflows near
+    /// [`i32::MAX`]; `libx264`, `libx265` and `d3d12va_encode` bound the first
+    /// block row and column from above only, so a negative `top` or `left` makes
+    /// them write before their quantisation maps; and `vaapi_encode` takes
+    /// `right - left` and `bottom - top`, and `qsvenc` rounds every edge up to
+    /// its block size, in `int`. A wrapper of those encoders must check the
+    /// rectangle against the frame. [`SideDataRef::regions_of_interest`] reads an
+    /// entry's regions only when its first `self_size` is `SELF_SIZE`. Raw bytes
+    /// stored through the byte-level side data API
+    /// ([`FrameMut::alloc_side_data_from_slice`], [`SideDataMut::data_mut`]) are
+    /// not checked.
     ///
     /// The value itself checks no field: a region outside the frame, or with
     /// any offset, is a valid value.
@@ -1433,7 +1441,8 @@ impl fmt::Display for RegionsOfInterestError {
             Self::InvalidQoffset(i) => {
                 write!(
                     f,
-                    "region of interest {i} has a quantisation offset outside [-1, 1]"
+                    "region of interest {i} has a quantisation offset with a zero \
+                     denominator or outside [-1, 1]"
                 )
             }
             Self::TooLarge => f.write_str("too many regions of interest for one payload"),
@@ -1477,6 +1486,8 @@ pub(super) fn write_regions(dst: &mut [MaybeUninit<u8>], regions: &[RegionOfInte
 }
 
 impl<'a> SideDataRef<'a> {
+    /// Wraps `fld::AVFrameSideData.data`
+    ///
     /// The regions of a `REGIONS_OF_INTEREST` entry, as handles over its
     /// payload ([`RegionOfInterestRef`]), borrowed for as long as the entry
     /// is.
@@ -1505,6 +1516,7 @@ impl<'a> SideDataRef<'a> {
     /// assert_eq!(regions.len(), 2);
     /// assert_eq!(regions.get(1).unwrap().bottom(), 16);
     /// ```
+    #[doc(alias = "AVFrameSideData.data")]
     #[must_use]
     pub fn regions_of_interest(&self) -> Option<CSlice<'a, RegionOfInterest>> {
         if self.kind() != SideDataType::REGIONS_OF_INTEREST {
@@ -5943,10 +5955,12 @@ impl FrameMut<'_> {
         self.new_side_data(kind, bytes.len(), |run| copy_into(run, bytes))
     }
 
+    /// Wraps `fn::av_frame_new_side_data`
+    ///
     /// Appends `REGIONS_OF_INTEREST` side data holding `regions`, in order,
     /// and returns the entry holding it, as
     /// [`alloc_side_data_from_slice`](Self::alloc_side_data_from_slice)
-    /// does with their bytes (`av_frame_new_side_data`).
+    /// does with their bytes.
     ///
     /// Each region is stored with the `self_size` C requires,
     /// [`RegionOfInterest::SELF_SIZE`], whatever its own, so that C's readers
@@ -5961,6 +5975,7 @@ impl FrameMut<'_> {
     /// [`TooLarge`](RegionsOfInterestError::TooLarge) when their size
     /// overflows, and [`NotAdded`](RegionsOfInterestError::NotAdded) when C
     /// cannot allocate; the frame is then unchanged.
+    #[doc(alias = "av_frame_new_side_data")]
     pub fn add_regions_of_interest(
         &mut self,
         regions: &[RegionOfInterest],
@@ -6758,6 +6773,12 @@ mod unit_tests {
             RegionsOfInterestError::InvalidQoffset(3)
                 .to_string()
                 .contains('3')
+        );
+        // Review wave 903: the variant also reports a zero denominator.
+        assert!(
+            RegionsOfInterestError::InvalidQoffset(0)
+                .to_string()
+                .contains("zero denominator")
         );
     }
 

@@ -987,10 +987,11 @@ impl SideDataArrayMut<'_> {
             .into_new_entry(kind, bytes.len(), flags, |run| copy_into(run, bytes))
     }
 
+    /// Wraps `fn::av_frame_side_data_new`
+    ///
     /// Adds `REGIONS_OF_INTEREST` side data holding `regions`, in order,
     /// under `flags`, and returns the entry holding it, as
-    /// [`alloc_from_slice`](Self::alloc_from_slice) does with their bytes
-    /// (`av_frame_side_data_new`).
+    /// [`alloc_from_slice`](Self::alloc_from_slice) does with their bytes.
     ///
     /// Each region is stored with the `self_size` C requires,
     /// [`RegionOfInterest::SELF_SIZE`], whatever its own, so that C's
@@ -1032,6 +1033,7 @@ impl SideDataArrayMut<'_> {
     /// overflows, the array then unchanged; and
     /// [`NotAdded`](RegionsOfInterestError::NotAdded) when C adds nothing, as
     /// for [`alloc_zeroed`](Self::alloc_zeroed).
+    #[doc(alias = "av_frame_side_data_new")]
     pub fn add_regions_of_interest(
         &mut self,
         regions: &[RegionOfInterest],

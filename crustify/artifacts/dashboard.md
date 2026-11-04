@@ -326,7 +326,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 
 ### Batches — review
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (waves 795, 903).
 
 | subsystem | wave | batch | types | +LoC | cov (C/Rust) | rv loc | rv $ | rv tokens | rv wall | rv $/type |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -355,11 +355,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`0`| `2` |`+19/-0`| `75.07`% / `99.68`% | `+40/-8` | `$6.88` | `20.45M` | `22m16s` | `$3.44` |
 |`libavutil/hwcontext`|`2`|`0`| `1` |`+291/-28`| `75.12`% / `99.69`% | `+460/-79` | `$24.69` | `55.21M` | `116m00s` | `$24.69` |
 |`libavutil/libavutil/opt.c`|`795`|`0`| `2` |`+0/-0`| `68.58`% / `99.25`% | `+0/-0` | `$4.26` | `11.92M` | `25m46s` | `$2.13` |
-| **Σ** |  |  | **`84`** | **`+3620/-244`** | **`68.58`% / `99.25`%** | **`+5136/-515`** | **`$337.31`** | **`497.99M`** | — | **`$4.02`** |
+|`libavutil/libavutil/frame.c`|`903`|`0`| `1` |`+912/-85`| `69.30`% / `99.20`% | `+42/-19` | — | — | — | — |
+| **Σ** |  |  | **`85`** | **`+4532/-329`** | **`69.30`% / `99.20`%** | **`+5178/-534`** | **`$337.31`** | **`497.99M`** | — | **`$4.02`** |
 
 ### Batches — review: tests
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (waves 795, 903).
 
 | subsystem | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|---|
@@ -388,11 +389,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`1`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`+0.00`/`+0.00` pp)|
 |`libavutil/hwcontext`|`2`|`0`|`+1` (`+0.00`/`+0.02` pp)|`-1` (`+0.02`/`+0.06` pp)|`+1` (`+0.00`/`+0.11` pp)|`+2` (`+0.05`/`+0.04` pp)|
 |`libavutil/libavutil/opt.c`|`795`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+21` (`+0.00`/`-0.62` pp)** | **`-1` (`+0.09`/`-0.62` pp)** | **`+27` (`+0.44`/`-0.22` pp)** | **`+29` (`+0.49`/`+0.90` pp)** |
+|`libavutil/libavutil/frame.c`|`903`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+21` (`+0.00`/`-0.63` pp)** | **`-1` (`+0.09`/`-0.62` pp)** | **`+27` (`+0.44`/`-0.22` pp)** | **`+29` (`+0.49`/`+0.90` pp)** |
 
 ### Batches — review: PoC + reports
 
-`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 795).
+`openrouter/anthropic/claude-fable-5.1` via `claude` (wave 0); `openrouter/openai/gpt-6-astra` via `codex` (wave 1); `openrouter/anthropic/claude-opus-5.5` via `claude` (waves 795, 903).
 
 | subsystem | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -421,7 +423,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/hwcontext` | `1` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `1` | `0` |
 | `libavutil/hwcontext` | `2` | `0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
 | `libavutil/libavutil/opt.c` | `795` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
-| **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+5`** | **`+25`** | **`43`** | **`0`** |
+| `libavutil/libavutil/frame.c` | `903` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+2` | `3` | `0` |
+| **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+6`** | **`+27`** | **`46`** | **`0`** |
 
 ## Symbols
 
@@ -2309,3 +2312,23 @@ The coverage cells come from the wave-800 scripts, run on the base (`16a141c`, 6
 on the landing tree. They count 13,844 C lines on both trees, and 14,405 and 14,533 Rust lines. The C
 figures did not move. Every Rust line the batch added is covered: 116 lines stay uncovered, as on the
 base. The `ub_unsafe` and unit percentages fall only because the denominator grew.
+
+### `libavutil/libavutil/frame.c` review wave 903, batch 0: wave 902's `AVRegionOfInterest`
+
+The review of wave 902's batch 1 filed three reports under `crustify/reviews/wave-903/batch-0/`
+and fixed each. Batch 0 (`AVFrame`) has landed nothing yet. One report is a `conventions` finding:
+the typed store and view lacked the `Wraps` anchors (`fn::av_frame_new_side_data`,
+`fn::av_frame_side_data_new`, `fld::AVFrameSideData.data`) that the byte-level stand-ins of the same
+C items carry. Two are `misc`. `InvalidQoffset`'s message named only the out-of-range case, although
+the variant also reports a zero denominator. The stores' docs listed the offset hazards in C's
+encoders but not the rectangle's: `libx264`, `libx265` and `d3d12va_encode` write before their maps
+for a negative `top` or `left`, and several encoders overflow `int` near `i32::MAX`. They also named
+only `d3d12va_encode` for the in-range offset product, which `vaapi_encode` and `qsvenc` share. None
+of those encoders is in the campaign's build, so no reproducer exists. The fix is documentation and
+the `AVRegionOfInterest` note in the ownership store. No UB or equivalence defect was found. The
+view's one `unsafe` block holds against shared buffers, removals and threads. The Miri gate passed
+on the wave tip (`1cc3c27`) and on the landed tree. BSan was not run, since wave 904 of the module
+follows. The batch's tests pass under ASan/UBSan and TSan. The coverage cells come from the
+wave-800 scripts, on the wave tip and the landed tree, which are identical at 69.30% / 99.20%
+(13,844 C lines and 14,533 Rust lines). The `ub_safe` suite's Rust lines read 11,632 instead of
+11,633, a thread-timing difference in a suite the review did not touch.
