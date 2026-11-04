@@ -21327,7 +21327,7 @@
       "module": "libavutil/hwcontext.c",
       "foundational": false,
       "reviews": 952,
-      "status": "todo",
+      "status": "wip",
       "depends_on": {
         "scheduled": [
           952
@@ -21344,11 +21344,14 @@
         {
           "index": 0,
           "kind": "review",
-          "status": "todo",
+          "status": "done",
           "reviews": [
             0
           ],
-          "commits": []
+          "commits": [
+            "bbe96b6ade83561e4a7008d64c0e0a247bea2bc7",
+            "2d3dc13a5a90c5b7063ad402a37c677b8227b864"
+          ]
         },
         {
           "index": 1,
