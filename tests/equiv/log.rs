@@ -1987,7 +1987,6 @@ mod record_context {
     use ffmpeg_bindings::libavutil::libavutil::log::{
         self, Callback, Level, Record, default_category, default_item_name,
     };
-    use ffmpeg_bindings::libavutil::libavutil::opt::ObjectRef;
 
     use super::LogState;
 
@@ -2097,7 +2096,11 @@ mod record_context {
                 c"crustify-own-name".as_ptr(),
                 ffi::AV_CLASS_CATEGORY_FILTER,
             ),
-            (&raw const own, core::ptr::null(), 46),
+            (
+                &raw const own,
+                core::ptr::null(),
+                ffi::AV_CLASS_CATEGORY_DEVICE_OUTPUT,
+            ),
         ]
         .map(|(class, name, category)| Obj {
             class,
@@ -2107,10 +2110,22 @@ mod record_context {
         log::set_callback::<Rust>();
         log::log(Level::INFO, c"general\n");
         for obj in &mut objs {
-            // SAFETY: a live object whose class's callbacks accept it, with
-            // no options or offsets; nothing writes it while it logs.
-            let o = unsafe { ObjectRef::from_ptr((&raw mut *obj).cast()) }.unwrap();
-            log::log_with_context(o, Level::INFO, c"context\n");
+            // SAFETY: `obj` is a live object whose first member points to a
+            // live class, whose callbacks accept it, do not log and return
+            // categories below `AV_CLASS_CATEGORY_NB`, with no offsets: a
+            // logging context, as `av_log` and `Record::context` take it;
+            // nothing writes it while it logs. `"%s"` consumes the one live
+            // string passed. C logs in it directly, not through an
+            // `ObjectRef`, whose contract also asks for a named class whose
+            // options describe the object, which `unnamed` and `Obj` lack.
+            unsafe {
+                ffi::av_log(
+                    (&raw mut *obj).cast(),
+                    ffi::AV_LOG_INFO.cast_signed(),
+                    c"%s".as_ptr(),
+                    c"context\n".as_ptr(),
+                );
+            }
         }
         log::set_default_callback();
         let rust = READ.with(|r| r.take());

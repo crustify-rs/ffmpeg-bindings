@@ -1111,7 +1111,9 @@ pub fn set_flags(flags: Flags) {
 /// For its lifetime, every handle addresses an object that is live, whose
 /// first member is a non-NULL pointer to a class valid for [`ClassRef`] that
 /// outlives the borrow, whose class's `item_name` and `get_category`
-/// callbacks accept the object and do not log, whose non-zero
+/// callbacks accept the object and do not log, the latter returning a
+/// category below `AV_CLASS_CATEGORY_NB` (the default callback indexes its
+/// colour table with it), whose non-zero
 /// `log_level_offset_offset` (in a class of version 50.15.2 or later)
 /// addresses an aligned `int` of the object, and whose non-zero
 /// `parent_log_context_offset` addresses a pointer of the object that is

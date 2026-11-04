@@ -511,7 +511,7 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 
 ### Batches — review
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`; `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 801).
 
 | subsystem | wave | batch | symbols | +LoC | cov (C/Rust) | rv loc | rv $ | rv tokens | rv wall | rv $/symbol |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -539,11 +539,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`4`|`0`| `18` |`+157/-22`| `72.39`% / `99.69`% | `+240/-39` | `$26.77` | `48.31M` | `211m34s` | `$1.49` |
 |`libavutil/hwcontext`|`1`|`1`| `16` |`+599/-45`| `75.07`% / `99.69`% | `+885/-116` | `$12.97` | `40.61M` | `34m52s` | `$0.81` |
 |`libavutil/hwcontext`|`2`|`1`| `2` |`+118/-0`| `75.08`% / `99.69`% | `+154/-0` | `$4.26` | `11.69M` | `15m42s` | `$2.13` |
-| **Σ** |  |  | **`516`** | **`+5466/-831`** | **`75.08`% / `99.69`%** | **`+7387/-1320`** | **`$453.57`** | **`699.08M`** | — | **`$0.88`** |
+|`libavutil/libavutil/log.c`|`801`|`0`| `8` |`+636/-64`| `69.30`% / `99.19`% | `+24/-7` | — | — | — | — |
+| **Σ** |  |  | **`524`** | **`+6102/-895`** | **`69.30`% / `99.19`%** | **`+7411/-1327`** | **`$453.57`** | **`699.08M`** | — | **`$0.88`** |
 
 ### Batches — review: tests
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`; `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 801).
 
 | subsystem | wave | batch | +UB safe tests (+C/+Rust pp) | +UB unsafe tests (+C/+Rust pp) | +equiv tests (+C/+Rust pp) | +unit tests (+C/+Rust pp) |
 |---|---|---|---|---|---|---|
@@ -571,11 +572,12 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/buffer-frame`|`4`|`0`|`+1` (`+0.02`/`+0.12` pp)|`+0` (`+0.02`/`+0.07` pp)|`+0` (`+0.00`/`-0.03` pp)|`+1` (`+0.00`/`+0.01` pp)|
 |`libavutil/hwcontext`|`1`|`1`|`+0` (`+0.00`/`-0.10` pp)|`+0` (`+0.02`/`-0.08` pp)|`+3` (`+0.00`/`+0.00` pp)|`+5` (`+0.11`/`+0.20` pp)|
 |`libavutil/hwcontext`|`2`|`1`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+1` (`-0.01`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+12` (`-0.01`/`+0.02` pp)** | **`+9` (`+0.56`/`+2.72` pp)** | **`+22` (`+0.73`/`+1.26` pp)** | **`+27` (`+0.76`/`+0.69` pp)** |
+|`libavutil/libavutil/log.c`|`801`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+12` (`-0.01`/`+0.01` pp)** | **`+9` (`+0.56`/`+2.72` pp)** | **`+22` (`+0.73`/`+1.26` pp)** | **`+27` (`+0.76`/`+0.69` pp)** |
 
 ### Batches — review: PoC + reports
 
-`openrouter/anthropic/claude-fable-5.1` via `claude`.
+`openrouter/anthropic/claude-fable-5.1` via `claude`; `openrouter/anthropic/claude-opus-5.5` via `claude` (wave 801).
 
 | subsystem | wave | batch | +lifecycle | +unsafe | +UB safe | +UB unsafe | +equiv | +internal | +conventions | +misc | total | +rejected PoCs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -603,7 +605,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/buffer-frame` | `4` | `0` | — | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+2` | `3` | `0` |
 | `libavutil/hwcontext` | `1` | `1` | — | `+2` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `3` | `0` |
 | `libavutil/hwcontext` | `2` | `1` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
-| **Σ** |  |  | — | **`+7`** | **`+5`** | **`+6`** | **`+4`** | **`+1`** | **`+10`** | **`+19`** | **`52`** | **`0`** |
+| `libavutil/libavutil/log.c` | `801` | `0` | — | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `3` | `0` |
+| **Σ** |  |  | — | **`+7`** | **`+5`** | **`+6`** | **`+4`** | **`+1`** | **`+10`** | **`+19`** | **`55`** | **`0`** |
 
 ## Safety audit
 
@@ -2255,3 +2258,19 @@ the safe public interface went from 20 to 19 (`raw_ptr.fn_sig_ret.safe.pub` 13 �
 `void`), and public `unsafe fn`s went from 66 to 67 (`LogContext::as_object`). `log.rs` keeps one raw
 pointer on the safe interface, `Class::as_c_ptr`, which belongs to the `AVClass` type rather than to
 this batch.
+
+### `libavutil/libavutil/log.c` review wave 801, batch 0: wave 800's logging symbols
+
+The review of wave 800 filed three reports, under `crustify/reviews/wave-801/batch-0/`, and fixed
+each. Its `Batches — review: PoC + reports` row counts them in `total` alone, since the table has no
+column for their kinds. Two are `contracts` findings. `LogContext`'s stated requirements left out the
+bound on `get_category`'s result, which `ObjectRef`'s contract has and C's default callback indexes
+its colour table with. One of the batch's equivalence tests adopted fixtures under `ObjectRef`'s
+contract that they break: an unnamed class, and a category of `AV_CLASS_CATEGORY_NB`. That test now
+logs through the raw `av_log`. The third is a wavefront ownership finding:
+`av_default_item_name`'s result was recorded as a `static` borrow, but `vs2av_log` builds a stack
+class whose name is its caller's string. Five logging notes also still described the Rust context
+as a raw `void *`. Neither contract finding has a reproducer: no safe path reaches undefined
+behaviour. The coverage cells come from the wave-800 scripts, run on the wave tip (`3df5deb`) and on
+the landed tree: unchanged at 69.30% / 99.19%. The `ub_safe` suite's Rust lines read 11,509 instead
+of 11,510, a thread-timing difference in a test the review did not touch.
