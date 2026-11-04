@@ -577,7 +577,7 @@ mod device_context {
     };
     use ffmpeg_bindings::libavutil::libavutil::pixdesc::PixelFormat;
 
-    use super::hwdevice::{self, BARE_TYPE, Events, FAKE_TYPE, FakeConfig, FakeDrmHw, FakeHw};
+    use super::hwdevice::{self, BARE_TYPE, Events, FAKE_TYPE, FakeConfig, FakeHw, FakeOpenClHw};
 
     /// A fresh fake context under construction, counting into `events`.
     fn uninit(events: &Arc<Events>) -> UninitDevice {
@@ -634,7 +634,7 @@ mod device_context {
             let events = Arc::new(Events::default());
             for _ in 0..16 {
                 let u = uninit(&events);
-                assert_eq!(u.context().device_type(), DeviceType::VAAPI);
+                assert_eq!(u.context().device_type(), DeviceType::VDPAU);
                 drop(u);
             }
             assert_eq!(events.get(), (0, 16, 0));
@@ -849,10 +849,10 @@ mod device_context {
         #[cfg_attr(miri, ignore = "calls C")]
         fn bare_contexts_read_none() {
             // The fake struct's own device type, without a hardware context.
-            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI);
+            let raw = hwdevice::fake_device_of(&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_VDPAU);
             // SAFETY: the only reference to a fresh, uninitialised bare context.
             let u = unsafe { UninitDevice::from_c(raw) }.unwrap();
-            assert_eq!(u.context().device_type(), DeviceType::VAAPI);
+            assert_eq!(u.context().device_type(), DeviceType::VDPAU);
             assert!(u.context().hwctx::<FakeHw>().is_none());
         }
 
@@ -861,18 +861,18 @@ mod device_context {
         fn another_device_types_struct_reads_none() {
             let events = Arc::new(Events::default());
             let u = uninit(&events);
-            assert!(u.context().hwctx::<FakeDrmHw>().is_none());
+            assert!(u.context().hwctx::<FakeOpenClHw>().is_none());
             let device = device(&events, 4);
             let ctx = device.as_ref().context();
-            assert!(ctx.hwctx::<FakeDrmHw>().is_none());
+            assert!(ctx.hwctx::<FakeOpenClHw>().is_none());
             assert_eq!(ctx.hwctx::<FakeHw>().unwrap().value(), 4);
             // The same backend under the other type: only its struct reads.
-            let raw = hwdevice::fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
+            let raw = hwdevice::fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_OPENCL);
             // SAFETY: the only reference to a fresh, uninitialised fake
             // context, whose events stay unset.
-            let drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
-            assert!(drm.context().hwctx::<FakeHw>().is_none());
-            assert!(drm.context().hwctx::<FakeDrmHw>().is_some());
+            let opencl = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            assert!(opencl.context().hwctx::<FakeHw>().is_none());
+            assert!(opencl.context().hwctx::<FakeOpenClHw>().is_some());
         }
     }
 
@@ -931,11 +931,11 @@ mod device_context {
         fn another_device_types_struct_is_not_lent() {
             let events = Arc::new(Events::default());
             let mut u = uninit(&events);
-            assert!(u.context_mut().into_hwctx::<FakeDrmHw>().is_none());
+            assert!(u.context_mut().into_hwctx::<FakeOpenClHw>().is_none());
             u.context_mut().into_hwctx::<FakeHw>().unwrap().set_value(8);
             u.context_mut()
                 .set_free_callback(|ctx: DeviceContextMut<'_>| {
-                    assert!(ctx.into_hwctx::<FakeDrmHw>().is_none());
+                    assert!(ctx.into_hwctx::<FakeOpenClHw>().is_none());
                 })
                 .ok()
                 .unwrap();
@@ -1127,6 +1127,28 @@ mod frames_context {
                 assert_eq!(ctx.hwctx::<FramesHw>().is_some(), own_a);
                 assert_eq!(ctx.hwctx::<FramesHwB>().is_some(), !own_a);
                 drop(u);
+                drop(d);
+                fx::take_events();
+            }
+        }
+
+        /// The fake device backend's structs (`hwdevice.rs`'s `FakeHw` and
+        /// `FakeOpenClHw`) claim every context of their device
+        /// types, which no test backend device has: neither is lent over
+        /// the test backends' 4-byte device struct (review wave 953, batch
+        /// 0, where `FakeHw` claimed `VAAPI`, kind A's type, and the read
+        /// overflowed it).
+        #[test]
+        #[cfg_attr(miri, ignore = "calls C")]
+        fn the_fake_device_structs_are_not_lent_over_test_backend_devices() {
+            for kind in [Kind::A, Kind::B] {
+                let d = device(kind);
+                let ctx = d.as_ref().context();
+                assert!(ctx.hwctx::<crate::hwcontext::hwdevice::FakeHw>().is_none());
+                assert!(
+                    ctx.hwctx::<crate::hwcontext::hwdevice::FakeOpenClHw>()
+                        .is_none()
+                );
                 drop(d);
                 fx::take_events();
             }

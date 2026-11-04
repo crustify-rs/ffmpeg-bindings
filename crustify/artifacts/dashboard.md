@@ -139,10 +139,10 @@ in Notes.
 - **Rust LoC, non-test** — `<n>`
 - **Rust LoC, tests** — `<n>`
 - **UB safe tests** — `821` (`53.15`% C LoC coverage, `75.00`% Rust LoC coverage)
-- **UB unsafe tests** — `187` (`26.58`% C LoC coverage, `28.26`% Rust LoC coverage)
-- **Equiv tests** — `723` (`66.65`% C LoC coverage, `80.39`% Rust LoC coverage)
+- **UB unsafe tests** — `188` (`26.65`% C LoC coverage, `28.33`% Rust LoC coverage)
+- **Equiv tests** — `723` (`66.66`% C LoC coverage, `80.39`% Rust LoC coverage)
 - **Unit tests** — `968` (`41.20`% C LoC coverage, `84.44`% Rust LoC coverage)
-- **Total tests** — `2699` (`67.19`% C LoC coverage, `99.07`% Rust LoC coverage)
+- **Total tests** — `2700` (`67.20`% C LoC coverage, `99.07`% Rust LoC coverage)
 - **C LoC** — `<n>`
 - **total types** — `290`
 - **total symbols** — `1126`
@@ -358,7 +358,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`2`|`0`| `1` |`+291/-28`| `75.12`% / `99.69`% | `+460/-79` | `$24.69` | `55.21M` | `116m00s` | `$24.69` |
 |`libavutil/libavutil/opt.c`|`795`|`0`| `2` |`+0/-0`| `68.58`% / `99.25`% | `+0/-0` | `$4.26` | `11.92M` | `25m46s` | `$2.13` |
 |`libavutil/libavutil/frame.c`|`903`|`0`| `1` |`+912/-85`| `69.30`% / `99.20`% | `+42/-19` | `$10.59` | `24.58M` | `47m50s` | `$10.59` |
-| **Σ** |  |  | **`85`** | **`+4532/-329`** | **`69.30`% / `99.20`%** | **`+5178/-534`** | **`$347.90`** | **`522.57M`** | — | **`$4.09`** |
+|`libavutil/libavutil/hwcontext.c`|`953`|`0`| `2` |`+597/-240`| `67.20`% / `99.07`% | `+117/-61` | — | — | — | — |
+| **Σ** |  |  | **`87`** | **`+5129/-569`** | **`67.20`% / `99.07`%** | **`+5295/-595`** | **`$347.90`** | **`522.57M`** | — | **`$4.09`** |
 
 ### Batches — review: tests
 
@@ -392,7 +393,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 |`libavutil/hwcontext`|`2`|`0`|`+1` (`+0.00`/`+0.02` pp)|`-1` (`+0.02`/`+0.06` pp)|`+1` (`+0.00`/`+0.11` pp)|`+2` (`+0.05`/`+0.04` pp)|
 |`libavutil/libavutil/opt.c`|`795`|`0`|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
 |`libavutil/libavutil/frame.c`|`903`|`0`|`+0` (`+0.00`/`-0.01` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
-| **Σ** |  |  | **`+21` (`+0.00`/`-0.63` pp)** | **`-1` (`+0.09`/`-0.62` pp)** | **`+27` (`+0.44`/`-0.22` pp)** | **`+29` (`+0.49`/`+0.90` pp)** |
+|`libavutil/libavutil/hwcontext.c`|`953`|`0`|`+0` (`+0.04`/`+0.00` pp)|`+1` (`+0.04`/`+0.07` pp)|`+0` (`-0.01`/`+0.00` pp)|`+0` (`+0.00`/`+0.00` pp)|
+| **Σ** |  |  | **`+21` (`+0.04`/`-0.63` pp)** | **`+0` (`+0.13`/`-0.55` pp)** | **`+27` (`+0.43`/`-0.22` pp)** | **`+29` (`+0.49`/`+0.90` pp)** |
 
 ### Batches — review: PoC + reports
 
@@ -426,7 +428,8 @@ Implementation `openrouter/anthropic/claude-opus-5.5` via `claude` (`openrouter/
 | `libavutil/hwcontext` | `2` | `0` | `+0` | `+1` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `2` | `0` |
 | `libavutil/libavutil/opt.c` | `795` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `0` | `0` |
 | `libavutil/libavutil/frame.c` | `903` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+1` | `+2` | `3` | `0` |
-| **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+6`** | **`+27`** | **`46`** | **`0`** |
+| `libavutil/libavutil/hwcontext.c` | `953` | `0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+0` | `+3` | `3` | `0` |
+| **Σ** |  |  | **`+3`** | **`+7`** | **`+0`** | **`+2`** | **`+0`** | **`+1`** | **`+6`** | **`+30`** | **`49`** | **`0`** |
 
 ## Symbols
 
@@ -2422,3 +2425,32 @@ the landing tree, over 18,477 C lines on both and 15,502 and 15,511 Rust lines. 
 batch added is covered: 144 lines stay uncovered, as on the base. The C figures of the suites the
 batch did not touch move by a few lines, which is thread timing. The Overview's five test lines are
 this landing's.
+
+### `libavutil/libavutil/hwcontext.c` review wave 953, batch 0: wave 952's hardware context traits
+
+The review of wave 952's batch 0 (`1b7312582ee`) filed three `contracts` reports under
+`crustify/reviews/wave-953/batch-0/contracts/` and fixed each. The template has no `contracts`
+column, so they are counted under `+misc`. The traits' checks hold against C: `hwcontext.c` sizes a
+device's `hwctx` from the backend of the `type` it stores, and a frames context's from its device's
+backend. Three things still needed fixing:
+
+- The test fixtures' impls were false. `tests/common/hwdevice.rs` implemented `BackendDeviceContext`
+  for its 48-byte `FakeHwctx` as `VAAPI` and `DRM`. The same three test crates make `VAAPI` and
+  `DRM` devices with a 4-byte `hwctx` through `tests/common/hwbackend.rs`. Through them, safe
+  `hwctx::<FakeHw>()` reads out of bounds, and an ASan reproducer shows the heap-buffer-overflow.
+  The fake backend now uses `VDPAU` and `OPENCL` (`FakeDrmHw` became `FakeOpenClHw`). Both fixtures
+  assert that the build has no hardware backend, and a `ub_unsafe` regression test was added.
+- `UninitDevice::from_c` never required that `hwctx` be the struct of its `type`'s backend, which
+  the safe accessors now rely on.
+- The traits' no-writer obligation covered the struct's fields, not the arrays they point to,
+  which getters would lend as slices.
+
+The second and third are documentation fixes without reproducers. No backend implements the
+traits yet. The Miri gate passed on the wave tip (`3ee33a6`) and on the landed tree. BSan was not
+run as a gate, since wave 954 of the module follows. The hwcontext tests pass under ASan/UBSan and
+TSan. Coverage, from `crustify/scripts/coverage/`, is 67.18% / 99.07% on the wave tip and 67.20% /
+99.07% on the landed tree, over 18,477 C and 15,511 Rust lines. The new test runs 11 more Rust lines
+in `ub_unsafe`. The C figures of the suites the review did not touch moved by under 0.05 pp, which
+is thread timing. The workset's uncovered C paths are allocation failures, and code that needs a
+compiled backend (`av_hwdevice_ctx_alloc`'s success path, `hwdevice_ctx_free`). ffimap moves only
+`code.tests.fn` (+1) and `code.tests.loc.total` (+39).

@@ -14,7 +14,11 @@
 //!
 //! The includer also brings the crate's `hwcontext::BackendDeviceContext`
 //! and `DeviceType` into scope: the fake backend's hardware context
-//! ([`FakeHw`]) implements it, for the device type `VAAPI`.
+//! implements it, as [`FakeHw`] for the device type `VDPAU` and as
+//! [`FakeOpenClHw`] for `OPENCL`. An implementation speaks for every
+//! context of its type, so these are types no other fixture gives a device:
+//! `hwbackend.rs`, which the same test crates include, makes `VAAPI` and
+//! `DRM` devices whose `hwctx` is its own, smaller struct.
 #![expect(
     clippy::cast_possible_wrap,
     clippy::cast_ptr_alignment,
@@ -126,15 +130,17 @@ define_ctype!(
     FakeHwctx
 );
 
-// SAFETY: `fake_device` makes contexts of this device type over
-// `FAKE_TYPE`, whose `device_hwctx_size` is `FakeHwctx`'s, and C allocates
-// `hwctx` from it; `fake_device_init` writes `initialised` during
+// SAFETY: every context of this device type in the test crates is
+// `fake_device_of`'s: the builds compile no hardware backend, which it
+// asserts, and `hwbackend.rs`'s devices are of other types. Over
+// `FAKE_TYPE`, whose `device_hwctx_size` is `FakeHwctx`'s, C allocates
+// `hwctx` from it; over `BARE_TYPE`, none. `fake_device_init` writes `initialised` during
 // initialisation only, and its other callbacks write only the atomic
 // `seen_sizes`, which the getter reads atomically. The setters write plain
 // values its callbacks accept; `set_events`, which stores a pointer they
 // dereference, is `unsafe`.
 unsafe impl BackendDeviceContext for FakeHw {
-    const DEVICE_TYPE: DeviceType = DeviceType::VAAPI;
+    const DEVICE_TYPE: DeviceType = DeviceType::VDPAU;
 }
 
 impl FakeHwRef<'_> {
@@ -211,22 +217,23 @@ impl FakeHwMut<'_> {
 }
 
 define_ctype!(
-    /// [`FakeHwctx`] as the hardware context of a fake context of type `DRM`
-    /// ([`fake_device_of`] over [`FAKE_TYPE`]): the struct of a device type
-    /// other than [`FakeHw`]'s, which the accessors tell apart by the type.
-    FakeDrmHw,
-    FakeDrmHwRef,
-    FakeDrmHwMut,
+    /// [`FakeHwctx`] as the hardware context of a fake context of type
+    /// `OPENCL` ([`fake_device_of`] over [`FAKE_TYPE`]): the struct of a
+    /// device type other than [`FakeHw`]'s, which the accessors tell apart by
+    /// the type.
+    FakeOpenClHw,
+    FakeOpenClHwRef,
+    FakeOpenClHwMut,
     FakeHwctx
 );
 
 // SAFETY: as for `FakeHw`, for the contexts `fake_device_of` makes of this
 // type over `FAKE_TYPE`.
-unsafe impl BackendDeviceContext for FakeDrmHw {
-    const DEVICE_TYPE: DeviceType = DeviceType::DRM;
+unsafe impl BackendDeviceContext for FakeOpenClHw {
+    const DEVICE_TYPE: DeviceType = DeviceType::OPENCL;
 }
 
-impl FakeDrmHwMut<'_> {
+impl FakeOpenClHwMut<'_> {
     /// As [`FakeHwMut::set_events`].
     ///
     /// # Safety
@@ -399,7 +406,7 @@ unsafe impl Sync for Backend {}
 
 /// The fake backend.
 pub(crate) static FAKE_TYPE: Backend = Backend(HwContextType {
-    type_: ffi::AV_HWDEVICE_TYPE_VAAPI,
+    type_: ffi::AV_HWDEVICE_TYPE_VDPAU,
     name: NAME.as_ptr(),
     pix_fmts: &raw const PIX_FMTS.0[0],
     device_hwctx_size: size_of::<FakeHwctx>(),
@@ -498,10 +505,19 @@ unsafe extern "C" fn fake_ctx_free(_opaque: *mut c_void, data: *mut u8) {
 /// What `av_hwdevice_ctx_alloc(type_)` returns for a backend `backend`: the
 /// only reference to a fresh, uninitialised context; NULL when C cannot
 /// allocate it.
+///
+/// # Panics
+///
+/// When the library has a hardware backend: [`FakeHw`] and [`FakeOpenClHw`]
+/// claim every context of their types, which a real backend could make.
 pub(crate) fn fake_device_of(
     backend: &'static Backend,
     type_: ffi::AVHWDeviceType,
 ) -> *mut ffi::AVBufferRef {
+    assert!(
+        DeviceType::supported().next().is_none(),
+        "the fake backends' `BackendDeviceContext` claims need a build without hardware backends"
+    );
     let hw_type = &backend.0;
     // For the unsafe operations below: av_hwdevice_ctx_alloc's steps, on blocks this function owns
     // until the buffer takes them.
@@ -555,9 +571,9 @@ pub(crate) fn fake_device_of(
     }
 }
 
-/// [`fake_device_of`] the fake backend, as a VAAPI device.
+/// [`fake_device_of`] the fake backend, as a VDPAU device.
 pub(crate) fn fake_device() -> *mut ffi::AVBufferRef {
-    fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI)
+    fake_device_of(&FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VDPAU)
 }
 
 /// The private data [`set_foreign_free`] stores, as a backend's

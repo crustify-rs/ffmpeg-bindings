@@ -2179,7 +2179,7 @@ mod device_context {
     #[cfg_attr(miri, ignore = "calls C")]
     fn getters_read_what_c_stores() {
         for (backend, t) in [
-            (&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VAAPI),
+            (&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_VDPAU),
             (&BARE_TYPE, ffi::AV_HWDEVICE_TYPE_VULKAN),
             (&BARE_TYPE, 99),
         ] {
@@ -2492,7 +2492,7 @@ mod frames_constraints {
 
     /// A raw fake device set up for `q` and initialised by C.
     fn c_device(q: Query, events: &Arc<Events>) -> *mut ffi::AVBufferRef {
-        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VAAPI);
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VDPAU);
         // For the unsafe operations below: the only reference to a fresh fake context.
         {
             // SAFETY: as the comment above this block states.
@@ -2513,7 +2513,7 @@ mod frames_constraints {
 
     /// The same device through the wrapper.
     fn rust_device(q: Query, events: &Arc<Events>) -> DeviceReferenceBox {
-        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VAAPI);
+        let raw = hwdevice::fake_device_of(backend(q), ffi::AV_HWDEVICE_TYPE_VDPAU);
         // SAFETY: the only reference to a fresh, uninitialised fake context.
         let mut b = unsafe { UninitDevice::from_c(raw) }.unwrap();
         if let Some(mut hw) = b.context_mut().into_hwctx::<FakeHw>() {

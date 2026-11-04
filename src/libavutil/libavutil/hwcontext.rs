@@ -1174,7 +1174,11 @@ impl UninitDevice {
     /// a device context `av_hwdevice_ctx_alloc` allocated (or built exactly
     /// as it does) that has no other reference and was not initialised, and
     /// whose `free` and `user_opaque` are unset, a backend's, or this
-    /// crate's.
+    /// crate's. Its `hwctx` must be NULL or the struct the backend of its
+    /// `type` allocates there, as `av_hwdevice_ctx_alloc` sizes it from that
+    /// backend: [`DeviceContextRef::hwctx`] and
+    /// [`DeviceContextMut::into_hwctx`] type it by `type` alone, as the
+    /// struct every [`BackendDeviceContext`] of that type names.
     #[must_use]
     pub unsafe fn from_c(ptr: *mut ffi::AVBufferRef) -> Option<Self> {
         // SAFETY: by the caller's contract; the box lends no reference
@@ -2204,10 +2208,11 @@ unsafe extern "C" fn release_hooks(ctx: *mut ffi::AVHWDeviceContext) {
 ///   [`DEVICE_TYPE`](Self::DEVICE_TYPE), as that backend's `hwcontext_<api>.h` declares it at the C
 ///   revision the crate is built against: the struct C allocates `hwctx` for (alone, or at the
 ///   start of the backend's private one) in every context of that type;
-/// - the backend writes none of its fields once the context is initialised (`av_hwdevice_ctx_init`,
-///   or the routines that create initialised devices), except fields `Self::Ref`'s getters do not
-///   read, or reads through interior-mutable means the backend synchronizes with: initialised
-///   contexts lend shared handles to it; and
+/// - the backend writes nothing `Self::Ref`'s getters read once the context is initialised
+///   (`av_hwdevice_ctx_init`, or the routines that create initialised devices): neither the fields
+///   they read nor the memory they read or lend views of through those fields, such as an array a
+///   field points to, unless they read it through interior-mutable means the backend synchronizes
+///   with: initialised contexts lend shared handles to it; and
 /// - `Self::Mut`'s safe methods write only what the backend's `device_init` and `device_uninit`
 ///   accept as the header allows, leaving any foreign handle or callback the backend dereferences
 ///   to setters that are `unsafe` and carry what it needs: `device_uninit` runs on whatever is
@@ -2288,7 +2293,8 @@ impl<'a> DeviceContextRef<'a> {
         // implementation. Nothing writes what the handle reads while it
         // lives: before initialisation the shared borrow of the context
         // excludes its exclusive handle, and after it `T`'s implementation
-        // asserts its backend writes none of it.
+        // asserts its backend writes nothing the handle reads, through the
+        // struct's fields or what they point to.
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
@@ -3323,11 +3329,13 @@ pub unsafe trait BackendFramesContext: CCell {
 ///
 /// # Safety
 ///
-/// An implementation asserts that the backend writes none of the struct's
-/// fields once the frames context is initialised (`av_hwframe_ctx_init`,
-/// or the routines that create initialised frames contexts), except fields
-/// `Self::Ref`'s getters do not read, or reads through interior-mutable
-/// means the backend synchronizes with.
+/// An implementation asserts that the backend writes nothing `Self::Ref`'s
+/// getters read once the frames context is initialised
+/// (`av_hwframe_ctx_init`, or the routines that create initialised frames
+/// contexts): neither the fields they read nor the memory they read or lend
+/// views of through those fields, such as an array a field points to,
+/// unless they read it through interior-mutable means the backend
+/// synchronizes with.
 pub unsafe trait StableBackendFramesContext: BackendFramesContext {}
 
 impl<'a> FramesContextRef<'a> {
@@ -3426,7 +3434,8 @@ impl<'a> FramesContextRef<'a> {
         // Nothing writes what the handle reads while it lives: before
         // initialisation the shared borrow of the context excludes its
         // exclusive handle, and after it `T`'s `StableBackendFramesContext`
-        // implementation asserts its backend writes none of it.
+        // implementation asserts its backend writes nothing the handle reads,
+        // through the struct's fields or what they point to.
         unsafe { T::ref_from_void_ptr(hwctx) }
     }
 
@@ -5885,7 +5894,7 @@ mod unit_tests {
         use std::sync::{Arc, Mutex};
 
         use super::super::hwdevice::{
-            self, BARE_TYPE, Events, FakeConfig, FakeDrmHw, FakeHw, HW_FORMAT, SIZES, SW_FORMATS,
+            self, BARE_TYPE, Events, FakeConfig, FakeHw, FakeOpenClHw, HW_FORMAT, SIZES, SW_FORMATS,
         };
         use super::*;
 
@@ -5930,7 +5939,7 @@ mod unit_tests {
             let events = Arc::new(Events::default());
             let b = builder(&events);
             let ctx = b.context();
-            assert_eq!(ctx.device_type(), DeviceType::VAAPI);
+            assert_eq!(ctx.device_type(), DeviceType::VDPAU);
             let class = ctx.class().unwrap();
             assert_eq!(class.name(), Some(c"AVHWDeviceContext"));
             let hw = ctx.hwctx::<FakeHw>().unwrap();
@@ -5938,10 +5947,10 @@ mod unit_tests {
             assert!(!hw.initialised());
             assert!(!ctx.has_free_callback());
             assert!(ctx.user_data::<u32>().is_none());
-            assert!(format!("{:?}", b.context()).contains("device_type: VAAPI"));
+            assert!(format!("{:?}", b.context()).contains("device_type: VDPAU"));
             let mut b = b;
             assert!(
-                format!("{:?}", b.context_mut()).starts_with("DeviceContext { device_type: VAAPI")
+                format!("{:?}", b.context_mut()).starts_with("DeviceContext { device_type: VDPAU")
             );
             drop(b);
             assert_eq!(events.get(), (0, 1, 0));
@@ -6342,28 +6351,29 @@ mod unit_tests {
         fn configurations_of_another_device_type_are_refused() {
             let events = Arc::new(Events::default());
             // SAFETY: the fake backend's `device_init` accepts any payload.
-            let vaapi = unsafe { builder(&events).init() }.unwrap();
-            let config = vaapi.as_ref().alloc_hw_config().unwrap();
-            let raw = hwdevice::fake_device_of(&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_DRM);
+            let vdpau = unsafe { builder(&events).init() }.unwrap();
+            let config = vdpau.as_ref().alloc_hw_config().unwrap();
+            let raw = hwdevice::fake_device_of(&hwdevice::FAKE_TYPE, ffi::AV_HWDEVICE_TYPE_OPENCL);
             // SAFETY: the only reference to a fresh, uninitialised fake
             // context.
-            let mut drm = unsafe { UninitDevice::from_c(raw) }.unwrap();
+            let mut opencl = unsafe { UninitDevice::from_c(raw) }.unwrap();
             // The same struct, typed as another device type's.
-            assert!(drm.context_mut().into_hwctx::<FakeHw>().is_none());
-            assert!(drm.context().hwctx::<FakeHw>().is_none());
-            let mut hw = drm.context_mut().into_hwctx::<FakeDrmHw>().unwrap();
+            assert!(opencl.context_mut().into_hwctx::<FakeHw>().is_none());
+            assert!(opencl.context().hwctx::<FakeHw>().is_none());
+            let mut hw = opencl.context_mut().into_hwctx::<FakeOpenClHw>().unwrap();
             // SAFETY: `events` outlives the context, released in this test.
             unsafe { hw.set_events(Arc::as_ptr(&events)) };
             // SAFETY: as above.
-            let drm = unsafe { drm.init() }.unwrap();
+            let opencl = unsafe { opencl.init() }.unwrap();
             assert!(
-                drm.as_ref()
+                opencl
+                    .as_ref()
                     .frames_constraints_for_config(&config)
                     .is_none()
             );
             assert_eq!(events.get().2, 0);
             assert!(
-                vaapi
+                vdpau
                     .as_ref()
                     .frames_constraints_for_config(&config)
                     .is_some()

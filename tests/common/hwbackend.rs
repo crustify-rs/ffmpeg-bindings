@@ -193,8 +193,11 @@ macro_rules! frames_hw {
     ($(#[$attr:meta])* $name:ident, $rf:ident, $mt:ident, $device_type:expr) => {
         define_ctype!($(#[$attr])* $name, $rf, $mt, FramesHwctx);
 
-        // SAFETY: `alloc_device` makes contexts of this device type over the
-        // test backend whose `frames_hwctx_size` is `FramesHwctx`'s, and C
+        // SAFETY: every device of this type in the test crates is
+        // `alloc_device`'s: the builds compile no hardware backend, which it
+        // asserts, and `hwdevice.rs`'s fake devices that are of this type
+        // have no frames struct (`BARE_TYPE`). `alloc_device` makes them over
+        // the test backend whose `frames_hwctx_size` is `FramesHwctx`'s, and C
         // allocates every frames context's `hwctx` from its device's
         // backend; any value of its plain `int`s is one the backend's
         // callbacks accept, before initialisation or after.
@@ -893,8 +896,13 @@ unsafe extern "C" fn free_device(_opaque: *mut c_void, data: *mut u8) {
 
 /// A new, uninitialised device context of backend `kind`, as
 /// `av_hwdevice_ctx_alloc` builds one: the only reference to it, its `hwctx`
-/// a zeroed [`DeviceHwctx`]. Panics when out of memory.
+/// a zeroed [`DeviceHwctx`]. Panics when out of memory, or when the library
+/// has a hardware backend.
 pub(crate) fn alloc_device(kind: Kind) -> *mut ffi::AVBufferRef {
+    assert!(
+        DeviceType::supported().next().is_none(),
+        "the test backends' `BackendFramesContext` claims need a build without hardware backends"
+    );
     // `av_hwdevice_ctx_alloc`'s steps over zeroed allocations.
     // SAFETY: no precondition; NULL when C cannot allocate.
     let ctxi = unsafe { ffi::av_mallocz(size_of::<DeviceInternal>()) }.cast::<DeviceInternal>();
