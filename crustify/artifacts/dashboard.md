@@ -710,8 +710,8 @@ the corrections it made to what earlier runs committed.
 | 5 | 0 | 0 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (161 to the current schema, 1 corrected) | 2 | $7.01 | 14.2M | 37m38s |
 | 6 | — | — | — (stopped after its first requests: its instructions misstated the re-plan's first wave; run 7 replaced it) | 0 | $0.21 | 0.1M | 0m11s |
 | 7 | 0 | 0 | — | 0 | $3.74 | 9.1M | 13m05s |
-| 8 | 2 | 0 | `configs/wavefront-config.json` (to the current schema: `closure`, 160 `modules`, `schedule_seeds`), `configs/<link-unit>/<index>/wavefront-config.json` (160 removed, folded into `modules`) | 1 | `$<n>` | `<n>M` | `<n>m<n>s` |
-| **Σ** | **191** | **691** | | **20** | **$43.14** | **100.8M** | **200m12s** |
+| 8 | 2 | 0 | `configs/wavefront-config.json` (to the current schema: `closure`, 160 `modules`, `schedule_seeds`), `configs/<link-unit>/<index>/wavefront-config.json` (160 removed, folded into `modules`) | 1 | $7.35 | 20.1M | 30m44s |
+| **Σ** | **191** | **691** | | **20** | **$50.49** | **120.9M** | **230m56s** |
 
 ## Notes
 
