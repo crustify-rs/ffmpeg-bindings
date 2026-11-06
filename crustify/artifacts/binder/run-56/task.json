@@ -16,12 +16,12 @@
       "home": "src/libavutil/libavutil/hash.rs"
     }
   ],
-  "wave": 26,
-  "batch": 4,
+  "wave": 1321,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/hash.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-26",
+  "base_branch": "crustify/waves/wave-1321",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

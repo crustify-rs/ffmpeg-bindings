@@ -16,12 +16,12 @@
       "home": "src/libavutil/libavutil/murmur3.rs"
     }
   ],
-  "wave": 26,
-  "batch": 5,
+  "wave": 1328,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/md5.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-26",
+  "base_branch": "crustify/waves/wave-1328",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

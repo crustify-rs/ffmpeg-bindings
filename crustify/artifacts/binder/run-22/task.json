@@ -86,12 +86,12 @@
       "home": "src/libavutil/libavutil/bprint.rs"
     }
   ],
-  "wave": 8,
+  "wave": 1358,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/bprint.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-8",
+  "base_branch": "crustify/waves/wave-1358",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

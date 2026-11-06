@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/murmur3.rs"
     }
   ],
-  "wave": 28,
-  "batch": 1,
+  "wave": 1369,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/hash.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-28",
+  "base_branch": "crustify/waves/wave-1369",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

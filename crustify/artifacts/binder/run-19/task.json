@@ -15,12 +15,12 @@
       "home": "src/libavutil/libavutil/bprint.rs"
     }
   ],
-  "wave": 6,
-  "batch": 1,
+  "wave": 1303,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/bprint.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-6",
+  "base_branch": "crustify/waves/wave-1303",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

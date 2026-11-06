@@ -16,12 +16,12 @@
       "home": "src/libavutil/libavutil/csp.rs"
     }
   ],
-  "wave": 18,
+  "wave": 1405,
   "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/csp.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-18",
+  "base_branch": "crustify/waves/wave-1405",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

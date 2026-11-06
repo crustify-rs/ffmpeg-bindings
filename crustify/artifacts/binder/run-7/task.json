@@ -24,12 +24,12 @@
       "home": "src/libavutil/libavutil/intreadwrite_h.rs"
     }
   ],
-  "wave": 4,
-  "batch": 5,
+  "wave": 1325,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/intreadwrite.h",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-4",
+  "base_branch": "crustify/waves/wave-1325",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }

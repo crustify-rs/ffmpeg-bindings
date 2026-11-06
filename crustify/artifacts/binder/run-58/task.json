@@ -20,12 +20,12 @@
       "home": "src/libavutil/libavutil/ripemd.rs"
     }
   ],
-  "wave": 26,
-  "batch": 6,
+  "wave": 1334,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/rc4.c",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-26",
+  "base_branch": "crustify/waves/wave-1334",
   "model": "openrouter/openai/gpt-6.1-sol",
   "billing": "api"
 }

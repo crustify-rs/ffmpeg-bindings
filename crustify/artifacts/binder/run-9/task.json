@@ -12,12 +12,12 @@
       "home": "src/libavutil/libavutil/intfloat_h.rs"
     }
   ],
-  "wave": 4,
-  "batch": 7,
+  "wave": 1323,
+  "batch": 0,
   "link_unit": "libavutil",
-  "module": null,
+  "module": "libavutil/intfloat.h",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-4",
+  "base_branch": "crustify/waves/wave-1323",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }
