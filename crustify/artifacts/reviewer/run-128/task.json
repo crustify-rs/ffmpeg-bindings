@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/adler32.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 56,
   "link_unit": "libavutil",
   "module": null,

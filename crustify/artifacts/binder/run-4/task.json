@@ -16,7 +16,7 @@
       "home": "src/libavutil/libavutil/utils.rs"
     }
   ],
-  "wave": 4,
+  "wave": "legacy-4",
   "batch": 1,
   "link_unit": "libavutil",
   "module": null,

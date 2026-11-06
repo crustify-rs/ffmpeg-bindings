@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/rational.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 18,
   "link_unit": "libavutil",
   "module": null,

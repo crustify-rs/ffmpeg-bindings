@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/murmur3.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 44,
   "link_unit": "libavutil",
   "module": null,

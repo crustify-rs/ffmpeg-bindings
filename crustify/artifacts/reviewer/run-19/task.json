@@ -3,7 +3,7 @@
     "6b681023143972aa4093db554713be6e45025f9b",
     "ce32b4994fc5c87e207382b1dce713f2178aca30"
   ],
-  "wave": 7,
+  "wave": "legacy-7",
   "batch": 1,
   "link_unit": "libavutil",
   "module": null,

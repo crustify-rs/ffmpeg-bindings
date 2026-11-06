@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/intreadwrite_h.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 12,
   "link_unit": "libavutil",
   "module": null,

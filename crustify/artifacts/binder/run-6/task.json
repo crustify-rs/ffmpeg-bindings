@@ -16,7 +16,7 @@
       "home": "src/libavutil/libavutil/bprint.rs"
     }
   ],
-  "wave": 4,
+  "wave": "legacy-4",
   "batch": 4,
   "link_unit": "libavutil",
   "module": null,

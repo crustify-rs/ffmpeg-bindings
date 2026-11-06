@@ -2,7 +2,7 @@
   "commits": [
     "2d3ce1afec5dacb7c3bd34cbb888b73d5e2fda53"
   ],
-  "wave": 795,
+  "wave": "legacy-795",
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/opt.c",

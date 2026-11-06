@@ -16,7 +16,7 @@
       "home": "src/libavutil/libavutil/pixdesc.rs"
     }
   ],
-  "wave": 10,
+  "wave": "legacy-10",
   "batch": 2,
   "link_unit": "libavutil",
   "module": null,

@@ -1,7 +1,7 @@
 {
- "note": "Ids of each batch that ran (wave-<i>/batch-<j> in schedule.json) under the earlier numberings: v2, the per-subsystem schedules the runs launched under; planner-run-3, its schema-3 conversion (v2-to-v3.json); replan, the re-plan of the landed part that schedule.json held at df6ce360d9; v4, the new batches of schedule.json (planner run 8's module-ordered plan, the landed part marked done) that hold the batch's items, and v4_main, the one holding the most, which its binder run's task.json names. Review batches, and the 14 batches whose items the plan no longer schedules (enums, FF_PAD_STRUCTURE, the void and string raw lifetimes), have no v4 id and keep their old one.",
+ "note": "Ids of each batch that ran (wave-<i>/batch-<j> in schedule.json) under the earlier numberings: v2, the per-subsystem schedules the runs launched under; planner-run-3, its schema-3 conversion (v2-to-v3.json); replan, the re-plan of the landed part that schedule.json held at df6ce360d9; v4, the new batches of schedule.json (planner run 8's module-ordered plan, the landed part marked done) that hold the batch's items, and v4_main, the one holding the most, which its binder run's task.json names. Review batches, and the 14 batches whose items the plan no longer schedules (enums, FF_PAD_STRUCTURE, the void and string raw lifetimes), have no v4 id and keep their old one. The plan's waves are numbered from 0; every id of the earlier plans, in this file, in run task.json, review dirs, wave scans and dashboard rows, is legacy-<n>.",
  "batches": {
-  "wave-0/batch-0": {
+  "legacy-wave-0/batch-0": {
    "run": "binder/run-1",
    "v2": "libavutil/raw-lifetime-void/wave-0/batch-0",
    "planner-run-3": [
@@ -13,7 +13,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-1/batch-0": {
+  "legacy-wave-1/batch-0": {
    "run": "reviewer/run-1",
    "v2": "libavutil/raw-lifetime-void/review-wave-0/batch-0",
    "planner-run-3": [
@@ -25,7 +25,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-2/batch-0": {
+  "legacy-wave-2/batch-0": {
    "run": "binder/run-2",
    "v2": "libavutil/raw-lifetime-string/wave-0/batch-0",
    "planner-run-3": [
@@ -37,7 +37,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-3/batch-0": {
+  "legacy-wave-3/batch-0": {
    "run": "reviewer/run-2",
    "v2": "libavutil/raw-lifetime-string/review-wave-0/batch-0",
    "planner-run-3": [
@@ -49,7 +49,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-4/batch-0": {
+  "legacy-wave-4/batch-0": {
    "run": "binder/run-3",
    "v2": "libavutil/core/wave-0/batch-0",
    "planner-run-3": [
@@ -61,7 +61,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-4/batch-1": {
+  "legacy-wave-4/batch-1": {
    "run": "binder/run-4",
    "v2": "libavutil/core/wave-0/batch-1",
    "planner-run-3": [
@@ -75,7 +75,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-4/batch-2": {
+  "legacy-wave-4/batch-2": {
    "run": "binder/run-5",
    "v2": "libavutil/core/wave-0/batch-2",
    "planner-run-3": [
@@ -86,11 +86,11 @@
     "94/1"
    ],
    "v4": [
-    "wave-1408/batch-0"
+    "wave-130/batch-0"
    ],
-   "v4_main": "wave-1408/batch-0"
+   "v4_main": "wave-130/batch-0"
   },
-  "wave-4/batch-3": {
+  "legacy-wave-4/batch-3": {
    "run": "binder/run-17",
    "v2": "libavutil/core/wave-0/batch-3",
    "planner-run-3": [
@@ -102,11 +102,11 @@
     "176/2"
    ],
    "v4": [
-    "wave-1333/batch-0"
+    "wave-55/batch-0"
    ],
-   "v4_main": "wave-1333/batch-0"
+   "v4_main": "wave-55/batch-0"
   },
-  "wave-4/batch-4": {
+  "legacy-wave-4/batch-4": {
    "run": "binder/run-6",
    "v2": "libavutil/core/wave-0/batch-4",
    "planner-run-3": [
@@ -120,7 +120,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-4/batch-5": {
+  "legacy-wave-4/batch-5": {
    "run": "binder/run-7",
    "v2": "libavutil/core/wave-0/batch-5",
    "planner-run-3": [
@@ -130,11 +130,11 @@
     "90/0"
    ],
    "v4": [
-    "wave-1325/batch-0"
+    "wave-47/batch-0"
    ],
-   "v4_main": "wave-1325/batch-0"
+   "v4_main": "wave-47/batch-0"
   },
-  "wave-4/batch-6": {
+  "legacy-wave-4/batch-6": {
    "run": "binder/run-8",
    "v2": "libavutil/core/wave-0/batch-6",
    "planner-run-3": [
@@ -146,12 +146,12 @@
     "90/1"
    ],
    "v4": [
-    "wave-1323/batch-0",
-    "wave-1325/batch-1"
+    "wave-45/batch-0",
+    "wave-47/batch-1"
    ],
-   "v4_main": "wave-1323/batch-0"
+   "v4_main": "wave-45/batch-0"
   },
-  "wave-4/batch-7": {
+  "legacy-wave-4/batch-7": {
    "run": "binder/run-9",
    "v2": "libavutil/core/wave-0/batch-7",
    "planner-run-3": [
@@ -161,11 +161,11 @@
     "86/0"
    ],
    "v4": [
-    "wave-1323/batch-0"
+    "wave-45/batch-0"
    ],
-   "v4_main": "wave-1323/batch-0"
+   "v4_main": "wave-45/batch-0"
   },
-  "wave-4/batch-8": {
+  "legacy-wave-4/batch-8": {
    "run": "binder/run-10",
    "v2": "libavutil/core/wave-0/batch-8",
    "planner-run-3": [
@@ -176,12 +176,12 @@
     "90/2"
    ],
    "v4": [
-    "wave-1325/batch-1",
-    "wave-1325/batch-2"
+    "wave-47/batch-1",
+    "wave-47/batch-2"
    ],
-   "v4_main": "wave-1325/batch-1"
+   "v4_main": "wave-47/batch-1"
   },
-  "wave-4/batch-9": {
+  "legacy-wave-4/batch-9": {
    "run": "binder/run-11",
    "v2": "libavutil/core/wave-0/batch-9",
    "planner-run-3": [
@@ -191,11 +191,11 @@
     "90/2"
    ],
    "v4": [
-    "wave-1325/batch-2"
+    "wave-47/batch-2"
    ],
-   "v4_main": "wave-1325/batch-2"
+   "v4_main": "wave-47/batch-2"
   },
-  "wave-4/batch-10": {
+  "legacy-wave-4/batch-10": {
    "run": "binder/run-12",
    "v2": "libavutil/core/wave-0/batch-10",
    "planner-run-3": [
@@ -219,18 +219,18 @@
     "136/0"
    ],
    "v4": [
-    "wave-1278/batch-0",
-    "wave-1279/batch-0",
-    "wave-1299/batch-0",
-    "wave-1304/batch-0",
-    "wave-1308/batch-0",
-    "wave-1310/batch-0",
-    "wave-1395/batch-0",
-    "wave-1444/batch-0"
+    "wave-0/batch-0",
+    "wave-1/batch-0",
+    "wave-21/batch-0",
+    "wave-26/batch-0",
+    "wave-30/batch-0",
+    "wave-32/batch-0",
+    "wave-117/batch-0",
+    "wave-166/batch-0"
    ],
-   "v4_main": "wave-1308/batch-0"
+   "v4_main": "wave-30/batch-0"
   },
-  "wave-4/batch-11": {
+  "legacy-wave-4/batch-11": {
    "run": "binder/run-13",
    "v2": "libavutil/core/wave-0/batch-11",
    "planner-run-3": [
@@ -258,20 +258,20 @@
     "176/0"
    ],
    "v4": [
-    "wave-1278/batch-0",
-    "wave-1279/batch-0",
-    "wave-1299/batch-0",
-    "wave-1310/batch-0",
-    "wave-1320/batch-0",
-    "wave-1323/batch-1",
-    "wave-1332/batch-0",
-    "wave-1341/batch-0",
-    "wave-1395/batch-0",
-    "wave-1397/batch-0"
+    "wave-0/batch-0",
+    "wave-1/batch-0",
+    "wave-21/batch-0",
+    "wave-32/batch-0",
+    "wave-42/batch-0",
+    "wave-45/batch-1",
+    "wave-54/batch-0",
+    "wave-63/batch-0",
+    "wave-117/batch-0",
+    "wave-119/batch-0"
    ],
-   "v4_main": "wave-1278/batch-0"
+   "v4_main": "wave-0/batch-0"
   },
-  "wave-4/batch-12": {
+  "legacy-wave-4/batch-12": {
    "run": "binder/run-14",
    "v2": "libavutil/core/wave-0/batch-12",
    "planner-run-3": [
@@ -292,17 +292,17 @@
     "100/0"
    ],
    "v4": [
-    "wave-1278/batch-0",
-    "wave-1299/batch-0",
-    "wave-1308/batch-0",
-    "wave-1316/batch-0",
-    "wave-1324/batch-0",
-    "wave-1424/batch-0",
-    "wave-1444/batch-0"
+    "wave-0/batch-0",
+    "wave-21/batch-0",
+    "wave-30/batch-0",
+    "wave-38/batch-0",
+    "wave-46/batch-0",
+    "wave-146/batch-0",
+    "wave-166/batch-0"
    ],
-   "v4_main": "wave-1278/batch-0"
+   "v4_main": "wave-0/batch-0"
   },
-  "wave-4/batch-13": {
+  "legacy-wave-4/batch-13": {
    "run": "binder/run-15",
    "v2": "libavutil/core/wave-0/batch-13",
    "planner-run-3": [
@@ -328,19 +328,19 @@
     "136/0"
    ],
    "v4": [
-    "wave-1278/batch-0",
-    "wave-1298/batch-0",
-    "wave-1299/batch-0",
-    "wave-1308/batch-0",
-    "wave-1310/batch-0",
-    "wave-1316/batch-0",
-    "wave-1332/batch-0",
-    "wave-1333/batch-1",
-    "wave-1395/batch-0"
+    "wave-0/batch-0",
+    "wave-20/batch-0",
+    "wave-21/batch-0",
+    "wave-30/batch-0",
+    "wave-32/batch-0",
+    "wave-38/batch-0",
+    "wave-54/batch-0",
+    "wave-55/batch-1",
+    "wave-117/batch-0"
    ],
-   "v4_main": "wave-1308/batch-0"
+   "v4_main": "wave-30/batch-0"
   },
-  "wave-4/batch-14": {
+  "legacy-wave-4/batch-14": {
    "run": "binder/run-16",
    "v2": "libavutil/core/wave-0/batch-14",
    "planner-run-3": [
@@ -366,19 +366,19 @@
     "192/0"
    ],
    "v4": [
-    "wave-1278/batch-0",
-    "wave-1279/batch-0",
-    "wave-1299/batch-0",
-    "wave-1300/batch-0",
-    "wave-1308/batch-0",
-    "wave-1341/batch-0",
-    "wave-1346/batch-0",
-    "wave-1396/batch-0",
-    "wave-1444/batch-0"
+    "wave-0/batch-0",
+    "wave-1/batch-0",
+    "wave-21/batch-0",
+    "wave-22/batch-0",
+    "wave-30/batch-0",
+    "wave-63/batch-0",
+    "wave-68/batch-0",
+    "wave-118/batch-0",
+    "wave-166/batch-0"
    ],
-   "v4_main": "wave-1299/batch-0"
+   "v4_main": "wave-21/batch-0"
   },
-  "wave-5/batch-0": {
+  "legacy-wave-5/batch-0": {
    "run": "reviewer/run-3",
    "v2": "libavutil/core/review-wave-0/batch-0",
    "planner-run-3": [
@@ -390,7 +390,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-1": {
+  "legacy-wave-5/batch-1": {
    "run": "reviewer/run-4",
    "v2": "libavutil/core/review-wave-0/batch-1",
    "planner-run-3": [
@@ -404,7 +404,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-2": {
+  "legacy-wave-5/batch-2": {
    "run": "reviewer/run-5",
    "v2": "libavutil/core/review-wave-0/batch-2",
    "planner-run-3": [
@@ -416,7 +416,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-3": {
+  "legacy-wave-5/batch-3": {
    "run": "reviewer/run-6",
    "v2": "libavutil/core/review-wave-0/batch-3",
    "planner-run-3": [
@@ -430,7 +430,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-4": {
+  "legacy-wave-5/batch-4": {
    "run": "reviewer/run-7",
    "v2": "libavutil/core/review-wave-0/batch-4",
    "planner-run-3": [
@@ -444,7 +444,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-5": {
+  "legacy-wave-5/batch-5": {
    "run": "reviewer/run-8",
    "v2": "libavutil/core/review-wave-0/batch-5",
    "planner-run-3": [
@@ -456,7 +456,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-6": {
+  "legacy-wave-5/batch-6": {
    "run": "reviewer/run-9",
    "v2": "libavutil/core/review-wave-0/batch-6",
    "planner-run-3": [
@@ -470,7 +470,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-7": {
+  "legacy-wave-5/batch-7": {
    "run": "reviewer/run-10",
    "v2": "libavutil/core/review-wave-0/batch-7",
    "planner-run-3": [
@@ -482,7 +482,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-8": {
+  "legacy-wave-5/batch-8": {
    "run": "reviewer/run-11",
    "v2": "libavutil/core/review-wave-0/batch-8",
    "planner-run-3": [
@@ -494,7 +494,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-9": {
+  "legacy-wave-5/batch-9": {
    "run": "reviewer/run-12",
    "v2": "libavutil/core/review-wave-0/batch-9",
    "planner-run-3": [
@@ -506,7 +506,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-10": {
+  "legacy-wave-5/batch-10": {
    "run": "reviewer/run-13",
    "v2": "libavutil/core/review-wave-0/batch-10",
    "planner-run-3": [
@@ -532,7 +532,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-11": {
+  "legacy-wave-5/batch-11": {
    "run": "reviewer/run-14",
    "v2": "libavutil/core/review-wave-0/batch-11",
    "planner-run-3": [
@@ -562,7 +562,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-12": {
+  "legacy-wave-5/batch-12": {
    "run": "reviewer/run-15",
    "v2": "libavutil/core/review-wave-0/batch-12",
    "planner-run-3": [
@@ -585,7 +585,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-13": {
+  "legacy-wave-5/batch-13": {
    "run": "reviewer/run-16",
    "v2": "libavutil/core/review-wave-0/batch-13",
    "planner-run-3": [
@@ -613,7 +613,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-5/batch-14": {
+  "legacy-wave-5/batch-14": {
    "run": "reviewer/run-17",
    "v2": "libavutil/core/review-wave-0/batch-14",
    "planner-run-3": [
@@ -641,7 +641,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-6/batch-0": {
+  "legacy-wave-6/batch-0": {
    "run": "binder/run-18",
    "v2": "libavutil/core/wave-1/batch-0",
    "planner-run-3": [
@@ -653,12 +653,12 @@
     "98/0"
    ],
    "v4": [
-    "wave-1303/batch-0",
-    "wave-1409/batch-0"
+    "wave-25/batch-0",
+    "wave-131/batch-0"
    ],
-   "v4_main": "wave-1303/batch-0"
+   "v4_main": "wave-25/batch-0"
   },
-  "wave-6/batch-1": {
+  "legacy-wave-6/batch-1": {
    "run": "binder/run-19",
    "v2": "libavutil/core/wave-1/batch-1",
    "planner-run-3": [
@@ -668,11 +668,11 @@
     "30/0"
    ],
    "v4": [
-    "wave-1303/batch-0"
+    "wave-25/batch-0"
    ],
-   "v4_main": "wave-1303/batch-0"
+   "v4_main": "wave-25/batch-0"
   },
-  "wave-6/batch-2": {
+  "legacy-wave-6/batch-2": {
    "run": "binder/run-20",
    "v2": "libavutil/core/wave-1/batch-2",
    "planner-run-3": [
@@ -692,16 +692,16 @@
     "176/0"
    ],
    "v4": [
-    "wave-1299/batch-0",
-    "wave-1375/batch-0",
-    "wave-1395/batch-0",
-    "wave-1396/batch-0",
-    "wave-1397/batch-0",
-    "wave-1444/batch-0"
+    "wave-21/batch-0",
+    "wave-97/batch-0",
+    "wave-117/batch-0",
+    "wave-118/batch-0",
+    "wave-119/batch-0",
+    "wave-166/batch-0"
    ],
-   "v4_main": "wave-1375/batch-0"
+   "v4_main": "wave-97/batch-0"
   },
-  "wave-6/batch-3": {
+  "legacy-wave-6/batch-3": {
    "run": "binder/run-21",
    "v2": "libavutil/core/wave-1/batch-3",
    "planner-run-3": [
@@ -711,11 +711,11 @@
     "170/0"
    ],
    "v4": [
-    "wave-1396/batch-0"
+    "wave-118/batch-0"
    ],
-   "v4_main": "wave-1396/batch-0"
+   "v4_main": "wave-118/batch-0"
   },
-  "wave-7/batch-0": {
+  "legacy-wave-7/batch-0": {
    "run": "reviewer/run-18",
    "v2": "libavutil/core/review-wave-1/batch-0",
    "planner-run-3": [
@@ -729,7 +729,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-7/batch-1": {
+  "legacy-wave-7/batch-1": {
    "run": "reviewer/run-19",
    "v2": "libavutil/core/review-wave-1/batch-1",
    "planner-run-3": [
@@ -751,7 +751,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-8/batch-0": {
+  "legacy-wave-8/batch-0": {
    "run": "binder/run-22",
    "v2": "libavutil/core/wave-2/batch-0",
    "planner-run-3": [
@@ -761,11 +761,11 @@
     "32/0"
    ],
    "v4": [
-    "wave-1358/batch-0"
+    "wave-80/batch-0"
    ],
-   "v4_main": "wave-1358/batch-0"
+   "v4_main": "wave-80/batch-0"
   },
-  "wave-9/batch-0": {
+  "legacy-wave-9/batch-0": {
    "run": "reviewer/run-20",
    "v2": "libavutil/core/review-wave-2/batch-0",
    "planner-run-3": [
@@ -777,7 +777,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-0": {
+  "legacy-wave-10/batch-0": {
    "run": "binder/run-23",
    "v2": "libavutil/formats/wave-0/batch-0",
    "planner-run-3": [
@@ -791,7 +791,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-1": {
+  "legacy-wave-10/batch-1": {
    "run": "binder/run-24",
    "v2": "libavutil/formats/wave-0/batch-1",
    "planner-run-3": [
@@ -805,7 +805,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-2": {
+  "legacy-wave-10/batch-2": {
    "run": "binder/run-25",
    "v2": "libavutil/formats/wave-0/batch-2",
    "planner-run-3": [
@@ -817,7 +817,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-3": {
+  "legacy-wave-10/batch-3": {
    "run": "binder/run-26",
    "v2": "libavutil/formats/wave-0/batch-3",
    "planner-run-3": [
@@ -829,7 +829,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-4": {
+  "legacy-wave-10/batch-4": {
    "run": "binder/run-27",
    "v2": "libavutil/formats/wave-0/batch-4",
    "planner-run-3": [
@@ -841,11 +841,11 @@
     "112/0"
    ],
    "v4": [
-    "wave-1330/batch-0"
+    "wave-52/batch-0"
    ],
-   "v4_main": "wave-1330/batch-0"
+   "v4_main": "wave-52/batch-0"
   },
-  "wave-10/batch-5": {
+  "legacy-wave-10/batch-5": {
    "run": "binder/run-28",
    "v2": "libavutil/formats/wave-0/batch-5",
    "planner-run-3": [
@@ -857,7 +857,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-6": {
+  "legacy-wave-10/batch-6": {
    "run": "binder/run-29",
    "v2": "libavutil/formats/wave-0/batch-6",
    "planner-run-3": [
@@ -869,7 +869,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-10/batch-7": {
+  "legacy-wave-10/batch-7": {
    "run": "binder/run-30",
    "v2": "libavutil/formats/wave-0/batch-7",
    "planner-run-3": [
@@ -885,14 +885,14 @@
     "134/0"
    ],
    "v4": [
-    "wave-1330/batch-1",
-    "wave-1331/batch-0",
-    "wave-1393/batch-1",
-    "wave-1394/batch-0"
+    "wave-52/batch-1",
+    "wave-53/batch-0",
+    "wave-115/batch-1",
+    "wave-116/batch-0"
    ],
-   "v4_main": "wave-1330/batch-1"
+   "v4_main": "wave-52/batch-1"
   },
-  "wave-11/batch-0": {
+  "legacy-wave-11/batch-0": {
    "run": "reviewer/run-21",
    "v2": "libavutil/formats/review-wave-0/batch-0",
    "planner-run-3": [
@@ -909,7 +909,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-11/batch-1": {
+  "legacy-wave-11/batch-1": {
    "run": "reviewer/run-22",
    "v2": "libavutil/formats/review-wave-0/batch-1",
    "planner-run-3": [
@@ -927,7 +927,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-12/batch-0": {
+  "legacy-wave-12/batch-0": {
    "run": "binder/run-31",
    "v2": "libavutil/formats/wave-1/batch-0",
    "planner-run-3": [
@@ -937,11 +937,11 @@
     "126/0"
    ],
    "v4": [
-    "wave-1393/batch-0"
+    "wave-115/batch-0"
    ],
-   "v4_main": "wave-1393/batch-0"
+   "v4_main": "wave-115/batch-0"
   },
-  "wave-12/batch-1": {
+  "legacy-wave-12/batch-1": {
    "run": "binder/run-32",
    "v2": "libavutil/formats/wave-1/batch-1",
    "planner-run-3": [
@@ -953,12 +953,12 @@
     "126/0"
    ],
    "v4": [
-    "wave-1392/batch-0",
-    "wave-1393/batch-0"
+    "wave-114/batch-0",
+    "wave-115/batch-0"
    ],
-   "v4_main": "wave-1392/batch-0"
+   "v4_main": "wave-114/batch-0"
   },
-  "wave-12/batch-2": {
+  "legacy-wave-12/batch-2": {
    "run": "binder/run-33",
    "v2": "libavutil/formats/wave-1/batch-2",
    "planner-run-3": [
@@ -968,11 +968,11 @@
     "114/0"
    ],
    "v4": [
-    "wave-1374/batch-0"
+    "wave-96/batch-0"
    ],
-   "v4_main": "wave-1374/batch-0"
+   "v4_main": "wave-96/batch-0"
   },
-  "wave-12/batch-3": {
+  "legacy-wave-12/batch-3": {
    "run": "binder/run-34",
    "v2": "libavutil/formats/wave-1/batch-3",
    "planner-run-3": [
@@ -988,15 +988,15 @@
     "148/0"
    ],
    "v4": [
-    "wave-1330/batch-1",
-    "wave-1336/batch-0",
-    "wave-1392/batch-1",
-    "wave-1393/batch-1",
-    "wave-1401/batch-1"
+    "wave-52/batch-1",
+    "wave-58/batch-0",
+    "wave-114/batch-1",
+    "wave-115/batch-1",
+    "wave-123/batch-1"
    ],
-   "v4_main": "wave-1330/batch-1"
+   "v4_main": "wave-52/batch-1"
   },
-  "wave-12/batch-4": {
+  "legacy-wave-12/batch-4": {
    "run": "binder/run-35",
    "v2": "libavutil/formats/wave-1/batch-4",
    "planner-run-3": [
@@ -1010,13 +1010,13 @@
     "148/0"
    ],
    "v4": [
-    "wave-1330/batch-1",
-    "wave-1336/batch-0",
-    "wave-1394/batch-0"
+    "wave-52/batch-1",
+    "wave-58/batch-0",
+    "wave-116/batch-0"
    ],
-   "v4_main": "wave-1394/batch-0"
+   "v4_main": "wave-116/batch-0"
   },
-  "wave-12/batch-5": {
+  "legacy-wave-12/batch-5": {
    "run": "binder/run-36",
    "v2": "libavutil/formats/wave-1/batch-5",
    "planner-run-3": [
@@ -1030,13 +1030,13 @@
     "148/0"
    ],
    "v4": [
-    "wave-1330/batch-1",
-    "wave-1331/batch-0",
-    "wave-1336/batch-0"
+    "wave-52/batch-1",
+    "wave-53/batch-0",
+    "wave-58/batch-0"
    ],
-   "v4_main": "wave-1336/batch-0"
+   "v4_main": "wave-58/batch-0"
   },
-  "wave-13/batch-0": {
+  "legacy-wave-13/batch-0": {
    "run": "reviewer/run-23",
    "v2": "libavutil/formats/review-wave-1/batch-0",
    "planner-run-3": [
@@ -1052,7 +1052,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-13/batch-1": {
+  "legacy-wave-13/batch-1": {
    "run": "reviewer/run-24",
    "v2": "libavutil/formats/review-wave-1/batch-1",
    "planner-run-3": [
@@ -1074,7 +1074,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-14/batch-0": {
+  "legacy-wave-14/batch-0": {
    "run": "binder/run-37",
    "v2": "libavutil/formats/wave-2/batch-0",
    "planner-run-3": [
@@ -1086,12 +1086,12 @@
     "128/0"
    ],
    "v4": [
-    "wave-1400/batch-0",
-    "wave-1401/batch-0"
+    "wave-122/batch-0",
+    "wave-123/batch-0"
    ],
-   "v4_main": "wave-1400/batch-0"
+   "v4_main": "wave-122/batch-0"
   },
-  "wave-14/batch-1": {
+  "legacy-wave-14/batch-1": {
    "run": "binder/run-38",
    "v2": "libavutil/formats/wave-2/batch-1",
    "planner-run-3": [
@@ -1107,14 +1107,14 @@
     "134/0"
    ],
    "v4": [
-    "wave-1389/batch-0",
-    "wave-1392/batch-1",
-    "wave-1394/batch-0",
-    "wave-1401/batch-1"
+    "wave-111/batch-0",
+    "wave-114/batch-1",
+    "wave-116/batch-0",
+    "wave-123/batch-1"
    ],
-   "v4_main": "wave-1389/batch-0"
+   "v4_main": "wave-111/batch-0"
   },
-  "wave-15/batch-0": {
+  "legacy-wave-15/batch-0": {
    "run": "reviewer/run-25",
    "v2": "libavutil/formats/review-wave-2/batch-0",
    "planner-run-3": [
@@ -1128,7 +1128,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-15/batch-1": {
+  "legacy-wave-15/batch-1": {
    "run": "reviewer/run-26",
    "v2": "libavutil/formats/review-wave-2/batch-1",
    "planner-run-3": [
@@ -1146,7 +1146,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-16/batch-0": {
+  "legacy-wave-16/batch-0": {
    "run": "binder/run-39",
    "v2": "libavutil/formats/wave-3/batch-0",
    "planner-run-3": [
@@ -1156,11 +1156,11 @@
     "130/0"
    ],
    "v4": [
-    "wave-1404/batch-0"
+    "wave-126/batch-0"
    ],
-   "v4_main": "wave-1404/batch-0"
+   "v4_main": "wave-126/batch-0"
   },
-  "wave-16/batch-1": {
+  "legacy-wave-16/batch-1": {
    "run": "binder/run-41",
    "v2": "libavutil/formats/wave-3/batch-1",
    "planner-run-3": [
@@ -1170,11 +1170,11 @@
     "54/0"
    ],
    "v4": [
-    "wave-1403/batch-0"
+    "wave-125/batch-0"
    ],
-   "v4_main": "wave-1403/batch-0"
+   "v4_main": "wave-125/batch-0"
   },
-  "wave-16/batch-2": {
+  "legacy-wave-16/batch-2": {
    "run": "binder/run-40",
    "v2": "libavutil/formats/wave-3/batch-2",
    "planner-run-3": [
@@ -1184,11 +1184,11 @@
     "54/1"
    ],
    "v4": [
-    "wave-1403/batch-1"
+    "wave-125/batch-1"
    ],
-   "v4_main": "wave-1403/batch-1"
+   "v4_main": "wave-125/batch-1"
   },
-  "wave-17/batch-0": {
+  "legacy-wave-17/batch-0": {
    "run": "reviewer/run-27",
    "v2": "libavutil/formats/review-wave-3/batch-0",
    "planner-run-3": [
@@ -1200,7 +1200,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-17/batch-1": {
+  "legacy-wave-17/batch-1": {
    "run": "reviewer/run-28",
    "v2": "libavutil/formats/review-wave-3/batch-1",
    "planner-run-3": [
@@ -1212,7 +1212,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-18/batch-0": {
+  "legacy-wave-18/batch-0": {
    "run": "binder/run-42",
    "v2": "libavutil/formats/wave-4/batch-0",
    "planner-run-3": [
@@ -1222,11 +1222,11 @@
     "132/0"
    ],
    "v4": [
-    "wave-1405/batch-0"
+    "wave-127/batch-0"
    ],
-   "v4_main": "wave-1405/batch-0"
+   "v4_main": "wave-127/batch-0"
   },
-  "wave-19/batch-0": {
+  "legacy-wave-19/batch-0": {
    "run": "reviewer/run-29",
    "v2": "libavutil/formats/review-wave-4/batch-0",
    "planner-run-3": [
@@ -1238,7 +1238,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-20/batch-0": {
+  "legacy-wave-20/batch-0": {
    "run": "binder/run-43",
    "v2": "libavutil/options/wave-0/batch-0",
    "planner-run-3": [
@@ -1248,11 +1248,11 @@
     "66/0"
    ],
    "v4": [
-    "wave-1313/batch-0"
+    "wave-35/batch-0"
    ],
-   "v4_main": "wave-1313/batch-0"
+   "v4_main": "wave-35/batch-0"
   },
-  "wave-20/batch-1": {
+  "legacy-wave-20/batch-1": {
    "run": "binder/run-44",
    "v2": "libavutil/options/wave-0/batch-1",
    "planner-run-3": [
@@ -1264,12 +1264,12 @@
     "94/0"
    ],
    "v4": [
-    "wave-1317/batch-0",
-    "wave-1407/batch-0"
+    "wave-39/batch-0",
+    "wave-129/batch-0"
    ],
-   "v4_main": "wave-1317/batch-0"
+   "v4_main": "wave-39/batch-0"
   },
-  "wave-20/batch-2": {
+  "legacy-wave-20/batch-2": {
    "run": "binder/run-45",
    "v2": "libavutil/options/wave-0/batch-2",
    "planner-run-3": [
@@ -1279,11 +1279,11 @@
     "94/1"
    ],
    "v4": [
-    "wave-1407/batch-0"
+    "wave-129/batch-0"
    ],
-   "v4_main": "wave-1407/batch-0"
+   "v4_main": "wave-129/batch-0"
   },
-  "wave-20/batch-3": {
+  "legacy-wave-20/batch-3": {
    "run": "binder/run-46",
    "v2": "libavutil/options/wave-0/batch-3",
    "planner-run-3": [
@@ -1299,14 +1299,14 @@
     "152/1"
    ],
    "v4": [
-    "wave-1317/batch-1",
-    "wave-1410/batch-0",
-    "wave-1410/batch-1",
-    "wave-1467/batch-0"
+    "wave-39/batch-1",
+    "wave-132/batch-0",
+    "wave-132/batch-1",
+    "wave-189/batch-0"
    ],
-   "v4_main": "wave-1410/batch-0"
+   "v4_main": "wave-132/batch-0"
   },
-  "wave-20/batch-4": {
+  "legacy-wave-20/batch-4": {
    "run": "binder/run-47",
    "v2": "libavutil/options/wave-0/batch-4",
    "planner-run-3": [
@@ -1320,13 +1320,13 @@
     "152/1"
    ],
    "v4": [
-    "wave-1317/batch-1",
-    "wave-1410/batch-1",
-    "wave-1467/batch-0"
+    "wave-39/batch-1",
+    "wave-132/batch-1",
+    "wave-189/batch-0"
    ],
-   "v4_main": "wave-1467/batch-0"
+   "v4_main": "wave-189/batch-0"
   },
-  "wave-21/batch-0": {
+  "legacy-wave-21/batch-0": {
    "run": "reviewer/run-30",
    "v2": "libavutil/options/review-wave-0/batch-0",
    "planner-run-3": [
@@ -1342,7 +1342,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-21/batch-1": {
+  "legacy-wave-21/batch-1": {
    "run": "reviewer/run-31",
    "v2": "libavutil/options/review-wave-0/batch-1",
    "planner-run-3": [
@@ -1359,7 +1359,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-22/batch-0": {
+  "legacy-wave-22/batch-0": {
    "run": "binder/run-48",
    "v2": "libavutil/options/wave-1/batch-0",
    "planner-run-3": [
@@ -1373,13 +1373,13 @@
     "152/0"
    ],
    "v4": [
-    "wave-1364/batch-0",
-    "wave-1366/batch-0",
-    "wave-1410/batch-0"
+    "wave-86/batch-0",
+    "wave-88/batch-0",
+    "wave-132/batch-0"
    ],
-   "v4_main": "wave-1364/batch-0"
+   "v4_main": "wave-86/batch-0"
   },
-  "wave-22/batch-1": {
+  "legacy-wave-22/batch-1": {
    "run": "binder/run-49",
    "v2": "libavutil/options/wave-1/batch-1",
    "planner-run-3": [
@@ -1391,12 +1391,12 @@
     "152/1"
    ],
    "v4": [
-    "wave-1410/batch-1",
-    "wave-1467/batch-0"
+    "wave-132/batch-1",
+    "wave-189/batch-0"
    ],
-   "v4_main": "wave-1410/batch-1"
+   "v4_main": "wave-132/batch-1"
   },
-  "wave-23/batch-0": {
+  "legacy-wave-23/batch-0": {
    "run": "reviewer/run-32",
    "v2": "libavutil/options/review-wave-1/batch-0",
    "planner-run-3": [
@@ -1414,7 +1414,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-24/batch-0": {
+  "legacy-wave-24/batch-0": {
    "run": "binder/run-50",
    "v2": "libavutil/options/wave-2/batch-0",
    "planner-run-3": [
@@ -1424,11 +1424,11 @@
     "154/0"
    ],
    "v4": [
-    "wave-1415/batch-0"
+    "wave-137/batch-0"
    ],
-   "v4_main": "wave-1415/batch-0"
+   "v4_main": "wave-137/batch-0"
   },
-  "wave-25/batch-0": {
+  "legacy-wave-25/batch-0": {
    "run": "reviewer/run-33",
    "v2": "libavutil/options/review-wave-2/batch-0",
    "planner-run-3": [
@@ -1440,7 +1440,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-26/batch-0": {
+  "legacy-wave-26/batch-0": {
    "run": "binder/run-51",
    "v2": "libavutil/crypto/wave-0/batch-0",
    "planner-run-3": [
@@ -1452,12 +1452,12 @@
     "14/0"
    ],
    "v4": [
-    "wave-1295/batch-0",
-    "wave-1296/batch-0"
+    "wave-17/batch-0",
+    "wave-18/batch-0"
    ],
-   "v4_main": "wave-1295/batch-0"
+   "v4_main": "wave-17/batch-0"
   },
-  "wave-26/batch-1": {
+  "legacy-wave-26/batch-1": {
    "run": "binder/run-52",
    "v2": "libavutil/crypto/wave-0/batch-1",
    "planner-run-3": [
@@ -1469,12 +1469,12 @@
     "42/0"
    ],
    "v4": [
-    "wave-1302/batch-0",
-    "wave-1306/batch-0"
+    "wave-24/batch-0",
+    "wave-28/batch-0"
    ],
-   "v4_main": "wave-1302/batch-0"
+   "v4_main": "wave-24/batch-0"
   },
-  "wave-26/batch-2": {
+  "legacy-wave-26/batch-2": {
    "run": "binder/run-54",
    "v2": "libavutil/crypto/wave-0/batch-2",
    "planner-run-3": [
@@ -1486,11 +1486,11 @@
     "60/1"
    ],
    "v4": [
-    "wave-1307/batch-0"
+    "wave-29/batch-0"
    ],
-   "v4_main": "wave-1307/batch-0"
+   "v4_main": "wave-29/batch-0"
   },
-  "wave-26/batch-3": {
+  "legacy-wave-26/batch-3": {
    "run": "binder/run-55",
    "v2": "libavutil/crypto/wave-0/batch-3",
    "planner-run-3": [
@@ -1502,12 +1502,12 @@
     "82/0"
    ],
    "v4": [
-    "wave-1312/batch-0",
-    "wave-1322/batch-0"
+    "wave-34/batch-0",
+    "wave-44/batch-0"
    ],
-   "v4_main": "wave-1312/batch-0"
+   "v4_main": "wave-34/batch-0"
   },
-  "wave-26/batch-4": {
+  "legacy-wave-26/batch-4": {
    "run": "binder/run-56",
    "v2": "libavutil/crypto/wave-0/batch-4",
    "planner-run-3": [
@@ -1519,11 +1519,11 @@
     "82/1"
    ],
    "v4": [
-    "wave-1321/batch-0"
+    "wave-43/batch-0"
    ],
-   "v4_main": "wave-1321/batch-0"
+   "v4_main": "wave-43/batch-0"
   },
-  "wave-26/batch-5": {
+  "legacy-wave-26/batch-5": {
    "run": "binder/run-57",
    "v2": "libavutil/crypto/wave-0/batch-5",
    "planner-run-3": [
@@ -1535,12 +1535,12 @@
     "108/0"
    ],
    "v4": [
-    "wave-1328/batch-0",
-    "wave-1329/batch-0"
+    "wave-50/batch-0",
+    "wave-51/batch-0"
    ],
-   "v4_main": "wave-1328/batch-0"
+   "v4_main": "wave-50/batch-0"
   },
-  "wave-26/batch-6": {
+  "legacy-wave-26/batch-6": {
    "run": "binder/run-58",
    "v2": "libavutil/crypto/wave-0/batch-6",
    "planner-run-3": [
@@ -1552,12 +1552,12 @@
     "144/0"
    ],
    "v4": [
-    "wave-1334/batch-0",
-    "wave-1335/batch-0"
+    "wave-56/batch-0",
+    "wave-57/batch-0"
    ],
-   "v4_main": "wave-1334/batch-0"
+   "v4_main": "wave-56/batch-0"
   },
-  "wave-26/batch-7": {
+  "legacy-wave-26/batch-7": {
    "run": "binder/run-59",
    "v2": "libavutil/crypto/wave-0/batch-7",
    "planner-run-3": [
@@ -1569,12 +1569,12 @@
     "160/0"
    ],
    "v4": [
-    "wave-1337/batch-0",
-    "wave-1338/batch-0"
+    "wave-59/batch-0",
+    "wave-60/batch-0"
    ],
-   "v4_main": "wave-1337/batch-0"
+   "v4_main": "wave-59/batch-0"
   },
-  "wave-26/batch-8": {
+  "legacy-wave-26/batch-8": {
    "run": "binder/run-60",
    "v2": "libavutil/crypto/wave-0/batch-8",
    "planner-run-3": [
@@ -1586,12 +1586,12 @@
     "172/0"
    ],
    "v4": [
-    "wave-1339/batch-0",
-    "wave-1343/batch-0"
+    "wave-61/batch-0",
+    "wave-65/batch-0"
    ],
-   "v4_main": "wave-1339/batch-0"
+   "v4_main": "wave-61/batch-0"
   },
-  "wave-26/batch-9": {
+  "legacy-wave-26/batch-9": {
    "run": "binder/run-61",
    "v2": "libavutil/crypto/wave-0/batch-9",
    "planner-run-3": [
@@ -1601,11 +1601,11 @@
     "194/0"
    ],
    "v4": [
-    "wave-1347/batch-0"
+    "wave-69/batch-0"
    ],
-   "v4_main": "wave-1347/batch-0"
+   "v4_main": "wave-69/batch-0"
   },
-  "wave-26/batch-10": {
+  "legacy-wave-26/batch-10": {
    "run": "binder/run-53",
    "v2": "libavutil/crypto/wave-0/batch-10",
    "planner-run-3": [
@@ -1643,25 +1643,25 @@
     "190/0"
    ],
    "v4": [
-    "wave-1294/batch-0",
-    "wave-1295/batch-1",
-    "wave-1301/batch-0",
-    "wave-1306/batch-1",
-    "wave-1307/batch-1",
-    "wave-1311/batch-0",
-    "wave-1321/batch-1",
-    "wave-1327/batch-0",
-    "wave-1328/batch-1",
-    "wave-1335/batch-1",
-    "wave-1337/batch-1",
-    "wave-1338/batch-1",
-    "wave-1339/batch-1",
-    "wave-1343/batch-1",
-    "wave-1345/batch-0"
+    "wave-16/batch-0",
+    "wave-17/batch-1",
+    "wave-23/batch-0",
+    "wave-28/batch-1",
+    "wave-29/batch-1",
+    "wave-33/batch-0",
+    "wave-43/batch-1",
+    "wave-49/batch-0",
+    "wave-50/batch-1",
+    "wave-57/batch-1",
+    "wave-59/batch-1",
+    "wave-60/batch-1",
+    "wave-61/batch-1",
+    "wave-65/batch-1",
+    "wave-67/batch-0"
    ],
-   "v4_main": "wave-1345/batch-0"
+   "v4_main": "wave-67/batch-0"
   },
-  "wave-27/batch-0": {
+  "legacy-wave-27/batch-0": {
    "run": "reviewer/run-34",
    "v2": "libavutil/crypto/review-wave-0/batch-0",
    "planner-run-3": [
@@ -1708,7 +1708,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-27/batch-1": {
+  "legacy-wave-27/batch-1": {
    "run": "reviewer/run-35",
    "v2": "libavutil/crypto/review-wave-0/batch-1",
    "planner-run-3": [
@@ -1748,7 +1748,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-28/batch-0": {
+  "legacy-wave-28/batch-0": {
    "run": "binder/run-62",
    "v2": "libavutil/crypto/wave-1/batch-0",
    "planner-run-3": [
@@ -1770,17 +1770,17 @@
     "64/0"
    ],
    "v4": [
-    "wave-1311/batch-0",
-    "wave-1354/batch-0",
-    "wave-1355/batch-0",
-    "wave-1357/batch-0",
-    "wave-1360/batch-0",
-    "wave-1361/batch-0",
-    "wave-1363/batch-0"
+    "wave-33/batch-0",
+    "wave-76/batch-0",
+    "wave-77/batch-0",
+    "wave-79/batch-0",
+    "wave-82/batch-0",
+    "wave-83/batch-0",
+    "wave-85/batch-0"
    ],
-   "v4_main": "wave-1355/batch-0"
+   "v4_main": "wave-77/batch-0"
   },
-  "wave-28/batch-1": {
+  "legacy-wave-28/batch-1": {
    "run": "binder/run-63",
    "v2": "libavutil/crypto/wave-1/batch-1",
    "planner-run-3": [
@@ -1798,15 +1798,15 @@
     "110/0"
    ],
    "v4": [
-    "wave-1363/batch-0",
-    "wave-1369/batch-0",
-    "wave-1370/batch-0",
-    "wave-1372/batch-0",
-    "wave-1373/batch-0"
+    "wave-85/batch-0",
+    "wave-91/batch-0",
+    "wave-92/batch-0",
+    "wave-94/batch-0",
+    "wave-95/batch-0"
    ],
-   "v4_main": "wave-1369/batch-0"
+   "v4_main": "wave-91/batch-0"
   },
-  "wave-28/batch-2": {
+  "legacy-wave-28/batch-2": {
    "run": "binder/run-64",
    "v2": "libavutil/crypto/wave-1/batch-2",
    "planner-run-3": [
@@ -1830,18 +1830,18 @@
     "196/0"
    ],
    "v4": [
-    "wave-1373/batch-0",
-    "wave-1376/batch-0",
-    "wave-1377/batch-0",
-    "wave-1378/batch-0",
-    "wave-1379/batch-0",
-    "wave-1380/batch-0",
-    "wave-1383/batch-0",
-    "wave-1385/batch-0"
+    "wave-95/batch-0",
+    "wave-98/batch-0",
+    "wave-99/batch-0",
+    "wave-100/batch-0",
+    "wave-101/batch-0",
+    "wave-102/batch-0",
+    "wave-105/batch-0",
+    "wave-107/batch-0"
    ],
-   "v4_main": "wave-1377/batch-0"
+   "v4_main": "wave-99/batch-0"
   },
-  "wave-28/batch-3": {
+  "legacy-wave-28/batch-3": {
    "run": "binder/run-65",
    "v2": "libavutil/crypto/wave-1/batch-3",
    "planner-run-3": [
@@ -1851,11 +1851,11 @@
     "196/0"
    ],
    "v4": [
-    "wave-1385/batch-0"
+    "wave-107/batch-0"
    ],
-   "v4_main": "wave-1385/batch-0"
+   "v4_main": "wave-107/batch-0"
   },
-  "wave-29/batch-0": {
+  "legacy-wave-29/batch-0": {
    "run": "reviewer/run-36",
    "v2": "libavutil/crypto/review-wave-1/batch-0",
    "planner-run-3": [
@@ -1901,7 +1901,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-30/batch-0": {
+  "legacy-wave-30/batch-0": {
    "run": "binder/run-66",
    "v2": "libavutil/buffer-frame/wave-0/batch-0",
    "planner-run-3": [
@@ -1913,7 +1913,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-30/batch-1": {
+  "legacy-wave-30/batch-1": {
    "run": "binder/run-67",
    "v2": "libavutil/buffer-frame/wave-0/batch-1",
    "planner-run-3": [
@@ -1923,11 +1923,11 @@
     "36/0"
    ],
    "v4": [
-    "wave-1305/batch-0"
+    "wave-27/batch-0"
    ],
-   "v4_main": "wave-1305/batch-0"
+   "v4_main": "wave-27/batch-0"
   },
-  "wave-30/batch-2": {
+  "legacy-wave-30/batch-2": {
    "run": "binder/run-68",
    "v2": "libavutil/buffer-frame/wave-0/batch-2",
    "planner-run-3": [
@@ -1939,7 +1939,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-30/batch-3": {
+  "legacy-wave-30/batch-3": {
    "run": "binder/run-69",
    "v2": "libavutil/buffer-frame/wave-0/batch-3",
    "planner-run-3": [
@@ -1949,11 +1949,11 @@
     "2/0"
    ],
    "v4": [
-    "wave-1280/batch-0"
+    "wave-2/batch-0"
    ],
-   "v4_main": "wave-1280/batch-0"
+   "v4_main": "wave-2/batch-0"
   },
-  "wave-30/batch-4": {
+  "legacy-wave-30/batch-4": {
    "run": "binder/run-70",
    "v2": "libavutil/buffer-frame/wave-0/batch-4",
    "planner-run-3": [
@@ -1963,11 +1963,11 @@
     "178/0"
    ],
    "v4": [
-    "wave-1406/batch-0"
+    "wave-128/batch-0"
    ],
-   "v4_main": "wave-1406/batch-0"
+   "v4_main": "wave-128/batch-0"
   },
-  "wave-30/batch-5": {
+  "legacy-wave-30/batch-5": {
    "run": "binder/run-71",
    "v2": "libavutil/buffer-frame/wave-0/batch-5",
    "planner-run-3": [
@@ -1979,12 +1979,12 @@
     "36/1"
    ],
    "v4": [
-    "wave-1280/batch-1",
-    "wave-1305/batch-1"
+    "wave-2/batch-1",
+    "wave-27/batch-1"
    ],
-   "v4_main": "wave-1280/batch-1"
+   "v4_main": "wave-2/batch-1"
   },
-  "wave-31/batch-0": {
+  "legacy-wave-31/batch-0": {
    "run": "reviewer/run-37",
    "v2": "libavutil/buffer-frame/review-wave-0/batch-0",
    "planner-run-3": [
@@ -2001,7 +2001,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-31/batch-1": {
+  "legacy-wave-31/batch-1": {
    "run": "reviewer/run-38",
    "v2": "libavutil/buffer-frame/review-wave-0/batch-1",
    "planner-run-3": [
@@ -2015,7 +2015,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-32/batch-0": {
+  "legacy-wave-32/batch-0": {
    "run": "binder/run-72",
    "v2": "libavutil/buffer-frame/wave-1/batch-0",
    "planner-run-3": [
@@ -2027,12 +2027,12 @@
     "180/1"
    ],
    "v4": [
-    "wave-1359/batch-0",
-    "wave-1412/batch-1"
+    "wave-81/batch-0",
+    "wave-134/batch-1"
    ],
-   "v4_main": "wave-1359/batch-0"
+   "v4_main": "wave-81/batch-0"
   },
-  "wave-32/batch-1": {
+  "legacy-wave-32/batch-1": {
    "run": "binder/run-73",
    "v2": "libavutil/buffer-frame/wave-1/batch-1",
    "planner-run-3": [
@@ -2046,13 +2046,13 @@
     "188/0"
    ],
    "v4": [
-    "wave-1281/batch-0",
-    "wave-1359/batch-1",
-    "wave-1429/batch-0"
+    "wave-3/batch-0",
+    "wave-81/batch-1",
+    "wave-151/batch-0"
    ],
-   "v4_main": "wave-1281/batch-0"
+   "v4_main": "wave-3/batch-0"
   },
-  "wave-33/batch-0": {
+  "legacy-wave-33/batch-0": {
    "run": "reviewer/run-39",
    "v2": "libavutil/buffer-frame/review-wave-1/batch-0",
    "planner-run-3": [
@@ -2066,7 +2066,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-33/batch-1": {
+  "legacy-wave-33/batch-1": {
    "run": "reviewer/run-40",
    "v2": "libavutil/buffer-frame/review-wave-1/batch-1",
    "planner-run-3": [
@@ -2082,7 +2082,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-34/batch-0": {
+  "legacy-wave-34/batch-0": {
    "run": "binder/run-74",
    "v2": "libavutil/buffer-frame/wave-2/batch-0",
    "planner-run-3": [
@@ -2092,11 +2092,11 @@
     "178/0"
    ],
    "v4": [
-    "wave-1406/batch-0"
+    "wave-128/batch-0"
    ],
-   "v4_main": "wave-1406/batch-0"
+   "v4_main": "wave-128/batch-0"
   },
-  "wave-34/batch-1": {
+  "legacy-wave-34/batch-1": {
    "run": "binder/run-75",
    "v2": "libavutil/buffer-frame/wave-2/batch-1",
    "planner-run-3": [
@@ -2106,11 +2106,11 @@
     "40/0"
    ],
    "v4": [
-    "wave-1386/batch-0"
+    "wave-108/batch-0"
    ],
-   "v4_main": "wave-1386/batch-0"
+   "v4_main": "wave-108/batch-0"
   },
-  "wave-35/batch-0": {
+  "legacy-wave-35/batch-0": {
    "run": "reviewer/run-41",
    "v2": "libavutil/buffer-frame/review-wave-2/batch-0",
    "planner-run-3": [
@@ -2122,7 +2122,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-35/batch-1": {
+  "legacy-wave-35/batch-1": {
    "run": "reviewer/run-42",
    "v2": "libavutil/buffer-frame/review-wave-2/batch-1",
    "planner-run-3": [
@@ -2134,7 +2134,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-36/batch-0": {
+  "legacy-wave-36/batch-0": {
    "run": "binder/run-76",
    "v2": "libavutil/buffer-frame/wave-3/batch-0",
    "planner-run-3": [
@@ -2144,11 +2144,11 @@
     "180/0"
    ],
    "v4": [
-    "wave-1412/batch-0"
+    "wave-134/batch-0"
    ],
-   "v4_main": "wave-1412/batch-0"
+   "v4_main": "wave-134/batch-0"
   },
-  "wave-36/batch-1": {
+  "legacy-wave-36/batch-1": {
    "run": "binder/run-77",
    "v2": "libavutil/buffer-frame/wave-3/batch-1",
    "planner-run-3": [
@@ -2160,11 +2160,11 @@
     "188/0"
    ],
    "v4": [
-    "wave-1429/batch-0"
+    "wave-151/batch-0"
    ],
-   "v4_main": "wave-1429/batch-0"
+   "v4_main": "wave-151/batch-0"
   },
-  "wave-37/batch-0": {
+  "legacy-wave-37/batch-0": {
    "run": "reviewer/run-43",
    "v2": "libavutil/buffer-frame/review-wave-3/batch-0",
    "planner-run-3": [
@@ -2176,7 +2176,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-37/batch-1": {
+  "legacy-wave-37/batch-1": {
    "run": "reviewer/run-44",
    "v2": "libavutil/buffer-frame/review-wave-3/batch-1",
    "planner-run-3": [
@@ -2190,7 +2190,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-38/batch-0": {
+  "legacy-wave-38/batch-0": {
    "run": "binder/run-78",
    "v2": "libavutil/buffer-frame/wave-4/batch-0",
    "planner-run-3": [
@@ -2200,11 +2200,11 @@
     "182/0"
    ],
    "v4": [
-    "wave-1414/batch-0"
+    "wave-136/batch-0"
    ],
-   "v4_main": "wave-1414/batch-0"
+   "v4_main": "wave-136/batch-0"
   },
-  "wave-39/batch-0": {
+  "legacy-wave-39/batch-0": {
    "run": "reviewer/run-45",
    "v2": "libavutil/buffer-frame/review-wave-4/batch-0",
    "planner-run-3": [
@@ -2216,7 +2216,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-40/batch-0": {
+  "legacy-wave-40/batch-0": {
    "run": "binder/run-79",
    "v2": "libavutil/hwcontext/wave-0/batch-0",
    "planner-run-3": [
@@ -2228,7 +2228,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-41/batch-0": {
+  "legacy-wave-41/batch-0": {
    "run": "reviewer/run-46",
    "v2": "libavutil/hwcontext/review-wave-0/batch-0",
    "planner-run-3": [
@@ -2240,7 +2240,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-42/batch-0": {
+  "legacy-wave-42/batch-0": {
    "run": "binder/run-80",
    "v2": "libavutil/hwcontext/wave-1/batch-0",
    "planner-run-3": [
@@ -2250,11 +2250,11 @@
     "184/0"
    ],
    "v4": [
-    "wave-1465/batch-0"
+    "wave-187/batch-0"
    ],
-   "v4_main": "wave-1465/batch-0"
+   "v4_main": "wave-187/batch-0"
   },
-  "wave-42/batch-1": {
+  "legacy-wave-42/batch-1": {
    "run": "binder/run-81",
    "v2": "libavutil/hwcontext/wave-1/batch-1",
    "planner-run-3": [
@@ -2264,11 +2264,11 @@
     "184/1"
    ],
    "v4": [
-    "wave-1465/batch-1"
+    "wave-187/batch-1"
    ],
-   "v4_main": "wave-1465/batch-1"
+   "v4_main": "wave-187/batch-1"
   },
-  "wave-42/batch-2": {
+  "legacy-wave-42/batch-2": {
    "run": "binder/run-82",
    "v2": "libavutil/hwcontext/wave-1/batch-2",
    "planner-run-3": [
@@ -2278,11 +2278,11 @@
     "184/2"
    ],
    "v4": [
-    "wave-1465/batch-2"
+    "wave-187/batch-2"
    ],
-   "v4_main": "wave-1465/batch-2"
+   "v4_main": "wave-187/batch-2"
   },
-  "wave-43/batch-0": {
+  "legacy-wave-43/batch-0": {
    "run": "reviewer/run-47",
    "v2": "libavutil/hwcontext/review-wave-1/batch-0",
    "planner-run-3": [
@@ -2294,7 +2294,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-43/batch-1": {
+  "legacy-wave-43/batch-1": {
    "run": "reviewer/run-48",
    "v2": "libavutil/hwcontext/review-wave-1/batch-1",
    "planner-run-3": [
@@ -2306,7 +2306,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-44/batch-0": {
+  "legacy-wave-44/batch-0": {
    "run": "binder/run-83",
    "v2": "libavutil/hwcontext/wave-2/batch-0",
    "planner-run-3": [
@@ -2316,11 +2316,11 @@
     "186/0"
    ],
    "v4": [
-    "wave-1480/batch-0"
+    "wave-202/batch-0"
    ],
-   "v4_main": "wave-1480/batch-0"
+   "v4_main": "wave-202/batch-0"
   },
-  "wave-44/batch-1": {
+  "legacy-wave-44/batch-1": {
    "run": "binder/run-84",
    "v2": "libavutil/hwcontext/wave-2/batch-1",
    "planner-run-3": [
@@ -2330,11 +2330,11 @@
     "186/1"
    ],
    "v4": [
-    "wave-1480/batch-1"
+    "wave-202/batch-1"
    ],
-   "v4_main": "wave-1480/batch-1"
+   "v4_main": "wave-202/batch-1"
   },
-  "wave-45/batch-0": {
+  "legacy-wave-45/batch-0": {
    "run": "reviewer/run-49",
    "v2": "libavutil/hwcontext/review-wave-2/batch-0",
    "planner-run-3": [
@@ -2346,7 +2346,7 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-45/batch-1": {
+  "legacy-wave-45/batch-1": {
    "run": "reviewer/run-50",
    "v2": "libavutil/hwcontext/review-wave-2/batch-1",
    "planner-run-3": [
@@ -2358,50 +2358,50 @@
    "v4": [],
    "v4_main": null
   },
-  "wave-794/batch-0": {
+  "legacy-wave-794/batch-0": {
    "run": "binder/run-85",
    "v4": [
-    "wave-1408/batch-0"
+    "wave-130/batch-0"
    ],
-   "v4_main": "wave-1408/batch-0"
+   "v4_main": "wave-130/batch-0"
   },
-  "wave-800/batch-0": {
+  "legacy-wave-800/batch-0": {
    "run": "binder/run-86",
    "v4": [
-    "wave-1444/batch-0"
+    "wave-166/batch-0"
    ],
-   "v4_main": "wave-1444/batch-0"
+   "v4_main": "wave-166/batch-0"
   },
-  "wave-902/batch-1": {
+  "legacy-wave-902/batch-1": {
    "run": "binder/run-87",
    "v4": [
-    "wave-1412/batch-1"
+    "wave-134/batch-1"
    ],
-   "v4_main": "wave-1412/batch-1"
+   "v4_main": "wave-134/batch-1"
   },
-  "wave-952/batch-0": {
+  "legacy-wave-952/batch-0": {
    "run": "binder/run-88",
    "v4": [
-    "wave-1465/batch-0"
+    "wave-187/batch-0"
    ],
-   "v4_main": "wave-1465/batch-0"
+   "v4_main": "wave-187/batch-0"
   },
-  "wave-795/batch-0": {
+  "legacy-wave-795/batch-0": {
    "run": "reviewer/run-129",
    "v4": [],
    "v4_main": null
   },
-  "wave-801/batch-0": {
+  "legacy-wave-801/batch-0": {
    "run": "reviewer/run-130",
    "v4": [],
    "v4_main": null
   },
-  "wave-903/batch-0": {
+  "legacy-wave-903/batch-0": {
    "run": "reviewer/run-131",
    "v4": [],
    "v4_main": null
   },
-  "wave-953/batch-0": {
+  "legacy-wave-953/batch-0": {
    "run": "reviewer/run-132",
    "v4": [],
    "v4_main": null

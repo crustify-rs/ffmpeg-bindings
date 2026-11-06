@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/avstring.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 16,
   "link_unit": "libavutil",
   "module": null,

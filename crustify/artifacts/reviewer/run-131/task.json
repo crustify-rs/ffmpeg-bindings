@@ -2,7 +2,7 @@
   "commits": [
     "3ad703496108d7a83c5025b926a6ed20c5602963"
   ],
-  "wave": 903,
+  "wave": "legacy-903",
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/frame.c",

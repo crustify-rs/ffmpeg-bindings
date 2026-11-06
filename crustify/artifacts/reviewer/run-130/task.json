@@ -2,7 +2,7 @@
   "commits": [
     "c0f53d14a81ee56931c6d8e40244d87abe5f4642"
   ],
-  "wave": 801,
+  "wave": "legacy-801",
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/log.c",

@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/csp.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 6,
   "link_unit": "libavutil",
   "module": null,

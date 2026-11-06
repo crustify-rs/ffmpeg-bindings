@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/pixelutils.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 23,
   "link_unit": "libavutil",
   "module": null,

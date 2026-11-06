@@ -11,7 +11,7 @@
     "e1df91c77218d6d12df1050ba7f81cf7a85a4bab",
     "a15a84376b54960926501dfb84641e7d65f1d9a9"
   ],
-  "wave": 27,
+  "wave": "legacy-27",
   "batch": 0,
   "link_unit": "libavutil",
   "module": null,

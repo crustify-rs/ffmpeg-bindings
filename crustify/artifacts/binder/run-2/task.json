@@ -9,7 +9,7 @@
       "home": "src/libavutil/libavutil/mem.rs"
     }
   ],
-  "wave": 2,
+  "wave": "legacy-2",
   "batch": 0,
   "link_unit": "libavutil",
   "module": null,

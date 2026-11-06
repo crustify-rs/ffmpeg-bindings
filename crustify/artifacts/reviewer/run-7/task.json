@@ -2,7 +2,7 @@
   "commits": [
     "2975c095681a3ff1188c8590a1420d92c9be68f4"
   ],
-  "wave": 5,
+  "wave": "legacy-5",
   "batch": 4,
   "link_unit": "libavutil",
   "module": null,

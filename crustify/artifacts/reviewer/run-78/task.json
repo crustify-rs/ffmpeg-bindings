@@ -6,7 +6,7 @@
   "paths": [
     "src/libavutil/libavutil/common_h.rs"
   ],
-  "wave": 671,
+  "wave": "legacy-671",
   "batch": 26,
   "link_unit": "libavutil",
   "module": null,

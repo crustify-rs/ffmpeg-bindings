@@ -2,7 +2,7 @@
   "commits": [
     "1b7312582ee5c7db7f0a122f40c8d7f41f6d56dc"
   ],
-  "wave": 953,
+  "wave": "legacy-953",
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/hwcontext.c",

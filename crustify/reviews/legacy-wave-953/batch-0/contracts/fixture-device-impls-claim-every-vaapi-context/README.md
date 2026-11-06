@@ -39,7 +39,7 @@ with the fixtures included by `#[path]`. The one `unsafe` call is the fixtures' 
 then `value()`.
 
 ```bash
-cd crustify/reviews/wave-953/batch-0/contracts/fixture-device-impls-claim-every-vaapi-context
+cd crustify/reviews/legacy-wave-953/batch-0/contracts/fixture-device-impls-claim-every-vaapi-context
 B=/target/ffmpeg-bindings/crustify/builds
 LD_LIBRARY_PATH=$B/asan-ubsan/libavutil CRUSTIFY_BUILD_VARIANT=asan-ubsan \
   CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Zsanitizer=address \

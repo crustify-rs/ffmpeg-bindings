@@ -9,7 +9,7 @@
       "home": "src/libavutil/libavutil/samplefmt.rs"
     }
   ],
-  "wave": 10,
+  "wave": "legacy-10",
   "batch": 6,
   "link_unit": "libavutil",
   "module": null,

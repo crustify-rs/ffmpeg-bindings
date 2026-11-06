@@ -177,12 +177,12 @@
       "home": "src/libavutil/libavutil/log.rs"
     }
   ],
-  "wave": 1308,
+  "wave": 30,
   "batch": 0,
   "link_unit": "libavutil",
   "module": "libavutil/common.h",
   "foundational": false,
-  "base_branch": "crustify/waves/wave-1308",
+  "base_branch": "crustify/waves/wave-30",
   "model": "openrouter/anthropic/claude-opus-5.5",
   "billing": "api"
 }
