@@ -2454,3 +2454,12 @@ in `ub_unsafe`. The C figures of the suites the review did not touch moved by un
 is thread timing. The workset's uncovered C paths are allocation failures, and code that needs a
 compiled backend (`av_hwdevice_ctx_alloc`'s success path, `hwdevice_ctx_free`). ffimap moves only
 `code.tests.fn` (+1) and `code.tests.loc.total` (+39).
+
+### Settings: `module-concurrency` answered `concurrent` (2026-11-06)
+
+The settings gain question 13, `module-concurrency`, which crustify's scheduling now asks:
+`concurrent`, so that modules that do not depend on each other run at once, each on its own
+branch, and are integrated into `crustify/devel` one at a time. `gates.module` now asks before
+each module's integration. Review waves leave `schedule.json` for now: the review waves that
+ran keep their records, and those that had not are dropped. The next planner run converts
+`schedule.json` to schema v4 and re-plans every wave that had not finished.
