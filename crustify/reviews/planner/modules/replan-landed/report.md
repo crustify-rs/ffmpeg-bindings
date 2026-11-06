@@ -1,5 +1,12 @@
 # Re-plan of the landed items (planner run 5)
 
+> **Superseded by planner run 8 (2026-11-06).** Run 8 converted `schedule.json` to schema v4
+> and re-planned every wave that had not run. The "new batch" ids below name run 5's waves
+> 672-1277, which run 8 dropped, apart from the ones that ran: 794, 800, 902 (batch 1) and 952
+> (batch 0), whose items it no longer schedules. The other landed items stay re-scheduled, as
+> run 5 decided, in waves 1278-1555. `schedule.json` gives their batches, and run 8's commit
+> message gives the counts. The analysis below is kept as run 5's record.
+
 At the user's instruction, planner run 5 re-planned every module's waves, the items that had already landed included, as if no wave had run. Waves 0-45, the 23 translation and 23 review waves that ran, are kept as records. The `todo` waves 232-669 are dropped, and the re-plan is numbered from 672: wave 670 (the annotation pass's `bprint.rs` smoke batch) and wave 671 (the annotation pass), which the dashboard records, already used 670 and 671, though `schedule.json` has no entry for them. Starting at 670 would have reused both indices, and with them the batch ids and the wave branch, `crustify/waves/wave-671`, that the task.json files of `reviewer/run-52` to `run-128` name. The new waves' `depends_on` name only waves from 672 on.
 
 Each landed item's wrapper exists in the tree. The binder of its new batch finds it and replaces the raw references (`ffi::...`) that the wrappers of the dependencies wrapped before it now make obsolete. Nothing here is a defect of the landed waves: they ran in the order the v2 subsystems planned.

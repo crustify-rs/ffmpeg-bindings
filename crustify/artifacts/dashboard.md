@@ -710,7 +710,8 @@ the corrections it made to what earlier runs committed.
 | 5 | 0 | 0 | `configs/wavefront-config.json`, `configs/<link-unit>/<index>/wavefront-config.json` (161 to the current schema, 1 corrected) | 2 | $7.01 | 14.2M | 37m38s |
 | 6 | — | — | — (stopped after its first requests: its instructions misstated the re-plan's first wave; run 7 replaced it) | 0 | $0.21 | 0.1M | 0m11s |
 | 7 | 0 | 0 | — | 0 | $3.74 | 9.1M | 13m05s |
-| **Σ** | **189** | **691** | | **19** | **$43.14** | **100.8M** | **200m12s** |
+| 8 | 2 | 0 | `configs/wavefront-config.json` (to the current schema: `closure`, 160 `modules`, `schedule_seeds`), `configs/<link-unit>/<index>/wavefront-config.json` (160 removed, folded into `modules`) | 1 | `$<n>` | `<n>M` | `<n>m<n>s` |
+| **Σ** | **191** | **691** | | **20** | **$43.14** | **100.8M** | **200m12s** |
 
 ## Notes
 
@@ -2463,3 +2464,23 @@ branch, and are integrated into `crustify/devel` one at a time. `gates.module` n
 each module's integration. Review waves leave `schedule.json` for now: the review waves that
 ran keep their records, and those that had not are dropped. The next planner run converts
 `schedule.json` to schema v4 and re-plans every wave that had not finished.
+
+### Planner run 8: the module-ordered schedule (2026-11-06)
+
+Planner run 8 converted `schedule.json` to schema v4, at wavefront `71b2c15`. Every wave that had
+not run was re-planned from one wavefront schedule of the whole scope, ordered by modules, with
+cycles cut by the distinct units they leave behind. Waves 0-45 stay as the as-run records. The
+review waves that ran (795, 801, 903 and 953, the last with its batch 0 only) keep their records.
+The 299 `todo` review waves and the 299 `todo` translation waves were dropped. Waves 902 and 952
+keep only the batches that landed, and are `done`. The re-plan appends waves 1278-1555: 278 waves,
+one module each, with 369 wrap batches and 1324 items (204 types, 1111 symbols, 9 callbacks, 1389
+field anchors). Each wave records its module's `layer` and its `sublayer`, and `schedule.json` gains
+`modules`, the order of the 160 modules and the dependencies each one keeps or cuts. As run 5
+decided, the landed items of waves 0-45 stay re-scheduled (559 of them). The 13 items that waves 794,
+800, 902 and 952 landed are no longer scheduled. The waves that need them depend on those waves
+instead. Five wrap waves serve the order's module cuts, each of them right before its first
+consumer: `AVProfile` (codec_desc.c), `AVClass` (opt.c), `AVFilterGraph` (avfilter.c), `AVHWAccel`
+(avcodec.c) and `AVBitStreamFilterGraph` (bitstreamfilter.c). The wavefront configuration became
+the current single file, whose `modules` replace the 160 per-module configurations. `modules.json`'s
+`depends_on` became flat arrays. One record pair was corrected, `avfiltergraph.c` and
+`avfilter.c` (report `avfiltergraph-record-execute-callback`).
